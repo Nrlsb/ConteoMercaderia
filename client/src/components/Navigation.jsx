@@ -47,9 +47,9 @@ const Navigation = () => {
                     {(user?.role === 'admin' || user?.role === 'supervisor') && (
                         <Link to="/list" className={getLinkClass('/list')}>Historial</Link>
                     )}
-                    {user?.role === 'admin' && (
+                    {/* {user?.role === 'admin' && (
                         <Link to="/discrepancies" className={getLinkClass('/discrepancies')}>Discrepancias</Link>
-                    )}
+                    )} */}
                     {user?.role === 'admin' && (
                         <Link to="/admin" className={getLinkClass('/admin')}>Importar</Link>
                     )}
@@ -93,9 +93,9 @@ const Navigation = () => {
                         {(user?.role === 'admin' || user?.role === 'supervisor') && (
                             <Link to="/list" className={getMobileLinkClass('/list')} onClick={() => setIsOpen(false)}>Historial</Link>
                         )}
-                        {user?.role === 'admin' && (
+                        {/* {user?.role === 'admin' && (
                             <Link to="/discrepancies" className={getMobileLinkClass('/discrepancies')} onClick={() => setIsOpen(false)}>Discrepancias</Link>
-                        )}
+                        )} */}
                         {user?.role === 'admin' && (
                             <Link to="/admin" className={getMobileLinkClass('/admin')} onClick={() => setIsOpen(false)}>Importar</Link>
                         )}

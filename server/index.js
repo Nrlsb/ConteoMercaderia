@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 const { parseRemitoPdf } = require('./pdfParser');
+const { parseExcelXml } = require('./xmlParser');
 
 dotenv.config();
 
@@ -397,6 +398,74 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching pre-remito:', error);
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Import Stock from XML (ERP)
+app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    try {
+        const items = await parseExcelXml(req.file.buffer);
+
+        if (!items || items.length === 0) {
+            return res.status(400).json({ message: 'No valid items found in XML' });
+        }
+
+        const orderNumber = `STOCK-${new Date().toISOString().split('T')[0]}-${Date.now().toString().slice(-4)}`;
+
+        // 1. Upsert Products (Ensure they exist in DB)
+        // Extract unique products
+        const productsMap = new Map();
+        items.forEach(item => {
+            if (!productsMap.has(item.code)) {
+                productsMap.set(item.code, {
+                    code: item.code,
+                    description: item.description,
+                    barcode: item.barcode
+                });
+            }
+        });
+
+        const productsParams = Array.from(productsMap.values());
+
+        // Upsert in batches
+        const batchSize = 1000;
+        for (let i = 0; i < productsParams.length; i += batchSize) {
+            const batch = productsParams.slice(i, i + batchSize);
+            const { error: prodError } = await supabase
+                .from('products')
+                .upsert(batch, { onConflict: 'code' }); // Update description/barcode if code exists
+
+            if (prodError) console.error('Error upserting products batch:', prodError);
+        }
+
+        // 2. Create Pre-Remito (Inventory Session)
+        const { data, error } = await supabase
+            .from('pre_remitos')
+            .insert([
+                {
+                    order_number: orderNumber,
+                    items: items, // Save parsed items [ {code, description, quantity}, ... ]
+                    status: 'pending'
+                }
+            ])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.json({
+            message: 'Stock imported successfully',
+            orderNumber: data.order_number,
+            itemCount: items.length
+        });
+
+    } catch (error) {
+        console.error('Error importing XML:', error);
+        res.status(500).json({ message: 'Error importing XML file: ' + error.message });
     }
 });
 
