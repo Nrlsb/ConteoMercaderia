@@ -32,8 +32,16 @@ const RemitoList = () => {
         }
     };
 
-    const handleViewDetails = (remito) => {
-        setSelectedRemito(remito);
+    const handleViewDetails = async (remito) => {
+        try {
+            // Fetch fresh details from backend to trigger lazy-repair if needed
+            const response = await api.get(`/api/remitos/${remito.id}`);
+            setSelectedRemito(response.data);
+        } catch (error) {
+            console.error('Error fetching remito details:', error);
+            // Fallback to list data if fetch fails
+            setSelectedRemito(remito);
+        }
     };
 
     const closeDetails = () => {

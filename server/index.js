@@ -298,13 +298,111 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 app.get('/api/remitos/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from('remitos')
             .select('*')
             .eq('id', id)
             .single();
 
         if (error) throw error;
+
+        // Lazy Repair: If it's a General Count (check by trying to find it in general_counts) 
+        // AND discrepancies are missing/empty, try to generate them.
+        if (!data.discrepancies || Object.keys(data.discrepancies).length === 0) {
+            // Check if this remito_number corresponds to a General Count
+            const { data: generalCount } = await supabase
+                .from('general_counts')
+                .select('id')
+                .eq('id', data.remito_number)
+                .maybeSingle();
+
+            if (generalCount) {
+                console.log(`Reparing discrepancies for General Count Remito: ${id}`);
+
+                // Reuse logic to generate report
+                const { data: scans } = await supabase
+                    .from('inventory_scans')
+                    .select('code, quantity')
+                    .eq('order_number', data.remito_number); // Use remito_number (which is the count ID)
+
+                if (scans && scans.length > 0) {
+                    const totals = {};
+                    scans.forEach(scan => {
+                        totals[scan.code] = (totals[scan.code] || 0) + (scan.quantity || 0);
+                    });
+
+                    const codes = Object.keys(totals);
+                    let productsMap = {};
+
+                    if (codes.length > 0) {
+                        const { data: products } = await supabase
+                            .from('products')
+                            .select('code, description, barcode, current_stock')
+                            .in('code', codes);
+
+                        if (products) {
+                            products.forEach(p => productsMap[p.code] = p);
+                        }
+                    }
+
+                    const report = codes.map(code => {
+                        const stock = productsMap[code]?.current_stock || 0;
+                        const quantity = totals[code] || 0;
+                        return {
+                            code,
+                            barcode: productsMap[code]?.barcode || '',
+                            description: productsMap[code]?.description || 'Desconocido',
+                            quantity,
+                            stock,
+                            difference: quantity - stock
+                        };
+                    });
+
+                    report.sort((a, b) => a.description.localeCompare(b.description));
+
+                    const discrepancies = {
+                        missing: report.filter(i => i.difference < 0).map(i => ({
+                            code: i.code,
+                            barcode: i.barcode,
+                            description: i.description,
+                            expected: i.stock,
+                            scanned: i.quantity,
+                            reason: 'missing'
+                        })),
+                        extra: report.filter(i => i.difference > 0).map(i => ({
+                            code: i.code,
+                            barcode: i.barcode,
+                            description: i.description,
+                            expected: i.stock,
+                            scanned: i.quantity
+                        }))
+                    };
+
+                    // Update DB
+                    await supabase
+                        .from('remitos')
+                        .update({ discrepancies: discrepancies })
+                        .eq('id', id);
+
+                    // Update local data object to return fresh info
+                    data.discrepancies = discrepancies;
+                }
+            }
+        }
+
+        // Also fetch count name if possible to enrich response directly
+        // (Though frontend might need it from list or separate call, let's try to add it here if it's a general count)
+        if (data.remito_number) {
+            const { data: countData } = await supabase
+                .from('general_counts')
+                .select('name')
+                .eq('id', data.remito_number)
+                .maybeSingle();
+
+            if (countData) {
+                data.count_name = countData.name;
+            }
+        }
 
         res.json(data);
     } catch (error) {
