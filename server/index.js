@@ -301,7 +301,15 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             };
         });
 
-        // 5. Enrich Pending Pre-Remitos with Progress and Brands
+        // 5. Fetch Open General Counts
+        const { data: openGeneralCounts, error: openCountsError } = await supabase
+            .from('general_counts')
+            .select('*')
+            .eq('status', 'open');
+
+        if (openCountsError) console.error('Error fetching open general counts:', openCountsError);
+
+        // 6. Enrich Pending Pre-Remitos with Progress and Brands
         const pendingFormatted = await Promise.all(pendingPreRemitos.map(async (pre) => {
             // Fetch scans for this order
             const { data: scans } = await supabase
@@ -362,7 +370,53 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             };
         }));
 
-        // 6. Merge data
+        // 7. Enrich Open General Counts with Scans and Brands
+        const openCountsFormatted = await Promise.all((openGeneralCounts || []).map(async (count) => {
+            const { data: scans } = await supabase
+                .from('inventory_scans')
+                .select('code, quantity')
+                .eq('order_number', count.id);
+
+            let brands = new Set();
+            let totalScanned = 0;
+
+            if (scans && scans.length > 0) {
+                scans.forEach(scan => {
+                    totalScanned += (scan.quantity || 0);
+                });
+
+                const codes = [...new Set(scans.map(s => s.code))];
+                const { data: products } = await supabase
+                    .from('products')
+                    .select('description')
+                    .in('code', codes);
+
+                if (products) {
+                    products.forEach(p => {
+                        if (p.description) {
+                            const brand = p.description.split(' ')[0];
+                            if (brand && brand.length > 2) brands.add(brand.toUpperCase());
+                        }
+                    });
+                }
+            }
+
+            return {
+                id: count.id,
+                remito_number: count.id,
+                items: [], // No expected items
+                status: 'pending_scanned',
+                created_by: count.created_by || 'Admin',
+                date: count.created_at,
+                numero_pv: '-',
+                sucursal: '-',
+                count_name: count.name,
+                progress: null, // No progress for general counts
+                scanned_brands: Array.from(brands).slice(0, 5)
+            };
+        }));
+
+        // 8. Merge data
         const processedFormatted = remitosData.map(remito => {
             const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
             const countName = countsMap[remito.remito_number];
@@ -376,7 +430,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
         });
 
         // Combined and sorted by date
-        const combined = [...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const combined = [...openCountsFormatted, ...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         res.json(combined);
     } catch (error) {

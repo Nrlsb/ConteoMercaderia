@@ -252,7 +252,7 @@ const RemitoList = () => {
                                         </span>
                                     </div>
 
-                                    {remito.status === 'pending_scanned' && (
+                                    {remito.status === 'pending_scanned' && remito.progress !== null && (
                                         <div className="mt-3 mb-4">
                                             <div className="flex justify-between items-center mb-1">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Progreso de Conteo</span>
@@ -268,6 +268,23 @@ const RemitoList = () => {
                                                 <div className="mt-2 flex flex-wrap gap-1">
                                                     {remito.scanned_brands.map(brand => (
                                                         <span key={brand} className="px-1.5 py-0.5 bg-gray-50 text-gray-500 text-[9px] font-medium border border-gray-200 rounded">
+                                                            {brand}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {remito.status === 'pending_scanned' && remito.progress === null && (
+                                        <div className="mt-3 mb-4">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Conteo General Activo</span>
+                                            </div>
+                                            {remito.scanned_brands?.length > 0 && (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {remito.scanned_brands.map(brand => (
+                                                        <span key={brand} className="px-1.5 py-0.5 bg-gray-50 text-gray-400 text-[9px] font-medium border border-gray-200 rounded">
                                                             {brand}
                                                         </span>
                                                     ))}
@@ -373,16 +390,22 @@ const RemitoList = () => {
                                                     </span>
                                                     {remito.status === 'pending_scanned' && (
                                                         <div className="w-32">
-                                                            <div className="flex justify-between items-center mb-0.5">
-                                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Progreso</span>
-                                                                <span className="text-[10px] font-bold text-blue-600">{remito.progress}%</span>
-                                                            </div>
-                                                            <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">
-                                                                <div
-                                                                    className="bg-blue-600 h-full rounded-full transition-all duration-1000"
-                                                                    style={{ width: `${remito.progress}%` }}
-                                                                ></div>
-                                                            </div>
+                                                            {remito.progress !== null ? (
+                                                                <>
+                                                                    <div className="flex justify-between items-center mb-0.5">
+                                                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Progreso</span>
+                                                                        <span className="text-[10px] font-bold text-blue-600">{remito.progress}%</span>
+                                                                    </div>
+                                                                    <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">
+                                                                        <div
+                                                                            className="bg-blue-600 h-full rounded-full transition-all duration-1000"
+                                                                            style={{ width: `${remito.progress}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter block mb-1">Conteo General</span>
+                                                            )}
                                                             {remito.scanned_brands?.length > 0 && (
                                                                 <div className="mt-1.5 flex flex-wrap gap-1 max-w-[150px]">
                                                                     {remito.scanned_brands.map(brand => (
