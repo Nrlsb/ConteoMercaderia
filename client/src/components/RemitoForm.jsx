@@ -14,22 +14,43 @@ const RemitoForm = () => {
     const [remitoNumber, setRemitoNumber] = useState('');
     const [isScanning, setIsScanning] = useState(false);
 
-    // Effect to initialize based on countMode
+    // General Count State
+    const [activeGeneralCount, setActiveGeneralCount] = useState(null);
+    const [newCountName, setNewCountName] = useState('');
+
+    // Poll for active general count
     useEffect(() => {
+        let interval;
         if (countMode === 'products') {
-            // Check if we need to init a free count session
-            if (!remitoNumber || !remitoNumber.startsWith('FREE-')) {
-                setRemitoNumber(`FREE-${Date.now().toString().slice(-6)}`);
-                setExpectedItems(null); // No expectation for free count
-                setPreRemitoNumber('');
-            }
+            const fetchActiveCount = async () => {
+                try {
+                    const res = await api.get('/api/general-counts/active');
+                    setActiveGeneralCount(res.data);
+
+                    if (res.data) {
+                        setRemitoNumber(res.data.id); // Use the General Count ID as the grouping key
+                        setExpectedItems(null);
+                        setPreRemitoNumber('');
+                    } else {
+                        // Unlike free count, if no active count, we don't set a number.
+                        // User is blocked until admin starts one.
+                        setRemitoNumber('');
+                    }
+                } catch (error) {
+                    console.error('Error fetching active count:', error);
+                }
+            };
+
+            fetchActiveCount();
+            interval = setInterval(fetchActiveCount, 5000); // Poll every 5 seconds
         } else {
-            // If switching back to pre_remito, clear the free count number only if it was auto-generated
-            if (remitoNumber && remitoNumber.startsWith('FREE-')) {
+            setActiveGeneralCount(null);
+            if (remitoNumber) {
                 setRemitoNumber('');
                 setExpectedItems(null);
             }
         }
+        return () => clearInterval(interval);
     }, [countMode]);
 
     // Pre-remito state
@@ -460,6 +481,33 @@ const RemitoForm = () => {
         }
     };
 
+    const handleStartGeneralCount = async () => {
+        if (!newCountName.trim()) return triggerModal('Error', 'Ingrese un nombre para el conteo', 'warning');
+        try {
+            const res = await api.post('/api/general-counts', { name: newCountName });
+            setActiveGeneralCount(res.data);
+            setNewCountName('');
+            setRemitoNumber(res.data.id);
+            triggerModal('Éxito', 'Conteo General iniciado', 'success');
+        } catch (error) {
+            triggerModal('Error', error.response?.data?.message || 'Error al iniciar conteo', 'error');
+        }
+    };
+
+    const handleStopGeneralCount = async () => {
+        if (!activeGeneralCount) return;
+        if (!window.confirm('¿Seguro que desea finalizar este conteo general? Nadie podrá seguir escaneando en él.')) return;
+
+        try {
+            await api.put(`/api/general-counts/${activeGeneralCount.id}/close`);
+            setActiveGeneralCount(null);
+            setRemitoNumber('');
+            triggerModal('Éxito', 'Conteo finalizado', 'success');
+        } catch (error) {
+            triggerModal('Error', 'Error al finalizar conteo', 'error');
+        }
+    };
+
     // Helper to get expected quantity
     const getExpectedQty = (code) => {
         if (!expectedItems) return null;
@@ -611,6 +659,73 @@ const RemitoForm = () => {
                     {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </div>
             </div>
+
+            {/* General Count Manager - Only for 'products' mode */}
+            {countMode === 'products' && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${activeGeneralCount ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">
+                                    {activeGeneralCount ? `Conteo: ${activeGeneralCount.name}` : 'Modo General (SB2)'}
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                    {activeGeneralCount
+                                        ? 'Los productos escaneados se asignarán a este conteo grupal.'
+                                        : 'No hay un conteo general activo actualmente.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Admin Controls */}
+                        {user?.role === 'admin' ? (
+                            <div className="flex items-center gap-2 w-full md:w-auto">
+                                {!activeGeneralCount ? (
+                                    <>
+                                        <input
+                                            type="text"
+                                            placeholder="Nombre del conteo (ej: Inventario Enero)"
+                                            value={newCountName}
+                                            onChange={(e) => setNewCountName(e.target.value)}
+                                            className="flex-1 md:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                        />
+                                        <button
+                                            onClick={handleStartGeneralCount}
+                                            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 whitespace-nowrap"
+                                        >
+                                            Iniciar
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={handleStopGeneralCount}
+                                        className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 border border-red-200"
+                                    >
+                                        Finalizar Conteo
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            /* User View - Status Only */
+                            <div className="text-right">
+                                {activeGeneralCount ? (
+                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                        <span className="w-2 h-2 mr-2 bg-green-500 rounded-full animate-pulse"></span>
+                                        Activo
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                                        Esperando inicio...
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Pre-Remito Section - Only Visible if countMode is 'pre_remito' */}
             {countMode === 'pre_remito' && (

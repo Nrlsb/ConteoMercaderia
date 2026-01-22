@@ -33,8 +33,8 @@ const SettingsPage = () => {
                         <button
                             onClick={() => setCountMode('pre_remito')}
                             className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'pre_remito'
-                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
-                                    : 'border-gray-200 hover:border-blue-300'
+                                ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
+                                : 'border-gray-200 hover:border-blue-300'
                                 }`}
                         >
                             <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'pre_remito' ? 'border-brand-blue' : 'border-gray-400'
@@ -43,7 +43,7 @@ const SettingsPage = () => {
                             </div>
                             <div>
                                 <span className={`block font-bold ${countMode === 'pre_remito' ? 'text-brand-blue' : 'text-gray-700'}`}>
-                                    Desde Carga (Pre-Remito)
+                                    Desde Carga (Conteo Específico)
                                 </span>
                                 <span className="text-sm text-gray-500 mt-1">
                                     Requiere cargar un pedido/lista antes de escanear. Valida cantidades esperadas.
@@ -54,8 +54,8 @@ const SettingsPage = () => {
                         <button
                             onClick={() => setCountMode('products')}
                             className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'products'
-                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
-                                    : 'border-gray-200 hover:border-blue-300'
+                                ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
+                                : 'border-gray-200 hover:border-blue-300'
                                 }`}
                         >
                             <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'products' ? 'border-brand-blue' : 'border-gray-400'
@@ -64,10 +64,10 @@ const SettingsPage = () => {
                             </div>
                             <div>
                                 <span className={`block font-bold ${countMode === 'products' ? 'text-brand-blue' : 'text-gray-700'}`}>
-                                    Desde Productos (Libre)
+                                    General (Tabla SB2)
                                 </span>
                                 <span className="text-sm text-gray-500 mt-1">
-                                    Escaneo libre contra la base de datos de productos. Sin cantidades pre-definidas.
+                                    Escaneo libre contra la base de datos de productos (SB2). Sin cantidades pre-definidas.
                                 </span>
                             </div>
                         </button>
