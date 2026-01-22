@@ -459,7 +459,13 @@ const RemitoForm = () => {
             const currentItem = items.find(i => i.code === code);
             const totalQuantity = currentItem ? currentItem.quantity + quantityToAdd : quantityToAdd;
 
-            await api.post('/api/inventory/scan', {
+            console.log('Intentando sincronizar:', {
+                orderNumber: activeGeneralCount.id,
+                code: code,
+                quantity: totalQuantity
+            });
+
+            const response = await api.post('/api/inventory/scan', {
                 orderNumber: activeGeneralCount.id,
                 items: [{
                     code: code,
@@ -470,7 +476,16 @@ const RemitoForm = () => {
             console.log(`✅ Sincronizado a inventory_scans: ${code} x${totalQuantity}`);
         } catch (error) {
             console.error('Error syncing to inventory_scans:', error);
-            triggerModal('Advertencia', 'Error al sincronizar. Los datos se guardarán localmente.', 'warning');
+            console.error('Detalles del error:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
+
+            // Solo mostrar modal si no es error de autenticación
+            if (error.response?.status !== 401) {
+                triggerModal('Advertencia', 'Error al sincronizar. Los datos se guardarán localmente.', 'warning');
+            }
         }
     };
 
