@@ -665,6 +665,46 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         report.sort((a, b) => a.description.localeCompare(b.description));
 
+        // 3. Save snapshot to Remitos table (Upsert logic manual since remito_number might not be unique in schema)
+        const discrepancies = {
+            missing: report.filter(i => i.difference < 0).map(i => ({
+                code: i.code,
+                barcode: i.barcode,
+                description: i.description,
+                expected: i.stock,
+                scanned: i.quantity,
+                reason: 'missing'
+            })),
+            extra: report.filter(i => i.difference > 0).map(i => ({
+                code: i.code,
+                barcode: i.barcode,
+                description: i.description,
+                expected: i.stock,
+                scanned: i.quantity
+            }))
+        };
+
+        const { data: existingRemito } = await supabase
+            .from('remitos')
+            .select('id')
+            .eq('remito_number', id)
+            .maybeSingle();
+
+        const remitoData = {
+            remito_number: id,
+            items: scans, // Save the raw aggregated scans as items
+            discrepancies: discrepancies,
+            status: 'processed',
+            date: new Date().toISOString(),
+            created_by: req.user ? req.user.username : 'Sistema'
+        };
+
+        if (existingRemito) {
+            await supabase.from('remitos').update(remitoData).eq('id', existingRemito.id);
+        } else {
+            await supabase.from('remitos').insert([remitoData]);
+        }
+
         res.json({ count: updatedCount, report });
     } catch (error) {
         console.error('Error closing count:', error);

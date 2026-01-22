@@ -356,8 +356,11 @@ const RemitoList = () => {
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
                         <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-white">
                             <div>
-                                <h3 className="text-base font-bold text-gray-900">Remito: {selectedRemito.remito_number}</h3>
+                                <h3 className="text-base font-bold text-gray-900">
+                                    {selectedRemito.count_name ? `Conteo: ${selectedRemito.count_name}` : `Remito: ${selectedRemito.remito_number}`}
+                                </h3>
                                 <p className="text-xs text-gray-500 mt-0.5">
+                                    {selectedRemito.count_name && <span className="block text-xs font-mono text-gray-400 mb-0.5">{selectedRemito.remito_number}</span>}
                                     Creado por: <span className="font-medium">{selectedRemito.created_by || 'Sistema'}</span>
                                 </p>
                             </div>
@@ -517,8 +520,9 @@ const RemitoList = () => {
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 
