@@ -168,6 +168,26 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
     }
 });
 
+// Search products (DEBE IR ANTES de /:barcode para evitar conflicto de routing)
+app.get('/api/products/search', verifyToken, async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .select('code, description, barcode')
+            .or(`code.ilike.%${q}%,description.ilike.%${q}%`)
+            .limit(20);
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error searching products:', error);
+        res.status(500).json({ message: 'Error searching products' });
+    }
+});
+
 // Get product by barcode
 app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;
@@ -189,26 +209,6 @@ app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching product:', error);
         res.status(500).json({ message: 'Internal server error' });
-    }
-});
-
-// Search products
-app.get('/api/products/search', verifyToken, async (req, res) => {
-    const { q } = req.query;
-    if (!q || q.length < 2) return res.json([]);
-
-    try {
-        const { data, error } = await supabase
-            .from('products')
-            .select('code, description, barcode')
-            .or(`code.ilike.%${q}%,description.ilike.%${q}%`)
-            .limit(20);
-
-        if (error) throw error;
-        res.json(data);
-    } catch (error) {
-        console.error('Error searching products:', error);
-        res.status(500).json({ message: 'Error searching products' });
     }
 });
 
