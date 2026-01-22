@@ -341,40 +341,74 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
         }
 
         // 2. Try to fetch Granular Scans (for General Counts or tracked sessions)
+        // Fetch scans with user_id and code
         const { data: scans, error: scansError } = await supabase
             .from('inventory_scans')
-            .select(`
-                quantity,
-                code,
-                users (username),
-                products (description)
-            `)
+            .select('user_id, code, quantity')
             .eq('order_number', remito.remito_number);
+
+        if (scansError) {
+            console.error('Error fetching scans:', scansError);
+        }
 
         let userCounts = [];
 
         if (!scansError && scans && scans.length > 0) {
+            // Extract unique user IDs and product codes
+            const userIds = [...new Set(scans.map(s => s.user_id))];
+            const codes = [...new Set(scans.map(s => s.code))];
+
+            // Fetch users
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, username')
+                .in('id', userIds);
+
+            // Fetch products
+            const { data: products } = await supabase
+                .from('products')
+                .select('code, description')
+                .in('code', codes);
+
+            // Create lookup maps
+            const userMap = {};
+            const productMap = {};
+
+            if (users) {
+                users.forEach(u => userMap[u.id] = u.username);
+            }
+
+            if (products) {
+                products.forEach(p => productMap[p.code] = p.description);
+            }
+
+            // Enrich scans with user and product info
+            scans.forEach(scan => {
+                scan.users = { username: userMap[scan.user_id] || 'Desconocido' };
+                scan.products = { description: productMap[scan.code] || 'Sin descripción' };
+            });
+
             // Group by User
-            const userMap = {}; // { username: { items: [], totalItems: 0, totalUnits: 0 } }
+            const userCountsMap = {}; // { username: { items: [], totalItems: 0, totalUnits: 0 } }
 
             scans.forEach(scan => {
                 const username = scan.users?.username || 'Desconocido';
-                if (!userMap[username]) {
-                    userMap[username] = { username, items: [], totalItems: 0, totalUnits: 0 };
+                if (!userCountsMap[username]) {
+                    userCountsMap[username] = { username, items: [], totalItems: 0, totalUnits: 0 };
                 }
 
                 const description = scan.products?.description || 'Sin descripción';
 
-                userMap[username].items.push({
+                userCountsMap[username].items.push({
                     code: scan.code,
                     description: description,
                     quantity: scan.quantity
                 });
-                userMap[username].totalItems += 1;
-                userMap[username].totalUnits += scan.quantity;
+                userCountsMap[username].totalItems += 1;
+                userCountsMap[username].totalUnits += scan.quantity;
             });
 
-            userCounts = Object.values(userMap);
+            userCounts = Object.values(userCountsMap);
         } else {
             // Fallback for Single User Counts
             userCounts = [{
@@ -419,8 +453,44 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         // 2. Fetch User Scans
         const { data: scans } = await supabase
             .from('inventory_scans')
-            .select('quantity, code, users(username), products(description)')
+            .select('user_id, code, quantity')
             .eq('order_number', remito.remito_number);
+
+        // Enrich scans with user and product info if we have scans
+        if (scans && scans.length > 0) {
+            const userIds = [...new Set(scans.map(s => s.user_id))];
+            const codes = [...new Set(scans.map(s => s.code))];
+
+            // Fetch users
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, username')
+                .in('id', userIds);
+
+            // Fetch products
+            const { data: products } = await supabase
+                .from('products')
+                .select('code, description')
+                .in('code', codes);
+
+            // Create lookup maps
+            const userMap = {};
+            const productMap = {};
+
+            if (users) {
+                users.forEach(u => userMap[u.id] = u.username);
+            }
+
+            if (products) {
+                products.forEach(p => productMap[p.code] = p.description);
+            }
+
+            // Enrich scans
+            scans.forEach(scan => {
+                scan.users = { username: userMap[scan.user_id] || 'Desconocido' };
+                scan.products = { description: productMap[scan.code] || 'Sin descripción' };
+            });
+        }
 
         const xlsx = require('xlsx');
         const workbook = xlsx.utils.book_new();
