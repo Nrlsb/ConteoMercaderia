@@ -397,7 +397,7 @@ const RemitoForm = () => {
         }
     }, []); // Empty dependency array as we use refs/setters
 
-    const handleFichajeConfirm = (quantityToAdd) => {
+    const handleFichajeConfirm = async (quantityToAdd) => {
         const { product, expectedQuantity } = fichajeState;
         if (!product) return;
 
@@ -433,12 +433,44 @@ const RemitoForm = () => {
         // Close modal
         setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
 
+        // Auto-sync to inventory_scans if in general count mode
+        if (countMode === 'products' && activeGeneralCount) {
+            // Wait for state update, then sync
+            setTimeout(async () => {
+                await syncToInventoryScans(product.code, quantityToAdd);
+            }, 100);
+        }
+
         // Optional: Trigger success sound or visual feedback
         if (expectedQuantity !== null && expectedQuantity !== undefined) {
             const currentQty = (items.find(i => i.code === product.code)?.quantity || 0);
             if (currentQty + quantityToAdd > expectedQuantity) {
                 triggerModal('Advertencia', `Se ha superado la cantidad solicitada para ${product.name}`, 'warning');
             }
+        }
+    };
+
+    // Sync to inventory_scans for general count mode
+    const syncToInventoryScans = async (code, quantityToAdd) => {
+        if (!activeGeneralCount) return;
+
+        try {
+            // Get current item from state
+            const currentItem = items.find(i => i.code === code);
+            const totalQuantity = currentItem ? currentItem.quantity + quantityToAdd : quantityToAdd;
+
+            await api.post('/api/inventory/scan', {
+                orderNumber: activeGeneralCount.id,
+                items: [{
+                    code: code,
+                    quantity: totalQuantity
+                }]
+            });
+
+            console.log(`✅ Sincronizado a inventory_scans: ${code} x${totalQuantity}`);
+        } catch (error) {
+            console.error('Error syncing to inventory_scans:', error);
+            triggerModal('Advertencia', 'Error al sincronizar. Los datos se guardarán localmente.', 'warning');
         }
     };
 
@@ -509,22 +541,31 @@ const RemitoForm = () => {
         try {
             const response = await api.put(`/api/general-counts/${activeGeneralCount.id}/close`);
 
+            // DEBUG: Ver qué retorna el backend
+            console.log('Respuesta completa del backend:', response);
+            console.log('response.data:', response.data);
+            console.log('response.data.report:', response.data.report);
+
             // Capturar el reporte del backend
             const reportData = response.data.report;
 
             // Mostrar el reporte en el modal
             if (reportData && reportData.length > 0) {
+                console.log('Abriendo ReportModal con datos:', reportData);
                 setReportConfig({
                     isOpen: true,
                     data: reportData,
                     title: `Reporte de Conteo: ${activeGeneralCount.name}`
                 });
+            } else {
+                console.warn('No hay datos de reporte o está vacío:', reportData);
             }
 
             setActiveGeneralCount(null);
             setRemitoNumber('');
             triggerModal('Éxito', 'Conteo finalizado. Revise el reporte generado.', 'success');
         } catch (error) {
+            console.error('Error al finalizar conteo:', error);
             triggerModal('Error', 'Error al finalizar conteo', 'error');
         }
     };
@@ -1000,25 +1041,38 @@ const RemitoForm = () => {
                             )}
                         </div>
 
-                        <div className="p-4 bg-white border-t border-gray-200">
-                            <button
-                                onClick={handleSubmitRemito}
-                                disabled={items.length === 0 || !remitoNumber}
-                                className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center shadow-lg ${items.length > 0 && remitoNumber
-                                    ? 'bg-brand-success text-white hover:bg-green-600 hover:shadow-xl transform hover:-translate-y-0.5'
-                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                                    }`}
-                            >
-                                {items.length > 0 && remitoNumber ? (
-                                    <>
-                                        <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                        Cargar Conteo
-                                    </>
-                                ) : (
-                                    'Cargar Conteo'
-                                )}
-                            </button>
-                        </div>
+                        {/* Solo mostrar botón de submit en modo pre-remito */}
+                        {countMode !== 'products' && (
+                            <div className="p-4 bg-white border-t border-gray-200">
+                                <button
+                                    onClick={handleSubmitRemito}
+                                    disabled={items.length === 0 || !remitoNumber}
+                                    className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center shadow-lg ${items.length > 0 && remitoNumber
+                                        ? 'bg-brand-success text-white hover:bg-green-600 hover:shadow-xl transform hover:-translate-y-0.5'
+                                        : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                                        }`}
+                                >
+                                    {items.length > 0 && remitoNumber ? (
+                                        <>
+                                            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                            Cargar Conteo
+                                        </>
+                                    ) : (
+                                        'Cargar Conteo'
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Mensaje informativo en modo general */}
+                        {countMode === 'products' && activeGeneralCount && (
+                            <div className="p-4 bg-blue-50 border-t border-blue-200">
+                                <div className="flex items-center text-sm text-blue-800">
+                                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span className="font-medium">Los productos se sincronizan automáticamente. El administrador cerrará el conteo cuando todos terminen.</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
