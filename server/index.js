@@ -419,6 +419,44 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             }];
         }
 
+        // Update discrepancy descriptions with current product data
+        if (remito.discrepancies && (remito.discrepancies.missing?.length > 0 || remito.discrepancies.extra?.length > 0)) {
+            const discrepancyCodes = [
+                ...(remito.discrepancies.missing || []).map(d => d.code),
+                ...(remito.discrepancies.extra || []).map(d => d.code)
+            ];
+
+            if (discrepancyCodes.length > 0) {
+                const { data: products } = await supabase
+                    .from('products')
+                    .select('code, description')
+                    .in('code', discrepancyCodes);
+
+                if (products && products.length > 0) {
+                    const productMap = {};
+                    products.forEach(p => productMap[p.code] = p.description);
+
+                    // Update missing items descriptions
+                    if (remito.discrepancies.missing) {
+                        remito.discrepancies.missing.forEach(item => {
+                            if (productMap[item.code]) {
+                                item.description = productMap[item.code];
+                            }
+                        });
+                    }
+
+                    // Update extra items descriptions
+                    if (remito.discrepancies.extra) {
+                        remito.discrepancies.extra.forEach(item => {
+                            if (productMap[item.code]) {
+                                item.description = productMap[item.code];
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
         res.json({
             remito,
             userCounts
@@ -490,6 +528,44 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
                 scan.users = { username: userMap[scan.user_id] || 'Desconocido' };
                 scan.products = { description: productMap[scan.code] || 'Sin descripción' };
             });
+        }
+
+        // Update discrepancy descriptions with current product data
+        if (remito.discrepancies && (remito.discrepancies.missing?.length > 0 || remito.discrepancies.extra?.length > 0)) {
+            const discrepancyCodes = [
+                ...(remito.discrepancies.missing || []).map(d => d.code),
+                ...(remito.discrepancies.extra || []).map(d => d.code)
+            ];
+
+            if (discrepancyCodes.length > 0) {
+                const { data: products } = await supabase
+                    .from('products')
+                    .select('code, description')
+                    .in('code', discrepancyCodes);
+
+                if (products && products.length > 0) {
+                    const productMap = {};
+                    products.forEach(p => productMap[p.code] = p.description);
+
+                    // Update missing items descriptions
+                    if (remito.discrepancies.missing) {
+                        remito.discrepancies.missing.forEach(item => {
+                            if (productMap[item.code]) {
+                                item.description = productMap[item.code];
+                            }
+                        });
+                    }
+
+                    // Update extra items descriptions
+                    if (remito.discrepancies.extra) {
+                        remito.discrepancies.extra.forEach(item => {
+                            if (productMap[item.code]) {
+                                item.description = productMap[item.code];
+                            }
+                        });
+                    }
+                }
+            }
         }
 
         const xlsx = require('xlsx');
