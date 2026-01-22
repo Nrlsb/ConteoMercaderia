@@ -503,19 +503,78 @@ const RemitoForm = () => {
         const value = e.target.value;
         setManualCode(value);
 
-        if (!expectedItems || value.length < 2) {
+        if (value.length < 2) {
             setShowSuggestions(false);
+            setManualSuggestions([]);
             return;
         }
 
-        // Filter expected items by description or code
-        const matches = expectedItems.filter(item =>
-            (item.description && item.description.toLowerCase().includes(value.toLowerCase())) ||
-            (item.code && item.code.toLowerCase().includes(value.toLowerCase()))
-        );
+        if (expectedItems) {
+            // Filter expected items by description or code
+            const matches = expectedItems.filter(item =>
+                (item.description && item.description.toLowerCase().includes(value.toLowerCase())) ||
+                (item.code && item.code.toLowerCase().includes(value.toLowerCase()))
+            );
+            setManualSuggestions(matches.slice(0, 5));
+            setShowSuggestions(matches.length > 0);
+        } else {
+            // General Mode: Search via API with debounce
+            const handler = setTimeout(async () => {
+                try {
+                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                    setManualSuggestions(res.data);
+                    setShowSuggestions(res.data.length > 0);
+                } catch (error) {
+                    console.error('Error searching products:', error);
+                }
+            }, 300);
 
-        setManualSuggestions(matches.slice(0, 5)); // Limit to 5 suggestions
-        setShowSuggestions(matches.length > 0);
+            // Cleanup previous timeout works because React re-renders component?
+            // Wait, this is inside render logic loop if not careful. 
+            // Better to wrap in useEffect or use a ref for timeout.
+            // Simplified inline approach usually has issues without cleanup refs.
+            // Let's use a simple approach: Trigger it but clear previous timeout stored in a ref.
+
+            return () => clearTimeout(handler); // This won't work in event handler directly.
+        }
+    };
+
+    // Ref for debounce
+    const searchTimeoutRef = React.useRef(null);
+
+    const handleManualChangeDebounced = (e) => {
+        const value = e.target.value;
+        setManualCode(value);
+
+        if (value.length < 2) {
+            setShowSuggestions(false);
+            setManualSuggestions([]);
+            return;
+        }
+
+        if (expectedItems) {
+            const matches = expectedItems.filter(item =>
+                (item.description && item.description.toLowerCase().includes(value.toLowerCase())) ||
+                (item.code && item.code.toLowerCase().includes(value.toLowerCase()))
+            );
+            setManualSuggestions(matches.slice(0, 5));
+            setShowSuggestions(matches.length > 0);
+        } else {
+            // Clear previous
+            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+            searchTimeoutRef.current = setTimeout(async () => {
+                try {
+                    // Only search if value matches current input (basic consistency check)
+                    // But since we are in timeout closure, 'value' is fixed.
+                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                    setManualSuggestions(res.data);
+                    setShowSuggestions(res.data.length > 0);
+                } catch (error) {
+                    console.error('Error searching products:', error);
+                }
+            }, 300);
+        }
     };
 
     const handleSelectSuggestion = (product) => {
@@ -917,7 +976,7 @@ const RemitoForm = () => {
                                 <input
                                     type="text"
                                     value={manualCode}
-                                    onChange={handleManualChange}
+                                    onChange={handleManualChangeDebounced}
                                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Delay to allow click on suggestion
                                     onFocus={() => manualCode.length >= 2 && setShowSuggestions(true)}
                                     className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition text-base"

@@ -192,6 +192,26 @@ app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     }
 });
 
+// Search products
+app.get('/api/products/search', verifyToken, async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .select('code, description, barcode')
+            .or(`code.ilike.%${q}%,description.ilike.%${q}%`)
+            .limit(20);
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error searching products:', error);
+        res.status(500).json({ message: 'Error searching products' });
+    }
+});
+
 // Create new remito
 app.post('/api/remitos', verifyToken, async (req, res) => {
     const { remitoNumber, items, discrepancies, clarification } = req.body;
@@ -732,33 +752,42 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
             totals[scan.code] = (totals[scan.code] || 0) + (scan.quantity || 0);
         });
 
-        // Loop products
         const codes = Object.keys(totals);
-        let productsMap = {};
 
-        if (codes.length > 0) {
-            const { data: products, error: prodError } = await supabase
-                .from('products')
-                .select('code, description, barcode, current_stock')
-                .in('code', codes);
+        // 3. Fetch ALL Products
+        // We need the full list to show items that were NOT scanned (quantity 0)
+        const { data: allProducts, error: prodError } = await supabase
+            .from('products')
+            .select('code, description, barcode, current_stock');
 
-            if (!prodError && products) {
-                products.forEach(p => productsMap[p.code] = p);
-            }
-        }
+        if (prodError) throw prodError;
 
-        // Build Report Array
-        const report = codes.map(code => {
-            const stock = productsMap[code]?.current_stock || 0;
-            const quantity = totals[code] || 0;
+        // Build Report Array iterating over ALL products
+        const report = allProducts.map(product => {
+            const quantity = totals[product.code] || 0;
             return {
-                code,
-                barcode: productsMap[code]?.barcode || '',
-                description: productsMap[code]?.description || 'Desconocido',
+                code: product.code,
+                barcode: product.barcode || '',
+                description: product.description || 'Sin descripción',
                 quantity,
-                stock,
-                difference: quantity - stock
+                stock: product.current_stock || 0,
+                difference: quantity - (product.current_stock || 0)
             };
+        });
+
+        // Add any scanned items that might not exist in products table (should not happen usually but safe to handle)
+        const productCodes = new Set(allProducts.map(p => p.code));
+        codes.forEach(scannedCode => {
+            if (!productCodes.has(scannedCode)) {
+                report.push({
+                    code: scannedCode,
+                    barcode: '',
+                    description: 'Producto Desconocido (No en BD)',
+                    quantity: totals[scannedCode],
+                    stock: 0,
+                    difference: totals[scannedCode]
+                });
+            }
         });
 
         report.sort((a, b) => a.description.localeCompare(b.description));
