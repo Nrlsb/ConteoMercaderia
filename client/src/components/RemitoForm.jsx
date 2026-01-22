@@ -302,7 +302,7 @@ const RemitoForm = () => {
             });
 
             console.log('Remito submitted:', response.data);
-            triggerModal('Éxito', 'Remito guardado correctamente', 'success');
+            triggerModal('Éxito', 'Conteo guardado con éxito', 'success');
 
             // Reset form
             setItems([]);

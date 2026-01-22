@@ -265,9 +265,9 @@ const RemitoList = () => {
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pedido Venta</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pre-Remito</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sucursal</th>
+
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conteo</th>
+
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
@@ -281,9 +281,9 @@ const RemitoList = () => {
                                     [...Array(5)].map((_, i) => (
                                         <tr key={i} className="animate-pulse">
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
-                                            <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
-                                            <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-12"></div></td>
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
@@ -294,7 +294,7 @@ const RemitoList = () => {
                                     ))
                                 ) : filteredRemitos.length === 0 ? (
                                     <tr>
-                                        <td colSpan={user?.role === 'admin' ? "8" : "7"} className="px-6 py-10 text-center text-gray-500">
+                                        <td colSpan={user?.role === 'admin' ? "6" : "5"} className="px-6 py-10 text-center text-gray-500">
                                             No se encontraron remitos
                                         </td>
                                     </tr>
@@ -309,15 +309,11 @@ const RemitoList = () => {
                                                     {new Date(remito.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </td>
+
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="text-sm text-gray-900 font-mono">{remito.numero_pv || '-'}</span>
+                                                <span className="text-sm font-semibold text-brand-blue font-mono">{remito.count_name || remito.remito_number}</span>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="text-sm font-semibold text-brand-blue font-mono">{remito.remito_number}</span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="text-sm text-gray-500">{remito.sucursal || '-'}</span>
-                                            </td>
+
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                                                     {remito.items?.length || 0}

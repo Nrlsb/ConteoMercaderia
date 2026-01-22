@@ -255,7 +255,17 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 
         if (preRemitosError) throw preRemitosError;
 
-        // 3. Create a lookup map for speed
+        // 3. Fetch General Counts names
+        const { data: countsData } = await supabase
+            .from('general_counts')
+            .select('id, name');
+
+        const countsMap = {};
+        if (countsData) {
+            countsData.forEach(c => countsMap[c.id] = c.name);
+        }
+
+        // 4. Create a lookup map for speed
         const preRemitoMap = {};
         preRemitosData.forEach(pre => {
             preRemitoMap[pre.order_number] = {
@@ -264,13 +274,16 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             };
         });
 
-        // 4. Merge data
+        // 5. Merge data
         const formattedData = remitosData.map(remito => {
             const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
+            const countName = countsMap[remito.remito_number];
+
             return {
                 ...remito,
                 numero_pv: extraInfo.numero_pv,
-                sucursal: extraInfo.sucursal
+                sucursal: extraInfo.sucursal,
+                count_name: countName || null // Provide name if available
             };
         });
 
