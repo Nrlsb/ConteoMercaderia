@@ -109,15 +109,17 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
 
         for (const row of rawData) {
             // Helper to find key containing string (handling whitespace)
-            const findKey = (partialKey) => Object.keys(row).find(k => k.trim() === partialKey);
+            const findKey = (partialKey) => Object.keys(row).find(k => k.trim().toLowerCase().includes(partialKey.toLowerCase()));
 
             const codeKey = findKey('Producto');
-            const descKey = findKey('Desc. Prod');
-            const barcodeKey = findKey('CodeBar');
+            const descKey = findKey('Desc'); // Matches 'Desc. Prod', 'Descripcion', etc
+            const barcodeKey = findKey('CodeBar') || findKey('BarCode');
+            const stockKey = findKey('Saldo') || findKey('Stock') || findKey('Cantidad');
 
             const code = row[codeKey] ? String(row[codeKey]).trim() : null;
             const description = row[descKey] ? String(row[descKey]).trim() : null;
             let barcode = row[barcodeKey] ? String(row[barcodeKey]).trim() : null;
+            let stock = row[stockKey] ? parseFloat(row[stockKey]) : 0;
 
             if (!code) continue;
 
@@ -134,7 +136,8 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
             products.push({
                 code: code,
                 description: description,
-                barcode: barcode
+                barcode: barcode,
+                current_stock: isNaN(stock) ? 0 : stock
             });
         }
 
@@ -527,6 +530,132 @@ app.put('/api/settings', verifyToken, verifyAdmin, async (req, res) => {
     } catch (error) {
         console.error('Server error updating settings:', error);
         res.status(500).json({ message: 'Error updating settings' });
+    }
+});
+
+// General Counts API
+app.get('/api/general-counts/active', verifyToken, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('general_counts')
+            .select('*')
+            .eq('status', 'open')
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('Error fetching active count:', error);
+            return res.status(500).json({ message: 'Error fetching active count' });
+        }
+
+        res.json(data || null);
+    } catch (error) {
+        console.error('Server error fetching active count:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+app.post('/api/general-counts', verifyToken, verifyAdmin, async (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ message: 'Name is required' });
+
+    try {
+        // Check for existing open count
+        const { data: existing } = await supabase
+            .from('general_counts')
+            .select('id')
+            .eq('status', 'open')
+            .single();
+
+        if (existing) {
+            return res.status(400).json({ message: 'Ya existe un conteo activo. Debe cerrarlo antes de iniciar uno nuevo.' });
+        }
+
+        const { data, error } = await supabase
+            .from('general_counts')
+            .insert([{
+                name,
+                status: 'open'
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            if (error.code === '42P01') {
+                return res.status(500).json({ message: 'Table missing. Run setup_general_counts.sql' });
+            }
+            throw error;
+        }
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error creating count:', error);
+        res.status(500).json({ message: 'Error creating count' });
+    }
+});
+
+app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Close the count
+        const { data: updatedCount, error: updateError } = await supabase
+            .from('general_counts')
+            .update({ status: 'closed', closed_at: new Date() })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
+
+        // 2. Generate Report
+        const { data: scans, error: scansError } = await supabase
+            .from('inventory_scans')
+            .select('code, quantity')
+            .eq('order_number', id);
+
+        if (scansError) throw scansError;
+
+        // Aggregate
+        const totals = {};
+        scans.forEach(scan => {
+            totals[scan.code] = (totals[scan.code] || 0) + (scan.quantity || 0);
+        });
+
+        // Loop products
+        const codes = Object.keys(totals);
+        let productsMap = {};
+
+        if (codes.length > 0) {
+            const { data: products, error: prodError } = await supabase
+                .from('products')
+                .select('code, description, barcode, current_stock')
+                .in('code', codes);
+
+            if (!prodError && products) {
+                products.forEach(p => productsMap[p.code] = p);
+            }
+        }
+
+        // Build Report Array
+        const report = codes.map(code => {
+            const stock = productsMap[code]?.current_stock || 0;
+            const quantity = totals[code] || 0;
+            return {
+                code,
+                barcode: productsMap[code]?.barcode || '',
+                description: productsMap[code]?.description || 'Desconocido',
+                quantity,
+                stock,
+                difference: quantity - stock
+            };
+        });
+
+        report.sort((a, b) => a.description.localeCompare(b.description));
+
+        res.json({ count: updatedCount, report });
+    } catch (error) {
+        console.error('Error closing count:', error);
+        res.status(500).json({ message: 'Error closing count' });
     }
 });
 

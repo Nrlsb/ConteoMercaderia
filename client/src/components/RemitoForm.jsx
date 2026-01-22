@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Scanner from './Scanner';
 import Modal from './Modal';
 import FichajeModal from './FichajeModal';
+import ReportModal from './ReportModal';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -13,6 +14,13 @@ const RemitoForm = () => {
     const [manualCode, setManualCode] = useState('');
     const [remitoNumber, setRemitoNumber] = useState('');
     const [isScanning, setIsScanning] = useState(false);
+
+    // Report State
+    const [reportConfig, setReportConfig] = useState({
+        isOpen: false,
+        data: null,
+        title: ''
+    });
 
     // General Count State
     const [activeGeneralCount, setActiveGeneralCount] = useState(null);
@@ -533,6 +541,13 @@ const RemitoForm = () => {
                 product={fichajeState.product}
                 existingQuantity={fichajeState.existingQuantity}
                 expectedQuantity={fichajeState.expectedQuantity}
+            />
+
+            <ReportModal
+                isOpen={reportConfig.isOpen}
+                onClose={() => setReportConfig(prev => ({ ...prev, isOpen: false }))}
+                title={reportConfig.title}
+                reportData={reportConfig.data}
             />
 
             {/* Clarification Modal */}
