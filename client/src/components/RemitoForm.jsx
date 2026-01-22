@@ -507,14 +507,28 @@ const RemitoForm = () => {
         if (!window.confirm('¿Seguro que desea finalizar este conteo general? Nadie podrá seguir escaneando en él.')) return;
 
         try {
-            await api.put(`/api/general-counts/${activeGeneralCount.id}/close`);
+            const response = await api.put(`/api/general-counts/${activeGeneralCount.id}/close`);
+
+            // Capturar el reporte del backend
+            const reportData = response.data.report;
+
+            // Mostrar el reporte en el modal
+            if (reportData && reportData.length > 0) {
+                setReportConfig({
+                    isOpen: true,
+                    data: reportData,
+                    title: `Reporte de Conteo: ${activeGeneralCount.name}`
+                });
+            }
+
             setActiveGeneralCount(null);
             setRemitoNumber('');
-            triggerModal('Éxito', 'Conteo finalizado', 'success');
+            triggerModal('Éxito', 'Conteo finalizado. Revise el reporte generado.', 'success');
         } catch (error) {
             triggerModal('Error', 'Error al finalizar conteo', 'error');
         }
     };
+
 
     // Helper to get expected quantity
     const getExpectedQty = (code) => {
