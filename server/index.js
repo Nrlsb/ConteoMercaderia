@@ -251,7 +251,7 @@ app.post('/api/remitos', verifyToken, async (req, res) => {
     }
 });
 
-// Get all remitos with manual join to pre-remitos/PV
+// Get all remitos with manual join to pre-remitos/PV, and include Pending pre-remitos (Progress)
 app.get('/api/remitos', verifyToken, async (req, res) => {
     try {
         // 1. Fetch all processed remitos
@@ -266,7 +266,11 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
         const { data: preRemitosData, error: preRemitosError } = await supabase
             .from('pre_remitos')
             .select(`
+                id,
                 order_number,
+                status,
+                items,
+                created_at,
                 pedidos_ventas (
                     numero_pv,
                     sucursal
@@ -285,17 +289,81 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             countsData.forEach(c => countsMap[c.id] = c.name);
         }
 
-        // 4. Create a lookup map for speed
+        // 4. Create lookup and identify Pending ones
         const preRemitoMap = {};
+        const pendingPreRemitos = preRemitosData.filter(p => p.status === 'pending');
+
         preRemitosData.forEach(pre => {
             preRemitoMap[pre.order_number] = {
                 numero_pv: pre.pedidos_ventas?.[0]?.numero_pv || '-',
-                sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-'
+                sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
+                items: pre.items || []
             };
         });
 
-        // 5. Merge data
-        const formattedData = remitosData.map(remito => {
+        // 5. Enrich Pending Pre-Remitos with Progress and Brands
+        const pendingFormatted = await Promise.all(pendingPreRemitos.map(async (pre) => {
+            // Fetch scans for this order
+            const { data: scans } = await supabase
+                .from('inventory_scans')
+                .select('code, quantity')
+                .eq('order_number', pre.order_number);
+
+            let progress = 0;
+            let brands = new Set();
+            let totalScanned = 0;
+            let totalExpected = 0;
+
+            // Calculate totals
+            if (pre.items && Array.isArray(pre.items)) {
+                pre.items.forEach(item => {
+                    totalExpected += (item.quantity || 0);
+                });
+            }
+
+            if (scans && scans.length > 0) {
+                scans.forEach(scan => {
+                    totalScanned += (scan.quantity || 0);
+                });
+
+                // Get brands for scanned items
+                const codes = [...new Set(scans.map(s => s.code))];
+                const { data: products } = await supabase
+                    .from('products')
+                    .select('description')
+                    .in('code', codes);
+
+                if (products) {
+                    products.forEach(p => {
+                        if (p.description) {
+                            const brand = p.description.split(' ')[0]; // Basic heuristic: first word
+                            if (brand && brand.length > 2) brands.add(brand.toUpperCase());
+                        }
+                    });
+                }
+            }
+
+            if (totalExpected > 0) {
+                progress = Math.min(Math.round((totalScanned / totalExpected) * 100), 100);
+            }
+
+            return {
+                id: pre.id,
+                remito_number: pre.order_number,
+                items: pre.items,
+                status: 'pending_scanned', // Custom status for frontend
+                created_by: 'Múltiples',
+                date: pre.created_at,
+                numero_pv: pre.pedidos_ventas?.[0]?.numero_pv || '-',
+                sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
+                count_name: countsMap[pre.order_number] || null,
+                progress: progress,
+                scanned_brands: Array.from(brands).slice(0, 5) // Top 5 brands
+            };
+        }));
+
+        // 6. Merge data
+        const processedFormatted = remitosData.map(remito => {
             const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
             const countName = countsMap[remito.remito_number];
 
@@ -303,11 +371,14 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 ...remito,
                 numero_pv: extraInfo.numero_pv,
                 sucursal: extraInfo.sucursal,
-                count_name: countName || null // Provide name if available
+                count_name: countName || null
             };
         });
 
-        res.json(formattedData);
+        // Combined and sorted by date
+        const combined = [...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        res.json(combined);
     } catch (error) {
         console.error('Error fetching remitos:', error);
         res.status(500).json({ message: 'Internal server error' });

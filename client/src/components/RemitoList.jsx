@@ -226,9 +226,16 @@ const RemitoList = () => {
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <span className="text-lg font-bold text-blue-600 block">
-                                                {remito.remito_number}
-                                            </span>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-lg font-bold text-blue-600">
+                                                    {remito.remito_number}
+                                                </span>
+                                                {remito.status === 'pending_scanned' && (
+                                                    <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase animate-pulse">
+                                                        En Curso
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className="text-xs text-gray-500">
                                                 {new Date(remito.date).toLocaleDateString()} • {new Date(remito.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
@@ -237,11 +244,38 @@ const RemitoList = () => {
                                             ? 'bg-green-100 text-green-800'
                                             : remito.status === 'voided'
                                                 ? 'bg-gray-100 text-gray-800'
-                                                : 'bg-amber-100 text-amber-800'
+                                                : remito.status === 'pending_scanned'
+                                                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                                    : 'bg-amber-100 text-amber-800'
                                             }`}>
-                                            {remito.status === 'processed' ? 'Procesado' : remito.status === 'voided' ? 'Anulado' : 'Pendiente'}
+                                            {remito.status === 'processed' ? 'Procesado' : remito.status === 'voided' ? 'Anulado' : remito.status === 'pending_scanned' ? 'Iniciado' : 'Pendiente'}
                                         </span>
                                     </div>
+
+                                    {remito.status === 'pending_scanned' && (
+                                        <div className="mt-3 mb-4">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Progreso de Conteo</span>
+                                                <span className="text-xs font-bold text-blue-600">{remito.progress}%</span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                <div
+                                                    className="bg-blue-600 h-full rounded-full transition-all duration-1000"
+                                                    style={{ width: `${remito.progress}%` }}
+                                                ></div>
+                                            </div>
+                                            {remito.scanned_brands?.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                    {remito.scanned_brands.map(brand => (
+                                                        <span key={brand} className="px-1.5 py-0.5 bg-gray-50 text-gray-500 text-[9px] font-medium border border-gray-200 rounded">
+                                                            {brand}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                                         <div className="flex items-center">
                                             {remito.created_by ? (
@@ -333,9 +367,34 @@ const RemitoList = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
-                                                    {remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'Pendiente' : 'Procesado'}
-                                                </span>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-bold rounded uppercase w-fit ${remito.status === 'pending_scanned' ? 'bg-blue-100 text-blue-700 animate-pulse' : remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+                                                        {remito.status === 'pending_scanned' ? 'En Curso' : remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'Pendiente' : 'Procesado'}
+                                                    </span>
+                                                    {remito.status === 'pending_scanned' && (
+                                                        <div className="w-32">
+                                                            <div className="flex justify-between items-center mb-0.5">
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Progreso</span>
+                                                                <span className="text-[10px] font-bold text-blue-600">{remito.progress}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">
+                                                                <div
+                                                                    className="bg-blue-600 h-full rounded-full transition-all duration-1000"
+                                                                    style={{ width: `${remito.progress}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            {remito.scanned_brands?.length > 0 && (
+                                                                <div className="mt-1.5 flex flex-wrap gap-1 max-w-[150px]">
+                                                                    {remito.scanned_brands.map(brand => (
+                                                                        <span key={brand} className="px-1 py-0 bg-gray-50 text-gray-400 text-[8px] font-bold border border-gray-100 rounded uppercase">
+                                                                            {brand}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
                                             {user?.role === 'admin' && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
