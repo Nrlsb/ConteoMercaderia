@@ -54,7 +54,7 @@ const verifyToken = async (req, res, next) => {
         // Verify session is still valid in DB
         const { data: user, error } = await supabase
             .from('users')
-            .select('current_session_id')
+            .select('current_session_id, role') // Select role too
             .eq('id', decoded.id)
             .single();
 
@@ -66,7 +66,7 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'Session expired or invalid (logged in elsewhere)' });
         }
 
-        req.user = decoded;
+        req.user = { ...decoded, role: user.role }; // Ensure role is up to date from DB
         next();
     } catch (e) {
         console.error('Token verification error:', e.message);
@@ -74,7 +74,95 @@ const verifyToken = async (req, res, next) => {
     }
 };
 
+// Middleware to verify admin role
+const verifyAdmin = (req, res, next) => {
+    if (req.user && req.user.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ message: 'Access denied: Admins only' });
+    }
+};
+
 // API Routes
+
+// Product Import Endpoint (Admin only)
+app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    try {
+        const xlsx = require('xlsx');
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = 'BD';
+        const sheet = workbook.Sheets[sheetName];
+
+        if (!sheet) {
+            return res.status(400).json({ message: `Sheet "${sheetName}" not found` });
+        }
+
+        const rawData = xlsx.utils.sheet_to_json(sheet);
+        const products = [];
+        const seenCodes = new Set();
+        let skippedDuplicates = 0;
+
+        for (const row of rawData) {
+            // Helper to find key containing string (handling whitespace)
+            const findKey = (partialKey) => Object.keys(row).find(k => k.trim() === partialKey);
+
+            const codeKey = findKey('Producto');
+            const descKey = findKey('Desc. Prod');
+            const barcodeKey = findKey('CodeBar');
+
+            const code = row[codeKey] ? String(row[codeKey]).trim() : null;
+            const description = row[descKey] ? String(row[descKey]).trim() : null;
+            let barcode = row[barcodeKey] ? String(row[barcodeKey]).trim() : null;
+
+            if (!code) continue;
+
+            if (barcode === 'NULL' || barcode === 'null' || barcode === '') {
+                barcode = null;
+            }
+
+            if (seenCodes.has(code)) {
+                skippedDuplicates++;
+                continue;
+            }
+            seenCodes.add(code);
+
+            products.push({
+                code: code,
+                description: description,
+                barcode: barcode
+            });
+        }
+
+        // Batch upsert
+        const batchSize = 1000;
+        let upsertedCount = 0;
+
+        for (let i = 0; i < products.length; i += batchSize) {
+            const batch = products.slice(i, i + batchSize);
+            const { error } = await supabase
+                .from('products')
+                .upsert(batch, { onConflict: 'code' });
+
+            if (error) throw error;
+            upsertedCount += batch.length;
+        }
+
+        res.json({
+            message: 'Products imported successfully',
+            totalProcessed: rawData.length,
+            imported: upsertedCount,
+            duplicatesSkipped: skippedDuplicates
+        });
+
+    } catch (error) {
+        console.error('Error importing products:', error);
+        res.status(500).json({ message: 'Error importing products' });
+    }
+});
 
 // Get product by barcode
 app.get('/api/products/:barcode', verifyToken, async (req, res) => {

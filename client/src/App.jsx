@@ -6,6 +6,9 @@ import RemitoList from './components/RemitoList';
 import Login from './components/Login';
 import Register from './components/Register';
 import DiscrepancyList from './components/DiscrepancyList';
+import AdminPage from './components/AdminPage';
+import Navigation from './components/Navigation';
+import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const ProtectedRoute = ({ children, role }) => {
@@ -15,10 +18,6 @@ const ProtectedRoute = ({ children, role }) => {
   if (role && user?.role !== role) return <Navigate to="/" />;
   return children;
 };
-
-import Navigation from './components/Navigation';
-
-import Modal from './components/Modal';
 
 const RoleBasedHome = () => {
   const { user } = useAuth();
@@ -60,6 +59,11 @@ const AppContent = () => {
             <Route path="/discrepancies" element={
               <ProtectedRoute role="admin">
                 <DiscrepancyList />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute role="admin">
+                <AdminPage />
               </ProtectedRoute>
             } />
           </Routes>
