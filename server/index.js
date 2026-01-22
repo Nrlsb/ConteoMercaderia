@@ -691,10 +691,9 @@ app.get('/api/remitos/:id', verifyToken, async (req, res) => {
                     let productsMap = {};
 
                     if (codes.length > 0) {
-                        const { data: products } = await supabase
-                            .from('products')
-                            .select('code, description, barcode, current_stock')
-                            .in('code', codes);
+                        // Use the new getAllProducts helper to avoid same 1000 limit here if count is large
+                        const allProductsList = await getAllProducts();
+                        const products = allProductsList.filter(p => codes.includes(p.code));
 
                         if (products) {
                             products.forEach(p => productsMap[p.code] = p);
@@ -1092,11 +1091,8 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         // 3. Fetch ALL Products
         // We need the full list to show items that were NOT scanned (quantity 0)
-        const { data: allProducts, error: prodError } = await supabase
-            .from('products')
-            .select('code, description, barcode, current_stock');
-
-        if (prodError) throw prodError;
+        // Fixed: Use pagination to avoid 1000 records limit
+        const allProducts = await getAllProducts();
 
         // Build Report Array iterating over ALL products
         const report = allProducts.map(product => {
@@ -1446,6 +1442,35 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
+
+// Helper to fetch ALL products in batches (Supabase/PostgREST 1000 limit)
+async function getAllProducts() {
+    let allProducts = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('products')
+            .select('code, description, barcode, current_stock')
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error('Error in getAllProducts:', error);
+            throw error;
+        }
+
+        if (data && data.length > 0) {
+            allProducts = [...allProducts, ...data];
+            from += step;
+            if (data.length < step) hasMore = false;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allProducts;
+}
 
 // The catch-all handler must be at the end, after all other routes
 app.get(/(.*)/, (req, res) => {
