@@ -11,6 +11,8 @@ import Navigation from './components/Navigation';
 import InventoryPage from './components/InventoryPage';
 import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SettingsProvider } from './context/SettingsContext';
+import SettingsPage from './components/SettingsPage';
 
 const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -72,6 +74,11 @@ const AppContent = () => {
                 <AdminPage />
               </ProtectedRoute>
             } />
+            <Route path="/settings" element={
+              <ProtectedRoute role="admin">
+                <SettingsPage />
+              </ProtectedRoute>
+            } />
           </Routes>
         </main>
       </div>
@@ -82,9 +89,11 @@ const AppContent = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <SettingsProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </SettingsProvider>
     </AuthProvider>
   );
 }

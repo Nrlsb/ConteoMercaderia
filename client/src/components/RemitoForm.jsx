@@ -3,12 +3,34 @@ import Scanner from './Scanner';
 import Modal from './Modal';
 import FichajeModal from './FichajeModal';
 import api from '../api';
+import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 const RemitoForm = () => {
+    const { user } = useAuth();
+    const { countMode } = useSettings();
     const [items, setItems] = useState([]);
     const [manualCode, setManualCode] = useState('');
     const [remitoNumber, setRemitoNumber] = useState('');
     const [isScanning, setIsScanning] = useState(false);
+
+    // Effect to initialize based on countMode
+    useEffect(() => {
+        if (countMode === 'products') {
+            // Check if we need to init a free count session
+            if (!remitoNumber || !remitoNumber.startsWith('FREE-')) {
+                setRemitoNumber(`FREE-${Date.now().toString().slice(-6)}`);
+                setExpectedItems(null); // No expectation for free count
+                setPreRemitoNumber('');
+            }
+        } else {
+            // If switching back to pre_remito, clear the free count number only if it was auto-generated
+            if (remitoNumber && remitoNumber.startsWith('FREE-')) {
+                setRemitoNumber('');
+                setExpectedItems(null);
+            }
+        }
+    }, [countMode]);
 
     // Pre-remito state
     const [preRemitoNumber, setPreRemitoNumber] = useState('');
@@ -584,105 +606,92 @@ const RemitoForm = () => {
             )}
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 border-b border-gray-100 pb-4 gap-2">
-                <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Pedido de Venta</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
                 <div className="text-sm text-brand-gray">
                     {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </div>
             </div>
 
-            {/* Pre-Remito Section */}
-            <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                    <svg className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <h3 className="text-lg font-semibold text-brand-dark">Cargar Pedido (Pre-Remito)</h3>
-                </div>
+            {/* Pre-Remito Section - Only Visible if countMode is 'pre_remito' */}
+            {countMode === 'pre_remito' && (
+                <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <svg className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <h3 className="text-lg font-semibold text-brand-dark">Cargar Conteo</h3>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedido</label>
-                        <div className="flex flex-col md:flex-row gap-3">
-                            <select
-                                value={preRemitoNumber}
-                                onChange={(e) => setPreRemitoNumber(e.target.value)}
-                                className="flex-1 h-12 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm text-base bg-white"
-                            >
-                                <option value="">Seleccione un pedido...</option>
-                                {Array.isArray(preRemitoList) && preRemitoList.map((pre) => (
-                                    <option key={pre.id} value={pre.order_number}>
-                                        {pre.numero_pv
-                                            ? `PV: ${pre.numero_pv} - Suc: ${pre.sucursal}`
-                                            : `Pre-Remito #${pre.order_number} (${new Date(pre.created_at).toLocaleDateString()})`}
-                                    </option>
-                                ))}
-                            </select>
-                            <button
-                                onClick={handleLoadPreRemito}
-                                disabled={!preRemitoNumber}
-                                className={`h-12 w-full md:w-auto px-6 rounded-lg transition font-medium shadow-sm flex items-center justify-center ${!preRemitoNumber
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    : 'bg-brand-blue text-white hover:bg-blue-800'
-                                    }`}
-                            >
-                                Cargar
-                            </button>
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedido</label>
+                            <div className="flex flex-col md:flex-row gap-3">
+                                <select
+                                    value={preRemitoNumber}
+                                    onChange={(e) => setPreRemitoNumber(e.target.value)}
+                                    className="flex-1 h-12 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm text-base bg-white"
+                                >
+                                    <option value="">Seleccione un pedido...</option>
+                                    {Array.isArray(preRemitoList) && preRemitoList.map((pre) => (
+                                        <option key={pre.id} value={pre.order_number}>
+                                            {pre.numero_pv
+                                                ? `PV: ${pre.numero_pv} - Suc: ${pre.sucursal}`
+                                                : `Conteo #${pre.order_number} (${new Date(pre.created_at).toLocaleDateString()})`}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    onClick={handleLoadPreRemito}
+                                    disabled={!preRemitoNumber}
+                                    className={`h-12 w-full md:w-auto px-6 rounded-lg transition font-medium shadow-sm flex items-center justify-center ${!preRemitoNumber
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-brand-blue text-white hover:bg-blue-800'
+                                        }`}
+                                >
+                                    Cargar
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-brand-gray mb-2">O subir PDF de Remito</label>
-                        <input
-                            type="file"
-                            accept=".pdf"
-                            onChange={handleFileUpload}
-                            className="block w-full text-sm text-brand-gray
-                                file:mr-4 file:py-3 file:px-4
-                                file:rounded-lg file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-blue-50 file:text-brand-blue
-                                hover:file:bg-blue-100 transition cursor-pointer h-12 pt-1.5"
-                        />
-                    </div>
-                </div>
-
-                {preRemitoStatus === 'found' && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
-                        <div className="flex items-center mb-2">
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                            <span className="font-bold text-lg">Pedido cargado con éxito</span>
-                            <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items esperados</span>
+                    {preRemitoStatus === 'found' && (
+                        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+                            <div className="flex items-center mb-2">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span className="font-bold text-lg">Pedido cargado con éxito</span>
+                                <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items esperados</span>
+                            </div>
+                            {/* Show extra info if available */}
+                            {(() => {
+                                const selectedPre = preRemitoList.find(p => p.order_number === preRemitoNumber);
+                                if (selectedPre && selectedPre.numero_pv) {
+                                    return (
+                                        <div className="ml-7 text-sm grid grid-cols-2 gap-4">
+                                            <div>
+                                                <span className="font-semibold text-green-700">Pedido de Venta (PV):</span>
+                                                <span className="ml-1">{selectedPre.numero_pv}</span>
+                                            </div>
+                                            <div>
+                                                <span className="font-semibold text-green-700">Sucursal:</span>
+                                                <span className="ml-1">{selectedPre.sucursal}</span>
+                                            </div>
+                                            <div>
+                                                <span className="font-semibold text-green-700">Pre-Remito:</span>
+                                                <span className="ml-1">{selectedPre.order_number}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </div>
-                        {/* Show extra info if available */}
-                        {(() => {
-                            const selectedPre = preRemitoList.find(p => p.order_number === preRemitoNumber);
-                            if (selectedPre && selectedPre.numero_pv) {
-                                return (
-                                    <div className="ml-7 text-sm grid grid-cols-2 gap-4">
-                                        <div>
-                                            <span className="font-semibold text-green-700">Pedido de Venta (PV):</span>
-                                            <span className="ml-1">{selectedPre.numero_pv}</span>
-                                        </div>
-                                        <div>
-                                            <span className="font-semibold text-green-700">Sucursal:</span>
-                                            <span className="ml-1">{selectedPre.sucursal}</span>
-                                        </div>
-                                        <div>
-                                            <span className="font-semibold text-green-700">Pre-Remito:</span>
-                                            <span className="ml-1">{selectedPre.order_number}</span>
-                                        </div>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        })()}
-                    </div>
-                )}
-                {preRemitoStatus === 'not_found' && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        <span className="font-medium">Pedido no encontrado.</span>
-                    </div>
-                )}
-            </div>
+                    )}
+                    {preRemitoStatus === 'not_found' && (
+                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <span className="font-medium">Pedido no encontrado.</span>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8">
                 {/* Left Column: Inputs */}

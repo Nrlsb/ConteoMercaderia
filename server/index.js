@@ -469,6 +469,67 @@ app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ stora
     }
 });
 
+// Settings API
+app.get('/api/settings', verifyToken, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'global_config')
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is 'not found'
+            // If table doesn't exist, this might fail differently, but we catch it.
+            console.error('Error fetching settings:', error);
+            // Fallback to default if error (e.g. table missing) but ideally we warn.
+            // But to avoid crashing frontend:
+            return res.json({ countMode: 'pre_remito' });
+        }
+
+        if (!data) {
+            return res.json({ countMode: 'pre_remito' }); // Default
+        }
+
+        res.json(data.value);
+    } catch (error) {
+        console.error('Server error fetching settings:', error);
+        res.status(500).json({ message: 'Error fetching settings' });
+    }
+});
+
+app.put('/api/settings', verifyToken, verifyAdmin, async (req, res) => {
+    const { countMode } = req.body;
+
+    if (!['pre_remito', 'products'].includes(countMode)) {
+        return res.status(400).json({ message: 'Invalid count mode' });
+    }
+
+    try {
+        // Upsert setting
+        const { error } = await supabase
+            .from('app_settings')
+            .upsert({
+                key: 'global_config',
+                value: { count_mode: countMode },
+                updated_at: new Date()
+            });
+
+        if (error) {
+            console.error('Error updating settings:', error);
+            // If error is "relation "app_settings" does not exist", user needs to run SQL.
+            if (error.code === '42P01') {
+                return res.status(500).json({ message: 'Settings table missing. Please run setup_settings.sql in Database.' });
+            }
+            throw error;
+        }
+
+        res.json({ success: true, countMode });
+    } catch (error) {
+        console.error('Server error updating settings:', error);
+        res.status(500).json({ message: 'Error updating settings' });
+    }
+});
+
 // Inventory Scans Endpoints
 
 // Get Inventory State (Progress)
