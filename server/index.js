@@ -393,8 +393,100 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
         };
 
         res.json(responseData);
+        res.json(responseData);
     } catch (error) {
         console.error('Error fetching pre-remito:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Inventory Scans Endpoints
+
+// Get Inventory State (Progress)
+app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
+    const { orderNumber } = req.params;
+    const userId = req.user.id;
+
+    try {
+        // 1. Get Expected Items (Pre-Remito)
+        const { data: preRemito, error: preError } = await supabase
+            .from('pre_remitos')
+            .select('items')
+            .eq('order_number', orderNumber)
+            .single();
+
+        if (preError) {
+            if (preError.code === 'PGRST116') return res.status(404).json({ message: 'Order not found' });
+            throw preError;
+        }
+
+        // 2. Get All Scans for this Order
+        const { data: scans, error: scanError } = await supabase
+            .from('inventory_scans')
+            .select('user_id, code, quantity')
+            .eq('order_number', orderNumber);
+
+        if (scanError) throw scanError;
+
+        // 3. Aggregate Scans
+        const scannedMap = {}; // { code: totalQuantity }
+        const myScansMap = {}; // { code: myQuantity }
+
+        scans.forEach(scan => {
+            const qty = scan.quantity || 0;
+
+            // Global Total
+            scannedMap[scan.code] = (scannedMap[scan.code] || 0) + qty;
+
+            // My Scans
+            if (scan.user_id === userId) {
+                myScansMap[scan.code] = (myScansMap[scan.code] || 0) + qty;
+            }
+        });
+
+        res.json({
+            orderNumber,
+            expected: preRemito.items || [],
+            scanned: scannedMap,
+            myScans: myScansMap
+        });
+
+    } catch (error) {
+        console.error('Error fetching inventory state:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Submit/Sync Scans
+app.post('/api/inventory/scan', verifyToken, async (req, res) => {
+    const { orderNumber, items } = req.body; // items: [{ code, quantity }] - Quantity is the absolute user count
+
+    if (!orderNumber || !items || !Array.isArray(items)) {
+        return res.status(400).json({ message: 'Invalid data' });
+    }
+
+    try {
+        const userId = req.user.id;
+
+        // Prepare Upsert Data
+        const upsertData = items.map(item => ({
+            order_number: orderNumber,
+            user_id: userId,
+            code: item.code,
+            quantity: item.quantity,
+            timestamp: new Date().toISOString()
+        }));
+
+        const { error } = await supabase
+            .from('inventory_scans')
+            .upsert(upsertData, { onConflict: 'order_number, user_id, code' });
+
+        if (error) throw error;
+
+        res.json({ message: 'Scans synced successfully', count: items.length });
+
+    } catch (error) {
+        console.error('Error syncing scans:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });

@@ -8,6 +8,7 @@ import Register from './components/Register';
 import DiscrepancyList from './components/DiscrepancyList';
 import AdminPage from './components/AdminPage';
 import Navigation from './components/Navigation';
+import InventoryPage from './components/InventoryPage';
 import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -49,6 +50,11 @@ const AppContent = () => {
             <Route path="/" element={
               <ProtectedRoute>
                 <RoleBasedHome />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventory" element={
+              <ProtectedRoute>
+                <InventoryPage />
               </ProtectedRoute>
             } />
             <Route path="/list" element={
