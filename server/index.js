@@ -314,6 +314,196 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
     }
 });
 
+// Get Remito Details with User Breakdown
+app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        // 1. Fetch Remito Base Info
+        let { data: remito, error } = await supabase
+            .from('remitos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+
+        // Fetch Count Name if available
+        if (remito.remito_number) {
+            const { data: countData } = await supabase
+                .from('general_counts')
+                .select('name')
+                .eq('id', remito.remito_number)
+                .maybeSingle();
+
+            if (countData) {
+                remito.count_name = countData.name;
+            }
+        }
+
+        // 2. Try to fetch Granular Scans (for General Counts or tracked sessions)
+        const { data: scans, error: scansError } = await supabase
+            .from('inventory_scans')
+            .select(`
+                quantity,
+                code,
+                users (username),
+                products (description)
+            `)
+            .eq('order_number', remito.remito_number);
+
+        let userCounts = [];
+
+        if (!scansError && scans && scans.length > 0) {
+            // Group by User
+            const userMap = {}; // { username: { items: [], totalItems: 0, totalUnits: 0 } }
+
+            scans.forEach(scan => {
+                const username = scan.users?.username || 'Desconocido';
+                if (!userMap[username]) {
+                    userMap[username] = { username, items: [], totalItems: 0, totalUnits: 0 };
+                }
+
+                const description = scan.products?.description || 'Sin descripción';
+
+                userMap[username].items.push({
+                    code: scan.code,
+                    description: description,
+                    quantity: scan.quantity
+                });
+                userMap[username].totalItems += 1;
+                userMap[username].totalUnits += scan.quantity;
+            });
+
+            userCounts = Object.values(userMap);
+        } else {
+            // Fallback for Single User Counts
+            userCounts = [{
+                username: remito.created_by || 'Sistema',
+                items: remito.items || [],
+                totalItems: remito.items ? remito.items.length : 0,
+                totalUnits: remito.items ? remito.items.reduce((acc, i) => acc + (i.quantity || 0), 0) : 0
+            }];
+        }
+
+        res.json({
+            remito,
+            userCounts
+        });
+
+    } catch (error) {
+        console.error('Error fetching remito details:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Export Remito to Excel
+app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        // 1. Fetch Remito Data (Reuse similar logic to details)
+        let { data: remito, error } = await supabase
+            .from('remitos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+
+        // Fetch Count Name
+        let countName = remito.remito_number;
+        if (remito.remito_number) {
+            const { data: countData } = await supabase.from('general_counts').select('name').eq('id', remito.remito_number).maybeSingle();
+            if (countData) countName = countData.name;
+        }
+
+        // 2. Fetch User Scans
+        const { data: scans } = await supabase
+            .from('inventory_scans')
+            .select('quantity, code, users(username), products(description)')
+            .eq('order_number', remito.remito_number);
+
+        const xlsx = require('xlsx');
+        const workbook = xlsx.utils.book_new();
+
+        // --- Sheet 1: General (All Items) ---
+        // Basic list of items in the remito record
+        const generalData = (remito.items || []).map(item => ({
+            Codigo: item.code,
+            Descripcion: item.name || item.description,
+            Cantidad: item.quantity
+        }));
+        const wsGeneral = xlsx.utils.json_to_sheet(generalData);
+        xlsx.utils.book_append_sheet(workbook, wsGeneral, "General");
+
+        // --- Sheet 2: Por Usuario ---
+        if (scans && scans.length > 0) {
+            const userData = scans.map(s => ({
+                Usuario: s.users?.username || 'Desconocido',
+                Codigo: s.code,
+                Descripcion: s.products?.description || '-',
+                Cantidad: s.quantity
+            }));
+            const wsUsers = xlsx.utils.json_to_sheet(userData);
+            xlsx.utils.book_append_sheet(workbook, wsUsers, "Por Usuario");
+        } else {
+            // If no granular scans, just list create_by
+            const userData = (remito.items || []).map(item => ({
+                Usuario: remito.created_by,
+                Codigo: item.code,
+                Descripcion: item.name || item.description,
+                Cantidad: item.quantity
+            }));
+            const wsUsers = xlsx.utils.json_to_sheet(userData);
+            xlsx.utils.book_append_sheet(workbook, wsUsers, "Por Usuario");
+        }
+
+        // --- Sheet 3: Diferencias ---
+        const discrepancies = [];
+        if (remito.discrepancies?.missing) {
+            remito.discrepancies.missing.forEach(d => {
+                discrepancies.push({
+                    Tipo: 'Faltante',
+                    Codigo: d.code,
+                    Descripcion: d.description,
+                    Esperado: d.expected,
+                    Escaneado: d.scanned,
+                    Diferencia: d.scanned - d.expected,
+                    Motivo: d.reason === 'no_stock' ? 'Sin Stock' : d.reason
+                });
+            });
+        }
+        if (remito.discrepancies?.extra) {
+            remito.discrepancies.extra.forEach(d => {
+                discrepancies.push({
+                    Tipo: 'Sobrante',
+                    Codigo: d.code,
+                    Descripcion: d.description,
+                    Esperado: d.expected,
+                    Escaneado: d.scanned,
+                    Diferencia: d.scanned - d.expected,
+                    Motivo: '-'
+                });
+            });
+        }
+
+        if (discrepancies.length > 0) {
+            const wsDisc = xlsx.utils.json_to_sheet(discrepancies);
+            xlsx.utils.book_append_sheet(workbook, wsDisc, "Diferencias");
+        }
+
+        // Buffer
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Disposition', `attachment; filename="Reporte_${countName}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buf);
+
+    } catch (error) {
+        console.error('Error generating excel:', error);
+        res.status(500).json({ message: 'Error generating excel' });
+    }
+});
+
 // Get remito by ID
 app.get('/api/remitos/:id', verifyToken, async (req, res) => {
     const { id } = req.params;

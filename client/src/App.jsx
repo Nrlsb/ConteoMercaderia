@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import RemitoForm from './components/RemitoForm';
 import RemitoList from './components/RemitoList';
+import RemitoDetailsPage from './components/RemitoDetailsPage';
 import Login from './components/Login';
 import Register from './components/Register';
 import DiscrepancyList from './components/DiscrepancyList';
@@ -62,6 +63,11 @@ const AppContent = () => {
             <Route path="/list" element={
               <ProtectedRoute>
                 <RemitoList />
+              </ProtectedRoute>
+            } />
+            <Route path="/remitos/:id" element={
+              <ProtectedRoute>
+                <RemitoDetailsPage />
               </ProtectedRoute>
             } />
             <Route path="/discrepancies" element={
