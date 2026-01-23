@@ -601,30 +601,51 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             Object.keys(totalScannedMap).forEach(code => {
                 const expected = remito.items.find(i => i.code === code);
                 const scannedQty = totalScannedMap[code];
-                if (!expected) {
-                    discrepancies.extra.push({
-                        code,
-                        description: 'Desconocido', // Will try to enrich below
-                        expected: 0,
-                        scanned: scannedQty
-                    });
-                } else if (scannedQty > expected.quantity) {
-                    discrepancies.extra.push({
-                        code,
-                        description: expected.description || expected.name,
-                        expected: expected.quantity,
-                        scanned: scannedQty
-                    });
+
+                // Only add to extra if scanned quantity is > 0 and (not in expected OR scanned > expected)
+                if (scannedQty > 0) {
+                    if (!expected) {
+                        discrepancies.extra.push({
+                            code,
+                            description: 'Desconocido', // Will try to enrich below
+                            expected: 0,
+                            scanned: scannedQty
+                        });
+                    } else if (scannedQty > expected.quantity) {
+                        discrepancies.extra.push({
+                            code,
+                            description: expected.description || expected.name,
+                            expected: expected.quantity,
+                            scanned: scannedQty
+                        });
+                    }
                 }
             });
 
-            // Enrich extra descriptions
-            const extraCodes = discrepancies.extra.filter(d => d.description === 'Desconocido').map(d => d.code);
-            if (extraCodes.length > 0) {
-                const { data: pData } = await supabase.from('products').select('code, description').in('code', extraCodes);
+            // Enrich all descriptions (Expected and Extra)
+            const allCodes = [
+                ...remito.items.map(i => i.code),
+                ...discrepancies.extra.map(d => d.code),
+                ...discrepancies.missing.map(d => d.code)
+            ];
+
+            if (allCodes.length > 0) {
+                const { data: pData } = await supabase.from('products').select('code, description').in('code', [...new Set(allCodes)]);
                 if (pData) {
                     const pMap = {};
                     pData.forEach(p => pMap[p.code] = p.description);
+
+                    // Update expected items
+                    remito.items.forEach(item => {
+                        if (pMap[item.code]) item.description = pMap[item.code];
+                    });
+
+                    // Update missing items
+                    discrepancies.missing.forEach(d => {
+                        if (pMap[d.code]) d.description = pMap[d.code];
+                    });
+
+                    // Update extra items
                     discrepancies.extra.forEach(d => {
                         if (pMap[d.code]) d.description = pMap[d.code];
                     });
@@ -632,16 +653,26 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             }
             remito.discrepancies = discrepancies;
         } else if (isFinalized && remito.discrepancies) {
-            // Enrich descriptions for finished remitos
-            const discrepancyCodes = [
+            // Enrich descriptions for all items in finalized remitos
+            const allCodes = [
+                ...(remito.items || []).map(i => i.code),
                 ...(remito.discrepancies.missing || []).map(d => d.code),
                 ...(remito.discrepancies.extra || []).map(d => d.code)
             ];
-            if (discrepancyCodes.length > 0) {
-                const { data: prods } = await supabase.from('products').select('code, description').in('code', discrepancyCodes);
+
+            if (allCodes.length > 0) {
+                const { data: prods } = await supabase.from('products').select('code, description').in('code', [...new Set(allCodes)]);
                 if (prods) {
                     const pMap = {};
                     prods.forEach(p => pMap[p.code] = p.description);
+
+                    // Refresh expected items description
+                    if (remito.items) {
+                        remito.items.forEach(item => {
+                            if (pMap[item.code]) item.description = pMap[item.code];
+                        });
+                    }
+
                     [...(remito.discrepancies.missing || []), ...(remito.discrepancies.extra || [])].forEach(item => {
                         if (pMap[item.code]) item.description = pMap[item.code];
                     });
