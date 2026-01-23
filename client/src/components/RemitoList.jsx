@@ -228,7 +228,7 @@ const RemitoList = () => {
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="text-lg font-bold text-blue-600">
-                                                    {remito.remito_number}
+                                                    {remito.count_name || remito.remito_number}
                                                 </span>
                                                 {!remito.is_finalized && (
                                                     <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase animate-pulse">
@@ -281,15 +281,7 @@ const RemitoList = () => {
                                             <div className="flex items-center justify-between mb-1">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Conteo General Activo</span>
                                             </div>
-                                            {remito.scanned_brands?.length > 0 && (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {remito.scanned_brands.map(brand => (
-                                                        <span key={brand} className="px-1.5 py-0.5 bg-gray-50 text-gray-400 text-[9px] font-medium border border-gray-200 rounded">
-                                                            {brand}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
+
                                         </div>
                                     )}
 

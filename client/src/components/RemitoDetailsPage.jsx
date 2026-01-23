@@ -402,21 +402,21 @@ const RemitoDetailsPage = () => {
                                                                         </svg>
                                                                     </button>
                                                                     {isExpanded && (
-                                                                        <div className="bg-white">
+                                                                        <div className="bg-white overflow-x-auto">
                                                                             <table className="min-w-full divide-y divide-gray-200">
                                                                                 <thead className="bg-gray-50">
                                                                                     <tr>
-                                                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                                                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-                                                                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                                                                                        <th className="px-2 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                                                                                        <th className="px-2 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                                                                                        <th className="px-2 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                                                                                     </tr>
                                                                                 </thead>
                                                                                 <tbody className="divide-y divide-gray-200">
                                                                                     {brandData.items.map((item, itemIdx) => (
                                                                                         <tr key={itemIdx} className="hover:bg-blue-50/30 transition">
-                                                                                            <td className="px-4 py-2 text-sm font-mono text-gray-900">{item.code}</td>
-                                                                                            <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                                                                                            <td className="px-4 py-2 text-sm text-right font-bold text-gray-900">{item.quantity}</td>
+                                                                                            <td className="px-2 sm:px-4 py-2 text-sm font-mono text-gray-900">{item.code}</td>
+                                                                                            <td className="px-2 sm:px-4 py-2 text-sm text-gray-600">{item.description}</td>
+                                                                                            <td className="px-2 sm:px-4 py-2 text-sm text-right font-bold text-gray-900">{item.quantity}</td>
                                                                                         </tr>
                                                                                     ))}
                                                                                 </tbody>
