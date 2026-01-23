@@ -5,6 +5,10 @@ const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 const { parseRemitoPdf } = require('./pdfParser');
 const { parseExcelXml } = require('./xmlParser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 dotenv.config();
 
@@ -24,10 +28,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const path = require('path');
-
-// ... (existing imports)
-
 // Serve static files from the React app
 app.use(express.static(path.join(__dirname, '../client/dist')));
 
@@ -35,14 +35,6 @@ app.use(express.static(path.join(__dirname, '../client/dist')));
 app.get('/api/health', (req, res) => {
     res.send('Control de Remitos API Running');
 });
-
-// ... (API Routes)
-
-// The catch-all handler must be at the end, after all other routes
-// app.get('*', (req, res) => {
-//    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-// });
-
 
 // Middleware to verify token
 const verifyToken = async (req, res, next) => {
@@ -1476,6 +1468,29 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
             throw preError;
         }
 
+        let expectedItems = preRemito.items || [];
+
+        // ENRICHMENT: Fetch brands for items that might be missing them
+        if (expectedItems.length > 0) {
+            const codes = expectedItems.map(i => i.code);
+            // Fetch brands from products table
+            const { data: products } = await supabase
+                .from('products')
+                .select('code, brand')
+                .in('code', codes);
+
+            if (products) {
+                const brandMap = {};
+                products.forEach(p => brandMap[p.code] = p.brand);
+
+                // Update expected items with brand
+                expectedItems = expectedItems.map(item => ({
+                    ...item,
+                    brand: item.brand || brandMap[item.code] || 'Sin Marca'
+                }));
+            }
+        }
+
         // 2. Get All Scans for this Order
         const { data: scans, error: scanError } = await supabase
             .from('inventory_scans')
@@ -1502,7 +1517,7 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
 
         res.json({
             orderNumber,
-            expected: preRemito.items || [],
+            expected: expectedItems, // Enriched with brands
             scanned: scannedMap,
             myScans: myScansMap
         });
@@ -1593,15 +1608,6 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
         res.status(500).json({ message: 'Error processing PDF' });
     }
 });
-
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-// ... (existing imports)
-
-const { v4: uuidv4 } = require('uuid');
-
-// ... (existing imports)
 
 // Auth Routes
 

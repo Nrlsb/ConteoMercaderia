@@ -25,6 +25,8 @@ const InventoryPage = () => {
     const [manualCode, setManualCode] = useState('');
     const [lastSyncTime, setLastSyncTime] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [viewMode, setViewMode] = useState('list'); // 'list' | 'brands'
+    const [expandedBrands, setExpandedBrands] = useState({}); // { brandName: boolean }
 
     // Modal State
     const [fichajeState, setFichajeState] = useState({
@@ -41,7 +43,7 @@ const InventoryPage = () => {
             .catch(err => console.error(err));
     }, []);
 
-    // Polling for updates (every 10 seconds)
+    // Polling for updates (every 5 seconds)
     useEffect(() => {
         if (!selectedOrder) return;
 
@@ -53,19 +55,8 @@ const InventoryPage = () => {
                 const res = await api.get(`/api/inventory/${selectedOrder}`);
                 setExpectedItems(res.data.expected);
                 setScannedItems(res.data.scanned); // Global total
-
-                // We don't overwrite myScans blindly because we might have local unsynced changes.
-                // In a perfect world, we merge. For now, let's rely on the server's "myScans" 
-                // ONLY if we have no local queue, OR we just treat local queue as "additions" to server state.
-
-                // Strategy: myScans = ServerMyScans + LocalQueue
-                // But simplified: Just update global stats, let local state be source of truth for "My Progress" 
-                // until sync confirms it.
-
-                // Actually, best safe bet: 
-                // ScannedItems (Global) comes from server.
-                // MyScans (Persisted) comes from server.
-                // UI shows: MyScans(Server) + LocalQueue
+                // We assume server MyScans is correct for historical data, 
+                // but local changes will be added visually
             } catch (error) {
                 console.error("Error polling inventory:", error);
             }
@@ -82,6 +73,8 @@ const InventoryPage = () => {
         setScannedItems({});
         setLocalQueue([]);
         setExpectedItems([]);
+        setViewMode('list'); // Reset view to list
+        setExpandedBrands({});
     };
 
     const handleScan = (code) => {
@@ -113,7 +106,6 @@ const InventoryPage = () => {
             },
             existingQuantity: myCurrentQty, // Show MY count so far
             expectedQuantity: expected.quantity, // Show Total Expected
-            // Optional: pass global progress to show "Total Scanned: X/Y"
         });
     };
 
@@ -139,10 +131,6 @@ const InventoryPage = () => {
 
         setFichajeState(prev => ({ ...prev, isOpen: false }));
         toast.success(`Agregado: +${quantityToAdd} ${product.name}`);
-
-        // Auto-sync after specific amount of actions? Or just let user click sync?
-        // Let's auto-sync if queue > 5 items or after 10 seconds?
-        // For now, Manual Sync + Warning if unsaved.
     };
 
     const handleSync = async () => {
@@ -198,6 +186,34 @@ const InventoryPage = () => {
             handleScan(manualCode);
             setManualCode('');
         }
+    };
+
+    // Helper: Toggle brand expansion
+    const toggleBrand = (brandName) => {
+        setExpandedBrands(prev => ({
+            ...prev,
+            [brandName]: !prev[brandName]
+        }));
+    };
+
+    // Derived: Pending Items Grouped by Brand
+    const getPendingBrands = () => {
+        // Filter items that have 0 global scans (including local queue)
+        const pendingItems = expectedItems.filter(item => {
+            const globalQty = scannedItems[item.code] || 0;
+            const localAdded = localQueue.filter(q => q.code === item.code).reduce((a, b) => a + b.quantity, 0);
+            return (globalQty + localAdded) === 0;
+        });
+
+        // Group by Brand
+        const grouped = pendingItems.reduce((acc, item) => {
+            const brand = item.brand || 'Sin Marca';
+            if (!acc[brand]) acc[brand] = [];
+            acc[brand].push(item);
+            return acc;
+        }, {});
+
+        return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
     };
 
     return (
@@ -290,53 +306,128 @@ const InventoryPage = () => {
                         </div>
                     </div>
 
-                    {/* Right Panel: List */}
+                    {/* Right Panel: List / Pending Brands */}
                     <div className="lg:col-span-2 flex flex-col h-[600px] bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
-                        <div className="p-3 bg-gray-50 border-b font-medium grid grid-cols-12 text-sm text-gray-500 gap-2">
-                            <div className="col-span-6 md:col-span-5">Producto</div>
-                            <div className="col-span-2 text-center">Esperado</div>
-                            <div className="col-span-2 text-center text-blue-600 font-bold">Total</div>
-                            <div className="col-span-2 text-center text-green-600 font-bold">Mi Conteo</div>
+
+                        {/* Tabs */}
+                        <div className="flex border-b">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`flex-1 p-3 text-sm font-semibold text-center transition
+                                    ${viewMode === 'list' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                Listado Completo
+                            </button>
+                            <button
+                                onClick={() => setViewMode('brands')}
+                                className={`flex-1 p-3 text-sm font-semibold text-center transition
+                                    ${viewMode === 'brands' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                Marcas Pendientes
+                            </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto">
-                            {expectedItems.map((item, idx) => {
-                                const globalQty = scannedItems[item.code] || 0;
-                                const localAdded = localQueue.filter(q => q.code === item.code).reduce((a, b) => a + b.quantity, 0);
-                                const myTotal = (myScans[item.code] || 0) + localAdded;
-                                const totalVisible = globalQty + localAdded; // Rough approximation of real-time view
+                        {viewMode === 'list' ? (
+                            <>
+                                <div className="p-3 bg-gray-50 border-b font-medium grid grid-cols-12 text-sm text-gray-500 gap-2">
+                                    <div className="col-span-6 md:col-span-5">Producto</div>
+                                    <div className="col-span-2 text-center">Esperado</div>
+                                    <div className="col-span-2 text-center text-blue-600 font-bold">Total</div>
+                                    <div className="col-span-2 text-center text-green-600 font-bold">Mi Conteo</div>
+                                </div>
 
-                                const isComplete = totalVisible >= item.quantity;
-                                const isMyActive = myTotal > 0;
+                                <div className="flex-1 overflow-y-auto">
+                                    {expectedItems.map((item, idx) => {
+                                        const globalQty = scannedItems[item.code] || 0;
+                                        const localAdded = localQueue.filter(q => q.code === item.code).reduce((a, b) => a + b.quantity, 0);
+                                        const myTotal = (myScans[item.code] || 0) + localAdded;
+                                        const totalVisible = globalQty + localAdded;
 
-                                return (
-                                    <div key={item.code}
-                                        className={`p-3 border-b grid grid-cols-12 items-center gap-2 text-sm hover:bg-gray-50 transition
-                                            ${isComplete ? 'bg-green-50/50' : ''}`}
-                                    >
-                                        <div className="col-span-6 md:col-span-5 truncate">
-                                            <div className="font-medium text-gray-800">{item.description}</div>
-                                            <div className="text-xs text-gray-400">{item.code}</div>
-                                        </div>
+                                        const isComplete = totalVisible >= item.quantity;
+                                        const isMyActive = myTotal > 0;
 
-                                        <div className="col-span-2 text-center font-mono">{item.quantity}</div>
+                                        return (
+                                            <div key={item.code}
+                                                className={`p-3 border-b grid grid-cols-12 items-center gap-2 text-sm hover:bg-gray-50 transition
+                                                    ${isComplete ? 'bg-green-50/50' : ''}`}
+                                            >
+                                                <div className="col-span-6 md:col-span-5 truncate">
+                                                    <div className="font-medium text-gray-800">{item.description}</div>
+                                                    <div className="text-xs text-gray-400">{item.code} - {item.brand}</div>
+                                                </div>
 
-                                        <div className={`col-span-2 text-center font-bold 
-                                            ${totalVisible > item.quantity ? 'text-orange-600' : 'text-blue-600'}`}>
-                                            {totalVisible}
-                                        </div>
+                                                <div className="col-span-2 text-center font-mono">{item.quantity}</div>
 
-                                        <div className="col-span-2 text-center">
-                                            {isMyActive && (
-                                                <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">
-                                                    {myTotal}
-                                                </span>
-                                            )}
-                                        </div>
+                                                <div className={`col-span-2 text-center font-bold 
+                                                    ${totalVisible > item.quantity ? 'text-orange-600' : 'text-blue-600'}`}>
+                                                    {totalVisible}
+                                                </div>
+
+                                                <div className="col-span-2 text-center">
+                                                    {isMyActive && (
+                                                        <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">
+                                                            {myTotal}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        ) : (
+                            // --- VISTA DE MARCAS PENDIENTES ---
+                            <div className="flex-1 overflow-y-auto bg-gray-50 p-2">
+                                {getPendingBrands().length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                                        <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <p>¡Todo contado! No hay marcas con productos pendientes al 100%.</p>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                ) : (
+                                    getPendingBrands().map(([brandName, items]) => {
+                                        const isExpanded = expandedBrands[brandName];
+                                        return (
+                                            <div key={brandName} className="mb-2 bg-white rounded-lg shadow-sm border overflow-hidden">
+                                                <button
+                                                    onClick={() => toggleBrand(brandName)}
+                                                    className="w-full flex justify-between items-center p-4 bg-white hover:bg-gray-50 transition"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-bold text-gray-700">{brandName}</span>
+                                                        <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full font-bold">
+                                                            {items.length} pendientes
+                                                        </span>
+                                                    </div>
+                                                    <svg
+                                                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`}
+                                                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                                                    </svg>
+                                                </button>
+
+                                                {isExpanded && (
+                                                    <div className="border-t bg-gray-50 divide-y">
+                                                        {items.map(item => (
+                                                            <div key={item.code} className="p-3 pl-6 grid grid-cols-12 gap-2 text-sm hover:bg-white transition">
+                                                                <div className="col-span-8">
+                                                                    <div className="font-medium text-gray-800">{item.description}</div>
+                                                                    <div className="text-xs text-gray-400">{item.code}</div>
+                                                                </div>
+                                                                <div className="col-span-4 text-right flex flex-col items-end justify-center">
+                                                                    <span className="text-xs text-gray-500">Esperado</span>
+                                                                    <span className="font-bold text-gray-900">{item.quantity}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
