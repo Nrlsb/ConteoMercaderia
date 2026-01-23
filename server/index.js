@@ -1697,7 +1697,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, force } = req.body;
 
     if (!username || !password) {
         return res.status(400).json({ message: 'Username and password are required' });
@@ -1721,6 +1721,14 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
+        // Check for existing active session if not forcing
+        if (!force && user.current_session_id) {
+            return res.status(409).json({
+                sessionActive: true,
+                message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
+            });
+        }
+
         // Generate New Session ID
         const sessionId = uuidv4();
 
@@ -1742,6 +1750,24 @@ app.post('/api/auth/login', async (req, res) => {
         res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
     } catch (error) {
         console.error('Error logging in:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Logout
+app.post('/api/auth/logout', verifyToken, async (req, res) => {
+    try {
+        // Clear session ID in DB
+        const { error } = await supabase
+            .from('users')
+            .update({ current_session_id: null })
+            .eq('id', req.user.id);
+
+        if (error) throw error;
+
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        console.error('Error logging out:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });

@@ -14,9 +14,31 @@ const Login = () => {
         e.preventDefault();
         // setError(''); // No longer needed
         const result = await login(username, password);
+
         if (result.success) {
             toast.success('Bienvenido!');
             navigate('/');
+        } else if (result.sessionActive) {
+            // Ask for confirmation mechanism
+            // Since we are using standard window.confirm for simplicity as per plan, or could be a custom modal
+            // but plan said standard confirm or toast action. Let's use window.confirm for now or sonner with action.
+            // Sonner is nicer.
+            toast.message('Sesión Activa', {
+                description: result.message,
+                action: {
+                    label: 'Cerrar otra sesión',
+                    onClick: async () => {
+                        const forceResult = await login(username, password, true);
+                        if (forceResult.success) {
+                            toast.success('Sesión iniciada correctamente');
+                            navigate('/');
+                        } else {
+                            toast.error(forceResult.message);
+                        }
+                    }
+                },
+                duration: 10000, // Give them time to decide
+            });
         } else {
             toast.error(result.message);
         }

@@ -53,15 +53,22 @@ export const AuthProvider = ({ children }) => {
         };
     }, []);
 
-    const login = async (username, password) => {
+    const login = async (username, password, force = false) => {
         try {
-            const res = await api.post('/api/auth/login', { username, password });
+            const res = await api.post('/api/auth/login', { username, password, force });
             localStorage.setItem('token', res.data.token);
             setUser(res.data.user);
             setIsAuthenticated(true);
             setSessionExpired(false);
             return { success: true };
         } catch (error) {
+            if (error.response?.status === 409) {
+                return {
+                    success: false,
+                    sessionActive: true,
+                    message: error.response.data.message
+                };
+            }
             return {
                 success: false,
                 message: error.response?.data?.message || 'Login failed'
@@ -85,11 +92,17 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
-        localStorage.removeItem('token');
-        setUser(null);
-        setIsAuthenticated(false);
-        setSessionExpired(false);
+    const logout = async () => {
+        try {
+            await api.post('/api/auth/logout');
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            localStorage.removeItem('token');
+            setUser(null);
+            setIsAuthenticated(false);
+            setSessionExpired(false);
+        }
     };
 
     const closeSessionExpiredModal = () => {
