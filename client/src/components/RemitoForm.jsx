@@ -14,6 +14,7 @@ const RemitoForm = () => {
     const [manualCode, setManualCode] = useState('');
     const [remitoNumber, setRemitoNumber] = useState('');
     const [isScanning, setIsScanning] = useState(false);
+    const [isListening, setIsListening] = useState(false); // Voice Search State
 
     // Report State
     const [reportConfig, setReportConfig] = useState({
@@ -60,6 +61,43 @@ const RemitoForm = () => {
         }
         return () => clearInterval(interval);
     }, [countMode]);
+
+    const handleVoiceSearch = () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            triggerModal('Error', 'Tu navegador no soporta búsqueda por voz.', 'error');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+
+        recognition.lang = 'es-ES';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setIsListening(true);
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setManualCode(transcript);
+            setIsListening(false);
+            // Optional: Auto-trigger search/suggestion logic if needed
+            // For now, we just set the text so the user confirms or edits
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error', event.error);
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+
+        recognition.start();
+    };
 
     // Pre-remito state
     const [preRemitoNumber, setPreRemitoNumber] = useState('');
@@ -979,6 +1017,20 @@ const RemitoForm = () => {
                                     autoFocus
                                     autoComplete="off"
                                 />
+
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center mb-16">
+                                    <button
+                                        type="button" // Prevent form submit
+                                        onClick={handleVoiceSearch}
+                                        className={`p-1.5 rounded-full transition-colors focus:outline-none z-10 ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                                            }`}
+                                        title="Ingresar por voz"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
 
                                 {showSuggestions && manualSuggestions.length > 0 && (
                                     <ul className="absolute bottom-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mb-1 max-h-60 overflow-y-auto z-50">
