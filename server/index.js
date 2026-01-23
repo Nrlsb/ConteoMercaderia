@@ -184,20 +184,42 @@ app.get('/api/products/search', verifyToken, async (req, res) => {
 app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;
     try {
+        // 1. Try exact match first
         const { data, error } = await supabase
             .from('products')
             .select('*')
             .or(`code.eq.${barcode},barcode.eq.${barcode}`)
-            .single();
+            .maybeSingle(); // Changed single() to maybeSingle() to handle null without throwing immediately
 
-        if (error) {
-            if (error.code === 'PGRST116') { // Not found
-                return res.status(404).json({ message: 'Product not found' });
-            }
-            throw error;
+        if (data) {
+            return res.json(data);
         }
 
-        res.json(data);
+        // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)
+        // This handles cases where there might be whitespace differences or if the user scanned a code that exists as a substring in a weird way?
+        // But mainly for "invisible" chars or whitespace issues.
+        console.log(`Product ${barcode} not found via exact match. Trying fallback search...`);
+
+        const { data: searchResults, error: searchError } = await supabase
+            .rpc('search_products', { search_term: barcode });
+
+        if (!searchError && searchResults && searchResults.length > 0) {
+            // Try to find a "good enough" match from search results
+            // We look for exact string match on code or barcode, ignoring whitespace
+            const match = searchResults.find(p =>
+                (p.code && p.code.trim() === barcode.trim()) ||
+                (p.barcode && p.barcode.trim() === barcode.trim())
+            );
+
+            if (match) {
+                console.log(`Fallback search found match for ${barcode}:`, match.code);
+                return res.json(match);
+            }
+        }
+
+        // If still not found
+        return res.status(404).json({ message: 'Product not found' });
+
     } catch (error) {
         console.error('Error fetching product:', error);
         res.status(500).json({ message: 'Internal server error' });
