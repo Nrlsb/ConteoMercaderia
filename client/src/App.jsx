@@ -1,19 +1,21 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
-import RemitoForm from './components/RemitoForm';
-import RemitoList from './components/RemitoList';
-import RemitoDetailsPage from './components/RemitoDetailsPage';
 import Login from './components/Login';
 import Register from './components/Register';
-import DiscrepancyList from './components/DiscrepancyList';
-import AdminPage from './components/AdminPage';
 import Navigation from './components/Navigation';
-import InventoryPage from './components/InventoryPage';
 import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
-import SettingsPage from './components/SettingsPage';
+
+// Lazy Load Components
+const RemitoForm = lazy(() => import('./components/RemitoForm'));
+const RemitoList = lazy(() => import('./components/RemitoList'));
+const RemitoDetailsPage = lazy(() => import('./components/RemitoDetailsPage'));
+const DiscrepancyList = lazy(() => import('./components/DiscrepancyList'));
+const AdminPage = lazy(() => import('./components/AdminPage'));
+const InventoryPage = lazy(() => import('./components/InventoryPage'));
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
 
 const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -31,6 +33,12 @@ const RoleBasedHome = () => {
   return <RemitoForm />;
 };
 
+const LoadingFallback = () => (
+  <div className="flex justify-center items-center h-full p-10">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+  </div>
+);
+
 const AppContent = () => {
   const { sessionExpired, closeSessionExpiredModal } = useAuth();
 
@@ -47,45 +55,47 @@ const AppContent = () => {
       <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
         <Navigation />
         <main className="container mx-auto p-4 mt-4">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <RoleBasedHome />
-              </ProtectedRoute>
-            } />
-            <Route path="/inventory" element={
-              <ProtectedRoute>
-                <InventoryPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/list" element={
-              <ProtectedRoute>
-                <RemitoList />
-              </ProtectedRoute>
-            } />
-            <Route path="/remitos/:id" element={
-              <ProtectedRoute>
-                <RemitoDetailsPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/discrepancies" element={
-              <ProtectedRoute role="admin">
-                <DiscrepancyList />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin" element={
-              <ProtectedRoute role="admin">
-                <AdminPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/settings" element={
-              <ProtectedRoute role="admin">
-                <SettingsPage />
-              </ProtectedRoute>
-            } />
-          </Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <RoleBasedHome />
+                </ProtectedRoute>
+              } />
+              <Route path="/inventory" element={
+                <ProtectedRoute>
+                  <InventoryPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/list" element={
+                <ProtectedRoute>
+                  <RemitoList />
+                </ProtectedRoute>
+              } />
+              <Route path="/remitos/:id" element={
+                <ProtectedRoute>
+                  <RemitoDetailsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/discrepancies" element={
+                <ProtectedRoute role="admin">
+                  <DiscrepancyList />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute role="admin">
+                  <AdminPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute role="admin">
+                  <SettingsPage />
+                </ProtectedRoute>
+              } />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </>

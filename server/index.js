@@ -1,3 +1,4 @@
+const compression = require('compression');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -15,6 +16,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.use(compression()); // Enable GZIP compression
 app.use(cors());
 app.use(express.json());
 
@@ -323,120 +325,137 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 
         if (openCountsError) console.error('Error fetching open general counts:', openCountsError);
 
-        // 6. Enrich Pending Pre-Remitos with Progress and Brands
-        const pendingFormatted = await Promise.all(pendingPreRemitos.map(async (pre) => {
-            // Fetch scans for this order
-            const { data: scans } = await supabase
-                .from('inventory_scans')
-                .select('code, quantity')
-                .eq('order_number', pre.order_number);
+        // --- BATCH OPTIMIZATION START ---
 
-            let progress = 0;
-            let brands = new Set();
+        // Collect all IDs that need progress calculation
+        const pendingOrderNumbers = pendingPreRemitos.map(p => p.order_number);
+        const openCountIds = (openGeneralCounts || []).map(c => c.id);
+        const allRelevantIds = [...pendingOrderNumbers, ...openCountIds];
+
+        if (allRelevantIds.length === 0) {
+            // If no pending items, just return processed
+            const processedFormatted = remitosData.map(remito => {
+                const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
+                return {
+                    ...remito,
+                    numero_pv: extraInfo.numero_pv,
+                    sucursal: extraInfo.sucursal,
+                    count_name: countsMap[remito.remito_number] || null,
+                    is_finalized: true
+                };
+            });
+            return res.json(processedFormatted.sort((a, b) => new Date(b.date) - new Date(a.date)));
+        }
+
+        // Batch Fetch 1: All scans for these orders
+        const { data: allScans, error: scansError } = await supabase
+            .from('inventory_scans')
+            .select('order_number, code, quantity')
+            .in('order_number', allRelevantIds);
+
+        if (scansError) throw scansError;
+
+        // Batch Fetch 2: Get all unique product details involved in these scans
+        const uniqueScanCodes = [...new Set(allScans.map(s => s.code))];
+        let productMap = {};
+
+        if (uniqueScanCodes.length > 0) {
+            const { data: productsData, error: productError } = await supabase
+                .from('products')
+                .select('code, description, brand')
+                .in('code', uniqueScanCodes);
+
+            if (productError) throw productError;
+
+            if (productsData) {
+                productsData.forEach(p => {
+                    productMap[p.code] = {
+                        brand: p.brand,
+                        description: p.description
+                    };
+                });
+            }
+        }
+
+        // Helper to process scans for a specific ID
+        const processOrderScans = (orderId, expectedItems = []) => {
+            const orderScans = allScans.filter(s => s.order_number === orderId);
+
             let totalScanned = 0;
             let totalExpected = 0;
+            let brands = new Set();
 
             // Calculate totals
-            if (pre.items && Array.isArray(pre.items)) {
-                pre.items.forEach(item => {
+            if (expectedItems && Array.isArray(expectedItems)) {
+                expectedItems.forEach(item => {
                     totalExpected += (item.quantity || 0);
                 });
             }
 
-            if (scans && scans.length > 0) {
-                scans.forEach(scan => {
-                    totalScanned += (scan.quantity || 0);
-                });
+            orderScans.forEach(scan => {
+                totalScanned += (scan.quantity || 0);
 
-                // Get brands for scanned items
-                const codes = [...new Set(scans.map(s => s.code))];
-                const { data: products } = await supabase
-                    .from('products')
-                    .select('description, brand, brand_code')
-                    .in('code', codes);
-
-                if (products) {
-                    products.forEach(p => {
-                        // Use brand column if available, otherwise parse description
-                        if (p.brand) {
-                            brands.add(p.brand);
-                        } else if (p.description) {
-                            const brand = p.description.split(' ')[0]; // Fallback heuristic
-                            if (brand && brand.length > 2) brands.add(brand.toUpperCase());
-                        }
-                    });
+                // Resolve Brand
+                const pInfo = productMap[scan.code];
+                if (pInfo) {
+                    if (pInfo.brand) {
+                        brands.add(pInfo.brand);
+                    } else if (pInfo.description) {
+                        const brand = pInfo.description.split(' ')[0];
+                        if (brand && brand.length > 2) brands.add(brand.toUpperCase());
+                    }
                 }
-            }
+            });
 
-            if (totalExpected > 0) {
-                progress = Math.min(Math.round((totalScanned / totalExpected) * 100), 100);
-            }
+            const progress = totalExpected > 0
+                ? Math.min(Math.round((totalScanned / totalExpected) * 100), 100)
+                : 0;
 
+            return {
+                progress,
+                scanned_brands: Array.from(brands).slice(0, 5)
+            };
+        };
+
+        // 6. Enrich Pending Pre-Remitos
+        const pendingFormatted = pendingPreRemitos.map(pre => {
+            const stats = processOrderScans(pre.order_number, pre.items);
             return {
                 id: pre.id,
                 remito_number: pre.order_number,
                 items: pre.items,
-                status: 'pending_scanned', // Custom status for frontend
+                status: 'pending_scanned',
                 created_by: 'Múltiples',
                 date: pre.created_at,
                 numero_pv: pre.pedidos_ventas?.[0]?.numero_pv || '-',
                 sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
                 count_name: countsMap[pre.order_number] || null,
-                progress: progress,
-                scanned_brands: Array.from(brands).slice(0, 5), // Top 5 brands
+                progress: stats.progress,
+                scanned_brands: stats.scanned_brands,
                 is_finalized: false
             };
-        }));
+        });
 
-        // 7. Enrich Open General Counts with Scans and Brands
-        const openCountsFormatted = await Promise.all((openGeneralCounts || []).map(async (count) => {
-            const { data: scans } = await supabase
-                .from('inventory_scans')
-                .select('code, quantity')
-                .eq('order_number', count.id);
-
-            let brands = new Set();
-            let totalScanned = 0;
-
-            if (scans && scans.length > 0) {
-                scans.forEach(scan => {
-                    totalScanned += (scan.quantity || 0);
-                });
-
-                const codes = [...new Set(scans.map(s => s.code))];
-                const { data: products } = await supabase
-                    .from('products')
-                    .select('description, brand, brand_code')
-                    .in('code', codes);
-
-                if (products) {
-                    products.forEach(p => {
-                        // Use brand column if available, otherwise parse description
-                        if (p.brand) {
-                            brands.add(p.brand);
-                        } else if (p.description) {
-                            const brand = p.description.split(' ')[0];
-                            if (brand && brand.length > 2) brands.add(brand.toUpperCase());
-                        }
-                    });
-                }
-            }
-
+        // 7. Enrich Open General Counts
+        const openCountsFormatted = (openGeneralCounts || []).map(count => {
+            const stats = processOrderScans(count.id, []); // No expected items for general count
             return {
                 id: count.id,
                 remito_number: count.id,
-                items: [], // No expected items
+                items: [],
                 status: 'pending_scanned',
                 created_by: count.created_by || 'Admin',
                 date: count.created_at,
                 numero_pv: '-',
                 sucursal: '-',
                 count_name: count.name,
-                progress: null, // No progress for general counts
-                scanned_brands: Array.from(brands).slice(0, 5),
+                progress: null, // General counts don't have progress bar usually
+                scanned_brands: stats.scanned_brands,
                 is_finalized: false
             };
-        }));
+        });
+
+        // --- BATCH OPTIMIZATION END ---
 
         // 8. Merge data
         const processedFormatted = remitosData.map(remito => {
