@@ -763,7 +763,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         // 2. Fetch User Scans
         const { data: scans } = await supabase
             .from('inventory_scans')
-            .select('user_id, code, quantity')
+            .select('user_id, code, quantity, timestamp')
             .eq('order_number', remito.remito_number);
 
         // Enrich scans with user and product info if we have scans
@@ -876,36 +876,45 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         }
 
         // --- Sheet 3: Diferencias ---
-        const discrepancies = [];
+        const discrepanciesData = [];
+
+        // Map to find the last scanner for each product
+        const lastScannerMap = {};
+        if (scans && scans.length > 0) {
+            // Sort scans by timestamp descending to easily pick the first one (latest)
+            const sortedScans = [...scans].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            sortedScans.forEach(s => {
+                if (!lastScannerMap[s.code]) {
+                    lastScannerMap[s.code] = s.users?.username || 'Desconocido';
+                }
+            });
+        }
+
         if (remito.discrepancies?.missing) {
             remito.discrepancies.missing.forEach(d => {
-                discrepancies.push({
-                    Tipo: 'Faltante',
+                discrepanciesData.push({
                     Codigo: d.code,
                     Descripcion: d.description,
                     Esperado: d.expected,
-                    Escaneado: d.scanned,
                     Diferencia: d.scanned - d.expected,
-                    Motivo: d.reason === 'no_stock' ? 'Sin Stock' : d.reason
+                    'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
             });
         }
         if (remito.discrepancies?.extra) {
             remito.discrepancies.extra.forEach(d => {
-                discrepancies.push({
-                    Tipo: 'Sobrante',
+                discrepanciesData.push({
                     Codigo: d.code,
                     Descripcion: d.description,
                     Esperado: d.expected,
-                    Escaneado: d.scanned,
                     Diferencia: d.scanned - d.expected,
-                    Motivo: '-'
+                    'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
             });
         }
 
-        if (discrepancies.length > 0) {
-            const wsDisc = xlsx.utils.json_to_sheet(discrepancies);
+        if (discrepanciesData.length > 0) {
+            const wsDisc = xlsx.utils.json_to_sheet(discrepanciesData);
             xlsx.utils.book_append_sheet(workbook, wsDisc, "Diferencias");
         }
 

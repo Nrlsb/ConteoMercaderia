@@ -417,14 +417,19 @@ const RemitoDetailsPage = () => {
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Contado</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Dif.</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Diferencia</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {/* Expected Items */}
-                                        {(remito.items || []).map((item, idx) => {
+                                        {/* Expected Items with Differences */}
+                                        {(remito.items || []).filter(item => {
+                                            let totalScanned = 0;
+                                            userCounts.forEach(u => {
+                                                const match = u.items.find(i => i.code === item.code);
+                                                if (match) totalScanned += match.quantity;
+                                            });
+                                            return totalScanned !== item.quantity;
+                                        }).map((item, idx) => {
                                             // Calculate total scanned for this item across all users
                                             let totalScanned = 0;
                                             userCounts.forEach(u => {
@@ -433,8 +438,6 @@ const RemitoDetailsPage = () => {
                                             });
 
                                             const diff = totalScanned - item.quantity;
-                                            const progress = item.quantity > 0 ? Math.min(Math.round((totalScanned / item.quantity) * 100), 100) : 100;
-                                            const isComplete = totalScanned >= item.quantity;
                                             const isMissing = totalScanned < item.quantity;
                                             const isExtra = totalScanned > item.quantity;
 
@@ -448,34 +451,9 @@ const RemitoDetailsPage = () => {
                                                         {item.quantity}
                                                     </td>
                                                     <td className="px-6 py-4 text-center text-sm font-bold">
-                                                        <span className={isMissing ? 'text-red-600' : isExtra ? 'text-orange-600' : 'text-green-600'}>
-                                                            {totalScanned}
+                                                        <span className={diff < 0 ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
+                                                            {diff > 0 ? `+${diff}` : diff}
                                                         </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center text-sm font-bold">
-                                                        {diff === 0 ? (
-                                                            <span className="text-gray-400">-</span>
-                                                        ) : (
-                                                            <span className={diff < 0 ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
-                                                                {diff > 0 ? `+${diff}` : diff}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 min-w-[150px]">
-                                                        <div className="flex flex-col">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className={`text-[10px] font-bold uppercase ${isMissing ? 'text-red-600' : isExtra ? 'text-blue-600' : 'text-green-600'}`}>
-                                                                    {isMissing ? `Faltan ${Math.abs(diff)}` : isExtra ? `Sobran ${diff}` : 'Completo'}
-                                                                </span>
-                                                                <span className="text-[10px] font-bold text-gray-500">{progress}%</span>
-                                                            </div>
-                                                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                                                <div
-                                                                    className={`h-full rounded-full transition-all duration-500 ${isExtra ? 'bg-blue-500' : isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
-                                                                    style={{ width: `${progress}%` }}
-                                                                ></div>
-                                                            </div>
-                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -495,16 +473,8 @@ const RemitoDetailsPage = () => {
                                                     <td className="px-6 py-4 text-center text-sm font-normal text-gray-400">
                                                         0
                                                     </td>
-                                                    <td className="px-6 py-4 text-center text-sm font-bold text-blue-700">
-                                                        {item.scanned}
-                                                    </td>
                                                     <td className="px-6 py-4 text-center text-sm font-bold text-blue-600">
                                                         +{item.scanned}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">
-                                                            Producto Extra (+{item.scanned})
-                                                        </span>
                                                     </td>
                                                 </tr>
                                             );
