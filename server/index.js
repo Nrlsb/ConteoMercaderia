@@ -862,39 +862,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         const xlsx = require('xlsx');
         const workbook = xlsx.utils.book_new();
 
-        // --- Sheet 1: General (All Items) ---
-        // Basic list of items in the remito record
-        const generalData = (remito.items || []).map(item => ({
-            Codigo: item.code,
-            Descripcion: item.name || item.description,
-            Cantidad: item.quantity
-        }));
-        const wsGeneral = xlsx.utils.json_to_sheet(generalData);
-        xlsx.utils.book_append_sheet(workbook, wsGeneral, "General");
-
-        // --- Sheet 2: Por Usuario ---
-        if (scans && scans.length > 0) {
-            const userData = scans.map(s => ({
-                Usuario: s.users?.username || 'Desconocido',
-                Codigo: s.code,
-                Descripcion: s.products?.description || '-',
-                Cantidad: s.quantity
-            }));
-            const wsUsers = xlsx.utils.json_to_sheet(userData);
-            xlsx.utils.book_append_sheet(workbook, wsUsers, "Por Usuario");
-        } else {
-            // If no granular scans, just list create_by
-            const userData = (remito.items || []).map(item => ({
-                Usuario: remito.created_by,
-                Codigo: item.code,
-                Descripcion: item.name || item.description,
-                Cantidad: item.quantity
-            }));
-            const wsUsers = xlsx.utils.json_to_sheet(userData);
-            xlsx.utils.book_append_sheet(workbook, wsUsers, "Por Usuario");
-        }
-
-        // --- Sheet 3: Diferencias ---
+        // --- Sheet 1: Diferencias (ONLY) ---
         const discrepanciesData = [];
 
         // Map to find the last scanner for each product
@@ -914,7 +882,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
                 discrepanciesData.push({
                     Codigo: d.code,
                     Descripcion: d.description,
-                    Esperado: d.expected,
+                    'Stock actual': d.expected,
                     Diferencia: d.scanned - d.expected,
                     'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
@@ -925,7 +893,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
                 discrepanciesData.push({
                     Codigo: d.code,
                     Descripcion: d.description,
-                    Esperado: d.expected,
+                    'Stock actual': d.expected,
                     Diferencia: d.scanned - d.expected,
                     'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
@@ -934,6 +902,12 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
 
         if (discrepanciesData.length > 0) {
             const wsDisc = xlsx.utils.json_to_sheet(discrepanciesData);
+            xlsx.utils.book_append_sheet(workbook, wsDisc, "Diferencias");
+        } else {
+            // If no discrepancies, maybe add an empty sheet saying so or just the items
+            // But request was "only sheet differences", if empty we can just export empty or all items as differences 0?
+            // Safest is to just export an empty "Diferencias" sheet if truly empty to avoid corrupt file
+            const wsDisc = xlsx.utils.json_to_sheet([{ Info: "Sin discrepancias" }]);
             xlsx.utils.book_append_sheet(workbook, wsDisc, "Diferencias");
         }
 

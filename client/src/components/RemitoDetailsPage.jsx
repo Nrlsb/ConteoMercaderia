@@ -13,6 +13,7 @@ const RemitoDetailsPage = () => {
     const [expandedSummaryBrands, setExpandedSummaryBrands] = useState({}); // Track expanded brands in the summary
     const [searchTerm, setSearchTerm] = useState(''); // State for search input
     const [isListening, setIsListening] = useState(false); // State for voice search
+    const [visibleCount, setVisibleCount] = useState(20); // State for pagination
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -556,77 +557,109 @@ const RemitoDetailsPage = () => {
                                 )}
 
                                 {!isInProgress && (
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Diferencia</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                {/* Expected Items with Differences */}
-                                                {(remito.items || []).filter(item => {
-                                                    let totalScanned = 0;
-                                                    userCounts.forEach(u => {
-                                                        const match = u.items.find(i => i.code === item.code);
-                                                        if (match) totalScanned += match.quantity;
-                                                    });
-                                                    return totalScanned !== item.quantity;
-                                                }).map((item, idx) => {
-                                                    // Calculate total scanned for this item across all users
-                                                    let totalScanned = 0;
-                                                    userCounts.forEach(u => {
-                                                        const match = u.items.find(i => i.code === item.code);
-                                                        if (match) totalScanned += match.quantity;
-                                                    });
+                                    (() => {
+                                        // 1. Prepare Expected Items with Differences
+                                        const expectedDiffs = (remito.items || []).filter(item => {
+                                            let totalScanned = 0;
+                                            userCounts.forEach(u => {
+                                                const match = u.items.find(i => i.code === item.code);
+                                                if (match) totalScanned += match.quantity;
+                                            });
+                                            return totalScanned !== item.quantity;
+                                        }).map(item => ({
+                                            ...item,
+                                            type: 'expected',
+                                            totalScanned: userCounts.reduce((acc, u) => {
+                                                const match = u.items.find(i => i.code === item.code);
+                                                return acc + (match ? match.quantity : 0);
+                                            }, 0)
+                                        }));
 
-                                                    const diff = totalScanned - item.quantity;
-                                                    const isMissing = totalScanned < item.quantity;
-                                                    const isExtra = totalScanned > item.quantity;
+                                        // 2. Prepare Extra Items
+                                        const extraDiffs = (discrepancies.extra || []).filter(item => {
+                                            // Avoid duplicates if already shown in expected
+                                            return !(remito.items?.some(i => i.code === item.code));
+                                        }).map(item => ({
+                                            ...item,
+                                            type: 'extra',
+                                            quantity: 0, // Expected is 0 for extra
+                                            totalScanned: item.scanned // mapped correctly in discrepancy logic earlier? check usage
+                                        }));
 
-                                                    return (
-                                                        <tr key={idx} className={`${isMissing ? 'bg-red-50/30' : isExtra ? 'bg-orange-50/30' : 'bg-green-50/30'} hover:bg-gray-100 transition`}>
-                                                            <td className="px-6 py-4">
-                                                                <div className="text-sm font-bold text-gray-900">{item.description || item.name}</div>
-                                                                <div className="text-xs text-gray-500 font-mono">{item.code}</div>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center text-sm font-semibold text-gray-700">
-                                                                {item.quantity}
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center text-sm font-bold">
-                                                                <span className={diff < 0 ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
-                                                                    {diff > 0 ? `+${diff}` : diff}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                        // Combine and sort
+                                        const allDiffs = [...expectedDiffs, ...extraDiffs];
+                                        const visibleDiffs = allDiffs.slice(0, visibleCount);
 
-                                                {/* Extra Items (Scanned but not in remito) */}
-                                                {discrepancies.extra?.map((item, idx) => {
-                                                    // Avoid duplicates if already shown in expected
-                                                    if (remito.items?.some(i => i.code === item.code)) return null;
+                                        return (
+                                            <div className="flex flex-col">
+                                                <div className="overflow-x-auto">
+                                                    <table className="min-w-full divide-y divide-gray-200">
+                                                        <thead className="bg-gray-50">
+                                                            <tr>
+                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock actual</th>
+                                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Diferencia</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="bg-white divide-y divide-gray-200">
+                                                            {visibleDiffs.map((item, idx) => {
+                                                                if (item.type === 'expected') {
+                                                                    const diff = item.totalScanned - item.quantity;
+                                                                    const isMissing = item.totalScanned < item.quantity;
+                                                                    const isExtra = item.totalScanned > item.quantity;
 
-                                                    return (
-                                                        <tr key={`extra-${idx}`} className="bg-blue-50/50 hover:bg-blue-100/50 transition border-l-4 border-blue-400">
-                                                            <td className="px-6 py-4">
-                                                                <div className="text-sm font-bold text-blue-900">{item.description}</div>
-                                                                <div className="text-xs text-blue-700 font-mono">{item.code}</div>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center text-sm font-normal text-gray-400">
-                                                                0
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center text-sm font-bold text-blue-600">
-                                                                +{item.scanned}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                                    return (
+                                                                        <tr key={`expected-${idx}`} className={`${isMissing ? 'bg-red-50/30' : isExtra ? 'bg-orange-50/30' : 'bg-green-50/30'} hover:bg-gray-100 transition`}>
+                                                                            <td className="px-6 py-4">
+                                                                                <div className="text-sm font-bold text-gray-900">{item.description || item.name}</div>
+                                                                                <div className="text-xs text-gray-500 font-mono">{item.code}</div>
+                                                                            </td>
+                                                                            <td className="px-6 py-4 text-center text-sm font-semibold text-gray-700">
+                                                                                {item.quantity}
+                                                                            </td>
+                                                                            <td className="px-6 py-4 text-center text-sm font-bold">
+                                                                                <span className={diff < 0 ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
+                                                                                    {diff > 0 ? `+${diff}` : diff}
+                                                                                </span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                } else {
+                                                                    // Extra Item
+                                                                    return (
+                                                                        <tr key={`extra-${idx}`} className="bg-blue-50/50 hover:bg-blue-100/50 transition border-l-4 border-blue-400">
+                                                                            <td className="px-6 py-4">
+                                                                                <div className="text-sm font-bold text-blue-900">{item.description}</div>
+                                                                                <div className="text-xs text-blue-700 font-mono">{item.code}</div>
+                                                                            </td>
+                                                                            <td className="px-6 py-4 text-center text-sm font-normal text-gray-400">
+                                                                                0
+                                                                            </td>
+                                                                            <td className="px-6 py-4 text-center text-sm font-bold text-blue-600">
+                                                                                +{item.scanned || item.totalScanned}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                }
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                {/* Load More Button */}
+                                                {visibleCount < allDiffs.length && (
+                                                    <div className="p-4 flex justify-center bg-gray-50 border-t border-gray-200">
+                                                        <button
+                                                            onClick={() => setVisibleCount(prev => prev + 20)}
+                                                            className="px-6 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                                                        >
+                                                            Cargar más ({allDiffs.length - visibleCount} restantes)
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()
                                 )}
                             </div>
                         )}
