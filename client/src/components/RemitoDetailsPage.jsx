@@ -165,7 +165,7 @@ const RemitoDetailsPage = () => {
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            {remito.status === 'pending_scanned' ? 'Progreso de Conteo' : 'Diferencias'}
+                            {remito.status === 'pending_scanned' ? 'Pendiente de contar' : 'Diferencias'}
                             {hasDiscrepancies && remito.status === 'pending_scanned' && (
                                 <span className="ml-2 bg-orange-100 text-orange-600 py-0.5 px-2 rounded-full text-[10px] font-bold">
                                     Diferencias
@@ -294,11 +294,11 @@ const RemitoDetailsPage = () => {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                             <h3 className="text-lg font-bold text-gray-900">
-                                {remito.status === 'pending_scanned' ? 'Estado Detallado por Producto' : 'Reporte de Diferencias'}
+                                {remito.status === 'pending_scanned' ? 'Productos Pendientes por Marca' : 'Reporte de Diferencias'}
                             </h3>
                             <p className="text-sm text-gray-500">
                                 {remito.status === 'pending_scanned'
-                                    ? 'Seguimiento de lo contado vs lo esperado en el remito.'
+                                    ? 'Lista de productos que aún no han sido contados, agrupados por marca.'
                                     : 'Comparativa final entre lo esperado y lo efectivamente contado.'}
                             </p>
                         </div>
@@ -409,107 +409,109 @@ const RemitoDetailsPage = () => {
                             </div>
                         )}
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Contado</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Dif.</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {/* Expected Items */}
-                                    {(remito.items || []).map((item, idx) => {
-                                        // Calculate total scanned for this item across all users
-                                        let totalScanned = 0;
-                                        userCounts.forEach(u => {
-                                            const match = u.items.find(i => i.code === item.code);
-                                            if (match) totalScanned += match.quantity;
-                                        });
+                        {remito.status !== 'pending_scanned' && (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Contado</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Dif.</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {/* Expected Items */}
+                                        {(remito.items || []).map((item, idx) => {
+                                            // Calculate total scanned for this item across all users
+                                            let totalScanned = 0;
+                                            userCounts.forEach(u => {
+                                                const match = u.items.find(i => i.code === item.code);
+                                                if (match) totalScanned += match.quantity;
+                                            });
 
-                                        const diff = totalScanned - item.quantity;
-                                        const progress = item.quantity > 0 ? Math.min(Math.round((totalScanned / item.quantity) * 100), 100) : 100;
-                                        const isComplete = totalScanned >= item.quantity;
-                                        const isMissing = totalScanned < item.quantity;
-                                        const isExtra = totalScanned > item.quantity;
+                                            const diff = totalScanned - item.quantity;
+                                            const progress = item.quantity > 0 ? Math.min(Math.round((totalScanned / item.quantity) * 100), 100) : 100;
+                                            const isComplete = totalScanned >= item.quantity;
+                                            const isMissing = totalScanned < item.quantity;
+                                            const isExtra = totalScanned > item.quantity;
 
-                                        return (
-                                            <tr key={idx} className={`${isMissing ? 'bg-red-50/30' : isExtra ? 'bg-orange-50/30' : 'bg-green-50/30'} hover:bg-gray-100 transition`}>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-bold text-gray-900">{item.description || item.name}</div>
-                                                    <div className="text-xs text-gray-500 font-mono">{item.code}</div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-sm font-semibold text-gray-700">
-                                                    {item.quantity}
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-sm font-bold">
-                                                    <span className={isMissing ? 'text-red-600' : isExtra ? 'text-orange-600' : 'text-green-600'}>
-                                                        {totalScanned}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-sm font-bold">
-                                                    {diff === 0 ? (
-                                                        <span className="text-gray-400">-</span>
-                                                    ) : (
-                                                        <span className={diff < 0 ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
-                                                            {diff > 0 ? `+${diff}` : diff}
+                                            return (
+                                                <tr key={idx} className={`${isMissing ? 'bg-red-50/30' : isExtra ? 'bg-orange-50/30' : 'bg-green-50/30'} hover:bg-gray-100 transition`}>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-sm font-bold text-gray-900">{item.description || item.name}</div>
+                                                        <div className="text-xs text-gray-500 font-mono">{item.code}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center text-sm font-semibold text-gray-700">
+                                                        {item.quantity}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center text-sm font-bold">
+                                                        <span className={isMissing ? 'text-red-600' : isExtra ? 'text-orange-600' : 'text-green-600'}>
+                                                            {totalScanned}
                                                         </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 min-w-[150px]">
-                                                    <div className="flex flex-col">
-                                                        <div className="flex justify-between items-center mb-1">
-                                                            <span className={`text-[10px] font-bold uppercase ${isMissing ? 'text-red-600' : isExtra ? 'text-blue-600' : 'text-green-600'}`}>
-                                                                {isMissing ? `Faltan ${Math.abs(diff)}` : isExtra ? `Sobran ${diff}` : 'Completo'}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center text-sm font-bold">
+                                                        {diff === 0 ? (
+                                                            <span className="text-gray-400">-</span>
+                                                        ) : (
+                                                            <span className={diff < 0 ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
+                                                                {diff > 0 ? `+${diff}` : diff}
                                                             </span>
-                                                            <span className="text-[10px] font-bold text-gray-500">{progress}%</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 min-w-[150px]">
+                                                        <div className="flex flex-col">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className={`text-[10px] font-bold uppercase ${isMissing ? 'text-red-600' : isExtra ? 'text-blue-600' : 'text-green-600'}`}>
+                                                                    {isMissing ? `Faltan ${Math.abs(diff)}` : isExtra ? `Sobran ${diff}` : 'Completo'}
+                                                                </span>
+                                                                <span className="text-[10px] font-bold text-gray-500">{progress}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all duration-500 ${isExtra ? 'bg-blue-500' : isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
+                                                                    style={{ width: `${progress}%` }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
-                                                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                                            <div
-                                                                className={`h-full rounded-full transition-all duration-500 ${isExtra ? 'bg-blue-500' : isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
-                                                                style={{ width: `${progress}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
 
-                                    {/* Extra Items (Scanned but not in remito) */}
-                                    {discrepancies.extra?.map((item, idx) => {
-                                        // Avoid duplicates if already shown in expected
-                                        if (remito.items?.some(i => i.code === item.code)) return null;
+                                        {/* Extra Items (Scanned but not in remito) */}
+                                        {discrepancies.extra?.map((item, idx) => {
+                                            // Avoid duplicates if already shown in expected
+                                            if (remito.items?.some(i => i.code === item.code)) return null;
 
-                                        return (
-                                            <tr key={`extra-${idx}`} className="bg-blue-50/50 hover:bg-blue-100/50 transition border-l-4 border-blue-400">
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-bold text-blue-900">{item.description}</div>
-                                                    <div className="text-xs text-blue-700 font-mono">{item.code}</div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-sm font-normal text-gray-400">
-                                                    0
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-sm font-bold text-blue-700">
-                                                    {item.scanned}
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-sm font-bold text-blue-600">
-                                                    +{item.scanned}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">
-                                                        Producto Extra (+{item.scanned})
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                                            return (
+                                                <tr key={`extra-${idx}`} className="bg-blue-50/50 hover:bg-blue-100/50 transition border-l-4 border-blue-400">
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-sm font-bold text-blue-900">{item.description}</div>
+                                                        <div className="text-xs text-blue-700 font-mono">{item.code}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center text-sm font-normal text-gray-400">
+                                                        0
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center text-sm font-bold text-blue-700">
+                                                        {item.scanned}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center text-sm font-bold text-blue-600">
+                                                        +{item.scanned}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">
+                                                            Producto Extra (+{item.scanned})
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

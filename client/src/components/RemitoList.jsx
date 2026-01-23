@@ -248,7 +248,7 @@ const RemitoList = () => {
                                                     ? 'bg-blue-50 text-blue-600 border border-blue-100'
                                                     : 'bg-amber-100 text-amber-800'
                                             }`}>
-                                            {remito.status === 'processed' ? 'Procesado' : remito.status === 'voided' ? 'Anulado' : remito.status === 'pending_scanned' ? 'Iniciado' : 'Pendiente'}
+                                            {remito.status === 'processed' ? 'Finalizado' : remito.status === 'voided' ? 'Anulado' : remito.status === 'pending_scanned' ? 'En curso' : 'Finalizado'}
                                         </span>
                                     </div>
 
@@ -386,7 +386,7 @@ const RemitoList = () => {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-bold rounded uppercase w-fit ${remito.status === 'pending_scanned' ? 'bg-blue-100 text-blue-700 animate-pulse' : remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
-                                                        {remito.status === 'pending_scanned' ? 'En Curso' : remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'Pendiente' : 'Procesado'}
+                                                        {remito.status === 'pending_scanned' ? 'En curso' : 'Finalizado'}
                                                     </span>
                                                     {remito.status === 'pending_scanned' && (
                                                         <div className="w-32">
