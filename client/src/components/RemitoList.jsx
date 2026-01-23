@@ -398,15 +398,7 @@ const RemitoList = () => {
                                                             ) : (
                                                                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter block mb-1">Conteo General</span>
                                                             )}
-                                                            {remito.scanned_brands?.length > 0 && (
-                                                                <div className="mt-1.5 flex flex-wrap gap-1 max-w-[150px]">
-                                                                    {remito.scanned_brands.map(brand => (
-                                                                        <span key={brand} className="px-1 py-0 bg-gray-50 text-gray-400 text-[8px] font-bold border border-gray-100 rounded uppercase">
-                                                                            {brand}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
+
                                                         </div>
                                                     )}
                                                 </div>

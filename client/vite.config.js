@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Control de Remitos',
-        short_name: 'Remitos',
+        name: 'Conteo de Mercadería',
+        short_name: 'Conteo',
         description: 'Aplicación para control de recepción y despacho de mercadería',
         theme_color: '#ffffff',
         icons: [

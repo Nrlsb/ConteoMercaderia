@@ -289,7 +289,7 @@ const InventoryPage = () => {
                                 {isScanning ? 'Detener Cámara' : 'Activar Cámara'}
                             </button>
 
-                            {isScanning && (
+                            {isScanning && !fichajeState.isOpen && (
                                 <div className="mt-4 rounded-lg overflow-hidden border">
                                     <Scanner onScan={handleScan} />
                                 </div>
