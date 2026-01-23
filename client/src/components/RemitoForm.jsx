@@ -386,13 +386,8 @@ const RemitoForm = () => {
                 })
                 .catch(error => {
                     console.error('Error fetching product:', error);
-                    // Fallback for completely unknown item
-                    const product = {
-                        code: inputCode,
-                        name: 'Producto Desconocido',
-                        barcode: inputCode
-                    };
-                    openFichajeModal(product, null);
+                    // Modified: Show warning instead of allowing generic product entry
+                    triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
                 });
         }
     }, []); // Empty dependency array as we use refs/setters
