@@ -10,6 +10,7 @@ const RemitoDetailsPage = () => {
     const [activeTab, setActiveTab] = useState('users'); // 'users' | 'discrepancies' | 'scanned'
     const [error, setError] = useState(null);
     const [expandedBrands, setExpandedBrands] = useState({}); // Track expanded brands per user
+    const [expandedSummaryBrands, setExpandedSummaryBrands] = useState({}); // Track expanded brands in the summary
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -309,6 +310,102 @@ const RemitoDetailsPage = () => {
                                     Aclaración General
                                 </h4>
                                 <p className="text-gray-800 italic">"{remito.clarification}"</p>
+                            </div>
+                        )}
+
+                        {/* BRAND SUMMARY TABLE (SCROLL TO SEE UNSCANNED) */}
+                        {remito.status === 'pending_scanned' && remito.items?.length > 0 && (
+                            <div className="m-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                                <h4 className="text-sm font-bold text-blue-900 mb-4 flex items-center">
+                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01m-.01 4h.01"></path></svg>
+                                    Resumen por Marca (Pendientes)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {(() => {
+                                        const brandSummary = {};
+                                        remito.items.forEach(item => {
+                                            const brand = item.brand || 'OTRAS MARCAS';
+                                            if (!brandSummary[brand]) {
+                                                brandSummary[brand] = { totalExpected: 0, totalScanned: 0, unscannedItems: [] };
+                                            }
+
+                                            let scannedQty = 0;
+                                            userCounts.forEach(u => {
+                                                const match = u.items.find(i => i.code === item.code);
+                                                if (match) scannedQty += match.quantity;
+                                            });
+
+                                            brandSummary[brand].totalExpected += item.quantity;
+                                            brandSummary[brand].totalScanned += scannedQty;
+
+                                            if (scannedQty === 0) {
+                                                brandSummary[brand].unscannedItems.push(item);
+                                            }
+                                        });
+
+                                        return Object.keys(brandSummary).sort().map(brand => {
+                                            const data = brandSummary[brand];
+                                            const isExpanded = expandedSummaryBrands[brand];
+                                            const progress = data.totalExpected > 0 ? Math.round((data.totalScanned / data.totalExpected) * 100) : 0;
+
+                                            return (
+                                                <div key={brand} className="bg-white border border-blue-100 rounded-lg shadow-sm overflow-hidden flex flex-col">
+                                                    <button
+                                                        onClick={() => setExpandedSummaryBrands(prev => ({ ...prev, [brand]: !prev[brand] }))}
+                                                        className="p-3 text-left hover:bg-gray-50 transition-colors flex flex-col gap-2"
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-bold text-gray-900 text-sm truncate">{brand}</span>
+                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${data.unscannedItems.length === 0 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                                {data.unscannedItems.length} pendientes
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                                            <div
+                                                                className="bg-brand-blue h-full rounded-full transition-all duration-500"
+                                                                style={{ width: `${progress}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <div className="flex justify-between text-[10px] text-gray-500 font-medium">
+                                                            <span>{data.totalScanned} / {data.totalExpected} unid.</span>
+                                                            <span>{progress}%</span>
+                                                        </div>
+                                                    </button>
+
+                                                    {isExpanded && (
+                                                        <div className="border-t border-gray-100 max-h-48 overflow-y-auto bg-gray-50/50">
+                                                            {data.unscannedItems.length > 0 ? (
+                                                                <table className="min-w-full text-[11px]">
+                                                                    <thead className="bg-gray-100/80 sticky top-0">
+                                                                        <tr>
+                                                                            <th className="px-2 py-1 text-left text-gray-500">Producto</th>
+                                                                            <th className="px-2 py-1 text-right text-gray-500 whitespace-nowrap">Esp.</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-gray-200">
+                                                                        {data.unscannedItems.map((item, i) => (
+                                                                            <tr key={i} className="hover:bg-blue-50">
+                                                                                <td className="px-2 py-1.5 text-gray-700 leading-tight">
+                                                                                    {item.description || item.name}
+                                                                                    <div className="text-[9px] text-gray-400 font-mono mt-0.5">{item.code}</div>
+                                                                                </td>
+                                                                                <td className="px-2 py-1.5 text-right font-bold text-gray-900">{item.quantity}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            ) : (
+                                                                <div className="p-4 text-center text-xs text-green-600 font-medium bg-green-50/50">
+                                                                    🎉 Todos los productos escaneados
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
                             </div>
                         )}
 

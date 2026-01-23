@@ -630,32 +630,35 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             ];
 
             if (allCodes.length > 0) {
-                const { data: pData } = await supabase.from('products').select('code, description').in('code', [...new Set(allCodes)]);
+                const { data: pData } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
                 if (pData) {
                     const pMap = {};
-                    pData.forEach(p => pMap[p.code] = p.description);
+                    pData.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
 
                     // Update expected items
                     remito.items.forEach(item => {
                         if (pMap[item.code]) {
-                            item.description = pMap[item.code];
-                            item.name = pMap[item.code];
+                            item.description = pMap[item.code].description;
+                            item.name = pMap[item.code].description;
+                            item.brand = pMap[item.code].brand;
                         }
                     });
 
                     // Update missing items
                     discrepancies.missing.forEach(d => {
                         if (pMap[d.code]) {
-                            d.description = pMap[d.code];
-                            d.name = pMap[d.code];
+                            d.description = pMap[d.code].description;
+                            d.name = pMap[d.code].description;
+                            d.brand = pMap[d.code].brand;
                         }
                     });
 
                     // Update extra items
                     discrepancies.extra.forEach(d => {
                         if (pMap[d.code]) {
-                            d.description = pMap[d.code];
-                            d.name = pMap[d.code];
+                            d.description = pMap[d.code].description;
+                            d.name = pMap[d.code].description;
+                            d.brand = pMap[d.code].brand;
                         }
                     });
                 }
@@ -670,25 +673,27 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             ];
 
             if (allCodes.length > 0) {
-                const { data: prods } = await supabase.from('products').select('code, description').in('code', [...new Set(allCodes)]);
+                const { data: prods } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
                 if (prods) {
                     const pMap = {};
-                    prods.forEach(p => pMap[p.code] = p.description);
+                    prods.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
 
                     // Refresh expected items description
                     if (remito.items) {
                         remito.items.forEach(item => {
                             if (pMap[item.code]) {
-                                item.description = pMap[item.code];
-                                item.name = pMap[item.code];
+                                item.description = pMap[item.code].description;
+                                item.name = pMap[item.code].description;
+                                item.brand = pMap[item.code].brand;
                             }
                         });
                     }
 
                     [...(remito.discrepancies.missing || []), ...(remito.discrepancies.extra || [])].forEach(item => {
                         if (pMap[item.code]) {
-                            item.description = pMap[item.code];
-                            item.name = pMap[item.code];
+                            item.description = pMap[item.code].description;
+                            item.name = pMap[item.code].description;
+                            item.brand = pMap[item.code].brand;
                         }
                     });
                 }
