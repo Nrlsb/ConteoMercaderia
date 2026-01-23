@@ -47,6 +47,7 @@ const RemitoDetailsPage = () => {
     );
 
     const { remito, userCounts } = data;
+    const isInProgress = remito.status === 'pending' || remito.status === 'pending_scanned';
     const discrepancies = remito.discrepancies || { missing: [], extra: [] };
     const hasDiscrepancies = discrepancies.missing?.length > 0 || discrepancies.extra?.length > 0;
 
@@ -77,8 +78,8 @@ const RemitoDetailsPage = () => {
                                     <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                                     {userCounts.length} participante(s)
                                 </span>
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${hasDiscrepancies ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
-                                    {hasDiscrepancies ? 'Con Diferencias' : 'Sin Diferencias'}
+                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${isInProgress ? 'bg-blue-100 text-blue-700' : hasDiscrepancies ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+                                    {isInProgress ? 'En curso' : hasDiscrepancies ? 'Con Diferencias' : 'Sin Diferencias'}
                                 </span>
                             </div>
 
@@ -165,8 +166,8 @@ const RemitoDetailsPage = () => {
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            {remito.status === 'pending_scanned' ? 'Pendiente de contar' : 'Diferencias'}
-                            {hasDiscrepancies && remito.status === 'pending_scanned' && (
+                            {isInProgress ? 'Pendiente de contar' : 'Diferencias'}
+                            {hasDiscrepancies && isInProgress && (
                                 <span className="ml-2 bg-orange-100 text-orange-600 py-0.5 px-2 rounded-full text-[10px] font-bold">
                                     Diferencias
                                 </span>
@@ -294,10 +295,10 @@ const RemitoDetailsPage = () => {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                             <h3 className="text-lg font-bold text-gray-900">
-                                {remito.status === 'pending_scanned' ? 'Productos Pendientes por Marca' : 'Reporte de Diferencias'}
+                                {isInProgress ? 'Productos Pendientes por Marca' : 'Reporte de Diferencias'}
                             </h3>
                             <p className="text-sm text-gray-500">
-                                {remito.status === 'pending_scanned'
+                                {isInProgress
                                     ? 'Lista de productos que aún no han sido contados, agrupados por marca.'
                                     : 'Comparativa final entre lo esperado y lo efectivamente contado.'}
                             </p>
@@ -314,7 +315,7 @@ const RemitoDetailsPage = () => {
                         )}
 
                         {/* BRAND SUMMARY TABLE (SCROLL TO SEE UNSCANNED) */}
-                        {remito.status === 'pending_scanned' && remito.items?.length > 0 && (
+                        {isInProgress && remito.items?.length > 0 && (
                             <div className="m-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
                                 <h4 className="text-sm font-bold text-blue-900 mb-4 flex items-center">
                                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01m-.01 4h.01"></path></svg>
@@ -409,7 +410,7 @@ const RemitoDetailsPage = () => {
                             </div>
                         )}
 
-                        {remito.status !== 'pending_scanned' && (
+                        {!isInProgress && (
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
