@@ -113,11 +113,13 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
 
             const codeKey = findKey('Producto');
             const descKey = findKey('Desc'); // Matches 'Desc. Prod', 'Descripcion', etc
+            const brandKey = findKey('Grupo') || findKey('Marca');
             const barcodeKey = findKey('CodeBar') || findKey('BarCode');
             const stockKey = findKey('Saldo') || findKey('Stock') || findKey('Cantidad');
 
             const code = row[codeKey] ? String(row[codeKey]).trim() : null;
             const description = row[descKey] ? String(row[descKey]).trim() : null;
+            const brand = row[brandKey] ? String(row[brandKey]).trim() : null;
             let barcode = row[barcodeKey] ? String(row[barcodeKey]).trim() : null;
             let stock = row[stockKey] ? parseFloat(row[stockKey]) : 0;
 
@@ -136,6 +138,7 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
             products.push({
                 code: code,
                 description: description,
+                brand: brand,
                 barcode: barcode,
                 current_stock: isNaN(stock) ? 0 : stock
             });
@@ -338,13 +341,16 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 const codes = [...new Set(scans.map(s => s.code))];
                 const { data: products } = await supabase
                     .from('products')
-                    .select('description')
+                    .select('description, brand, brand_code')
                     .in('code', codes);
 
                 if (products) {
                     products.forEach(p => {
-                        if (p.description) {
-                            const brand = p.description.split(' ')[0]; // Basic heuristic: first word
+                        // Use brand column if available, otherwise parse description
+                        if (p.brand) {
+                            brands.add(p.brand);
+                        } else if (p.description) {
+                            const brand = p.description.split(' ')[0]; // Fallback heuristic
                             if (brand && brand.length > 2) brands.add(brand.toUpperCase());
                         }
                     });
@@ -388,12 +394,15 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 const codes = [...new Set(scans.map(s => s.code))];
                 const { data: products } = await supabase
                     .from('products')
-                    .select('description')
+                    .select('description, brand, brand_code')
                     .in('code', codes);
 
                 if (products) {
                     products.forEach(p => {
-                        if (p.description) {
+                        // Use brand column if available, otherwise parse description
+                        if (p.brand) {
+                            brands.add(p.brand);
+                        } else if (p.description) {
                             const brand = p.description.split(' ')[0];
                             if (brand && brand.length > 2) brands.add(brand.toUpperCase());
                         }
@@ -526,17 +535,23 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             const codes = [...new Set(scans.map(s => s.code))];
 
             const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-            const { data: products } = await supabase.from('products').select('code, description').in('code', codes);
+            const { data: products } = await supabase.from('products').select('code, description, brand, brand_code').in('code', codes);
 
             const userMap = {};
             const productMap = {};
             if (users) users.forEach(u => userMap[u.id] = u.username);
-            if (products) products.forEach(p => productMap[p.code] = p.description);
+            // Store complete product info including brand
+            if (products) products.forEach(p => productMap[p.code] = {
+                description: p.description,
+                brand: p.brand,
+                brand_code: p.brand_code
+            });
 
             const userCountsMap = {};
             scans.forEach(scan => {
                 const username = userMap[scan.user_id] || 'Desconocido';
                 const qty = scan.quantity || 0;
+                const productInfo = productMap[scan.code] || { description: 'Sin descripción', brand: null, brand_code: null };
 
                 // Track totals for active discrepancy calculation
                 totalScannedMap[scan.code] = (totalScannedMap[scan.code] || 0) + qty;
@@ -546,7 +561,9 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
                 }
                 userCountsMap[username].items.push({
                     code: scan.code,
-                    description: productMap[scan.code] || 'Sin descripción',
+                    description: productInfo.description,
+                    brand: productInfo.brand,
+                    brand_code: productInfo.brand_code,
                     quantity: qty
                 });
                 userCountsMap[username].totalItems += 1;

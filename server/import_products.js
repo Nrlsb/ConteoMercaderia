@@ -49,15 +49,17 @@ async function importProducts() {
         // 'CodeBar'      -> barcode
 
         for (const row of rawData) {
-            // Helper to find key containing string (handling whitespace)
-            const findKey = (partialKey) => Object.keys(row).find(k => k.trim() === partialKey);
+            // Helper to find key containing string (handling whitespace and variations)
+            const findKey = (partialKey) => Object.keys(row).find(k => k.trim().toLowerCase().includes(partialKey.toLowerCase()));
 
             const codeKey = findKey('Producto');
-            const descKey = findKey('Desc. Prod');
-            const barcodeKey = findKey('CodeBar');
+            const descKey = findKey('Desc. Prod') || findKey('Descripcion');
+            const brandKey = findKey('Grupo') || findKey('Marca');
+            const barcodeKey = findKey('CodeBar') || findKey('BarCode');
 
             const code = row[codeKey] ? String(row[codeKey]).trim() : null;
             const description = row[descKey] ? String(row[descKey]).trim() : null;
+            const brand = row[brandKey] ? String(row[brandKey]).trim() : null;
             let barcode = row[barcodeKey] ? String(row[barcodeKey]).trim() : null;
 
             if (!code) continue; // Skip if no code
@@ -77,6 +79,7 @@ async function importProducts() {
             products.push({
                 code: code,
                 description: description,
+                brand: brand,
                 barcode: barcode
             });
         }
