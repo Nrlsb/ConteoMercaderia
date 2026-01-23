@@ -637,17 +637,26 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
 
                     // Update expected items
                     remito.items.forEach(item => {
-                        if (pMap[item.code]) item.description = pMap[item.code];
+                        if (pMap[item.code]) {
+                            item.description = pMap[item.code];
+                            item.name = pMap[item.code];
+                        }
                     });
 
                     // Update missing items
                     discrepancies.missing.forEach(d => {
-                        if (pMap[d.code]) d.description = pMap[d.code];
+                        if (pMap[d.code]) {
+                            d.description = pMap[d.code];
+                            d.name = pMap[d.code];
+                        }
                     });
 
                     // Update extra items
                     discrepancies.extra.forEach(d => {
-                        if (pMap[d.code]) d.description = pMap[d.code];
+                        if (pMap[d.code]) {
+                            d.description = pMap[d.code];
+                            d.name = pMap[d.code];
+                        }
                     });
                 }
             }
@@ -669,12 +678,18 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
                     // Refresh expected items description
                     if (remito.items) {
                         remito.items.forEach(item => {
-                            if (pMap[item.code]) item.description = pMap[item.code];
+                            if (pMap[item.code]) {
+                                item.description = pMap[item.code];
+                                item.name = pMap[item.code];
+                            }
                         });
                     }
 
                     [...(remito.discrepancies.missing || []), ...(remito.discrepancies.extra || [])].forEach(item => {
-                        if (pMap[item.code]) item.description = pMap[item.code];
+                        if (pMap[item.code]) {
+                            item.description = pMap[item.code];
+                            item.name = pMap[item.code];
+                        }
                     });
                 }
             }
@@ -1371,7 +1386,12 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         const remitoData = {
             remito_number: id,
-            items: scans, // Save the raw aggregated scans as items
+            // Expected items for General Count is the theoretical current_stock
+            items: allProducts.map(p => ({
+                code: p.code,
+                description: p.description,
+                quantity: p.current_stock || 0
+            })),
             discrepancies: discrepancies,
             status: 'processed',
             date: new Date().toISOString(),
