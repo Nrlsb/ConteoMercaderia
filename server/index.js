@@ -170,10 +170,7 @@ app.get('/api/products/search', verifyToken, async (req, res) => {
 
     try {
         const { data, error } = await supabase
-            .from('products')
-            .select('code, description, barcode')
-            .or(`code.ilike.%${q}%,description.ilike.%${q}%`)
-            .limit(20);
+            .rpc('search_products', { search_term: q });
 
         if (error) throw error;
         res.json(data);
@@ -1220,7 +1217,7 @@ app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ stora
 });
 
 // Settings API
-app.get('/api/settings', verifyToken, async (req, res) => {
+app.get('/api/settings', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('app_settings')

@@ -83,8 +83,8 @@ const RemitoForm = () => {
             const transcript = event.results[0][0].transcript;
             setManualCode(transcript);
             setIsListening(false);
-            // Optional: Auto-trigger search/suggestion logic if needed
-            // For now, we just set the text so the user confirms or edits
+            // Executar busqueda por voz inmediatamente
+            executeSearch(transcript);
         };
 
         recognition.onerror = (event) => {
@@ -575,11 +575,9 @@ const RemitoForm = () => {
     // Ref for debounce
     const searchTimeoutRef = React.useRef(null);
 
-    const handleManualChangeDebounced = (e) => {
-        const value = e.target.value;
-        setManualCode(value);
-
-        if (value.length < 2) {
+    // Unified Search Logic
+    const executeSearch = async (value) => {
+        if (!value || value.length < 2) {
             setShowSuggestions(false);
             setManualSuggestions([]);
             return;
@@ -593,21 +591,32 @@ const RemitoForm = () => {
             setManualSuggestions(matches.slice(0, 5));
             setShowSuggestions(matches.length > 0);
         } else {
-            // Clear previous
-            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-
-            searchTimeoutRef.current = setTimeout(async () => {
-                try {
-                    // Only search if value matches current input (basic consistency check)
-                    // But since we are in timeout closure, 'value' is fixed.
-                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
-                    setManualSuggestions(res.data);
-                    setShowSuggestions(res.data.length > 0);
-                } catch (error) {
-                    console.error('Error searching products:', error);
-                }
-            }, 300);
+            try {
+                const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                setManualSuggestions(res.data);
+                setShowSuggestions(res.data.length > 0);
+            } catch (error) {
+                console.error('Error searching products:', error);
+            }
         }
+    };
+
+    const handleManualChangeDebounced = (e) => {
+        const value = e.target.value;
+        setManualCode(value);
+
+        if (value.length < 2) {
+            setShowSuggestions(false);
+            setManualSuggestions([]);
+            return;
+        }
+
+        // Clear previous timeout
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+        searchTimeoutRef.current = setTimeout(() => {
+            executeSearch(value);
+        }, 300);
     };
 
     const handleSelectSuggestion = (product) => {
