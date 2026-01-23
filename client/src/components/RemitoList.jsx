@@ -230,9 +230,9 @@ const RemitoList = () => {
                                                 <span className="text-lg font-bold text-blue-600">
                                                     {remito.remito_number}
                                                 </span>
-                                                {remito.status === 'pending_scanned' && (
+                                                {!remito.is_finalized && (
                                                     <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase animate-pulse">
-                                                        En Curso
+                                                        En curso
                                                     </span>
                                                 )}
                                             </div>
@@ -248,11 +248,11 @@ const RemitoList = () => {
                                                     ? 'bg-blue-50 text-blue-600 border border-blue-100'
                                                     : 'bg-amber-100 text-amber-800'
                                             }`}>
-                                            {remito.status === 'processed' ? 'Finalizado' : remito.status === 'voided' ? 'Anulado' : remito.status === 'pending_scanned' ? 'En curso' : 'Finalizado'}
+                                            {!remito.is_finalized ? 'En curso' : remito.status === 'voided' ? 'Anulado' : 'Finalizado'}
                                         </span>
                                     </div>
 
-                                    {remito.status === 'pending_scanned' && remito.progress !== null && (
+                                    {!remito.is_finalized && remito.progress !== null && (
                                         <div className="mt-3 mb-4">
                                             <div className="flex justify-between items-center mb-1">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Progreso de Conteo</span>
@@ -276,7 +276,7 @@ const RemitoList = () => {
                                         </div>
                                     )}
 
-                                    {remito.status === 'pending_scanned' && remito.progress === null && (
+                                    {!remito.is_finalized && remito.progress === null && (
                                         <div className="mt-3 mb-4">
                                             <div className="flex items-center justify-between mb-1">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Conteo General Activo</span>
@@ -385,10 +385,10 @@ const RemitoList = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col gap-1">
-                                                    <span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-bold rounded uppercase w-fit ${remito.status === 'pending_scanned' ? 'bg-blue-100 text-blue-700 animate-pulse' : remito.discrepancies && Object.keys(remito.discrepancies).length > 0 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
-                                                        {remito.status === 'pending_scanned' ? 'En curso' : 'Finalizado'}
+                                                    <span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-bold rounded uppercase w-fit ${!remito.is_finalized ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-green-100 text-green-800'}`}>
+                                                        {!remito.is_finalized ? 'En curso' : 'Finalizado'}
                                                     </span>
-                                                    {remito.status === 'pending_scanned' && (
+                                                    {!remito.is_finalized && (
                                                         <div className="w-32">
                                                             {remito.progress !== null ? (
                                                                 <>

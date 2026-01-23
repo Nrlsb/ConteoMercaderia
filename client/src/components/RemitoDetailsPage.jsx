@@ -47,7 +47,7 @@ const RemitoDetailsPage = () => {
     );
 
     const { remito, userCounts } = data;
-    const isInProgress = remito.status === 'pending' || remito.status === 'pending_scanned';
+    const isInProgress = !remito.is_finalized;
     const discrepancies = remito.discrepancies || { missing: [], extra: [] };
     const hasDiscrepancies = discrepancies.missing?.length > 0 || discrepancies.extra?.length > 0;
 
@@ -167,7 +167,7 @@ const RemitoDetailsPage = () => {
                                 }`}
                         >
                             {isInProgress ? 'Pendiente de contar' : 'Diferencias'}
-                            {hasDiscrepancies && isInProgress && (
+                            {hasDiscrepancies && !isInProgress && (
                                 <span className="ml-2 bg-orange-100 text-orange-600 py-0.5 px-2 rounded-full text-[10px] font-bold">
                                     Diferencias
                                 </span>

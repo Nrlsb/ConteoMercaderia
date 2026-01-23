@@ -372,7 +372,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
                 count_name: countsMap[pre.order_number] || null,
                 progress: progress,
-                scanned_brands: Array.from(brands).slice(0, 5) // Top 5 brands
+                scanned_brands: Array.from(brands).slice(0, 5), // Top 5 brands
+                is_finalized: false
             };
         }));
 
@@ -421,7 +422,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 sucursal: '-',
                 count_name: count.name,
                 progress: null, // No progress for general counts
-                scanned_brands: Array.from(brands).slice(0, 5)
+                scanned_brands: Array.from(brands).slice(0, 5),
+                is_finalized: false
             };
         }));
 
@@ -434,7 +436,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 ...remito,
                 numero_pv: extraInfo.numero_pv,
                 sucursal: extraInfo.sucursal,
-                count_name: countName || null
+                count_name: countName || null,
+                is_finalized: true
             };
         });
 
@@ -700,7 +703,10 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
             }
         }
 
-        res.json({ remito, userCounts });
+        // Final marking of finalized status
+        remito.is_finalized = isFinalized;
+
+        res.json({ remito, userCounts, is_finalized: isFinalized });
 
     } catch (error) {
         console.error('Error fetching remito details:', error);
