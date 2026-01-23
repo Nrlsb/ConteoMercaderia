@@ -476,10 +476,29 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
                 .maybeSingle();
 
             if (preRemito) {
+                let preRemitoItems = preRemito.items || [];
+
+                // If no items in pre_remito, fetch all products with stock as expected items
+                if (preRemitoItems.length === 0) {
+                    const { data: allProducts } = await supabase
+                        .from('products')
+                        .select('code, description, current_stock, brand, brand_code')
+                        .gt('current_stock', 0);
+
+                    preRemitoItems = (allProducts || []).map(p => ({
+                        code: p.code,
+                        name: p.description,
+                        description: p.description,
+                        quantity: p.current_stock,
+                        brand: p.brand,
+                        brand_code: p.brand_code
+                    }));
+                }
+
                 remito = {
                     id: preRemito.id,
                     remito_number: preRemito.order_number,
-                    items: preRemito.items || [],
+                    items: preRemitoItems,
                     date: preRemito.created_at,
                     status: 'pending',
                     numero_pv: preRemito.pedidos_ventas?.[0]?.numero_pv || '-',
@@ -495,11 +514,26 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
                     .maybeSingle();
 
                 if (generalCount) {
+                    // Fetch all active products to serve as 'expected' items for the general count
+                    const { data: allProducts } = await supabase
+                        .from('products')
+                        .select('code, description, current_stock, brand, brand_code')
+                        .gt('current_stock', 0);
+
+                    const items = (allProducts || []).map(p => ({
+                        code: p.code,
+                        name: p.description,
+                        description: p.description,
+                        quantity: p.current_stock, // Expected quantity based on current stock
+                        brand: p.brand,
+                        brand_code: p.brand_code
+                    }));
+
                     remito = {
                         id: generalCount.id,
                         remito_number: generalCount.id,
                         count_name: generalCount.name,
-                        items: [],
+                        items: items,
                         date: generalCount.created_at,
                         status: 'pending',
                         numero_pv: '-',
