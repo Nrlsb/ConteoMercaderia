@@ -1042,7 +1042,7 @@ const RemitoForm = () => {
                                 </div>
 
                                 {showSuggestions && manualSuggestions.length > 0 && (
-                                    <ul className="absolute bottom-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mb-1 max-h-60 overflow-y-auto z-50">
+                                    <ul className="absolute bottom-full left-0 min-w-full w-auto max-w-[90vw] sm:max-w-xl bg-white border border-gray-200 rounded-lg shadow-lg mb-1 max-h-60 overflow-y-auto z-50">
                                         {manualSuggestions.map((item, idx) => (
                                             <li
                                                 key={idx}
@@ -1050,7 +1050,7 @@ const RemitoForm = () => {
                                                 className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center"
                                             >
                                                 <div className="flex-1 min-w-0">
-                                                    <span className="block text-sm font-medium text-gray-800">{item.description}</span>
+                                                    <span className="block text-sm font-medium text-gray-800 whitespace-normal break-words">{item.description}</span>
                                                     <span className="block text-xs text-gray-500">{item.code}</span>
                                                 </div>
                                             </li>
