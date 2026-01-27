@@ -57,9 +57,9 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'User not found' });
         }
 
-        if (user.current_session_id !== decoded.session_id) {
-            return res.status(401).json({ message: 'Session expired or invalid (logged in elsewhere)' });
-        }
+        // if (user.current_session_id !== decoded.session_id) {
+        //     return res.status(401).json({ message: 'Session expired or invalid (logged in elsewhere)' });
+        // }
 
         req.user = { ...decoded, role: user.role }; // Ensure role is up to date from DB
         next();
@@ -1690,7 +1690,7 @@ app.post('/api/auth/register', async (req, res) => {
         const token = jwt.sign(
             { id: data[0].id, username: data[0].username, role: data[0].role, session_id: sessionId },
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn: '365d' }
         );
 
         res.status(201).json({ token, user: { id: data[0].id, username: data[0].username, role: data[0].role } });
@@ -1727,12 +1727,12 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         // Check for existing active session if not forcing
-        if (!force && user.current_session_id) {
-            return res.status(409).json({
-                sessionActive: true,
-                message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
-            });
-        }
+        // if (!force && user.current_session_id) {
+        //     return res.status(409).json({
+        //         sessionActive: true,
+        //         message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
+        //     });
+        // }
 
         // Generate New Session ID
         const sessionId = uuidv4();
@@ -1749,7 +1749,7 @@ app.post('/api/auth/login', async (req, res) => {
         const token = jwt.sign(
             { id: user.id, username: user.username, role: user.role, session_id: sessionId },
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn: '365d' }
         );
 
         res.json({ token, user: { id: user.id, username: user.username, role: user.role } });

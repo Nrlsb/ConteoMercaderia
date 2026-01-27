@@ -39,11 +39,8 @@ export const AuthProvider = ({ children }) => {
 
         // Listen for session expiration event from api interceptor
         const handleSessionExpired = () => {
-            setSessionExpired(true);
-            // We don't immediately logout here to allow the modal to show "You have been logged out"
-            // But actually we SHOULD logout state so the UI updates behind the modal?
-            // Or keep the state until user clicks OK?
-            // Let's keep state until user clicks OK in the modal.
+            // setSessionExpired(true);
+            logout(); // Silently logout/redirect
         };
 
         window.addEventListener('auth:session-expired', handleSessionExpired);
