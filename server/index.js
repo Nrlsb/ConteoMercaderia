@@ -1694,7 +1694,54 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
     }
 });
 
-// Upload PDF Remito
+// Get Inventory History (Audit Log)
+app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
+    const { orderNumber } = req.params;
+
+    try {
+        const { data: history, error } = await supabase
+            .from('inventory_scans_history')
+            .select('*')
+            .eq('order_number', orderNumber)
+            .order('changed_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Enrich with usernames
+        // We need to fetch users because history might contain user_ids
+        const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
+        const { data: users } = await supabase
+            .from('users')
+            .select('id, username')
+            .in('id', userIds);
+
+        const userMap = {};
+        if (users) users.forEach(u => userMap[u.id] = u.username);
+
+        // Enrich with Product Info (optional, but good for context if desc is missing)
+        const codes = [...new Set(history.map(h => h.code).filter(Boolean))];
+        const { data: products } = await supabase
+            .from('products')
+            .select('code, description')
+            .in('code', codes);
+
+        const productMap = {};
+        if (products) products.forEach(p => productMap[p.code] = p.description);
+
+        const enrichedHistory = history.map(entry => ({
+            ...entry,
+            username: userMap[entry.user_id] || 'Desconocido',
+            description: productMap[entry.code] || 'Producto sin descripción'
+        }));
+
+        res.json(enrichedHistory);
+
+    } catch (error) {
+        console.error('Error fetching history:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // Upload PDF Remito
 app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
     if (!req.file) {
