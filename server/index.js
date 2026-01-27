@@ -1606,9 +1606,9 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
     }
 });
 
-// Submit/Sync Scans
+// Submit/Sync Scans (Absolute Overwrite - Legacy)
 app.post('/api/inventory/scan', verifyToken, async (req, res) => {
-    const { orderNumber, items } = req.body; // items: [{ code, quantity }] - Quantity is the absolute user count
+    const { orderNumber, items } = req.body; // items: [{ code, quantity }]
 
     if (!orderNumber || !items || !Array.isArray(items)) {
         return res.status(400).json({ message: 'Invalid data' });
@@ -1636,6 +1636,60 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
 
     } catch (error) {
         console.error('Error syncing scans:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Incremental Scan Endpoint (Read-Modify-Write)
+app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
+    const { orderNumber, items } = req.body; // items: [{ code, quantity }] - Quantity is DELTA
+
+    if (!orderNumber || !items || !Array.isArray(items)) {
+        return res.status(400).json({ message: 'Invalid data' });
+    }
+
+    try {
+        const userId = req.user.id;
+        const results = [];
+
+        // Process sequentially to avoid race conditions on same row if multiple items target same code (unlikely but possible)
+        for (const item of items) {
+            const internalCode = String(item.code).trim();
+            const delta = parseInt(item.quantity, 10);
+            if (isNaN(delta) || delta === 0) continue;
+
+            // 1. Fetch current value
+            const { data: existing, error: fetchError } = await supabase
+                .from('inventory_scans')
+                .select('quantity')
+                .match({ order_number: orderNumber, user_id: userId, code: internalCode })
+                .maybeSingle();
+
+            if (fetchError) throw fetchError;
+
+            const newQuantity = (existing ? existing.quantity : 0) + delta;
+
+            // 2. Upsert new value
+            // Note: There is still a tiny race condition here if two requests interleave significantly,
+            // but it is much safer than overwriting with frontend state 0.
+            const { error: upsertError } = await supabase
+                .from('inventory_scans')
+                .upsert({
+                    order_number: orderNumber,
+                    user_id: userId,
+                    code: internalCode,
+                    quantity: newQuantity,
+                    timestamp: new Date().toISOString()
+                }, { onConflict: 'order_number, user_id, code' });
+
+            if (upsertError) throw upsertError;
+            results.push({ code: internalCode, newQuantity });
+        }
+
+        res.json({ message: 'Scans incremented successfully', results });
+
+    } catch (error) {
+        console.error('Error incrementing scans:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });

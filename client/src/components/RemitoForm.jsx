@@ -534,29 +534,27 @@ const RemitoForm = () => {
     };
 
     // Sync to inventory_scans for general count mode
+    // Sync to inventory_scans for general count mode
     const syncToInventoryScans = async (code, quantityToAdd) => {
         if (!activeGeneralCount) return;
 
         try {
-            // Get current item from state
-            const currentItem = items.find(i => i.code === code);
-            const totalQuantity = currentItem ? currentItem.quantity + quantityToAdd : quantityToAdd;
-
-            console.log('Intentando sincronizar:', {
+            console.log('Intentando sincronizar (incremental):', {
                 orderNumber: activeGeneralCount.id,
                 code: code,
-                quantity: totalQuantity
+                delta: quantityToAdd
             });
 
-            const response = await api.post('/api/inventory/scan', {
+            // Use new incremental endpoint - sends DELTA, not total.
+            const response = await api.post('/api/inventory/scan-incremental', {
                 orderNumber: activeGeneralCount.id,
                 items: [{
                     code: code,
-                    quantity: totalQuantity
+                    quantity: quantityToAdd
                 }]
             });
 
-            console.log(`✅ Sincronizado a inventory_scans: ${code} x${totalQuantity}`);
+            console.log(`✅ Sincronizado a inventory_scans: ${code} +${quantityToAdd}`);
         } catch (error) {
             console.error('Error syncing to inventory_scans:', error);
             console.error('Detalles del error:', {
@@ -565,7 +563,6 @@ const RemitoForm = () => {
                 status: error.response?.status
             });
 
-            // Solo mostrar modal si no es error de autenticación
             if (error.response?.status !== 401) {
                 triggerModal('Advertencia', 'Error al sincronizar. Los datos se guardarán localmente.', 'warning');
             }
