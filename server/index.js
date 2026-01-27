@@ -1535,6 +1535,7 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
         // 3. Aggregate Scans
         const scannedMap = {}; // { code: totalQuantity }
         const myScansMap = {}; // { code: myQuantity }
+        const myCodes = new Set();
 
         scans.forEach(scan => {
             const qty = scan.quantity || 0;
@@ -1545,14 +1546,58 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
             // My Scans
             if (scan.user_id === userId) {
                 myScansMap[scan.code] = (myScansMap[scan.code] || 0) + qty;
+                myCodes.add(scan.code);
             }
         });
+
+        // 4. Enrich My Scans with Description for Frontend Restoration
+        const myScansList = [];
+        const missingCodes = [];
+
+        // Map expected items for quick lookup
+        const expectedMap = {};
+        expectedItems.forEach(i => expectedMap[i.code] = i);
+
+        Array.from(myCodes).forEach(code => {
+            if (expectedMap[code]) {
+                myScansList.push({
+                    code: code,
+                    name: expectedMap[code].description,
+                    barcode: expectedMap[code].barcode,
+                    quantity: myScansMap[code]
+                });
+            } else {
+                missingCodes.push(code);
+            }
+        });
+
+        // Fetch details for items not in expected list
+        if (missingCodes.length > 0) {
+            const { data: found } = await supabase
+                .from('products')
+                .select('code, description, barcode')
+                .in('code', missingCodes);
+
+            const foundMap = {};
+            if (found) found.forEach(f => foundMap[f.code] = f);
+
+            missingCodes.forEach(code => {
+                const p = foundMap[code];
+                myScansList.push({
+                    code: code,
+                    name: p ? p.description : 'Producto Desconocido',
+                    barcode: p ? p.barcode : code,
+                    quantity: myScansMap[code]
+                });
+            });
+        }
 
         res.json({
             orderNumber,
             expected: expectedItems, // Enriched with brands
             scanned: scannedMap,
-            myScans: myScansMap
+            myScans: myScansMap,     // Legacy support
+            myItems: myScansList     // Rich list for session restore
         });
 
     } catch (error) {

@@ -62,6 +62,56 @@ const RemitoForm = () => {
         return () => clearInterval(interval);
     }, [countMode]);
 
+    // Restore Session Logic
+    const [lastRestoredId, setLastRestoredId] = useState(null);
+
+    const restoreSession = async (countId) => {
+        try {
+            const res = await api.get(`/api/inventory/${countId}`);
+            // Check for 'myItems' (Rich list) or fallback to 'myScans' (Legacy map)
+            // Backend now provides 'myItems'.
+            const { myItems, myScans } = res.data;
+
+            let restoredItems = [];
+
+            if (myItems && Array.isArray(myItems)) {
+                restoredItems = myItems.map(i => ({
+                    code: i.code,
+                    name: i.name || i.description || 'Producto Desconocido',
+                    barcode: i.barcode,
+                    quantity: i.quantity,
+                    validationError: null
+                }));
+            } else if (myScans) {
+                // Fallback if backend not updated yet (should not happen if deployed together)
+                restoredItems = Object.entries(myScans).map(([code, quantity]) => ({
+                    code,
+                    name: 'Cargando...', // We don't have descriptions here easily
+                    quantity,
+                    validationError: null
+                }));
+            }
+
+            if (restoredItems.length > 0) {
+                setItems(restoredItems);
+                triggerModal('Sesión Restaurada', `Se han recuperado ${restoredItems.length} productos escaneados previamente.`, 'success');
+            }
+        } catch (error) {
+            console.error('Error restoring session:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (activeGeneralCount?.id && activeGeneralCount.id !== lastRestoredId) {
+            setLastRestoredId(activeGeneralCount.id);
+            // Only restore if local items are empty to avoid overwriting current work 
+            // in case of transient network issues or race conditions.
+            if (items.length === 0) {
+                restoreSession(activeGeneralCount.id);
+            }
+        }
+    }, [activeGeneralCount?.id]); // Only depend on ID change
+
     const handleVoiceSearch = () => {
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
             triggerModal('Error', 'Tu navegador no soporta búsqueda por voz.', 'error');
