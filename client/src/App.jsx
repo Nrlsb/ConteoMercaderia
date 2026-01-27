@@ -7,6 +7,7 @@ import Navigation from './components/Navigation';
 import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy Load Components
 const RemitoForm = lazy(() => import('./components/RemitoForm'));
@@ -55,47 +56,49 @@ const AppContent = () => {
       <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
         <Navigation />
         <main className="container mx-auto p-4 mt-4">
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <RoleBasedHome />
-                </ProtectedRoute>
-              } />
-              <Route path="/inventory" element={
-                <ProtectedRoute>
-                  <InventoryPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/list" element={
-                <ProtectedRoute>
-                  <RemitoList />
-                </ProtectedRoute>
-              } />
-              <Route path="/remitos/:id" element={
-                <ProtectedRoute>
-                  <RemitoDetailsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/discrepancies" element={
-                <ProtectedRoute role="admin">
-                  <DiscrepancyList />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin" element={
-                <ProtectedRoute role="admin">
-                  <AdminPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute role="admin">
-                  <SettingsPage />
-                </ProtectedRoute>
-              } />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <RoleBasedHome />
+                  </ProtectedRoute>
+                } />
+                <Route path="/inventory" element={
+                  <ProtectedRoute>
+                    <InventoryPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/list" element={
+                  <ProtectedRoute>
+                    <RemitoList />
+                  </ProtectedRoute>
+                } />
+                <Route path="/remitos/:id" element={
+                  <ProtectedRoute>
+                    <RemitoDetailsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/discrepancies" element={
+                  <ProtectedRoute role="admin">
+                    <DiscrepancyList />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                  <ProtectedRoute role="admin">
+                    <AdminPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute role="admin">
+                    <SettingsPage />
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </>
