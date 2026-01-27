@@ -347,13 +347,14 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             return res.json(processedFormatted.sort((a, b) => new Date(b.date) - new Date(a.date)));
         }
 
-        // Batch Fetch 1: All scans for these orders
-        const { data: allScans, error: scansError } = await supabase
-            .from('inventory_scans')
-            .select('order_number, code, quantity')
-            .in('order_number', allRelevantIds);
+        // Batch Fetch 1: All scans for these orders using pagination helper
+        const allScans = await getAllScansBatch(allRelevantIds);
+        // const { data: allScans, error: scansError } = await supabase
+        //     .from('inventory_scans')
+        //     .select('order_number, code, quantity')
+        //     .in('order_number', allRelevantIds);
 
-        if (scansError) throw scansError;
+        // if (scansError) throw scansError;
 
         // Batch Fetch 2: Get all unique product details involved in these scans
         const uniqueScanCodes = [...new Set(allScans.map(s => s.code))];
@@ -589,10 +590,14 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
         }
 
         // 3. Fetch Scans
-        const { data: scans, error: scansError } = await supabase
-            .from('inventory_scans')
-            .select('user_id, code, quantity')
-            .eq('order_number', remito.remito_number);
+        // Use pagination helper to ensure we get ALL scans
+        const scans = await getAllScans(remito.remito_number);
+        const scansError = null; // Helper throws on error
+
+        // const { data: scans, error: scansError } = await supabase
+        //     .from('inventory_scans')
+        //     .select('user_id, code, quantity')
+        //     .eq('order_number', remito.remito_number);
 
         let userCounts = [];
         let totalScannedMap = {};
@@ -798,11 +803,13 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
             if (countData) countName = countData.name;
         }
 
-        // 2. Fetch User Scans
-        const { data: scans } = await supabase
-            .from('inventory_scans')
-            .select('user_id, code, quantity, timestamp')
-            .eq('order_number', remito.remito_number);
+        // 2. Fetch User Scans (Paginated)
+        const scans = await getAllScans(remito.remito_number);
+
+        // const { data: scans } = await supabase
+        //     .from('inventory_scans')
+        //     .select('user_id, code, quantity, timestamp')
+        //     .eq('order_number', remito.remito_number);
 
         // Enrich scans with user and product info if we have scans
         if (scans && scans.length > 0) {
@@ -968,11 +975,13 @@ app.get('/api/remitos/:id', verifyToken, async (req, res) => {
             if (generalCount) {
                 console.log(`Reparing discrepancies for General Count Remito: ${id}`);
 
-                // Reuse logic to generate report
-                const { data: scans } = await supabase
-                    .from('inventory_scans')
-                    .select('code, quantity')
-                    .eq('order_number', data.remito_number); // Use remito_number (which is the count ID)
+                // Reuse logic to generate report (Paginated)
+                const scans = await getAllScans(data.remito_number);
+
+                // const { data: scans } = await supabase
+                //     .from('inventory_scans')
+                //     .select('code, quantity')
+                //     .eq('order_number', data.remito_number); // Use remito_number (which is the count ID)
 
                 if (scans && scans.length > 0) {
                     const totals = {};
@@ -1366,11 +1375,14 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         if (updateError) throw updateError;
 
-        // 2. Generate Report
-        const { data: scans, error: scansError } = await supabase
-            .from('inventory_scans')
-            .select('code, quantity')
-            .eq('order_number', id);
+        // 2. Generate Report (Fetch ALL scans paginated)
+        const scans = await getAllScans(id);
+        const scansError = null;
+
+        // const { data: scans, error: scansError } = await supabase
+        //     .from('inventory_scans')
+        //     .select('code, quantity')
+        //     .eq('order_number', id);
 
         if (scansError) throw scansError;
 
@@ -1808,6 +1820,66 @@ async function getAllProducts() {
         }
     }
     return allProducts;
+}
+
+// Helper to fetch ALL scans for a specific order (Batching)
+async function getAllScans(orderNumber) {
+    let allScans = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('inventory_scans')
+            .select('user_id, code, quantity, timestamp') // Include potential fields
+            .eq('order_number', orderNumber)
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error('Error in getAllScans:', error);
+            throw error;
+        }
+
+        if (data && data.length > 0) {
+            allScans = [...allScans, ...data];
+            from += step;
+            if (data.length < step) hasMore = false;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allScans;
+}
+
+// Helper for batch fetching scans for multiple orders
+async function getAllScansBatch(orderNumbers) {
+    let allScans = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    // Supabase .in() limit is around 65k parameters, but URL length might be an issue.
+    // Assuming orderNumbers list is reasonable (<100).
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('inventory_scans')
+            .select('order_number, code, quantity')
+            .in('order_number', orderNumbers)
+            .range(from, from + step - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            allScans = [...allScans, ...data];
+            from += step;
+            if (data.length < step) hasMore = false;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allScans;
 }
 
 // The catch-all handler must be at the end, after all other routes
