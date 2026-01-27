@@ -55,6 +55,7 @@ const InventoryPage = () => {
                 const res = await api.get(`/api/inventory/${selectedOrder}`);
                 setExpectedItems(res.data.expected);
                 setScannedItems(res.data.scanned); // Global total
+                setMyScans(res.data.myScans); // Hydrate local session state from server
                 // We assume server MyScans is correct for historical data, 
                 // but local changes will be added visually
             } catch (error) {
@@ -124,10 +125,13 @@ const InventoryPage = () => {
         setLocalQueue(prev => [...prev, newEntry]);
 
         // Update local "My Scans" visually immediately
-        setMyScans(prev => ({
-            ...prev,
-            [product.code]: (prev[product.code] || 0) + quantityToAdd
-        }));
+        // Update local "My Scans" visually immediately
+        // REMOVED: setMyScans causes double counting because render logic adds localQueue to myScans.
+        // myScans should strictly represent Server State.
+        // setMyScans(prev => ({
+        //     ...prev,
+        //     [product.code]: (prev[product.code] || 0) + quantityToAdd
+        // }));
 
         setFichajeState(prev => ({ ...prev, isOpen: false }));
         toast.success(`Agregado: +${quantityToAdd} ${product.name}`);
@@ -139,15 +143,26 @@ const InventoryPage = () => {
         setIsSyncing(true);
         try {
             // Compress queue: merge same items
-            const compressedItems = Object.values(localQueue.reduce((acc, item) => {
-                if (!acc[item.code]) acc[item.code] = { code: item.code, quantity: 0 };
-                acc[item.code].quantity += item.quantity;
+            const compressedDeltas = localQueue.reduce((acc, item) => {
+                if (!acc[item.code]) acc[item.code] = 0;
+                acc[item.code] += item.quantity;
                 return acc;
-            }, {}));
+            }, {});
+
+            // Prepare Absolute Items to Send (Server State + Delta)
+            // Backend performs Upsert, so we must send Total Quantity.
+            const itemsToSend = Object.keys(compressedDeltas).map(code => {
+                const serverQty = myScans[code] || 0;
+                const delta = compressedDeltas[code];
+                return {
+                    code: code,
+                    quantity: serverQty + delta
+                };
+            });
 
             await api.post('/api/inventory/scan', {
                 orderNumber: selectedOrder,
-                items: compressedItems
+                items: itemsToSend
             });
 
             toast.success('Sincronizado correctamente');
