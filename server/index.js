@@ -57,9 +57,9 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'User not found' });
         }
 
-        // if (user.current_session_id !== decoded.session_id) {
-        //     return res.status(401).json({ message: 'Session expired or invalid (logged in elsewhere)' });
-        // }
+        if (user.current_session_id !== decoded.session_id || !user.is_session_active) {
+            return res.status(401).json({ message: 'Sesión iniciada en otro dispositivo o sesión expirada' });
+        }
 
         req.user = { ...decoded, role: user.role }; // Ensure role is up to date from DB
         next();
@@ -1831,6 +1831,7 @@ app.post('/api/auth/register', async (req, res) => {
                     username,
                     password: hashedPassword,
                     current_session_id: sessionId,
+                    is_session_active: true,
                     role: 'user' // Default role
                 }
             ])
@@ -1879,12 +1880,12 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         // Check for existing active session if not forcing
-        // if (!force && user.current_session_id) {
-        //     return res.status(409).json({
-        //         sessionActive: true,
-        //         message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
-        //     });
-        // }
+        if (!force && user.is_session_active && user.current_session_id) {
+            return res.status(409).json({
+                sessionActive: true,
+                message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
+            });
+        }
 
         // Generate New Session ID
         const sessionId = uuidv4();
@@ -1892,7 +1893,7 @@ app.post('/api/auth/login', async (req, res) => {
         // Update user with new session ID
         const { error: updateError } = await supabase
             .from('users')
-            .update({ current_session_id: sessionId })
+            .update({ current_session_id: sessionId, is_session_active: true })
             .eq('id', user.id);
 
         if (updateError) throw updateError;
@@ -1917,7 +1918,7 @@ app.post('/api/auth/logout', verifyToken, async (req, res) => {
         // Clear session ID in DB
         const { error } = await supabase
             .from('users')
-            .update({ current_session_id: null })
+            .update({ is_session_active: false })
             .eq('id', req.user.id);
 
         if (error) throw error;

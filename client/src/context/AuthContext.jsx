@@ -37,15 +37,29 @@ export const AuthProvider = ({ children }) => {
 
         checkLoggedIn();
 
+        // Session Polling: Check if session is still valid every 30 seconds
+        const pollingInterval = setInterval(async () => {
+            const token = localStorage.getItem('token');
+            if (token && !sessionExpired) {
+                try {
+                    await api.get('/api/auth/user');
+                } catch (error) {
+                    // 401 will be caught by the interceptor and fire 'auth:session-expired'
+                    console.error('Session polling failed:', error.message);
+                }
+            }
+        }, 30000);
+
         // Listen for session expiration event from api interceptor
-        const handleSessionExpired = () => {
-            // setSessionExpired(true);
-            logout(); // Silently logout/redirect
+        const handleSessionExpired = (event) => {
+            setSessionExpired(true);
+            // logout(); // Remove silent logout, let modal handle it
         };
 
         window.addEventListener('auth:session-expired', handleSessionExpired);
 
         return () => {
+            clearInterval(pollingInterval);
             window.removeEventListener('auth:session-expired', handleSessionExpired);
         };
     }, []);

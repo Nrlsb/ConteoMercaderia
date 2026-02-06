@@ -306,7 +306,7 @@ const InventoryPage = () => {
 
                             {isScanning && !fichajeState.isOpen && (
                                 <div className="mt-4 rounded-lg overflow-hidden border">
-                                    <Scanner onScan={handleScan} />
+                                    <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen} />
                                 </div>
                             )}
                         </div>

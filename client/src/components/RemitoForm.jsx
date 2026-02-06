@@ -1136,7 +1136,7 @@ const RemitoForm = () => {
 
                             {isScanning && (
                                 <div className="mt-4 rounded-lg overflow-hidden shadow-inner border border-gray-200">
-                                    <Scanner onScan={handleScan} />
+                                    <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal} />
                                 </div>
                             )}
                         </div>
