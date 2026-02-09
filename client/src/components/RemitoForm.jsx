@@ -24,45 +24,55 @@ const RemitoForm = () => {
     });
 
     // General Count State
-    const [activeGeneralCount, setActiveGeneralCount] = useState(null);
+    const [activeCounts, setActiveCounts] = useState([]);
+    const [selectedCount, setSelectedCount] = useState(null);
     const [newCountName, setNewCountName] = useState('');
     const [branches, setBranches] = useState([]);
     const [selectedBranch, setSelectedBranch] = useState('');
 
-    // Poll for active general count
+    // Poll for active general counts
     useEffect(() => {
         let interval;
         if (countMode === 'products') {
-            const fetchActiveCount = async () => {
+            const fetchActiveCounts = async () => {
                 try {
                     const res = await api.get('/api/general-counts/active');
-                    setActiveGeneralCount(res.data);
+                    const counts = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
+                    setActiveCounts(counts);
 
-                    if (res.data) {
-                        setRemitoNumber(res.data.id); // Use the General Count ID as the grouping key
-                        setExpectedItems(null);
-                        setPreRemitoNumber('');
-                    } else {
-                        // Unlike free count, if no active count, we don't set a number.
-                        // User is blocked until admin starts one.
-                        setRemitoNumber('');
+                    // Update selected count if it exists in the new list (to keep sync)
+                    if (selectedCount) {
+                        const current = counts.find(c => c.id === selectedCount.id);
+                        if (current) {
+                            setSelectedCount(current);
+                        }
                     }
                 } catch (error) {
-                    console.error('Error fetching active count:', error);
+                    console.error('Error fetching active counts:', error);
                 }
             };
 
-            fetchActiveCount();
-            interval = setInterval(fetchActiveCount, 5000); // Poll every 5 seconds
+            fetchActiveCounts();
+            interval = setInterval(fetchActiveCounts, 5000); // Poll every 5 seconds
         } else {
-            setActiveGeneralCount(null);
-            if (remitoNumber) {
-                setRemitoNumber('');
-                setExpectedItems(null);
-            }
+            setActiveCounts([]);
+            setSelectedCount(null);
         }
         return () => clearInterval(interval);
-    }, [countMode]);
+    }, [countMode, selectedCount?.id]);
+
+    // Sync RemitoNumber with SelectedCount
+    useEffect(() => {
+        if (countMode === 'products') {
+            if (selectedCount) {
+                setRemitoNumber(selectedCount.id);
+                setExpectedItems(null);
+                setPreRemitoNumber('');
+            } else {
+                setRemitoNumber('');
+            }
+        }
+    }, [selectedCount, countMode]);
 
     // Restore Session Logic
     const [lastRestoredId, setLastRestoredId] = useState(null);
@@ -104,15 +114,15 @@ const RemitoForm = () => {
     };
 
     useEffect(() => {
-        if (activeGeneralCount?.id && activeGeneralCount.id !== lastRestoredId) {
-            setLastRestoredId(activeGeneralCount.id);
+        if (selectedCount?.id && selectedCount.id !== lastRestoredId) {
+            setLastRestoredId(selectedCount.id);
             // Only restore if local items are empty to avoid overwriting current work 
             // in case of transient network issues or race conditions.
             if (items.length === 0) {
-                restoreSession(activeGeneralCount.id);
+                restoreSession(selectedCount.id);
             }
         }
-    }, [activeGeneralCount?.id]); // Only depend on ID change
+    }, [selectedCount?.id]); // Only depend on ID change
 
     const handleVoiceSearch = () => {
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -530,7 +540,7 @@ const RemitoForm = () => {
         setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
 
         // Auto-sync to inventory_scans if in general count mode
-        if (countMode === 'products' && activeGeneralCount) {
+        if (countMode === 'products' && selectedCount) {
             // Wait for state update, then sync
             setTimeout(async () => {
                 await syncToInventoryScans(product.code, quantityToAdd);
@@ -549,18 +559,18 @@ const RemitoForm = () => {
     // Sync to inventory_scans for general count mode
     // Sync to inventory_scans for general count mode
     const syncToInventoryScans = async (code, quantityToAdd) => {
-        if (!activeGeneralCount) return;
+        if (!selectedCount) return;
 
         try {
             console.log('Intentando sincronizar (incremental):', {
-                orderNumber: activeGeneralCount.id,
+                orderNumber: selectedCount.id,
                 code: code,
                 delta: quantityToAdd
             });
 
             // Use new incremental endpoint - sends DELTA, not total.
             const response = await api.post('/api/inventory/scan-incremental', {
-                orderNumber: activeGeneralCount.id,
+                orderNumber: selectedCount.id,
                 items: [{
                     code: code,
                     quantity: quantityToAdd
@@ -697,19 +707,26 @@ const RemitoForm = () => {
         }
     };
 
+    const handleSelectCount = (count) => {
+        setSelectedCount(count);
+        setItems([]); // Clear local items to prepare for restore
+    };
+
     const handleStartGeneralCount = async () => {
         if (!newCountName.trim()) return triggerModal('Error', 'Ingrese un nombre para el conteo', 'warning');
-        // If not selected, it's null (Global/Deposito fallback handled by backend or explicit null)
 
         try {
             const res = await api.post('/api/general-counts', {
                 name: newCountName,
                 sucursal_id: selectedBranch || null
             });
-            setActiveGeneralCount(res.data);
+            // Update actives and select it
+            const newCount = res.data;
+            setActiveCounts(prev => [newCount, ...prev]);
+            setSelectedCount(newCount);
+
             setNewCountName('');
             setSelectedBranch('');
-            setRemitoNumber(res.data.id);
             triggerModal('Éxito', 'Conteo General iniciado', 'success');
         } catch (error) {
             triggerModal('Error', error.response?.data?.message || 'Error al iniciar conteo', 'error');
@@ -717,33 +734,26 @@ const RemitoForm = () => {
     };
 
     const handleStopGeneralCount = async () => {
-        if (!activeGeneralCount) return;
-        if (!window.confirm('¿Seguro que desea finalizar este conteo general? Nadie podrá seguir escaneando en él.')) return;
+        if (!selectedCount) return;
+        if (!window.confirm(`¿Seguro que desea finalizar "${selectedCount.name}"? Nadie podrá seguir escaneando en él.`)) return;
 
         try {
-            const response = await api.put(`/api/general-counts/${activeGeneralCount.id}/close`);
+            const response = await api.put(`/api/general-counts/${selectedCount.id}/close`);
 
-            // DEBUG: Ver qué retorna el backend
-            console.log('Respuesta completa del backend:', response);
-            console.log('response.data:', response.data);
-            console.log('response.data.report:', response.data.report);
-
-            // Capturar el reporte del backend
             const reportData = response.data.report;
 
-            // Mostrar el reporte en el modal
             if (reportData && reportData.length > 0) {
-                console.log('Abriendo ReportModal con datos:', reportData);
                 setReportConfig({
                     isOpen: true,
                     data: reportData,
-                    title: `Reporte de Conteo: ${activeGeneralCount.name}`
+                    title: `Reporte de Conteo: ${selectedCount.name}`
                 });
-            } else {
-                console.warn('No hay datos de reporte o está vacío:', reportData);
             }
 
-            setActiveGeneralCount(null);
+            // Remove from active list
+            setActiveCounts(prev => prev.filter(c => c.id !== selectedCount.id));
+            setSelectedCount(null);
+            setItems([]);
             setRemitoNumber('');
             triggerModal('Éxito', 'Conteo finalizado. Revise el reporte generado.', 'success');
         } catch (error) {
@@ -915,53 +925,87 @@ const RemitoForm = () => {
             {/* General Count Manager - Only for 'products' mode */}
             {countMode === 'products' && (
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-full ${activeGeneralCount ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800">
-                                    {activeGeneralCount ? `Conteo: ${activeGeneralCount.name}` : 'Modo General (SB2)'}
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                    {activeGeneralCount
-                                        ? `Los productos escaneados se asignarán a este conteo grupal. ${activeGeneralCount.sucursal_id ? '(Sucursal: ' + (activeGeneralCount.sucursal_name || 'Específica') + ')' : '(Global/Depósito)'}`
-                                        : 'No hay un conteo general activo actualmente.'}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Admin Controls */}
-                        {user?.role === 'admin' ? (
-                            <div className="flex items-center gap-2 w-full md:w-auto">
-                                {!activeGeneralCount ? (
-                                    <>
+                    {!selectedCount ? (
+                        /* Selection Mode: List of Open Counts */
+                        <div className="flex flex-col gap-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
+                                {user?.role === 'admin' && (
+                                    <div className="flex gap-2">
                                         <input
                                             type="text"
-                                            placeholder="Nombre del conteo (ej: Inventario Enero)"
+                                            placeholder="Nuevo Conteo (ej: Depósito)"
                                             value={newCountName}
                                             onChange={(e) => setNewCountName(e.target.value)}
-                                            className="flex-1 md:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm w-48"
                                         />
                                         <select
                                             value={selectedBranch}
                                             onChange={(e) => setSelectedBranch(e.target.value)}
-                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
+                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
                                         >
-                                            <option value="">Global (Todas/Depósito)</option>
+                                            <option value="">Global</option>
                                             {branches.map(b => (
                                                 <option key={b.id} value={b.id}>{b.name}</option>
                                             ))}
                                         </select>
                                         <button
                                             onClick={handleStartGeneralCount}
-                                            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 whitespace-nowrap"
+                                            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 text-sm whitespace-nowrap"
                                         >
-                                            Iniciar
+                                            + Crear
                                         </button>
-                                    </>
-                                ) : (
+                                    </div>
+                                )}
+                            </div>
+
+                            {activeCounts.length === 0 ? (
+                                <p className="text-gray-500 italic p-4 text-center bg-white rounded-lg border border-dashed border-gray-300">
+                                    No hay conteos activos. {user?.role === 'admin' ? 'Crea uno para comenzar.' : 'Espera a que un administrador inicie uno.'}
+                                </p>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {activeCounts.map(count => (
+                                        <button
+                                            key={count.id}
+                                            onClick={() => handleSelectCount(count)}
+                                            className="p-4 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg text-left transition shadow-sm hover:shadow"
+                                        >
+                                            <div className="font-bold text-gray-800 mb-1">{count.name}</div>
+                                            <div className="text-xs text-gray-500 flex justify-between">
+                                                <span>{count.sucursal_name || 'Global'}</span>
+                                                <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Active Mode: Working on a Conteo */
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-full bg-green-100 text-green-600">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">
+                                        Conteo: {selectedCount.name}
+                                    </h3>
+                                    <p className="text-sm text-gray-600">
+                                        {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito Global'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setSelectedCount(null)}
+                                    className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition"
+                                >
+                                    Cambiar Conteo
+                                </button>
+                                {user?.role === 'admin' && (
                                     <button
                                         onClick={handleStopGeneralCount}
                                         className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 border border-red-200"
@@ -970,22 +1014,8 @@ const RemitoForm = () => {
                                     </button>
                                 )}
                             </div>
-                        ) : (
-                            /* User View - Status Only */
-                            <div className="text-right">
-                                {activeGeneralCount ? (
-                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                                        <span className="w-2 h-2 mr-2 bg-green-500 rounded-full animate-pulse"></span>
-                                        Activo
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                                        Esperando inicio...
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1271,7 +1301,7 @@ const RemitoForm = () => {
                         )}
 
                         {/* Mensaje informativo en modo general */}
-                        {countMode === 'products' && activeGeneralCount && (
+                        {countMode === 'products' && selectedCount && (
                             <div className="p-4 bg-blue-50 border-t border-blue-200">
                                 <div className="flex items-center text-sm text-blue-800">
                                     <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

@@ -1460,21 +1460,22 @@ app.get('/api/general-counts/active', verifyToken, async (req, res) => {
             .from('general_counts')
             .select('*, sucursales(name)')
             .eq('status', 'open')
-            .single();
+            .order('created_at', { ascending: false });
 
-        if (error && error.code !== 'PGRST116') {
-            console.error('Error fetching active count:', error);
-            return res.status(500).json({ message: 'Error fetching active count' });
+        if (error) {
+            console.error('Error fetching active counts:', error);
+            return res.status(500).json({ message: 'Error fetching active counts' });
         }
 
-        if (data) {
-            // Flatten sucursal name
-            data.sucursal_name = data.sucursales ? data.sucursales.name : null;
-        }
+        // Return array directly (or empty array)
+        const counts = data.map(c => ({
+            ...c,
+            sucursal_name: c.sucursales ? c.sucursales.name : null
+        }));
 
-        res.json(data || null);
+        res.json(counts);
     } catch (error) {
-        console.error('Server error fetching active count:', error);
+        console.error('Server error fetching active counts:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -1484,16 +1485,7 @@ app.post('/api/general-counts', verifyToken, verifyAdmin, async (req, res) => {
     if (!name) return res.status(400).json({ message: 'Name is required' });
 
     try {
-        // Check for existing open count
-        const { data: existing } = await supabase
-            .from('general_counts')
-            .select('id')
-            .eq('status', 'open')
-            .single();
-
-        if (existing) {
-            return res.status(400).json({ message: 'Ya existe un conteo activo. Debe cerrarlo antes de iniciar uno nuevo.' });
-        }
+        // Removed check for existing open count to allow multiples
 
         const { data, error } = await supabase
             .from('general_counts')
