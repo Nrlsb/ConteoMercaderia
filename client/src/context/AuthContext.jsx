@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import api from '../api'; // Use the api instance
 
 const AuthContext = createContext();
@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [sessionExpired, setSessionExpired] = useState(false);
+    const lastLoginTime = useRef(0); // Track last login time to prevent race conditions
 
     useEffect(() => {
         const checkLoggedIn = async () => {
@@ -26,10 +27,6 @@ export const AuthProvider = ({ children }) => {
                     localStorage.removeItem('token');
                     setUser(null);
                     setIsAuthenticated(false);
-                    // If it was a 401, the interceptor might have already fired, 
-                    // or we can fire it manually if we want the modal to show on load.
-                    // But usually on load we just want to redirect to login silently if session is invalid.
-                    // So we might NOT want to show the modal on initial load, only on active usage.
                 }
             }
             setLoading(false);
@@ -52,8 +49,14 @@ export const AuthProvider = ({ children }) => {
 
         // Listen for session expiration event from api interceptor
         const handleSessionExpired = (event) => {
+            // Ignore expiration events if we just logged in (within last 5 seconds)
+            // This prevents race conditions where an old request fails after a new login
+            if (Date.now() - lastLoginTime.current < 5000) {
+                console.log('Ignoring session expiration event due to recent login');
+                return;
+            }
+
             setSessionExpired(true);
-            // logout(); // Remove silent logout, let modal handle it
         };
 
         window.addEventListener('auth:session-expired', handleSessionExpired);
@@ -71,6 +74,7 @@ export const AuthProvider = ({ children }) => {
             setUser(res.data.user);
             setIsAuthenticated(true);
             setSessionExpired(false);
+            lastLoginTime.current = Date.now(); // Record login time
             return { success: true };
         } catch (error) {
             if (error.response?.status === 409) {
@@ -94,6 +98,7 @@ export const AuthProvider = ({ children }) => {
             setUser(res.data.user);
             setIsAuthenticated(true);
             setSessionExpired(false);
+            lastLoginTime.current = Date.now(); // Record login time
             return { success: true };
         } catch (error) {
             return {
