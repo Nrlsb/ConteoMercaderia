@@ -246,12 +246,55 @@ app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer
             }
         }
 
-        // 2. Batch upsert stock_sucursal
+        // 2. Validate Products Exist (Prevent FK Violation)
+        const uniqueProductCodes = [...new Set(stockEntries.map(e => e.product_code))];
+        let validProductCodes = new Set();
+        let skippedProductsCount = 0;
+
+        if (uniqueProductCodes.length > 0) {
+            // Fetch existing codes in chunks to avoid URL length issues or heavy queries if many unique
+            const chunkSize = 1000;
+            for (let i = 0; i < uniqueProductCodes.length; i += chunkSize) {
+                const chunk = uniqueProductCodes.slice(i, i + chunkSize);
+                const { data: existingProducts, error: prodError } = await supabase
+                    .from('products')
+                    .select('code')
+                    .in('code', chunk);
+
+                if (prodError) throw prodError;
+                if (existingProducts) {
+                    existingProducts.forEach(p => validProductCodes.add(p.code));
+                }
+            }
+        }
+
+        // Filter valid entries
+        const skippedProducts = [];
+        const validStockEntries = stockEntries.filter(entry => {
+            if (validProductCodes.has(entry.product_code)) {
+                return true;
+            } else {
+                skippedProductsCount++;
+                if (skippedProducts.length < 5) skippedProducts.push(entry.product_code);
+                return false;
+            }
+        });
+
+        if (skippedProductsCount > 0) {
+            console.log(`[IMPORT STOCK] Skipped ${skippedProductsCount} products due to unknown code. Sample:`, skippedProducts);
+        }
+
+        // Update productsToUpdate for legacy sync as well (only valid ones)
+        // Re-filter productsToUpdate
+        const validProductsToUpdate = productsToUpdate.filter(p => validProductCodes.has(p.code));
+
+
+        // 3. Batch upsert stock_sucursal
         const batchSize = 1000;
         let upsertedCount = 0;
 
-        for (let i = 0; i < stockEntries.length; i += batchSize) {
-            const batch = stockEntries.slice(i, i + batchSize);
+        for (let i = 0; i < validStockEntries.length; i += batchSize) {
+            const batch = validStockEntries.slice(i, i + batchSize);
             const { error } = await supabase
                 .from('stock_sucursal')
                 .upsert(batch, { onConflict: 'product_code, sucursal_id' });
@@ -260,10 +303,10 @@ app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer
             upsertedCount += batch.length;
         }
 
-        // 3. Legacy Sync for Deposito products
-        if (productsToUpdate.length > 0) {
+        // 4. Legacy Sync for Deposito products
+        if (validProductsToUpdate.length > 0) {
             // We do this in smaller batches to avoid overloading Supabase update
-            for (const item of productsToUpdate) {
+            for (const item of validProductsToUpdate) {
                 await supabase
                     .from('products')
                     .update({ current_stock: item.quantity })
@@ -275,7 +318,9 @@ app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer
             message: 'Stock imported successfully',
             totalRows: rawData.length,
             imported: upsertedCount,
-            skipped: skippedRows
+            skipped: skippedRows,
+            skippedProducts: skippedProductsCount,
+            message: `Stock imported successfully. Processed: ${validStockEntries.length}. Skipped Rows: ${skippedRows}. Skipped Unknown Products: ${skippedProductsCount}.`
         });
 
     } catch (error) {
