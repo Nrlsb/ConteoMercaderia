@@ -22,7 +22,7 @@ app.use(express.json());
 
 // Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
     console.error('Missing Supabase URL or Key in .env file');
@@ -1881,19 +1881,32 @@ app.post('/api/auth/login', async (req, res) => {
 
         // Check for existing active session if not forcing
         if (!force && user.is_session_active && user.current_session_id) {
-            return res.status(409).json({
-                sessionActive: true,
-                message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
-            });
+            // Check if session is stale (more than 5 minutes since last seen)
+            const lastSeen = user.last_seen ? new Date(user.last_seen) : null;
+            const now = new Date();
+            const isStale = lastSeen && (now - lastSeen > 5 * 60 * 1000); // 5 minutes
+
+            if (!isStale) {
+                return res.status(409).json({
+                    sessionActive: true,
+                    message: 'Ya tienes una sesión activa en otro dispositivo. ¿Deseas cerrarla e iniciar aquí?'
+                });
+            }
+            // If stale, we proceed to overwrite without 409
+            console.log(`Session for user ${username} is stale (${lastSeen}). Overwriting.`);
         }
 
         // Generate New Session ID
         const sessionId = uuidv4();
 
-        // Update user with new session ID
+        // Update user with new session ID and reset last_seen
         const { error: updateError } = await supabase
             .from('users')
-            .update({ current_session_id: sessionId, is_session_active: true })
+            .update({
+                current_session_id: sessionId,
+                is_session_active: true,
+                last_seen: new Date().toISOString()
+            })
             .eq('id', user.id);
 
         if (updateError) throw updateError;
@@ -1943,6 +1956,20 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// Heartbeat to keep session alive
+app.post('/api/auth/heartbeat', verifyToken, async (req, res) => {
+    try {
+        await supabase
+            .from('users')
+            .update({ last_seen: new Date().toISOString(), is_session_active: true })
+            .eq('id', req.user.id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Heartbeat error:', error);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 

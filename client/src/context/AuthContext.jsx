@@ -61,11 +61,21 @@ export const AuthProvider = ({ children }) => {
 
         window.addEventListener('auth:session-expired', handleSessionExpired);
 
+        // Heartbeat: Update last_seen every minute
+        const heartbeatInterval = setInterval(() => {
+            if (isAuthenticated && !sessionExpired) {
+                api.post('/api/auth/heartbeat').catch(err => {
+                    console.error('Heartbeat failed:', err.message);
+                });
+            }
+        }, 60000);
+
         return () => {
             clearInterval(pollingInterval);
+            clearInterval(heartbeatInterval);
             window.removeEventListener('auth:session-expired', handleSessionExpired);
         };
-    }, []);
+    }, [isAuthenticated, sessionExpired]);
 
     const login = async (username, password, force = false) => {
         try {

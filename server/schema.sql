@@ -7,6 +7,8 @@ create table if not exists users (
   username text unique not null,
   password text not null,
   current_session_id text,
+  is_session_active boolean default false,
+  last_seen timestamp with time zone,
   role text default 'user',
   created_at timestamp with time zone default now()
 );
