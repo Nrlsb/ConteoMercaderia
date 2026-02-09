@@ -49,7 +49,7 @@ const verifyToken = async (req, res, next) => {
         // Verify session is still valid in DB
         const { data: user, error } = await supabase
             .from('users')
-            .select('current_session_id, role') // Select role too
+            .select('current_session_id, role, is_session_active') // Select session status too
             .eq('id', decoded.id)
             .single();
 
