@@ -194,8 +194,7 @@ app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer
             if (b.code) branchMap[String(b.code).trim()] = b.id;
         });
 
-        const stockEntries = [];
-        const productsToUpdate = []; // To track products for Deposito sync
+        const stockEntriesMap = new Map();
         let skippedRows = 0;
 
         for (const row of rawData) {
@@ -232,17 +231,26 @@ app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer
                 continue;
             }
 
-            stockEntries.push({
+            // Clave única para deduplicación: "producto|sucursal"
+            const uniqueKey = `${productCode}|${sucursalId}`;
+
+            stockEntriesMap.set(uniqueKey, {
                 product_code: productCode,
                 sucursal_id: sucursalId,
                 quantity: isNaN(quantity) ? 0 : quantity,
                 updated_at: new Date()
             });
+        }
 
-            // Check if this branch is 'Deposito' for legacy sync
-            const branch = branches.find(b => b.id === sucursalId);
-            if (branch && branch.name === 'Deposito') {
-                productsToUpdate.push({ code: productCode, quantity: isNaN(quantity) ? 0 : quantity });
+        // Convertir el Map de vuelta a un array de entradas únicas
+        const stockEntries = Array.from(stockEntriesMap.values());
+        const productsToUpdate = []; // To track products for Deposito sync
+
+        // Identificar productos para sincronización de Depósito (solo después de deduplicar)
+        for (const entry of stockEntries) {
+            const branch = branches.find(b => b.id === entry.sucursal_id);
+            if (branch && (branch.name === 'Deposito' || branch.name === 'Depósito')) {
+                productsToUpdate.push({ code: entry.product_code, quantity: entry.quantity });
             }
         }
 
