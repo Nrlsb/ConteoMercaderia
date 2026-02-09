@@ -26,6 +26,8 @@ const RemitoForm = () => {
     // General Count State
     const [activeGeneralCount, setActiveGeneralCount] = useState(null);
     const [newCountName, setNewCountName] = useState('');
+    const [branches, setBranches] = useState([]);
+    const [selectedBranch, setSelectedBranch] = useState('');
 
     // Poll for active general count
     useEffect(() => {
@@ -207,7 +209,7 @@ const RemitoForm = () => {
         expectedItemsRef.current = expectedItems;
     }, [expectedItems]);
 
-    // Fetch pre-remitos list on mount
+    // Fetch pre-remitos list on mount and branches
     useEffect(() => {
         const fetchPreRemitos = async () => {
             try {
@@ -223,7 +225,18 @@ const RemitoForm = () => {
                 setPreRemitoList([]);
             }
         };
+
+        const fetchBranches = async () => {
+            try {
+                const res = await api.get('/api/sucursales');
+                setBranches(res.data);
+            } catch (error) {
+                console.error('Error fetching branches:', error);
+            }
+        };
+
         fetchPreRemitos();
+        fetchBranches();
     }, []);
 
     const handleLoadPreRemito = async () => {
@@ -686,10 +699,16 @@ const RemitoForm = () => {
 
     const handleStartGeneralCount = async () => {
         if (!newCountName.trim()) return triggerModal('Error', 'Ingrese un nombre para el conteo', 'warning');
+        // If not selected, it's null (Global/Deposito fallback handled by backend or explicit null)
+
         try {
-            const res = await api.post('/api/general-counts', { name: newCountName });
+            const res = await api.post('/api/general-counts', {
+                name: newCountName,
+                sucursal_id: selectedBranch || null
+            });
             setActiveGeneralCount(res.data);
             setNewCountName('');
+            setSelectedBranch('');
             setRemitoNumber(res.data.id);
             triggerModal('Éxito', 'Conteo General iniciado', 'success');
         } catch (error) {
@@ -907,7 +926,7 @@ const RemitoForm = () => {
                                 </h3>
                                 <p className="text-sm text-gray-600">
                                     {activeGeneralCount
-                                        ? 'Los productos escaneados se asignarán a este conteo grupal.'
+                                        ? `Los productos escaneados se asignarán a este conteo grupal. ${activeGeneralCount.sucursal_id ? '(Sucursal: ' + (activeGeneralCount.sucursal_name || 'Específica') + ')' : '(Global/Depósito)'}`
                                         : 'No hay un conteo general activo actualmente.'}
                                 </p>
                             </div>
@@ -925,6 +944,16 @@ const RemitoForm = () => {
                                             onChange={(e) => setNewCountName(e.target.value)}
                                             className="flex-1 md:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                                         />
+                                        <select
+                                            value={selectedBranch}
+                                            onChange={(e) => setSelectedBranch(e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
+                                        >
+                                            <option value="">Global (Todas/Depósito)</option>
+                                            {branches.map(b => (
+                                                <option key={b.id} value={b.id}>{b.name}</option>
+                                            ))}
+                                        </select>
                                         <button
                                             onClick={handleStartGeneralCount}
                                             className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 whitespace-nowrap"
