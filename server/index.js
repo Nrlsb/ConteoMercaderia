@@ -2096,13 +2096,13 @@ app.get('/api/sucursales', verifyToken, async (req, res) => {
 
 // Create sucursal (Admin)
 app.post('/api/sucursales', verifyToken, verifyAdmin, async (req, res) => {
-    const { name, location } = req.body;
+    const { name, location, code } = req.body;
     if (!name) return res.status(400).json({ message: 'Name is required' });
 
     try {
         const { data, error } = await supabase
             .from('sucursales')
-            .insert([{ name, location }])
+            .insert([{ name, location, code }])
             .select()
             .single();
 
@@ -2117,12 +2117,12 @@ app.post('/api/sucursales', verifyToken, verifyAdmin, async (req, res) => {
 // Update sucursal (Admin)
 app.put('/api/sucursales/:id', verifyToken, verifyAdmin, async (req, res) => {
     const { id } = req.params;
-    const { name, location } = req.body;
+    const { name, location, code } = req.body;
 
     try {
         const { data, error } = await supabase
             .from('sucursales')
-            .update({ name, location })
+            .update({ name, location, code })
             .eq('id', id)
             .select()
             .single();

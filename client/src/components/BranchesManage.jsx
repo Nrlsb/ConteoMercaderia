@@ -158,22 +158,24 @@ const BranchesManage = () => {
                                 <td className="py-2 px-4 border-b">{branch.name}</td>
                                 <td className="py-2 px-4 border-b">{branch.code || '-'}</td>
                                 <td className="py-2 px-4 border-b">{branch.location || '-'}</td>
-                                <td className="py-2 px-4 border-b flex justify-center gap-2">
-                                    <button
-                                        onClick={() => handleEdit(branch)}
-                                        className="text-blue-600 hover:text-blue-800"
-                                        title="Editar"
-                                    >
-                                        <Edit2 size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(branch.id)}
-                                        className="text-red-600 hover:text-red-800"
-                                        title="Eliminar"
-                                        disabled={branch.name === 'Deposito'} // Prevent deleting default
-                                    >
-                                        {branch.name !== 'Deposito' && <Trash2 size={18} />}
-                                    </button>
+                                <td className="py-2 px-4 border-b">
+                                    <div className="flex justify-center gap-2">
+                                        <button
+                                            onClick={() => handleEdit(branch)}
+                                            className="text-blue-600 hover:text-blue-800"
+                                            title="Editar"
+                                        >
+                                            <Edit2 size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(branch.id)}
+                                            className="text-red-600 hover:text-red-800"
+                                            title="Eliminar"
+                                            disabled={branch.name === 'Deposito'} // Prevent deleting default
+                                        >
+                                            {branch.name !== 'Deposito' && <Trash2 size={18} />}
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
