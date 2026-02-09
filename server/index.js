@@ -49,7 +49,7 @@ const verifyToken = async (req, res, next) => {
         // Verify session is still valid in DB
         const { data: user, error } = await supabase
             .from('users')
-            .select('current_session_id, role, is_session_active') // Select session status too
+            .select('current_session_id, role, is_session_active, sucursal_id') // Select session status and branch
             .eq('id', decoded.id)
             .single();
 
@@ -61,7 +61,7 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'Sesión iniciada en otro dispositivo o sesión expirada' });
         }
 
-        req.user = { ...decoded, role: user.role }; // Ensure role is up to date from DB
+        req.user = { ...decoded, role: user.role, sucursal_id: user.sucursal_id }; // Ensure role and branch are up to date
         next();
     } catch (e) {
         console.error('Token verification error:', e.message);
@@ -1832,7 +1832,8 @@ app.post('/api/auth/register', async (req, res) => {
                     password: hashedPassword,
                     current_session_id: sessionId,
                     is_session_active: true,
-                    role: 'user' // Default role
+                    role: 'user', // Default role
+                    sucursal_id: req.body.sucursal_id || null
                 }
             ])
             .select();
@@ -1846,7 +1847,7 @@ app.post('/api/auth/register', async (req, res) => {
             { expiresIn: '365d' }
         );
 
-        res.status(201).json({ token, user: { id: data[0].id, username: data[0].username, role: data[0].role } });
+        res.status(201).json({ token, user: { id: data[0].id, username: data[0].username, role: data[0].role, sucursal_id: data[0].sucursal_id } });
     } catch (error) {
         console.error('Error registering user:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -1918,10 +1919,364 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: '365d' }
         );
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sucursal_id: user.sucursal_id } });
     } catch (error) {
         console.error('Error logging in:', error);
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// --- Sucursales Routes ---
+
+// Get all sucursales
+app.get('/api/sucursales', verifyToken, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('sucursales')
+            .select('*')
+            .order('name');
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching sucursales:', error);
+        res.status(500).json({ message: 'Error fetching sucursales' });
+    }
+});
+
+// Create sucursal (Admin)
+app.post('/api/sucursales', verifyToken, verifyAdmin, async (req, res) => {
+    const { name, location } = req.body;
+    if (!name) return res.status(400).json({ message: 'Name is required' });
+
+    try {
+        const { data, error } = await supabase
+            .from('sucursales')
+            .insert([{ name, location }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.status(201).json(data);
+    } catch (error) {
+        console.error('Error creating sucursal:', error);
+        res.status(500).json({ message: 'Error creating sucursal' });
+    }
+});
+
+// Update sucursal (Admin)
+app.put('/api/sucursales/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { name, location } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('sucursales')
+            .update({ name, location })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error updating sucursal:', error);
+        res.status(500).json({ message: 'Error updating sucursal' });
+    }
+});
+
+// Delete sucursal (Admin)
+app.delete('/api/sucursales/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const { error } = await supabase
+            .from('sucursales')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        res.json({ message: 'Sucursal deleted' });
+    } catch (error) {
+        console.error('Error deleting sucursal:', error);
+        res.status(500).json({ message: 'Error deleting sucursal' });
+    }
+});
+
+// --- User Management Routes (Admin) ---
+
+// Get all users
+app.get('/api/users', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, sucursales(name)')
+            .order('username');
+
+        if (error) throw error;
+
+        // Flatten sucursal name
+        const users = data.map(u => ({
+            ...u,
+            sucursal_name: u.sucursales ? u.sucursales.name : 'N/A'
+        }));
+
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ message: 'Error fetching users' });
+    }
+});
+
+// Update user (including sucursal)
+app.put('/api/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { role, sucursal_id, password } = req.body;
+
+    try {
+        const updates = {};
+        if (role) updates.role = role;
+        if (sucursal_id !== undefined) updates.sucursal_id = sucursal_id; // Allow null to clear
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            updates.password = await bcrypt.hash(password, salt);
+        }
+
+        const { data, error } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json({ message: 'User updated', user: { id: data.id, username: data.username, role: data.role, sucursal_id: data.sucursal_id } });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ message: 'Error updating user' });
+    }
+});
+
+// --- Stock Management Routes ---
+
+// Get stock for a product across all branches
+app.get('/api/products/:code/stock', verifyToken, async (req, res) => {
+    const { code } = req.params;
+    try {
+        // 1. Get Product Info (including global stock)
+        const { data: product, error: prodError } = await supabase
+            .from('products')
+            .select('code, description, current_stock')
+            .eq('code', code)
+            .single();
+
+        if (prodError) throw prodError;
+
+        // 2. Get Branch Stock
+        const { data: branchStock, error: stockError } = await supabase
+            .from('stock_sucursal')
+            .select('sucursal_id, quantity, sucursales(name)')
+            .eq('product_code', code);
+
+        if (stockError) throw stockError;
+
+        // 3. Combine
+        // Always include "Deposito" (Global Stock) as one entry if we want to present it uniformly
+        // OR return separate fields.
+        // Decision: Return a list of all stocks.
+
+        // Get all branches to ensure we show 0 for those with no record
+        const { data: allBranches } = await supabase.from('sucursales').select('id, name');
+
+        const stocks = allBranches.map(branch => {
+            if (branch.name === 'Deposito') {
+                // Return the global stock from products table (assuming Deposito = Global for now as per plan)
+                // OR check if we are migrating. Plan said "Parallel structure". 
+                // Let's check if there is an entry in stock_sucursal for Deposito.
+                const entry = branchStock.find(s => s.sucursal_id === branch.id);
+                return {
+                    sucursal_id: branch.id,
+                    sucursal_name: branch.name,
+                    quantity: entry ? entry.quantity : (product.current_stock || 0) // Fallback to product.current_stock if not in stock_sucursal yet
+                };
+            }
+
+            const entry = branchStock.find(s => s.sucursal_id === branch.id);
+            return {
+                sucursal_id: branch.id,
+                sucursal_name: branch.name,
+                quantity: entry ? entry.quantity : 0
+            };
+        });
+
+        res.json({
+            product,
+            stocks
+        });
+
+    } catch (error) {
+        console.error('Error fetching stock:', error);
+        res.status(500).json({ message: 'Error fetching stock' });
+    }
+});
+
+// Update stock for a specific branch
+app.put('/api/products/:code/stock', verifyToken, async (req, res) => {
+    const { code } = req.params;
+    const { sucursal_id, quantity, operation } = req.body; // operation: 'set', 'add', 'subtract'
+
+    if (!sucursal_id || quantity === undefined) return res.status(400).json({ message: 'Missing parameters' });
+
+    try {
+        // Check permissions? Manager/Admin only? Allow for now.
+
+        // 1. Check if it's Deposito
+        const { data: branch } = await supabase.from('sucursales').select('name').eq('id', sucursal_id).single();
+        const isDeposito = branch && branch.name === 'Deposito';
+
+        let newQuantity = Number(quantity);
+
+        if (operation && operation !== 'set') {
+            // We need to fetch current first
+            const { data: current } = await supabase
+                .from('stock_sucursal')
+                .select('quantity')
+                .match({ product_code: code, sucursal_id })
+                .maybeSingle();
+
+            const currentQty = current ? Number(current.quantity) : 0;
+            if (operation === 'add') newQuantity = currentQty + newQuantity;
+            if (operation === 'subtract') newQuantity = currentQty - newQuantity;
+        }
+
+        // 2. Upsert stock_sucursal
+        const { error } = await supabase
+            .from('stock_sucursal')
+            .upsert({
+                product_code: code,
+                sucursal_id,
+                quantity: newQuantity,
+                updated_at: new Date()
+            }, { onConflict: 'product_code, sucursal_id' });
+
+        if (error) throw error;
+
+        // 3. If Deposito, also sync with products.current_stock (Legacy Sync)
+        if (isDeposito) {
+            await supabase
+                .from('products')
+                .update({ current_stock: newQuantity })
+                .eq('code', code);
+        }
+
+        res.json({ message: 'Stock updated', newQuantity });
+
+    } catch (error) {
+        console.error('Error updating stock:', error);
+        res.status(500).json({ message: 'Error updating stock' });
+    }
+});
+
+// Get Stock Matrix (Paginated)
+app.get('/api/stock/matrix', verifyToken, async (req, res) => {
+    const { page = 1, limit = 50, search = '' } = req.query;
+    const offset = (page - 1) * limit;
+
+    try {
+        // 1. Get Branches to build columns
+        const { data: branches, error: branchError } = await supabase
+            .from('sucursales')
+            .select('id, name')
+            .order('name');
+
+        if (branchError) throw branchError;
+
+        // 2. Fetch Products (Paginated & Filtered)
+        let query = supabase
+            .from('products')
+            .select('code, description, current_stock', { count: 'exact' });
+
+        if (search) {
+            query = query.or(`code.ilike.%${search}%,description.ilike.%${search}%`);
+        }
+
+        const { data: products, count, error: prodError } = await query
+            .range(offset, offset + Number(limit) - 1)
+            .order('code');
+
+        if (prodError) throw prodError;
+
+        if (!products || products.length === 0) {
+            return res.json({ data: [], total: 0, branches });
+        }
+
+        // 3. Fetch Stock for these products
+        const productCodes = products.map(p => p.code);
+        const { data: stocks, error: stockError } = await supabase
+            .from('stock_sucursal')
+            .select('product_code, sucursal_id, quantity')
+            .in('product_code', productCodes);
+
+        if (stockError) throw stockError;
+
+        // 4. Build Matrix
+        const matrix = products.map(p => {
+            const row = {
+                code: p.code,
+                description: p.description,
+                stocks: {}
+            };
+
+            // Initialize all branches with 0
+            branches.forEach(b => {
+                row.stocks[b.id] = 0;
+            });
+
+            // Set specific stocks
+            // Also handle "Deposito" special case if we decide to use current_stock from products
+            // For now, let's prefer stock_sucursal if exists, else 0.
+            // BUT wait, "Deposito" might be in stock_sucursal OR just in products.current_stock.
+            // My migration script inserted Deposito into stock_sucursal optionally. 
+            // If I didn't run that optional part, Deposito stock is only in products.current_stock.
+            // Let's assume we want to show 'Deposito' branch column.
+
+            const depositoBranch = branches.find(b => b.name === 'Deposito');
+            if (depositoBranch) {
+                // If we have an entry in stock_sucursal, use it. If not, use product.current_stock?
+                // Best is to assume migration ran OR just show product.current_stock as Deposito
+                // logic:
+                // row.stocks[depositoBranch.id] = p.current_stock; 
+                // But let's check stocks array first.
+            }
+
+            // Fill from stocks array
+            stocks.filter(s => s.product_code === p.code).forEach(s => {
+                row.stocks[s.sucursal_id] = s.quantity;
+            });
+
+            // Fallback for Deposito if 0 and current_stock > 0? (Optional)
+            if (depositoBranch && row.stocks[depositoBranch.id] === 0 && p.current_stock > 0) {
+                // Optimization: If the stock_sucursal entry didn't exist, we might want to default to current_stock
+                // But strictly speaking, stock_sucursal is the source of truth for branches.
+                // Let's stick to what's in stock_sucursal. 
+                // Actually, user plan said "Products.current_stock will be treated as Global/Deposito". 
+                // So we SHOULD populate Deposito column with p.current_stock if using that paradigm.
+                // Let's override Deposito stock with p.current_stock for now to ensure visibility of legacy stock.
+                row.stocks[depositoBranch.id] = p.current_stock;
+            }
+
+            return row;
+        });
+
+        res.json({
+            data: matrix,
+            total: count,
+            branches
+        });
+
+    } catch (error) {
+        console.error('Error fetching stock matrix:', error);
+        res.status(500).json({ message: 'Error fetching stock matrix' });
     }
 });
 

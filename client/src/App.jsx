@@ -17,6 +17,7 @@ const DiscrepancyList = lazy(() => import('./components/DiscrepancyList'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const InventoryPage = lazy(() => import('./components/InventoryPage'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const StockPage = lazy(() => import('./components/StockPage'));
 
 const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -94,6 +95,11 @@ const AppContent = () => {
                 <Route path="/settings" element={
                   <ProtectedRoute role="admin">
                     <SettingsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/stock" element={
+                  <ProtectedRoute>
+                    <StockPage />
                   </ProtectedRoute>
                 } />
               </Routes>
