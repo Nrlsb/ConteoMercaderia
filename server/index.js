@@ -165,6 +165,125 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
     }
 });
 
+// Branch Stock Import Endpoint (Admin only)
+app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    try {
+        const xlsx = require('xlsx');
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]; // Process first sheet
+
+        if (!sheet) {
+            return res.status(400).json({ message: 'Sheet not found' });
+        }
+
+        const rawData = xlsx.utils.sheet_to_json(sheet);
+
+        // 1. Fetch branches to map code -> id
+        const { data: branches, error: branchError } = await supabase
+            .from('sucursales')
+            .select('id, code, name');
+
+        if (branchError) throw branchError;
+
+        const branchMap = {};
+        branches.forEach(b => {
+            if (b.code) branchMap[String(b.code).trim()] = b.id;
+        });
+
+        const stockEntries = [];
+        const productsToUpdate = []; // To track products for Deposito sync
+        let skippedRows = 0;
+
+        for (const row of rawData) {
+            // Helper to find keys case-insensitively
+            const findKey = (partialKey) => Object.keys(row).find(k => k.trim().toLowerCase().includes(partialKey.toLowerCase()));
+
+            const sucursalKey = findKey('Sucursal');
+            const productKey = findKey('Producto');
+            const saldoKey = findKey('Saldo');
+
+            const branchCodeRaw = row[sucursalKey];
+            const productCodeRaw = row[productKey];
+            const quantityRaw = row[saldoKey];
+
+            if (branchCodeRaw === undefined || productCodeRaw === undefined) {
+                skippedRows++;
+                continue;
+            }
+
+            const branchCode = String(branchCodeRaw).trim();
+            const productCode = String(productCodeRaw).trim();
+
+            // Handle quantity (replace comma for dot if string)
+            let quantity = 0;
+            if (typeof quantityRaw === 'string') {
+                quantity = parseFloat(quantityRaw.replace(',', '.'));
+            } else {
+                quantity = parseFloat(quantityRaw);
+            }
+
+            const sucursalId = branchMap[branchCode];
+            if (!sucursalId) {
+                skippedRows++;
+                continue;
+            }
+
+            stockEntries.push({
+                product_code: productCode,
+                sucursal_id: sucursalId,
+                quantity: isNaN(quantity) ? 0 : quantity,
+                updated_at: new Date()
+            });
+
+            // Check if this branch is 'Deposito' for legacy sync
+            const branch = branches.find(b => b.id === sucursalId);
+            if (branch && branch.name === 'Deposito') {
+                productsToUpdate.push({ code: productCode, quantity: isNaN(quantity) ? 0 : quantity });
+            }
+        }
+
+        // 2. Batch upsert stock_sucursal
+        const batchSize = 1000;
+        let upsertedCount = 0;
+
+        for (let i = 0; i < stockEntries.length; i += batchSize) {
+            const batch = stockEntries.slice(i, i + batchSize);
+            const { error } = await supabase
+                .from('stock_sucursal')
+                .upsert(batch, { onConflict: 'product_code, sucursal_id' });
+
+            if (error) throw error;
+            upsertedCount += batch.length;
+        }
+
+        // 3. Legacy Sync for Deposito products
+        if (productsToUpdate.length > 0) {
+            // We do this in smaller batches to avoid overloading Supabase update
+            for (const item of productsToUpdate) {
+                await supabase
+                    .from('products')
+                    .update({ current_stock: item.quantity })
+                    .eq('code', item.code);
+            }
+        }
+
+        res.json({
+            message: 'Stock imported successfully',
+            totalRows: rawData.length,
+            imported: upsertedCount,
+            skipped: skippedRows
+        });
+
+    } catch (error) {
+        console.error('Error importing stock:', error);
+        res.status(500).json({ message: 'Error importing stock: ' + error.message });
+    }
+});
+
 // Search products (DEBE IR ANTES de /:barcode para evitar conflicto de routing)
 app.get('/api/products/search', verifyToken, async (req, res) => {
     const { q } = req.query;

@@ -100,12 +100,6 @@ const AdminPage = () => {
                                 {isLoading ? 'Procesando...' : 'Subir Archivo'}
                             </button>
                         </div>
-
-                        {status && (
-                            <div className={`mt-4 p-3 rounded ${status.startsWith('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                {status}
-                            </div>
-                        )}
                     </div>
 
                     {/* Import Stock XML Section */}
@@ -163,6 +157,68 @@ const AdminPage = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* Import Stock by Branch Section */}
+                    <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-orange-500">
+                        <h2 className="text-xl mb-4 text-orange-700 font-bold">Importar Stock por Sucursal (Excel)</h2>
+                        <p className="mb-4 text-gray-600">Sube el archivo Excel con el stock de todas las sucursales para actualizar la tabla de stock.</p>
+
+                        <div className="mb-4">
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={(e) => {
+                                    setFile(e.target.files[0]);
+                                    setStatus('');
+                                }}
+                                className="block w-full text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-orange-50 file:text-orange-700
+                                hover:file:bg-orange-100"
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <button
+                                onClick={async () => {
+                                    if (!file) {
+                                        setStatus('Por favor selecciona un archivo Excel.');
+                                        return;
+                                    }
+                                    setIsLoading(true);
+                                    setStatus('Subiendo y vinculando stock...');
+
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+
+                                    try {
+                                        const response = await axios.post('/api/stock/import', formData, {
+                                            headers: { 'Content-Type': 'multipart/form-data' }
+                                        });
+                                        setStatus(`Éxito: ${response.data.message}. Procesados: ${response.data.totalRows}. Importados: ${response.data.imported}. Saltados: ${response.data.skipped}.`);
+                                    } catch (error) {
+                                        console.error(error);
+                                        setStatus('Error al importar Stock por Sucursal. Asegúrate de haber cargado los códigos en las sucursales.');
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                }}
+                                disabled={isLoading}
+                                className={`bg-orange-600 hover:bg-orange-800 text-white font-bold py-2 px-4 rounded focus:outline-none shadow-lg transition
+                                     ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {isLoading ? 'Procesando...' : 'Subir Stock Sucursal'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {status && (
+                        <div className={`mt-4 p-3 rounded ${status.startsWith('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            {status}
+                        </div>
+                    )}
                 </>
             )}
 

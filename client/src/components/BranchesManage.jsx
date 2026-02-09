@@ -8,7 +8,7 @@ const BranchesManage = () => {
     const [loading, setLoading] = useState(true);
     const [editingBranch, setEditingBranch] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
-    const [formData, setFormData] = useState({ name: '', location: '' });
+    const [formData, setFormData] = useState({ name: '', location: '', code: '' });
 
     useEffect(() => {
         fetchBranches();
@@ -28,20 +28,20 @@ const BranchesManage = () => {
 
     const handleEdit = (branch) => {
         setEditingBranch(branch);
-        setFormData({ name: branch.name, location: branch.location || '' });
+        setFormData({ name: branch.name, location: branch.location || '', code: branch.code || '' });
         setIsCreating(false);
     };
 
     const handleCreate = () => {
         setEditingBranch(null);
-        setFormData({ name: '', location: '' });
+        setFormData({ name: '', location: '', code: '' });
         setIsCreating(true);
     };
 
     const handleCancel = () => {
         setEditingBranch(null);
         setIsCreating(false);
-        setFormData({ name: '', location: '' });
+        setFormData({ name: '', location: '', code: '' });
     };
 
     const handleSubmit = async (e) => {
@@ -113,6 +113,16 @@ const BranchesManage = () => {
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                             />
                         </div>
+                        <div>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Código (Excel)</label>
+                            <input
+                                type="text"
+                                value={formData.code}
+                                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                placeholder="Ej: 010124"
+                            />
+                        </div>
                     </div>
                     <div className="flex justify-end gap-2">
                         <button
@@ -137,6 +147,7 @@ const BranchesManage = () => {
                     <thead>
                         <tr className="bg-gray-100">
                             <th className="py-2 px-4 border-b text-left">Nombre</th>
+                            <th className="py-2 px-4 border-b text-left">Código</th>
                             <th className="py-2 px-4 border-b text-left">Ubicación</th>
                             <th className="py-2 px-4 border-b text-center">Acciones</th>
                         </tr>
@@ -145,6 +156,7 @@ const BranchesManage = () => {
                         {branches.map((branch) => (
                             <tr key={branch.id} className="hover:bg-gray-50">
                                 <td className="py-2 px-4 border-b">{branch.name}</td>
+                                <td className="py-2 px-4 border-b">{branch.code || '-'}</td>
                                 <td className="py-2 px-4 border-b">{branch.location || '-'}</td>
                                 <td className="py-2 px-4 border-b flex justify-center gap-2">
                                     <button
