@@ -1311,8 +1311,8 @@ app.get('/api/pre-remitos', verifyToken, async (req, res) => {
         const { data, error } = await supabase
             .from('pre_remitos')
             .select(`
-                id, 
-                order_number, 
+                id,
+                order_number,
                 created_at,
                 pedidos_ventas (
                     numero_pv,
@@ -1325,11 +1325,45 @@ app.get('/api/pre-remitos', verifyToken, async (req, res) => {
         if (error) throw error;
 
         // Flatten the structure for easier frontend consumption
-        const formattedData = data.map(item => ({
+        let formattedData = data.map(item => ({
             ...item,
             numero_pv: item.pedidos_ventas?.[0]?.numero_pv || null,
             sucursal: item.pedidos_ventas?.[0]?.sucursal || null
         }));
+
+        // Filter by branch if not admin
+        if (req.user.role !== 'admin') {
+            const { sucursal_id } = req.user;
+            if (sucursal_id) {
+                // Get branch name
+                const { data: branchData, error: branchError } = await supabase
+                    .from('sucursales')
+                    .select('name')
+                    .eq('id', sucursal_id)
+                    .single();
+
+                if (!branchError && branchData) {
+                    const userBranchName = branchData.name;
+                    // Filter: Keep if matches branch OR is 'Global' OR has no branch assigned (optional, assuming 'Global' if null?)
+                    // User request: "only those belonging to that branch".
+                    // So strict filtering: match branch name OR explicit 'Global'.
+                    formattedData = formattedData.filter(item => {
+                        const itemBranch = item.sucursal;
+                        if (!itemBranch) return true; // Show if no branch is specified (safest default, or false?) -> Let's keep it visible so they don't lose loose orders.
+                        if (itemBranch.toLowerCase() === 'global') return true;
+
+                        // Normalize for comparison
+                        return itemBranch.toLowerCase().trim() === userBranchName.toLowerCase().trim();
+                    });
+                }
+            } else {
+                // User has no branch assigned.
+                // Should they see everything? or nothing?
+                // Probably nothing or only Global?
+                // Let's assume if no branch assigned, they see nothing branch-specific, only Global/Generic.
+                formattedData = formattedData.filter(item => !item.sucursal || item.sucursal.toLowerCase() === 'global');
+            }
+        }
 
         res.json(formattedData);
     } catch (error) {
