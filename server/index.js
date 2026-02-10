@@ -513,7 +513,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                     numero_pv: extraInfo.numero_pv,
                     sucursal: extraInfo.sucursal,
                     count_name: countsMap[remito.remito_number] || null,
-                    is_finalized: true
+                    is_finalized: true,
+                    type: 'remito'
                 };
             });
             return res.json(processedFormatted.sort((a, b) => new Date(b.date) - new Date(a.date)));
@@ -605,7 +606,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 count_name: countsMap[pre.order_number] || null,
                 progress: stats.progress,
                 scanned_brands: stats.scanned_brands,
-                is_finalized: false
+                is_finalized: false,
+                type: 'pre_remito'
             };
         });
 
@@ -624,7 +626,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 count_name: count.name,
                 progress: null, // General counts don't have progress bar usually
                 scanned_brands: stats.scanned_brands,
-                is_finalized: false
+                is_finalized: false,
+                type: 'general_count'
             };
         });
 
@@ -640,7 +643,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 numero_pv: extraInfo.numero_pv,
                 sucursal: extraInfo.sucursal,
                 count_name: countName || null,
-                is_finalized: true
+                is_finalized: true,
+                type: 'remito'
             };
         });
 
@@ -651,6 +655,91 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching remitos:', error);
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Delete Remito (Admin only)
+app.delete('/api/remitos/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Get remito to find remito_number (for scans deletion)
+        const { data: remito, error: fetchError } = await supabase
+            .from('remitos')
+            .select('remito_number')
+            .eq('id', id)
+            .single();
+
+        if (fetchError) throw fetchError;
+
+        // 2. Delete scans associated with this remito (if any)
+        if (remito && remito.remito_number) {
+            await supabase.from('inventory_scans').delete().eq('order_number', remito.remito_number);
+            await supabase.from('inventory_scans_history').delete().eq('order_number', remito.remito_number);
+        }
+
+        // 3. Delete the remito itself
+        const { error: deleteError } = await supabase.from('remitos').delete().eq('id', id);
+
+        if (deleteError) throw deleteError;
+
+        res.json({ message: 'Remito deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting remito:', error);
+        res.status(500).json({ message: 'Error deleting remito' });
+    }
+});
+
+// Delete Pre-Remito (Admin only)
+app.delete('/api/pre-remitos/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Get pre-remito to find order_number
+        const { data: preRemito, error: fetchError } = await supabase
+            .from('pre_remitos')
+            .select('order_number')
+            .eq('id', id)
+            .single();
+
+        if (fetchError) throw fetchError;
+
+        // 2. Delete scans associated
+        if (preRemito && preRemito.order_number) {
+            await supabase.from('inventory_scans').delete().eq('order_number', preRemito.order_number);
+            await supabase.from('inventory_scans_history').delete().eq('order_number', preRemito.order_number);
+        }
+
+        // 3. Delete pre-remito
+        const { error: deleteError } = await supabase.from('pre_remitos').delete().eq('id', id);
+
+        if (deleteError) throw deleteError;
+
+        res.json({ message: 'Pre-remito deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting pre-remito:', error);
+        res.status(500).json({ message: 'Error deleting pre-remito' });
+    }
+});
+
+// Delete General Count (Admin only)
+app.delete('/api/general-counts/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Delete scans associated (using ID as order_number for general counts)
+        await supabase.from('inventory_scans').delete().eq('order_number', id);
+        await supabase.from('inventory_scans_history').delete().eq('order_number', id);
+
+        // 2. Delete general count
+        const { error: deleteError } = await supabase.from('general_counts').delete().eq('id', id);
+
+        if (deleteError) throw deleteError;
+
+        res.json({ message: 'General count deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting general count:', error);
+        res.status(500).json({ message: 'Error deleting general count' });
     }
 });
 
@@ -1736,19 +1825,37 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
     const userId = req.user.id;
 
     try {
-        // 1. Get Expected Items (Pre-Remito)
+        // 1. Get Expected Items (Pre-Remito OR General Count)
+        let expectedItems = [];
+        let isGeneralCount = false;
+
+        // Try Pre-Remito first
         const { data: preRemito, error: preError } = await supabase
             .from('pre_remitos')
             .select('items')
             .eq('order_number', orderNumber)
-            .single();
+            .maybeSingle();
 
-        if (preError) {
-            if (preError.code === 'PGRST116') return res.status(404).json({ message: 'Order not found' });
-            throw preError;
+        if (preError) throw preError;
+
+        if (preRemito) {
+            expectedItems = preRemito.items || [];
+        } else {
+            // Fallback: Check General Counts
+            const { data: generalCount, error: genError } = await supabase
+                .from('general_counts')
+                .select('id')
+                .eq('id', orderNumber)
+                .maybeSingle();
+
+            if (genError) throw genError;
+
+            if (!generalCount) {
+                return res.status(404).json({ message: 'Order not found' });
+            }
+            // General Count found - keep expectedItems empty (or logic to fetch stock could go here later)
+            isGeneralCount = true;
         }
-
-        let expectedItems = preRemito.items || [];
 
         // ENRICHMENT: Fetch brands for items that might be missing them
         if (expectedItems.length > 0) {
