@@ -62,9 +62,10 @@ const Scanner = ({ onScan, isEnabled = true }) => {
                         qrbox: { width: 300, height: 150 }, // Fixed px box for stability or function above
                         videoConstraints: {
                             facingMode: "environment",
-                            width: { min: 640, ideal: 1280 }, // Adjusted for broader support and speed
-                            height: { min: 480, ideal: 720 },
+                            width: { min: 1280, ideal: 3840, max: 4096 }, // Aggressively request high resolution
+                            height: { min: 720, ideal: 2160, max: 4096 },
                             focusMode: "continuous",
+                            advanced: [{ zoom: 2.0 }] // Try to request zoom/macro focus if supported
                         }
                     },
                     (decodedText, decodedResult) => {
