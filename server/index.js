@@ -1554,11 +1554,21 @@ app.get('/api/general-counts/active', verifyToken, async (req, res) => {
             return res.status(500).json({ message: 'Error fetching active counts' });
         }
 
-        // Return array directly (or empty array)
-        const counts = data.map(c => ({
+        let counts = data.map(c => ({
             ...c,
             sucursal_name: c.sucursales ? c.sucursales.name : null
         }));
+
+        // Filter by branch if not admin
+        if (req.user.role !== 'admin') {
+            const { sucursal_id } = req.user;
+            if (sucursal_id) {
+                counts = counts.filter(c => !c.sucursal_id || c.sucursal_id === sucursal_id);
+            } else {
+                // If user has no branch, only show global ones (no sucursal_id)
+                counts = counts.filter(c => !c.sucursal_id);
+            }
+        }
 
         res.json(counts);
     } catch (error) {
