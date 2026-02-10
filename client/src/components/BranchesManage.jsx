@@ -142,7 +142,40 @@ const BranchesManage = () => {
                 </form>
             )}
 
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+                {branches.map((branch) => (
+                    <div key={branch.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 className="font-bold text-gray-900 text-lg">{branch.name}</h3>
+                                <div className="text-sm text-gray-500">{branch.location || 'Sin ubicación'}</div>
+                            </div>
+                            <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded font-mono">
+                                {branch.code || '-'}
+                            </span>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-gray-100">
+                            <button
+                                onClick={() => handleEdit(branch)}
+                                className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                                <Edit2 size={16} className="mr-1" /> Editar
+                            </button>
+                            <button
+                                onClick={() => handleDelete(branch.id)}
+                                className={`flex items-center text-sm font-medium ${branch.name === 'Deposito' ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:text-red-800'}`}
+                                disabled={branch.name === 'Deposito'}
+                            >
+                                {branch.name !== 'Deposito' && <><Trash2 size={16} className="mr-1" /> Eliminar</>}
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full bg-white border border-gray-200">
                     <thead>
                         <tr className="bg-gray-100">

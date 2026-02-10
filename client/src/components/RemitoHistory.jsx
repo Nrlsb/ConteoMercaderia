@@ -73,7 +73,33 @@ const RemitoHistory = ({ remitoNumber }) => {
                 <h3 className="text-lg font-bold text-gray-900">Historial de Cambios</h3>
                 <p className="text-sm text-gray-500">Registro de todas las acciones realizadas sobre este conteo.</p>
             </div>
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="md:hidden">
+                {history.map((entry) => (
+                    <div key={entry.history_id} className="p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 flex flex-col gap-2">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <div className="text-xs text-gray-500 mb-1">{new Date(entry.changed_at).toLocaleString()}</div>
+                                <div className="font-bold text-gray-900">{entry.username}</div>
+                            </div>
+                            {getActionBadge(entry.operation)}
+                        </div>
+
+                        <div className="mt-1">
+                            <div className="text-sm text-gray-900 font-medium">{entry.description}</div>
+                            <div className="text-xs text-gray-400 font-mono">{entry.code}</div>
+                        </div>
+
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
+                            <span className="text-xs text-gray-500 uppercase font-bold">Cambio</span>
+                            {formatData(entry.operation, entry.old_data, entry.new_data)}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>

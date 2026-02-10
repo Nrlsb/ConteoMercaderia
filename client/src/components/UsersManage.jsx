@@ -130,7 +130,36 @@ const UsersManage = () => {
                 </form>
             )}
 
-            <div className="overflow-x-auto">
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+                {users.map((user) => (
+                    <div key={user.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 className="font-bold text-gray-900 text-lg">{user.username}</h3>
+                                <div className="text-sm text-gray-500 capitalize">{user.role}</div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.is_session_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                {user.is_session_active ? 'Activo' : 'Offline'}
+                            </span>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-3">
+                            <span className="font-medium">Sucursal:</span> {user.sucursal_name || 'Sin Asignar'}
+                        </div>
+
+                        <div className="flex justify-end pt-3 border-t border-gray-100">
+                            <button
+                                onClick={() => handleEdit(user)}
+                                className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                                <Edit2 size={16} className="mr-1" /> Editar
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full bg-white border border-gray-200">
                     <thead>
                         <tr className="bg-gray-100">
@@ -152,14 +181,16 @@ const UsersManage = () => {
                                         {user.is_session_active ? 'Activo' : 'Offline'}
                                     </span>
                                 </td>
-                                <td className="py-2 px-4 border-b flex justify-center gap-2">
-                                    <button
-                                        onClick={() => handleEdit(user)}
-                                        className="text-blue-600 hover:text-blue-800"
-                                        title="Editar"
-                                    >
-                                        <Edit2 size={18} />
-                                    </button>
+                                <td className="py-2 px-4 border-b">
+                                    <div className="flex justify-center gap-2">
+                                        <button
+                                            onClick={() => handleEdit(user)}
+                                            className="text-blue-600 hover:text-blue-800"
+                                            title="Editar"
+                                        >
+                                            <Edit2 size={18} />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
