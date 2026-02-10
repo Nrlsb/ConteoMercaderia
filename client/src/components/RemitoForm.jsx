@@ -536,11 +536,9 @@ const RemitoForm = () => {
             }
 
             if (existingItem) {
-                return prevItems.map(item =>
-                    item.code === product.code
-                        ? { ...item, quantity: newTotal, validationError: validationMessage }
-                        : item
-                );
+                // Move updated item to the end so it appears as most recent
+                const updatedItem = { ...existingItem, quantity: newTotal, validationError: validationMessage };
+                return [...prevItems.filter(i => i.code !== product.code), updatedItem];
             } else {
                 return [...prevItems, {
                     code: product.code,
@@ -827,7 +825,7 @@ const RemitoForm = () => {
 
             {/* Clarification Modal */}
             {showClarificationModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden transform transition-all scale-100 flex flex-col max-h-[90vh]">
                         <div className="px-6 py-4 border-b bg-yellow-50 border-yellow-100 flex-shrink-0">
                             <h3 className="text-lg font-bold text-yellow-800 flex items-center">
@@ -1222,20 +1220,30 @@ const RemitoForm = () => {
 
                         {/* Camera Scanner Toggle */}
                         <div className="mt-6">
-                            <button
-                                onClick={() => setIsScanning(!isScanning)}
-                                className={`w-full flex items-center justify-center px-4 py-3 rounded-lg border-2 transition font-medium ${isScanning
-                                    ? 'border-red-100 text-red-600 hover:bg-red-50'
-                                    : 'border-brand-blue text-brand-blue hover:bg-blue-50'
-                                    }`}
-                            >
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                {isScanning ? 'Detener Cámara' : 'Usar Cámara'}
-                            </button>
+                            {!isScanning && (
+                                <button
+                                    onClick={() => setIsScanning(true)}
+                                    className="w-full flex items-center justify-center px-4 py-3 rounded-lg border-2 border-brand-blue text-brand-blue hover:bg-blue-50 transition font-medium"
+                                >
+                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    Usar Cámara
+                                </button>
+                            )}
 
                             {isScanning && (
-                                <div className="mt-4 rounded-lg overflow-hidden shadow-inner border border-gray-200">
-                                    <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal} />
+                                <div className="fixed inset-0 z-[45] bg-black flex flex-col">
+                                    <div className="relative h-[90%] w-full bg-black flex items-center justify-center overflow-hidden">
+                                        <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal} />
+                                    </div>
+                                    <div className="h-[10%] w-full bg-white flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
+                                        <button
+                                            onClick={() => setIsScanning(false)}
+                                            className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                            Detener Cámara
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1261,7 +1269,7 @@ const RemitoForm = () => {
                                     <p className="text-sm">Escanea productos para comenzar</p>
                                 </div>
                             ) : (
-                                items.map((item, index) => {
+                                items.slice().reverse().slice(0, 20).map((item, index) => {
                                     const expectedQty = getExpectedQty(item.code);
                                     const isUnexpected = expectedItems && expectedQty === null;
                                     const isOverQty = expectedItems && expectedQty !== null && item.quantity > expectedQty;
