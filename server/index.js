@@ -1080,6 +1080,7 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
         // Final marking of finalized status
         remito.is_finalized = isFinalized;
 
+        console.log(`[DEBUG_DETAILS] Fetched details for ID ${id}. Finalized: ${isFinalized}. Found remito_number: ${remito.remito_number}`);
         res.json({ remito, userCounts, is_finalized: isFinalized });
 
     } catch (error) {
@@ -1996,6 +1997,20 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
 
         if (error) throw error;
 
+        // Populate history
+        const historyData = items.map(item => ({
+            order_number: orderNumber,
+            user_id: userId,
+            operation: 'UPDATE', // It's an absolute overwrite/sync
+            code: item.code,
+            new_data: { quantity: item.quantity },
+            changed_at: new Date().toISOString()
+        }));
+
+        await supabase.from('inventory_scans_history').insert(historyData);
+
+        console.log(`[DEBUG_SCAN] Synced ${items.length} items for order ${orderNumber} by user ${userId}`);
+
         res.json({ message: 'Scans synced successfully', count: items.length });
 
     } catch (error) {
@@ -2047,8 +2062,22 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
                 }, { onConflict: 'order_number, user_id, code' });
 
             if (upsertError) throw upsertError;
+
+            // Populate history
+            await supabase.from('inventory_scans_history').insert({
+                order_number: orderNumber,
+                user_id: userId,
+                operation: existing ? 'UPDATE' : 'INSERT',
+                code: internalCode,
+                old_data: existing ? { quantity: existing.quantity } : null,
+                new_data: { quantity: newQuantity },
+                changed_at: new Date().toISOString()
+            });
+
             results.push({ code: internalCode, newQuantity });
         }
+
+        console.log(`[DEBUG_INCREMENTAL] Updated ${results.length} items for order ${orderNumber} by user ${userId}`);
 
         res.json({ message: 'Scans incremented successfully', results });
 

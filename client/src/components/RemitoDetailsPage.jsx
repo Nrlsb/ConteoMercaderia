@@ -30,7 +30,6 @@ const RemitoDetailsPage = () => {
         };
 
         if (id) fetchDetails();
-        if (id) fetchDetails();
     }, [id]);
 
     const handleVoiceSearch = () => {
