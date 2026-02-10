@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ConteoMercaderia</string>
+    <string name="title_activity_main">ConteoMercaderia</string>
+    <string name="package_name">com.mercadocentral.conteo</string>
+    <string name="custom_url_scheme">com.mercadocentral.conteo</string>
+</resources>
