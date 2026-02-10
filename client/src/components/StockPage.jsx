@@ -11,6 +11,8 @@ const StockPage = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [selectedBranches, setSelectedBranches] = useState([]);
+    const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
 
     const limit = 50;
 
@@ -52,13 +54,27 @@ const StockPage = () => {
         setSearchTerm(e.target.value);
     };
 
+    const toggleBranchSelection = (branchId) => {
+        setSelectedBranches(prev => {
+            if (prev.includes(branchId)) {
+                return prev.filter(id => id !== branchId);
+            } else {
+                return [...prev, branchId];
+            }
+        });
+    };
+
+    const toggleBranchDropdown = () => {
+        setIsBranchDropdownOpen(!isBranchDropdownOpen);
+    };
+
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-6 text-gray-800">Stock por Sucursal</h1>
 
             <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
                 {/* Controls */}
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-4 flex-col md:flex-row gap-4">
                     <div className="relative w-full md:w-1/3">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search className="h-5 w-5 text-gray-400" />
@@ -71,6 +87,51 @@ const StockPage = () => {
                             className="pl-10 shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                         />
                     </div>
+
+                    {/* Multi-select Branch Dropdown */}
+                    <div className="relative w-full md:w-auto">
+                        <button
+                            onClick={toggleBranchDropdown}
+                            className="w-full md:w-64 bg-white border border-gray-300 text-gray-700 py-2 px-3 rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex justify-between items-center"
+                        >
+                            <span className="truncate">
+                                {selectedBranches.length === 0
+                                    ? "Seleccionar Sucursales"
+                                    : `${selectedBranches.length} seleccionada${selectedBranches.length !== 1 ? 's' : ''}`}
+                            </span>
+                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+
+                        {isBranchDropdownOpen && (
+                            <div className="absolute z-10 mt-1 w-full md:w-64 bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                                {branches.map((branch) => (
+                                    <div
+                                        key={branch.id}
+                                        className="relative flex items-start py-2 px-3 hover:bg-gray-100 cursor-pointer"
+                                        onClick={() => toggleBranchSelection(branch.id)}
+                                    >
+                                        <div className="min-w-0 flex-1 text-sm">
+                                            <label htmlFor={`branch-${branch.id}`} className="font-medium text-gray-700 select-none cursor-pointer">
+                                                {branch.name}
+                                            </label>
+                                        </div>
+                                        <div className="ml-3 flex items-center h-5">
+                                            <input
+                                                id={`branch-${branch.id}`}
+                                                name={`branch-${branch.id}`}
+                                                type="checkbox"
+                                                className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                                                checked={selectedBranches.includes(branch.id)}
+                                                readOnly
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -80,7 +141,7 @@ const StockPage = () => {
                             <tr className="bg-gray-100 text-gray-600 uppercase leading-normal">
                                 <th className="py-3 px-6 text-left">Código</th>
                                 <th className="py-3 px-6 text-left">Descripción</th>
-                                {branches.map(branch => (
+                                {branches.filter(b => selectedBranches.includes(b.id)).map(branch => (
                                     <th key={branch.id} className="py-3 px-6 text-center bg-blue-50 text-blue-800 font-bold border-l border-blue-100">
                                         {branch.name}
                                     </th>
@@ -90,18 +151,18 @@ const StockPage = () => {
                         <tbody className="text-gray-600 text-sm font-light">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={2 + branches.length} className="py-4 text-center">Cargando datos...</td>
+                                    <td colSpan={2 + selectedBranches.length} className="py-4 text-center">Cargando datos...</td>
                                 </tr>
                             ) : data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={2 + branches.length} className="py-4 text-center">No se encontraron productos</td>
+                                    <td colSpan={2 + selectedBranches.length} className="py-4 text-center">No se encontraron productos</td>
                                 </tr>
                             ) : (
                                 data.map((row) => (
                                     <tr key={row.code} className="border-b border-gray-200 hover:bg-gray-50">
                                         <td className="py-3 px-6 text-left whitespace-nowrap font-medium text-gray-900">{row.code}</td>
                                         <td className="py-3 px-6 text-left">{row.description}</td>
-                                        {branches.map(branch => {
+                                        {branches.filter(b => selectedBranches.includes(b.id)).map(branch => {
                                             const qty = row.stocks[branch.id];
                                             return (
                                                 <td key={branch.id} className={`py-3 px-6 text-center font-bold border-l border-gray-100 ${qty > 0 ? 'text-green-600' : 'text-gray-300'}`}>

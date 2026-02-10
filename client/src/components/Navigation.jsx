@@ -56,7 +56,9 @@ const Navigation = () => {
                     {user?.role === 'admin' && (
                         <Link to="/settings" className={getLinkClass('/settings')}>Configuración</Link>
                     )}
-                    <Link to="/stock" className={getLinkClass('/stock')}>Stock</Link>
+                    {user?.role === 'admin' && (
+                        <Link to="/stock" className={getLinkClass('/stock')}>Stock</Link>
+                    )}
                     <div className="flex items-center space-x-4 ml-6 pl-6 border-l border-blue-400/30">
                         <div className="flex flex-col items-end">
                             <span className="text-sm font-medium leading-none">{user?.username}</span>
@@ -106,7 +108,9 @@ const Navigation = () => {
                         {user?.role === 'admin' && (
                             <Link to="/settings" className={getMobileLinkClass('/settings')} onClick={() => setIsOpen(false)}>Configuración</Link>
                         )}
-                        <Link to="/stock" className={getMobileLinkClass('/stock')} onClick={() => setIsOpen(false)}>Stock</Link>
+                        {user?.role === 'admin' && (
+                            <Link to="/stock" className={getMobileLinkClass('/stock')} onClick={() => setIsOpen(false)}>Stock</Link>
+                        )}
                     </div>
                     <div className="pt-4 pb-4 border-t border-blue-800">
                         <div className="flex items-center px-5">

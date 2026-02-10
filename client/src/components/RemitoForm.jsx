@@ -40,11 +40,26 @@ const RemitoForm = () => {
                     const counts = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
                     setActiveCounts(counts);
 
-                    // Update selected count if it exists in the new list (to keep sync)
-                    if (selectedCount) {
-                        const current = counts.find(c => c.id === selectedCount.id);
-                        if (current) {
-                            setSelectedCount(current);
+                    // Auto-select for non-admin users
+                    if (user && user.role !== 'admin') {
+                        // Find count for user's branch
+                        // If user.sucursal_id is missing, maybe they differ to Global? 
+                        // For now assuming strict match or fallback to Global if sucursal_id is null in count
+                        const myCount = counts.find(c => c.sucursal_id === user.sucursal_id);
+
+                        if (myCount) {
+                            setSelectedCount(myCount);
+                        } else {
+                            // Reset if no active count for my branch found
+                            setSelectedCount(null);
+                        }
+                    } else {
+                        // Admin logic: keep selection if valid
+                        if (selectedCount) {
+                            const current = counts.find(c => c.id === selectedCount.id);
+                            if (current) {
+                                setSelectedCount(current);
+                            }
                         }
                     }
                 } catch (error) {
@@ -59,7 +74,7 @@ const RemitoForm = () => {
             setSelectedCount(null);
         }
         return () => clearInterval(interval);
-    }, [countMode, selectedCount?.id]);
+    }, [countMode, selectedCount?.id, user]);
 
     // Sync RemitoNumber with SelectedCount
     useEffect(() => {
@@ -940,10 +955,20 @@ const RemitoForm = () => {
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
                     {!selectedCount ? (
                         /* Selection Mode: List of Open Counts */
-                        <div className="flex flex-col gap-4">
-                            <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
-                                {user?.role === 'admin' && (
+                        user?.role !== 'admin' ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-blue mb-4"></div>
+                                <h3 className="text-lg font-semibold text-gray-700">Esperando inicio de conteo...</h3>
+                                <p className="text-sm text-gray-500 mt-2 max-w-md">
+                                    El administrador debe iniciar un conteo para tu sucursal ({branches.find(b => b.id === user?.sucursal_id)?.name || 'Asignada'}).
+                                    <br />
+                                    El sistema lo detectará automáticamente.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-4">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
@@ -969,31 +994,31 @@ const RemitoForm = () => {
                                             + Crear
                                         </button>
                                     </div>
+                                </div>
+
+                                {activeCounts.length === 0 ? (
+                                    <p className="text-gray-500 italic p-4 text-center bg-white rounded-lg border border-dashed border-gray-300">
+                                        No hay conteos activos. Crea uno para comenzar.
+                                    </p>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {activeCounts.map(count => (
+                                            <button
+                                                key={count.id}
+                                                onClick={() => handleSelectCount(count)}
+                                                className="p-4 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg text-left transition shadow-sm hover:shadow"
+                                            >
+                                                <div className="font-bold text-gray-800 mb-1">{count.name}</div>
+                                                <div className="text-xs text-gray-500 flex justify-between">
+                                                    <span>{count.sucursal_name || 'Global'}</span>
+                                                    <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
-
-                            {activeCounts.length === 0 ? (
-                                <p className="text-gray-500 italic p-4 text-center bg-white rounded-lg border border-dashed border-gray-300">
-                                    No hay conteos activos. {user?.role === 'admin' ? 'Crea uno para comenzar.' : 'Espera a que un administrador inicie uno.'}
-                                </p>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {activeCounts.map(count => (
-                                        <button
-                                            key={count.id}
-                                            onClick={() => handleSelectCount(count)}
-                                            className="p-4 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg text-left transition shadow-sm hover:shadow"
-                                        >
-                                            <div className="font-bold text-gray-800 mb-1">{count.name}</div>
-                                            <div className="text-xs text-gray-500 flex justify-between">
-                                                <span>{count.sucursal_name || 'Global'}</span>
-                                                <span>{new Date(count.created_at).toLocaleDateString()}</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        )
                     ) : (
                         /* Active Mode: Working on a Conteo */
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1012,12 +1037,14 @@ const RemitoForm = () => {
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setSelectedCount(null)}
-                                    className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition"
-                                >
-                                    Cambiar Conteo
-                                </button>
+                                {user?.role === 'admin' && (
+                                    <button
+                                        onClick={() => setSelectedCount(null)}
+                                        className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition"
+                                    >
+                                        Cambiar Conteo
+                                    </button>
+                                )}
                                 {user?.role === 'admin' && (
                                     <button
                                         onClick={handleStopGeneralCount}

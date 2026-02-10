@@ -130,8 +130,17 @@ const RemitoDetailsPage = () => {
                                         <span className="text-sm font-bold text-brand-blue">
                                             {(() => {
                                                 const totalExpected = remito.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
-                                                const totalScanned = userCounts.reduce((acc, u) => acc + (u.totalUnits || 0), 0) || 0;
-                                                return totalExpected > 0 ? Math.min(Math.round((totalScanned / totalExpected) * 100), 100) : 100;
+                                                // Calculate valid scanned items (capped at expected quantity per item)
+                                                const totalValidScanned = remito.items?.reduce((acc, item) => {
+                                                    let itemScanned = 0;
+                                                    userCounts.forEach(u => {
+                                                        const match = u.items.find(i => i.code === item.code);
+                                                        if (match) itemScanned += match.quantity;
+                                                    });
+                                                    return acc + Math.min(itemScanned, item.quantity);
+                                                }, 0) || 0;
+
+                                                return totalExpected > 0 ? Math.floor((totalValidScanned / totalExpected) * 100) : 100;
                                             })()}%
                                         </span>
                                     </div>
@@ -141,8 +150,16 @@ const RemitoDetailsPage = () => {
                                             style={{
                                                 width: `${(() => {
                                                     const totalExpected = remito.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
-                                                    const totalScanned = userCounts.reduce((acc, u) => acc + (u.totalUnits || 0), 0) || 0;
-                                                    return totalExpected > 0 ? Math.min(Math.round((totalScanned / totalExpected) * 100), 100) : 100;
+                                                    const totalValidScanned = remito.items?.reduce((acc, item) => {
+                                                        let itemScanned = 0;
+                                                        userCounts.forEach(u => {
+                                                            const match = u.items.find(i => i.code === item.code);
+                                                            if (match) itemScanned += match.quantity;
+                                                        });
+                                                        return acc + Math.min(itemScanned, item.quantity);
+                                                    }, 0) || 0;
+
+                                                    return totalExpected > 0 ? Math.floor((totalValidScanned / totalExpected) * 100) : 100;
                                                 })()}%`
                                             }}
                                         ></div>
@@ -492,7 +509,8 @@ const RemitoDetailsPage = () => {
                                                     });
 
                                                     brandSummary[brand].totalExpected += item.quantity;
-                                                    brandSummary[brand].totalScanned += scannedQty;
+                                                    // Only count up to the expected quantity for progress calculation
+                                                    brandSummary[brand].totalScanned += Math.min(scannedQty, item.quantity);
 
                                                     if (scannedQty === 0) {
                                                         brandSummary[brand].unscannedItems.push(item);
