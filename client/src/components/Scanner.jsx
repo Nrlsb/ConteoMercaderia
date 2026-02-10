@@ -14,8 +14,9 @@ const Scanner = ({ onScan, isEnabled = true }) => {
     const lastScannedCodeRef = useRef(null);
     const lastScannedTimeRef = useRef(0);
 
-    // native cleanup function ref
+    // native references
     const stopNativeScanRef = useRef(null);
+    const moduleCheckedRef = useRef(false);
 
     // --- EFFECT: Lifecycle Management ---
     useEffect(() => {
@@ -86,17 +87,20 @@ const Scanner = ({ onScan, isEnabled = true }) => {
             }
 
             // 2. Ensure Module is Installed (Android specific)
-            if (Capacitor.getPlatform() === 'android') {
-                const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-                if (!available) {
-                    try {
+            if (Capacitor.getPlatform() === 'android' && !moduleCheckedRef.current) {
+                try {
+                    const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+                    if (!available) {
+                        console.info('Instalando módulo de Google Barcode Scanner...');
                         await BarcodeScanner.installGoogleBarcodeScannerModule();
-                    } catch (installErr) {
-                        // Ignore "already installed" error if availability check was a false negative
-                        if (!installErr.message?.includes('already installed')) {
-                            console.warn('Error installing Google Barcode Scanner:', installErr);
-                        }
+                        // No esperamos a que termine aquí, el plugin lo manejará.
                     }
+                    moduleCheckedRef.current = true;
+                } catch (installErr) {
+                    console.warn('Error al verificar/instalar módulo:', installErr);
+                    // Si ya está instalado o hay un error, lo marcamos como verificado
+                    // para no volver a entrar en este bloque y dejar que scan() intente funcionar.
+                    moduleCheckedRef.current = true;
                 }
             }
 
