@@ -2234,6 +2234,23 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
 // Auth Routes
 
+// Get User Data
+app.get('/api/auth/user', verifyToken, async (req, res) => {
+    try {
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('id, username, role, sucursal_id')
+            .eq('id', req.user.id)
+            .single();
+
+        if (error) throw error;
+        res.json(user);
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Register
 app.post('/api/auth/register', async (req, res) => {
     const { username, password } = req.body;
