@@ -21,7 +21,10 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
     'https://conteo-mercaderia.vercel.app',
-    'https://conteomercaderia.onrender.com'
+    'https://conteomercaderia.onrender.com',
+    'capacitor://localhost',
+    'http://localhost',
+    'https://localhost'
 ];
 
 app.use(cors({
@@ -30,6 +33,7 @@ app.use(cors({
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) === -1) {
             const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            console.error('BLOCKED BY CORS:', origin);
             return callback(new Error(msg), false);
         }
         return callback(null, true);
