@@ -16,8 +16,28 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(compression()); // Enable GZIP compression
-app.use(cors());
+// Configure CORS
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://conteo-mercaderia.vercel.app',
+    'https://conteomercaderia.onrender.com'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+}));
 app.use(express.json());
 app.use((req, res, next) => {
     console.log(`[REQUEST] ${req.method} ${req.url}`);
