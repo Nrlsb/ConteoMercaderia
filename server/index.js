@@ -853,35 +853,48 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
                             const { data: branchStock } = await supabase
                                 .from('stock_sucursal')
                                 .select('product_code, quantity, products(description, brand, brand_code)')
-                                .eq('sucursal_id', generalCount.sucursal_id)
-                                .gt('quantity', 0); // Only bring items with stock
+                                .eq('sucursal_id', generalCount.sucursal_id);
+                            // Removed .gt('quantity', 0) to include 0 stock items
 
-                            items = (branchStock || []).map(s => ({
-                                code: s.product_code,
-                                name: s.products?.description || 'Desconocido',
-                                description: s.products?.description || 'Desconocido',
-                                quantity: Number(s.quantity),
-                                brand: s.products?.brand,
-                                brand_code: s.products?.brand_code
-                            }));
+                            if (branchStock && branchStock.length > 0) {
+                                items = branchStock.map(s => ({
+                                    code: s.product_code,
+                                    name: s.products?.description || 'Desconocido',
+                                    description: s.products?.description || 'Desconocido',
+                                    quantity: Number(s.quantity),
+                                    brand: s.products?.brand,
+                                    brand_code: s.products?.brand_code
+                                }));
+                            } else {
+                                // Fallback: If branch has NO data, load ALL products with 0 quantity
+                                // This ensures the user sees the master list to count against
+                                console.log('Branch has no stock data. Loading master product list...');
+                                const { data: allProducts } = await supabase
+                                    .from('products')
+                                    .select('code, description, current_stock, brand, brand_code');
 
-                            // Also need to handle items that are in products table but maybe not in stock_sucursal yet? 
-                            // Usually stock_sucursal is the source. If not there, it's 0. 
-                            // But we also want to verify if we should assume Global stock for Deposito? 
-                            // No, if sucursal_id is set, we strictly look at that sucursal.
+                                items = (allProducts || []).map(p => ({
+                                    code: p.code,
+                                    name: p.description,
+                                    description: p.description,
+                                    quantity: 0, // Assume 0 for blind/initial count
+                                    brand: p.brand,
+                                    brand_code: p.brand_code
+                                }));
+                            }
                         } else {
                             // Legacy / Global mode
-                            // Fetch all active products to serve as 'expected' items for the general count
+                            // Fetch all active products
                             const { data: allProducts } = await supabase
                                 .from('products')
-                                .select('code, description, current_stock, brand, brand_code')
-                                .gt('current_stock', 0);
+                                .select('code, description, current_stock, brand, brand_code');
+                            // Removed .gt('current_stock', 0) to include everything
 
                             items = (allProducts || []).map(p => ({
                                 code: p.code,
                                 name: p.description,
                                 description: p.description,
-                                quantity: p.current_stock, // Expected quantity based on current stock
+                                quantity: p.current_stock || 0,
                                 brand: p.brand,
                                 brand_code: p.brand_code
                             }));

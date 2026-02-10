@@ -597,6 +597,7 @@ const RemitoForm = () => {
                 response: error.response?.data,
                 status: error.response?.status
             });
+            triggerModal('Error de Sincronización', 'No se pudo guardar el escaneo en la base de datos. Verifique su conexión.', 'error');
 
             if (error.response?.status !== 401) {
                 triggerModal('Advertencia', 'Error al sincronizar. Los datos se guardarán localmente.', 'warning');
