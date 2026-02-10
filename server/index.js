@@ -760,111 +760,122 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
         if (finalizedRemito) {
             remito = finalizedRemito;
         } else {
-            // 2. Try Pre-Remitos (Pending)
-            const { data: preRemito } = await supabase
-                .from('pre_remitos')
-                .select('*, pedidos_ventas(numero_pv, sucursal)')
-                .eq('id', id)
+            // 1b. Fallback: Check if ID is actually the remito_number (General Count ID) which is common for General Counts
+            const { data: finalizedRemitoByNumber } = await supabase
+                .from('remitos')
+                .select('*')
+                .eq('remito_number', id)
                 .maybeSingle();
 
-            if (preRemito) {
-                let preRemitoItems = preRemito.items || [];
-
-                // If no items in pre_remito, fetch all products with stock as expected items
-                if (preRemitoItems.length === 0) {
-                    const { data: allProducts } = await supabase
-                        .from('products')
-                        .select('code, description, current_stock, brand, brand_code')
-                        .gt('current_stock', 0);
-
-                    preRemitoItems = (allProducts || []).map(p => ({
-                        code: p.code,
-                        name: p.description,
-                        description: p.description,
-                        quantity: p.current_stock,
-                        brand: p.brand,
-                        brand_code: p.brand_code
-                    }));
-                }
-
-                remito = {
-                    id: preRemito.id,
-                    remito_number: preRemito.order_number,
-                    items: preRemitoItems,
-                    date: preRemito.created_at,
-                    status: 'pending',
-                    numero_pv: preRemito.pedidos_ventas?.[0]?.numero_pv || '-',
-                    sucursal: preRemito.pedidos_ventas?.[0]?.sucursal || '-'
-                };
-                isFinalized = false;
+            if (finalizedRemitoByNumber) {
+                remito = finalizedRemitoByNumber;
             } else {
-                // 3. Try General Counts (Open)
-                const { data: generalCount } = await supabase
-                    .from('general_counts')
-                    .select('*')
+                // 2. Try Pre-Remitos (Pending)
+                const { data: preRemito } = await supabase
+                    .from('pre_remitos')
+                    .select('*, pedidos_ventas(numero_pv, sucursal)')
                     .eq('id', id)
                     .maybeSingle();
 
-                if (generalCount) {
-                    // Fetch products with stock logic depending on sucursal
-                    // If sucursal_id is present, fetch from stock_sucursal
-                    // Else, fallback to products.current_stock (Global)
+                if (preRemito) {
+                    let preRemitoItems = preRemito.items || [];
 
-                    let items = [];
-
-                    if (generalCount.sucursal_id) {
-                        console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
-
-                        // Fetch stock specific to branch
-                        const { data: branchStock } = await supabase
-                            .from('stock_sucursal')
-                            .select('product_code, quantity, products(description, brand, brand_code)')
-                            .eq('sucursal_id', generalCount.sucursal_id)
-                            .gt('quantity', 0); // Only bring items with stock
-
-                        items = (branchStock || []).map(s => ({
-                            code: s.product_code,
-                            name: s.products?.description || 'Desconocido',
-                            description: s.products?.description || 'Desconocido',
-                            quantity: Number(s.quantity),
-                            brand: s.products?.brand,
-                            brand_code: s.products?.brand_code
-                        }));
-
-                        // Also need to handle items that are in products table but maybe not in stock_sucursal yet? 
-                        // Usually stock_sucursal is the source. If not there, it's 0. 
-                        // But we also want to verify if we should assume Global stock for Deposito? 
-                        // No, if sucursal_id is set, we strictly look at that sucursal.
-                    } else {
-                        // Legacy / Global mode
-                        // Fetch all active products to serve as 'expected' items for the general count
+                    // If no items in pre_remito, fetch all products with stock as expected items
+                    if (preRemitoItems.length === 0) {
                         const { data: allProducts } = await supabase
                             .from('products')
                             .select('code, description, current_stock, brand, brand_code')
                             .gt('current_stock', 0);
 
-                        items = (allProducts || []).map(p => ({
+                        preRemitoItems = (allProducts || []).map(p => ({
                             code: p.code,
                             name: p.description,
                             description: p.description,
-                            quantity: p.current_stock, // Expected quantity based on current stock
+                            quantity: p.current_stock,
                             brand: p.brand,
                             brand_code: p.brand_code
                         }));
                     }
 
                     remito = {
-                        id: generalCount.id,
-                        remito_number: generalCount.id,
-                        count_name: generalCount.name,
-                        items: items,
-                        date: generalCount.created_at,
+                        id: preRemito.id,
+                        remito_number: preRemito.order_number,
+                        items: preRemitoItems,
+                        date: preRemito.created_at,
                         status: 'pending',
-                        numero_pv: '-',
-                        sucursal: generalCount.sucursal_id ? 'Sucursal Seleccionada' : '-', // We could fetch name, but ID is enough for logic
-                        sucursal_id: generalCount.sucursal_id
+                        numero_pv: preRemito.pedidos_ventas?.[0]?.numero_pv || '-',
+                        sucursal: preRemito.pedidos_ventas?.[0]?.sucursal || '-'
                     };
                     isFinalized = false;
+                } else {
+                    // 3. Try General Counts (Open)
+                    const { data: generalCount } = await supabase
+                        .from('general_counts')
+                        .select('*')
+                        .eq('id', id)
+                        .maybeSingle();
+
+                    if (generalCount) {
+                        // Fetch products with stock logic depending on sucursal
+                        // If sucursal_id is present, fetch from stock_sucursal
+                        // Else, fallback to products.current_stock (Global)
+
+                        let items = [];
+
+                        if (generalCount.sucursal_id) {
+                            console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
+
+                            // Fetch stock specific to branch
+                            const { data: branchStock } = await supabase
+                                .from('stock_sucursal')
+                                .select('product_code, quantity, products(description, brand, brand_code)')
+                                .eq('sucursal_id', generalCount.sucursal_id)
+                                .gt('quantity', 0); // Only bring items with stock
+
+                            items = (branchStock || []).map(s => ({
+                                code: s.product_code,
+                                name: s.products?.description || 'Desconocido',
+                                description: s.products?.description || 'Desconocido',
+                                quantity: Number(s.quantity),
+                                brand: s.products?.brand,
+                                brand_code: s.products?.brand_code
+                            }));
+
+                            // Also need to handle items that are in products table but maybe not in stock_sucursal yet? 
+                            // Usually stock_sucursal is the source. If not there, it's 0. 
+                            // But we also want to verify if we should assume Global stock for Deposito? 
+                            // No, if sucursal_id is set, we strictly look at that sucursal.
+                        } else {
+                            // Legacy / Global mode
+                            // Fetch all active products to serve as 'expected' items for the general count
+                            const { data: allProducts } = await supabase
+                                .from('products')
+                                .select('code, description, current_stock, brand, brand_code')
+                                .gt('current_stock', 0);
+
+                            items = (allProducts || []).map(p => ({
+                                code: p.code,
+                                name: p.description,
+                                description: p.description,
+                                quantity: p.current_stock, // Expected quantity based on current stock
+                                brand: p.brand,
+                                brand_code: p.brand_code
+                            }));
+                        }
+
+                        remito = {
+                            id: generalCount.id,
+                            remito_number: generalCount.id,
+                            count_name: generalCount.name,
+                            items: items,
+                            date: generalCount.created_at,
+                            status: 'pending',
+                            numero_pv: '-',
+                            sucursal: generalCount.sucursal_id ? 'Sucursal Seleccionada' : '-', // We could fetch name, but ID is enough for logic
+                            sucursal_id: generalCount.sucursal_id
+                        };
+                        isFinalized = false;
+                    }
                 }
             }
         }
@@ -1492,7 +1503,6 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
             pedidos_ventas: undefined // Remove the array
         };
 
-        res.json(responseData);
         res.json(responseData);
     } catch (error) {
         console.error('Error fetching pre-remito:', error);
