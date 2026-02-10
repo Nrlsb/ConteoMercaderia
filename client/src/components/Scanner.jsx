@@ -87,14 +87,9 @@ const Scanner = ({ onScan, isEnabled = true }) => {
 
             // 2. Ensure Module is Installed (Android specific)
             if (Capacitor.getPlatform() === 'android') {
-                try {
+                const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+                if (!available) {
                     await BarcodeScanner.installGoogleBarcodeScannerModule();
-                } catch (installErr) {
-                    if (installErr.message?.includes('already installed')) {
-                        console.warn('Google Barcode Scanner Module ya estaba instalado.');
-                    } else {
-                        throw installErr;
-                    }
                 }
             }
 
