@@ -1701,7 +1701,7 @@ app.get('/api/general-counts/active', verifyToken, async (req, res) => {
         if (req.user.role !== 'admin') {
             const { sucursal_id } = req.user;
             if (sucursal_id) {
-                counts = counts.filter(c => !c.sucursal_id || c.sucursal_id === sucursal_id);
+                counts = counts.filter(c => !c.sucursal_id || c.sucursal_id == sucursal_id);
             } else {
                 // If user has no branch, only show global ones (no sucursal_id)
                 counts = counts.filter(c => !c.sucursal_id);

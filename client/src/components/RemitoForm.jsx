@@ -45,7 +45,7 @@ const RemitoForm = () => {
                         // Find count for user's branch
                         // If user.sucursal_id is missing, maybe they differ to Global? 
                         // For now assuming strict match or fallback to Global if sucursal_id is null in count
-                        const myCount = counts.find(c => c.sucursal_id === user.sucursal_id);
+                        const myCount = counts.find(c => c.sucursal_id == user.sucursal_id);
 
                         if (myCount) {
                             setSelectedCount(myCount);
