@@ -540,11 +540,23 @@ const RemitoForm = () => {
         setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
 
         // Auto-sync to inventory_scans if in general count mode
+        console.log('[DEBUG_FRONTEND] Checking auto-sync conditions:', {
+            countMode,
+            hasSelectedCount: !!selectedCount,
+            selectedCountID: selectedCount?.id,
+            productCode: product.code,
+            quantity: quantityToAdd
+        });
+
         if (countMode === 'products' && selectedCount) {
+            console.log('[DEBUG_FRONTEND] Scheduling sync...');
             // Wait for state update, then sync
             setTimeout(async () => {
+                console.log('[DEBUG_FRONTEND] Executing sync inside timeout...');
                 await syncToInventoryScans(product.code, quantityToAdd);
             }, 100);
+        } else {
+            console.warn('[DEBUG_FRONTEND] Auto-sync SKIPPED. Conditions met?', countMode === 'products' && !!selectedCount);
         }
 
         // Optional: Trigger success sound or visual feedback
@@ -579,8 +591,8 @@ const RemitoForm = () => {
 
             console.log(`✅ Sincronizado a inventory_scans: ${code} +${quantityToAdd}`);
         } catch (error) {
-            console.error('Error syncing to inventory_scans:', error);
-            console.error('Detalles del error:', {
+            console.error('[DEBUG_FRONTEND] Error syncing to inventory_scans:', error);
+            console.error('[DEBUG_FRONTEND] Detalles del error:', {
                 message: error.message,
                 response: error.response?.data,
                 status: error.response?.status
