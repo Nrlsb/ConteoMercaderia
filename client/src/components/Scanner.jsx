@@ -60,12 +60,11 @@ const Scanner = ({ onScan, isEnabled = true }) => {
                     {
                         fps: 15,
                         qrbox: { width: 300, height: 150 }, // Fixed px box for stability or function above
-                        aspectRatio: window.innerWidth / window.innerHeight, // Match screen aspect to fill
                         videoConstraints: {
                             facingMode: "environment",
-                            width: { min: 1280, ideal: 1920, max: 2560 }, // Request high resolution
-                            height: { min: 720, ideal: 1080, max: 1440 },
-                            focusMode: "continuous", // Crucial for barcode scanning
+                            width: { min: 640, ideal: 1280 }, // Adjusted for broader support and speed
+                            height: { min: 480, ideal: 720 },
+                            focusMode: "continuous",
                         }
                     },
                     (decodedText, decodedResult) => {
@@ -163,6 +162,12 @@ const Scanner = ({ onScan, isEnabled = true }) => {
                 }
                 .animate-scan-line {
                     animation: scan-line 2s linear infinite;
+                }
+                :global(#reader video) {
+                    object-fit: cover !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    border-radius: 0 !important;
                 }
             `}</style>
         </div>
