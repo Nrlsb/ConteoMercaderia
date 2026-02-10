@@ -19,6 +19,10 @@ const port = process.env.PORT || 3000;
 app.use(compression()); // Enable GZIP compression
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+    console.log(`[REQUEST] ${req.method} ${req.url}`);
+    next();
+});
 
 // Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -897,6 +901,7 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
         // 3. Fetch Scans
         // Use pagination helper to ensure we get ALL scans
         const scans = await getAllScans(remito.remito_number);
+        console.log(`[DEBUG_DETAILS] Scans found in DB for order ${remito.remito_number}: ${scans ? scans.length : 0}`);
         const scansError = null; // Helper throws on error
 
         // const { data: scans, error: scansError } = await supabase
@@ -1981,6 +1986,8 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
 
     try {
         const userId = req.user.id;
+        console.log(`[DEBUG_SCAN] Incoming sync request for order ${orderNumber} from user ${userId}. Items count: ${items.length}`);
+        if (items.length > 0) console.log(`[DEBUG_SCAN] Sample item:`, items[0]);
 
         // Prepare Upsert Data
         const upsertData = items.map(item => ({
@@ -2030,6 +2037,7 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const results = [];
+        console.log(`[DEBUG_INCREMENTAL] Incoming request for order ${orderNumber} from user ${userId}. Items: ${JSON.stringify(items)}`);
 
         // Process sequentially to avoid race conditions on same row if multiple items target same code (unlikely but possible)
         for (const item of items) {
@@ -2061,10 +2069,13 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
                     timestamp: new Date().toISOString()
                 }, { onConflict: 'order_number, user_id, code' });
 
-            if (upsertError) throw upsertError;
+            if (upsertError) {
+                console.error(`[DEBUG_INCREMENTAL] Error upserting ${internalCode}:`, upsertError);
+                throw upsertError;
+            }
 
             // Populate history
-            await supabase.from('inventory_scans_history').insert({
+            const { error: histError } = await supabase.from('inventory_scans_history').insert({
                 order_number: orderNumber,
                 user_id: userId,
                 operation: existing ? 'UPDATE' : 'INSERT',
@@ -2073,6 +2084,7 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
                 new_data: { quantity: newQuantity },
                 changed_at: new Date().toISOString()
             });
+            if (histError) console.error(`[DEBUG_INCREMENTAL] Error inserting history for ${internalCode}:`, histError);
 
             results.push({ code: internalCode, newQuantity });
         }
