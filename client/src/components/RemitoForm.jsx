@@ -967,20 +967,20 @@ const RemitoForm = () => {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-4">
-                                <div className="flex justify-between items-center">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                                     <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                                         <input
                                             type="text"
                                             placeholder="Nuevo Conteo (ej: Depósito)"
                                             value={newCountName}
                                             onChange={(e) => setNewCountName(e.target.value)}
-                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm w-48"
+                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-48"
                                         />
                                         <select
                                             value={selectedBranch}
                                             onChange={(e) => setSelectedBranch(e.target.value)}
-                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm w-full sm:w-auto"
                                         >
                                             <option value="">Global</option>
                                             {branches.map(b => (
@@ -989,7 +989,7 @@ const RemitoForm = () => {
                                         </select>
                                         <button
                                             onClick={handleStartGeneralCount}
-                                            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 text-sm whitespace-nowrap"
+                                            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 text-sm whitespace-nowrap w-full sm:w-auto"
                                         >
                                             + Crear
                                         </button>
