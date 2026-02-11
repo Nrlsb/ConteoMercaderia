@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
+import ReceiptScanner from './ReceiptScanner';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ const ReceiptDetailsPage = () => {
     const [scanInput, setScanInput] = useState('');
     const [quantityInput, setQuantityInput] = useState(1);
     const [processing, setProcessing] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
 
     // Focus management
     const inputRef = useRef(null);
@@ -97,6 +99,34 @@ const ReceiptDetailsPage = () => {
     };
 
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
+
+    const handleScanComplete = async (items) => {
+        setProcessing(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const item of items) {
+            try {
+                // Post each item as 'expected'
+                // Assuming logic is similar to manual provider code input
+                await api.post(`/api/receipts/${id}/items`, {
+                    code: item.code,
+                    quantity: item.quantity
+                });
+                successCount++;
+            } catch (error) {
+                console.error(`Error importing item ${item.code}:`, error);
+                failCount++;
+            }
+        }
+
+        if (successCount > 0) toast.success(`${successCount} items importados correctamente`);
+        if (failCount > 0) toast.error(`${failCount} fallaron al importar`);
+
+        await fetchReceiptDetails();
+        setProcessing(false);
+    };
+
     if (!receipt) return <div className="p-4 text-center">No encontrado</div>;
 
     // Calculate progress
@@ -149,6 +179,14 @@ const ReceiptDetailsPage = () => {
                     >
                         1. Cargar Remito (Proveedor)
                     </button>
+                    {activeTab === 'load' && (
+                        <button
+                            onClick={() => setShowScanner(true)}
+                            className="ml-2 px-3 py-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm font-bold flex items-center gap-1"
+                        >
+                            📷 Escanear (OCR)
+                        </button>
+                    )}
                     <button
                         className={`flex-1 py-2 rounded font-medium ${activeTab === 'control' ? 'bg-white shadow text-green-700' : 'text-gray-600'}`}
                         onClick={() => setActiveTab('control')}
@@ -260,6 +298,13 @@ const ReceiptDetailsPage = () => {
                     </tbody>
                 </table>
             </div>
+
+            {showScanner && (
+                <ReceiptScanner
+                    onClose={() => setShowScanner(false)}
+                    onScanComplete={handleScanComplete}
+                />
+            )}
         </div>
     );
 };
