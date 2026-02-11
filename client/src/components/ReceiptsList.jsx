@@ -85,7 +85,7 @@ const ReceiptsList = () => {
                 </div>
             )}
 
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto">
                 <table className="min-w-full leading-normal">
                     <thead>
                         <tr>

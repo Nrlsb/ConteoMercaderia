@@ -244,7 +244,7 @@ const ReceiptDetailsPage = () => {
             )}
 
             {/* Items List */}
-            <div className="bg-white shadow rounded-lg flex-1 overflow-auto">
+            <div className="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto mb-6">
                 <table className="min-w-full sticky top-0">
                     <thead className="bg-gray-50">
                         <tr>
