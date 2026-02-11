@@ -2041,17 +2041,37 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
 
         if (error) throw error;
 
-        // Populate history
-        const historyData = items.map(item => ({
-            order_number: orderNumber,
-            user_id: userId,
-            operation: 'UPDATE', // It's an absolute overwrite/sync
-            code: item.code,
-            new_data: { quantity: item.quantity },
-            changed_at: new Date().toISOString()
-        }));
+        // Populate history ONLY for changed items
+        const historyData = [];
+        for (const item of items) {
+            // Fetch current quantity for comparison if not already known
+            // In /api/inventory/scan (Submit/Sync), 'items' contains TOTAL quantities.
+            // We need to know what was in the DB to decide if this is a change.
+            const { data: existing } = await supabase
+                .from('inventory_scans')
+                .select('quantity')
+                .match({ order_number: orderNumber, user_id: userId, code: item.code })
+                .maybeSingle();
 
-        await supabase.from('inventory_scans_history').insert(historyData);
+            const oldQty = existing ? existing.quantity : null;
+            const newQty = item.quantity;
+
+            if (oldQty !== newQty) {
+                historyData.push({
+                    order_number: orderNumber,
+                    user_id: userId,
+                    operation: oldQty === null ? 'INSERT' : 'UPDATE',
+                    code: item.code,
+                    old_data: oldQty !== null ? { quantity: oldQty } : null,
+                    new_data: { quantity: newQty },
+                    changed_at: new Date().toISOString()
+                });
+            }
+        }
+
+        if (historyData.length > 0) {
+            await supabase.from('inventory_scans_history').insert(historyData);
+        }
 
         console.log(`[DEBUG_SCAN] Synced ${items.length} items for order ${orderNumber} by user ${userId}`);
 
@@ -2111,17 +2131,21 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
                 throw upsertError;
             }
 
-            // Populate history
-            const { error: histError } = await supabase.from('inventory_scans_history').insert({
-                order_number: orderNumber,
-                user_id: userId,
-                operation: existing ? 'UPDATE' : 'INSERT',
-                code: internalCode,
-                old_data: existing ? { quantity: existing.quantity } : null,
-                new_data: { quantity: newQuantity },
-                changed_at: new Date().toISOString()
-            });
-            if (histError) console.error(`[DEBUG_INCREMENTAL] Error inserting history for ${internalCode}:`, histError);
+            // 3. Populate history ONLY if quantity actually changed
+            if (!existing || existing.quantity !== newQuantity) {
+                const { error: histError } = await supabase.from('inventory_scans_history').insert({
+                    order_number: orderNumber,
+                    user_id: userId,
+                    operation: existing ? 'UPDATE' : 'INSERT',
+                    code: internalCode,
+                    old_data: existing ? { quantity: existing.quantity } : null,
+                    new_data: { quantity: newQuantity },
+                    changed_at: new Date().toISOString()
+                });
+                if (histError) console.error(`[DEBUG_INCREMENTAL] Error inserting history for ${internalCode}:`, histError);
+            } else {
+                console.log(`[DEBUG_INCREMENTAL] No change for ${internalCode}, skipping history.`);
+            }
 
             results.push({ code: internalCode, newQuantity });
         }
