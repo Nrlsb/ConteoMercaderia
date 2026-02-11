@@ -173,7 +173,7 @@ const RemitoForm = () => {
                         maxResults: 1,
                         prompt: 'Diga el código o nombre del producto',
                         partialResults: true,
-                        popup: true
+                        popup: false
                     });
 
                     if (result.matches && result.matches.length > 0) {

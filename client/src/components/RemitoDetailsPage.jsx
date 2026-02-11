@@ -65,7 +65,7 @@ const RemitoDetailsPage = () => {
                         maxResults: 1,
                         prompt: 'Busque un producto...',
                         partialResults: true,
-                        popup: true
+                        popup: false
                     });
 
                     if (result.matches && result.matches.length > 0) {
