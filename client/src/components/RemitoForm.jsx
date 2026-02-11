@@ -176,7 +176,7 @@ const RemitoForm = () => {
                         popup: false
                     });
 
-                    if (result.matches && result.matches.length > 0) {
+                    if (result && result.matches && result.matches.length > 0) {
                         const finalTranscript = result.matches[0];
                         setManualCode(finalTranscript);
                         executeSearch(finalTranscript);

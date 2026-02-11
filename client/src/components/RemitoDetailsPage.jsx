@@ -68,7 +68,7 @@ const RemitoDetailsPage = () => {
                         popup: false
                     });
 
-                    if (result.matches && result.matches.length > 0) {
+                    if (result && result.matches && result.matches.length > 0) {
                         setSearchTerm(result.matches[0]);
                     }
                 } finally {
