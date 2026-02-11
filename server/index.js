@@ -22,6 +22,7 @@ const allowedOrigins = [
     'http://localhost:3000',
     'https://conteo-mercaderia.vercel.app',
     'https://conteomercaderia.onrender.com',
+    'https://conteo-mercaderia-khtxajjex-luksbs-projects.vercel.app',
     'capacitor://localhost',
     'http://localhost',
     'https://localhost'
@@ -31,7 +32,11 @@ app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
+
+        const isAllowed = allowedOrigins.indexOf(origin) !== -1 ||
+            (origin.endsWith('.vercel.app') && origin.includes('conteo-mercaderia'));
+
+        if (!isAllowed) {
             const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
             console.error('BLOCKED BY CORS:', origin);
             return callback(new Error(msg), false);
