@@ -766,22 +766,22 @@ const RemitoForm = () => {
         try {
             const response = await api.put(`/api/general-counts/${selectedCount.id}/close`);
 
-            const reportData = response.data.report;
+            // const reportData = response.data.report;
 
-            if (reportData && reportData.length > 0) {
-                setReportConfig({
-                    isOpen: true,
-                    data: reportData,
-                    title: `Reporte de Conteo: ${selectedCount.name}`
-                });
-            }
+            // if (reportData && reportData.length > 0) {
+            //     setReportConfig({
+            //         isOpen: true,
+            //         data: reportData,
+            //         title: `Reporte de Conteo: ${selectedCount.name}`
+            //     });
+            // }
 
             // Remove from active list
             setActiveCounts(prev => prev.filter(c => c.id !== selectedCount.id));
             setSelectedCount(null);
             setItems([]);
             setRemitoNumber('');
-            triggerModal('Éxito', 'Conteo finalizado. Revise el reporte generado.', 'success');
+            triggerModal('Éxito', 'Conteo finalizado. Puede consultar el reporte en el Historial.', 'success');
         } catch (error) {
             console.error('Error al finalizar conteo:', error);
             triggerModal('Error', 'Error al finalizar conteo', 'error');
