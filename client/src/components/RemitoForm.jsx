@@ -160,53 +160,58 @@ const RemitoForm = () => {
                 }
 
                 setIsListening(true);
+
+                let cleanupTimer;
+                const cleanup = () => {
+                    setIsListening(false);
+                    if (cleanupTimer) clearTimeout(cleanupTimer);
+                    if (resultListener) resultListener.remove();
+                };
+
                 const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
                         const transcript = data.matches[0];
                         setManualCode(transcript);
+                        // No limpiamos aquí para permitir resultados parciales más largos
                     }
                 });
 
-                try {
-                    const result = await SpeechRecognition.start({
-                        language: 'es-ES',
-                        maxResults: 1,
-                        prompt: 'Diga el código o nombre del producto',
-                        partialResults: true,
-                        popup: false
-                    });
-
+                // Iniciamos el reconocimiento
+                SpeechRecognition.start({
+                    language: 'es-ES',
+                    maxResults: 1,
+                    prompt: 'Diga el código o nombre del producto',
+                    partialResults: true,
+                    popup: false
+                }).then(result => {
+                    // Si el proceso termina con éxito (ej: por silencio detectado)
                     if (result && result.matches && result.matches.length > 0) {
                         const finalTranscript = result.matches[0];
                         setManualCode(finalTranscript);
                         executeSearch(finalTranscript);
                     }
-                } finally {
-                    setIsListening(false);
-                    resultListener.remove();
-                }
+                    cleanup();
+                }).catch(error => {
+                    console.error('Native speech error error:', error);
+                    const errorDetails = error.message || String(error);
 
+                    if (errorDetails.includes('not implemented')) {
+                        triggerModal('Error: Plugin no vinculado', 'El plugin nativo no fue detectado en esta compilación.', 'error');
+                    } else if (!errorDetails.includes('No match')) {
+                        // "No match" es común cuando el usuario no habla, no mostramos error ruidoso
+                        triggerModal('Error de Reconocimiento', `Detalle técnico: ${errorDetails}`, 'error');
+                    }
+                    cleanup();
+                });
 
+                // Timeout de seguridad: Si en 10 segundos no hay respuesta del plugin, limpiamos
+                cleanupTimer = setTimeout(() => {
+                    cleanup();
+                }, 10000);
 
-                // On some systems, the popup closing is the signal
-                // If using popup: true, the UI usually handles the 'stop'
             } catch (error) {
-                console.error('Native speech error details:', error);
+                console.error('Outer Native speech error:', error);
                 setIsListening(false);
-
-                // Detailed error reporting for debugging
-                let errorDetails = '';
-                if (typeof error === 'object' && error !== null) {
-                    errorDetails = error.message || JSON.stringify(error);
-                } else {
-                    errorDetails = String(error);
-                }
-
-                if (errorDetails.includes('not implemented')) {
-                    triggerModal('Error: Plugin no vinculado', 'El plugin nativo no fue detectado en esta compilación. Asegúrate de ejecutar "npx cap sync android" y luego generar la APK en Android Studio (Build > Build APK).', 'error');
-                } else {
-                    triggerModal('Error de Reconocimiento', `Detalle técnico: ${errorDetails}`, 'error');
-                }
             }
             return;
         }

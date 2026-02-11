@@ -53,46 +53,51 @@ const RemitoDetailsPage = () => {
                 }
 
                 setIsListening(true);
+
+                let cleanupTimer;
+                const cleanup = () => {
+                    setIsListening(false);
+                    if (cleanupTimer) clearTimeout(cleanupTimer);
+                    if (resultListener) resultListener.remove();
+                };
+
                 const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
                         setSearchTerm(data.matches[0]);
                     }
                 });
 
-                try {
-                    const result = await SpeechRecognition.start({
-                        language: 'es-ES',
-                        maxResults: 1,
-                        prompt: 'Busque un producto...',
-                        partialResults: true,
-                        popup: false
-                    });
-
+                SpeechRecognition.start({
+                    language: 'es-ES',
+                    maxResults: 1,
+                    prompt: 'Busque un producto...',
+                    partialResults: true,
+                    popup: false
+                }).then(result => {
                     if (result && result.matches && result.matches.length > 0) {
                         setSearchTerm(result.matches[0]);
                     }
-                } finally {
-                    setIsListening(false);
-                    resultListener.remove();
-                }
+                    cleanup();
+                }).catch(error => {
+                    console.error('Native speech error details:', error);
+                    const errorDetails = error.message || String(error);
 
+                    if (errorDetails.includes('not implemented')) {
+                        setError('Error: Plugin nativo no vinculado. Genera una nueva APK.');
+                    } else if (!errorDetails.includes('No match')) {
+                        setError(`Error de voz: ${errorDetails}`);
+                    }
+                    cleanup();
+                });
+
+                // Timeout de seguridad
+                cleanupTimer = setTimeout(() => {
+                    cleanup();
+                }, 10000);
 
             } catch (error) {
-                console.error('Native speech error details:', error);
+                console.error('Outer Native speech error:', error);
                 setIsListening(false);
-
-                let errorDetails = '';
-                if (typeof error === 'object' && error !== null) {
-                    errorDetails = error.message || JSON.stringify(error);
-                } else {
-                    errorDetails = String(error);
-                }
-
-                if (errorDetails.includes('not implemented')) {
-                    setError('Error: Plugin nativo no vinculado. Genera una nueva APK después de sincronizar Capacitor.');
-                } else {
-                    setError(`Error de voz: ${errorDetails}`);
-                }
             }
             return;
         }
