@@ -150,9 +150,9 @@ const RemitoForm = () => {
                     return;
                 }
 
-                const { permission } = await SpeechRecognition.checkPermission();
-                if (permission !== 'granted') {
-                    const { permission: newPermission } = await SpeechRecognition.requestPermission();
+                const { speechRecognition } = await SpeechRecognition.checkPermissions();
+                if (speechRecognition !== 'granted') {
+                    const { speechRecognition: newPermission } = await SpeechRecognition.requestPermissions();
                     if (newPermission !== 'granted') {
                         triggerModal('Permiso Denegado', 'Se requiere permiso de micrófono para la búsqueda por voz.', 'warning');
                         return;
@@ -160,30 +160,33 @@ const RemitoForm = () => {
                 }
 
                 setIsListening(true);
-                SpeechRecognition.start({
-                    language: 'es-ES',
-                    maxResults: 1,
-                    prompt: 'Diga el código o nombre del producto',
-                    partialResults: false,
-                    popup: true
-                });
-
-                // Listeners for results
-                const partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
-                        setManualCode(data.matches[0]);
+                        const transcript = data.matches[0];
+                        setManualCode(transcript);
                     }
                 });
 
-                // Listening for final results (some versions use this)
-                // Note: The community plugin often returns everything via partialResults if popup: true is used
-                // but we add a safety stop mechanism.
+                try {
+                    const result = await SpeechRecognition.start({
+                        language: 'es-ES',
+                        maxResults: 1,
+                        prompt: 'Diga el código o nombre del producto',
+                        partialResults: true,
+                        popup: true
+                    });
 
-                // Cleanup function helper
-                const stopAndCleanup = () => {
+                    if (result.matches && result.matches.length > 0) {
+                        const finalTranscript = result.matches[0];
+                        setManualCode(finalTranscript);
+                        executeSearch(finalTranscript);
+                    }
+                } finally {
                     setIsListening(false);
-                    partialListener.remove();
-                };
+                    resultListener.remove();
+                }
+
+
 
                 // On some systems, the popup closing is the signal
                 // If using popup: true, the UI usually handles the 'stop'

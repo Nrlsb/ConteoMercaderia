@@ -43,9 +43,9 @@ const RemitoDetailsPage = () => {
                     return;
                 }
 
-                const { permission } = await SpeechRecognition.checkPermission();
-                if (permission !== 'granted') {
-                    const { permission: newPermission } = await SpeechRecognition.requestPermission();
+                const { speechRecognition } = await SpeechRecognition.checkPermissions();
+                if (speechRecognition !== 'granted') {
+                    const { speechRecognition: newPermission } = await SpeechRecognition.requestPermissions();
                     if (newPermission !== 'granted') {
                         setError('Se requiere permiso de micrófono para la búsqueda por voz.');
                         return;
@@ -53,19 +53,30 @@ const RemitoDetailsPage = () => {
                 }
 
                 setIsListening(true);
-                SpeechRecognition.start({
-                    language: 'es-ES',
-                    maxResults: 1,
-                    prompt: 'Busque un producto...',
-                    partialResults: false,
-                    popup: true
-                });
-
-                const partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
                         setSearchTerm(data.matches[0]);
                     }
                 });
+
+                try {
+                    const result = await SpeechRecognition.start({
+                        language: 'es-ES',
+                        maxResults: 1,
+                        prompt: 'Busque un producto...',
+                        partialResults: true,
+                        popup: true
+                    });
+
+                    if (result.matches && result.matches.length > 0) {
+                        setSearchTerm(result.matches[0]);
+                    }
+                } finally {
+                    setIsListening(false);
+                    resultListener.remove();
+                }
+
+
             } catch (error) {
                 console.error('Native speech error details:', error);
                 setIsListening(false);
