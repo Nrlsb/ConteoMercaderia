@@ -6,6 +6,8 @@ import ReportModal from './ReportModal';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { Capacitor } from '@capacitor/core';
 
 const RemitoForm = () => {
     const { user } = useAuth();
@@ -139,14 +141,63 @@ const RemitoForm = () => {
         }
     }, [selectedCount?.id]); // Only depend on ID change
 
-    const handleVoiceSearch = () => {
+    const handleVoiceSearch = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const { available } = await SpeechRecognition.available();
+                if (!available) {
+                    triggerModal('Error', 'El reconocimiento de voz no está disponible en este dispositivo.', 'error');
+                    return;
+                }
+
+                const { permission } = await SpeechRecognition.checkPermission();
+                if (permission !== 'granted') {
+                    const { permission: newPermission } = await SpeechRecognition.requestPermission();
+                    if (newPermission !== 'granted') {
+                        triggerModal('Permiso Denegado', 'Se requiere permiso de micrófono para la búsqueda por voz.', 'warning');
+                        return;
+                    }
+                }
+
+                setIsListening(true);
+                SpeechRecognition.start({
+                    language: 'es-ES',
+                    maxResults: 1,
+                    prompt: 'Diga el código o nombre del producto',
+                    partialResults: false,
+                    popup: true
+                });
+
+                // Listening for results is done via listeners in Capacitor Speech Recognition
+                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                    if (data.matches && data.matches.length > 0) {
+                        const transcript = data.matches[0];
+                        setManualCode(transcript);
+                        executeSearch(transcript);
+                        setIsListening(false);
+                        SpeechRecognition.stop();
+                        resultListener.remove();
+                    }
+                });
+
+                // For some versions/configs, standard start returns result directly or uses another listener
+                // Adding a safeguard or alternative listener if 'partialResults' doesn't fire as expected for final
+            } catch (error) {
+                console.error('Native speech error:', error);
+                setIsListening(false);
+                triggerModal('Error', 'Hubo un problema con el reconocimiento de voz.', 'error');
+            }
+            return;
+        }
+
+        // Web Fallback
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
             triggerModal('Error', 'Tu navegador no soporta búsqueda por voz.', 'error');
             return;
         }
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
+        const SpeechRecognitionWeb = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognitionWeb();
 
         recognition.lang = 'es-ES';
         recognition.interimResults = false;
