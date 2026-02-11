@@ -52,6 +52,10 @@ const Scanner = ({ onScan, isEnabled = true }) => {
     // --- FUNCTION: Stop Scanning ---
     const stopScanning = async () => {
         setIsScanning(false);
+        if (restartTimerRef.current) {
+            clearTimeout(restartTimerRef.current);
+            restartTimerRef.current = null;
+        }
 
         if (isNative) {
             // For ML Kit, we usually just stop listening or the single-shot scan ends.
@@ -179,6 +183,14 @@ const Scanner = ({ onScan, isEnabled = true }) => {
         }
     };
 
+    // --- REF: Track enabled state for async callbacks ---
+    const isEnabledRef = useRef(isEnabled);
+    const restartTimerRef = useRef(null);
+
+    useEffect(() => {
+        isEnabledRef.current = isEnabled;
+    }, [isEnabled]);
+
     // --- SHARED: Handle Success ---
     const handleScanSuccess = (code) => {
         const now = Date.now();
@@ -192,18 +204,21 @@ const Scanner = ({ onScan, isEnabled = true }) => {
         console.log("Scanned:", code);
         onScan(code);
 
-        // If native, we might want to restart scanning immediately if we want "continuous" feel?
-        // But usually native UI closes. 
-        // For this use case, let's keep it simple: One scan, then maybe user has to tap "Scan" again?
-        // Or we re-trigger. Let's re-trigger if it was native and we are still enabled.
-        if (isNative && isEnabled) {
-            // Optional: Add small delay or just restart
-            // startNativeScan(); 
-            // BEWARE: Infinite loops if not careful.
-            // Actually, the native plugin often has a UI. If it closes, we are "done".
-            // RemitoForm stays "isScanning=true" until user stops.
-            // So we should restart.
-            setTimeout(startNativeScan, 500);
+        // Native logic: Only restart if we are STILL enabled.
+        // But since onScan likely triggers a modal that changes isEnabled to false,
+        // we should check that ref.
+        if (isNative) {
+            // Clear any existing timer just in case
+            if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+
+            // Wait a bit, then check if we should restart
+            restartTimerRef.current = setTimeout(() => {
+                if (isEnabledRef.current) {
+                    startNativeScan();
+                } else {
+                    console.log("Scanner disabled (modal open?), not restarting loop.");
+                }
+            }, 500);
         }
     };
 
