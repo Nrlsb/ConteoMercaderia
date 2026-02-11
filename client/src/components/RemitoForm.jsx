@@ -188,13 +188,21 @@ const RemitoForm = () => {
                 // On some systems, the popup closing is the signal
                 // If using popup: true, the UI usually handles the 'stop'
             } catch (error) {
-                console.error('Native speech error:', error);
+                console.error('Native speech error details:', error);
                 setIsListening(false);
-                const msg = error.message || '';
-                if (msg.includes('not implemented')) {
-                    triggerModal('Plugin no instalado', 'El plugin nativo no fue detectado en esta APK. Por favor, reinstale el plugin y genere una nueva APK.', 'error');
+
+                // Detailed error reporting for debugging
+                let errorDetails = '';
+                if (typeof error === 'object' && error !== null) {
+                    errorDetails = error.message || JSON.stringify(error);
                 } else {
-                    triggerModal('Error de Voz', `Detalle: ${msg || 'Desconocido'}`, 'error');
+                    errorDetails = String(error);
+                }
+
+                if (errorDetails.includes('not implemented')) {
+                    triggerModal('Error: Plugin no vinculado', 'El plugin nativo no fue detectado en esta compilación. Asegúrate de ejecutar "npx cap sync android" y luego generar la APK en Android Studio (Build > Build APK).', 'error');
+                } else {
+                    triggerModal('Error de Reconocimiento', `Detalle técnico: ${errorDetails}`, 'error');
                 }
             }
             return;

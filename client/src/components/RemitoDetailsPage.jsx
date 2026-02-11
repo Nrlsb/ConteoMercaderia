@@ -67,13 +67,20 @@ const RemitoDetailsPage = () => {
                     }
                 });
             } catch (error) {
-                console.error('Native speech error:', error);
+                console.error('Native speech error details:', error);
                 setIsListening(false);
-                const msg = error.message || '';
-                if (msg.includes('not implemented')) {
-                    setError('El plugin nativo no fue detectado. Asegúrate de generar una nueva APK.');
+
+                let errorDetails = '';
+                if (typeof error === 'object' && error !== null) {
+                    errorDetails = error.message || JSON.stringify(error);
                 } else {
-                    setError(`Error de voz: ${msg || 'Desconocido'}`);
+                    errorDetails = String(error);
+                }
+
+                if (errorDetails.includes('not implemented')) {
+                    setError('Error: Plugin nativo no vinculado. Genera una nueva APK después de sincronizar Capacitor.');
+                } else {
+                    setError(`Error de voz: ${errorDetails}`);
                 }
             }
             return;
