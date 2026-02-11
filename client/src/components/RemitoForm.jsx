@@ -168,24 +168,34 @@ const RemitoForm = () => {
                     popup: true
                 });
 
-                // Listening for results is done via listeners in Capacitor Speech Recognition
-                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                // Listeners for results
+                const partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
-                        const transcript = data.matches[0];
-                        setManualCode(transcript);
-                        executeSearch(transcript);
-                        setIsListening(false);
-                        SpeechRecognition.stop();
-                        resultListener.remove();
+                        setManualCode(data.matches[0]);
                     }
                 });
 
-                // For some versions/configs, standard start returns result directly or uses another listener
-                // Adding a safeguard or alternative listener if 'partialResults' doesn't fire as expected for final
+                // Listening for final results (some versions use this)
+                // Note: The community plugin often returns everything via partialResults if popup: true is used
+                // but we add a safety stop mechanism.
+
+                // Cleanup function helper
+                const stopAndCleanup = () => {
+                    setIsListening(false);
+                    partialListener.remove();
+                };
+
+                // On some systems, the popup closing is the signal
+                // If using popup: true, the UI usually handles the 'stop'
             } catch (error) {
                 console.error('Native speech error:', error);
                 setIsListening(false);
-                triggerModal('Error', 'Hubo un problema con el reconocimiento de voz.', 'error');
+                const msg = error.message || '';
+                if (msg.includes('not implemented')) {
+                    triggerModal('Plugin no instalado', 'El plugin nativo no fue detectado en esta APK. Por favor, reinstale el plugin y genere una nueva APK.', 'error');
+                } else {
+                    triggerModal('Error de Voz', `Detalle: ${msg || 'Desconocido'}`, 'error');
+                }
             }
             return;
         }

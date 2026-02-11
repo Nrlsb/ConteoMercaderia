@@ -61,18 +61,20 @@ const RemitoDetailsPage = () => {
                     popup: true
                 });
 
-                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                const partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
                         setSearchTerm(data.matches[0]);
-                        setIsListening(false);
-                        SpeechRecognition.stop();
-                        resultListener.remove();
                     }
                 });
             } catch (error) {
                 console.error('Native speech error:', error);
                 setIsListening(false);
-                setError('Hubo un problema con el reconocimiento de voz.');
+                const msg = error.message || '';
+                if (msg.includes('not implemented')) {
+                    setError('El plugin nativo no fue detectado. Asegúrate de generar una nueva APK.');
+                } else {
+                    setError(`Error de voz: ${msg || 'Desconocido'}`);
+                }
             }
             return;
         }
