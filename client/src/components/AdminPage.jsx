@@ -49,21 +49,21 @@ const AdminPage = () => {
             <h1 className="text-3xl font-bold mb-6 text-gray-800">Administración</h1>
 
             {/* Tabs Navigation */}
-            <div className="flex border-b mb-6">
+            <div className="flex border-b mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
                 <button
-                    className={`px-4 py-2 font-semibold ${activeTab === 'data' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'data' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
                     onClick={() => setActiveTab('data')}
                 >
-                    Importación de Datos
+                    Importación
                 </button>
                 <button
-                    className={`px-4 py-2 font-semibold ${activeTab === 'branches' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'branches' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
                     onClick={() => setActiveTab('branches')}
                 >
                     Sucursales
                 </button>
                 <button
-                    className={`px-4 py-2 font-semibold ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
                     onClick={() => setActiveTab('users')}
                 >
                     Usuarios

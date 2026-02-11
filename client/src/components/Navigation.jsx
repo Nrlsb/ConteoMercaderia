@@ -32,7 +32,7 @@ const Navigation = () => {
     };
 
     return (
-        <nav className="bg-brand-blue text-white shadow-lg">
+        <nav className="bg-brand-blue text-white shadow-lg" style={{ paddingTop: 'var(--safe-area-top)' }}>
             <div className="container mx-auto px-4 py-3 flex justify-between items-center">
                 <div className="flex items-center space-x-2">
                     {/* Optional: Add Logo here if available */}

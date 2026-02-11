@@ -54,9 +54,9 @@ const AppContent = () => {
         message="Tu sesión ha sido cerrada porque has iniciado sesión en otro dispositivo."
         type="warning"
       />
-      <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
+      <div className="min-h-screen bg-gray-100 font-sans text-gray-900 flex flex-col" style={{ paddingBottom: 'var(--safe-area-bottom)' }}>
         <Navigation />
-        <main className="container mx-auto p-4 mt-4">
+        <main className="container mx-auto p-4 mt-4 flex-grow">
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
               <Routes>

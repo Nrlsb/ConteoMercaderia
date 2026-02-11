@@ -10,6 +10,9 @@
   --color-brand-alert: #EF4444;
   --color-brand-dark: #111827;
   --color-brand-gray: #6B7280;
+
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @layer base {

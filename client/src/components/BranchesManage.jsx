@@ -77,7 +77,7 @@ const BranchesManage = () => {
     if (loading) return <div className="p-4">Cargando sucursales...</div>;
 
     return (
-        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        <div className="bg-white shadow-md rounded px-4 md:px-8 pt-6 pb-8 mb-4">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Gestión de Sucursales</h2>
                 {!isCreating && !editingBranch && (
