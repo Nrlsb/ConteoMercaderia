@@ -159,20 +159,36 @@ const RemitoForm = () => {
                     }
                 }
 
+                if (isListening) {
+                    await SpeechRecognition.stop();
+                    return;
+                }
+
                 setIsListening(true);
 
+                let resultListener;
+                let stateListener;
                 let cleanupTimer;
+
                 const cleanup = () => {
                     setIsListening(false);
                     if (cleanupTimer) clearTimeout(cleanupTimer);
                     if (resultListener) resultListener.remove();
+                    if (stateListener) stateListener.remove();
                 };
 
-                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                // Escuchamos el estado del micrófono para saber cuándo cerrar
+                stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
+                    console.log('Voice state status:', data.status);
+                    if (data.status === false) {
+                        cleanup();
+                    }
+                });
+
+                resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
                         const transcript = data.matches[0];
                         setManualCode(transcript);
-                        // No limpiamos aquí para permitir resultados parciales más largos
                     }
                 });
 
@@ -184,33 +200,33 @@ const RemitoForm = () => {
                     partialResults: true,
                     popup: false
                 }).then(result => {
-                    // Si el proceso termina con éxito (ej: por silencio detectado)
+                    // En modo popup:false, este result suele llegar cuando termina la sesión
                     if (result && result.matches && result.matches.length > 0) {
                         const finalTranscript = result.matches[0];
                         setManualCode(finalTranscript);
                         executeSearch(finalTranscript);
                     }
-                    cleanup();
+                    // No llamamos a cleanup aquí directamente, esperamos al evento 'listeningState' con status: false
                 }).catch(error => {
-                    console.error('Native speech error error:', error);
+                    console.error('Native speech start error:', error);
                     const errorDetails = error.message || String(error);
 
                     if (errorDetails.includes('not implemented')) {
                         triggerModal('Error: Plugin no vinculado', 'El plugin nativo no fue detectado en esta compilación.', 'error');
                     } else if (!errorDetails.includes('No match')) {
-                        // "No match" es común cuando el usuario no habla, no mostramos error ruidoso
                         triggerModal('Error de Reconocimiento', `Detalle técnico: ${errorDetails}`, 'error');
                     }
                     cleanup();
                 });
 
-                // Timeout de seguridad: Si en 10 segundos no hay respuesta del plugin, limpiamos
+                // Timeout de seguridad: 15 segundos máximo por sesión de voz
                 cleanupTimer = setTimeout(() => {
                     cleanup();
-                }, 10000);
+                    SpeechRecognition.stop();
+                }, 15000);
 
             } catch (error) {
-                console.error('Outer Native speech error:', error);
+                console.error('Core Native speech error:', error);
                 setIsListening(false);
             }
             return;

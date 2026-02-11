@@ -52,16 +52,31 @@ const RemitoDetailsPage = () => {
                     }
                 }
 
+                if (isListening) {
+                    await SpeechRecognition.stop();
+                    return;
+                }
+
                 setIsListening(true);
 
+                let resultListener;
+                let stateListener;
                 let cleanupTimer;
+
                 const cleanup = () => {
                     setIsListening(false);
                     if (cleanupTimer) clearTimeout(cleanupTimer);
                     if (resultListener) resultListener.remove();
+                    if (stateListener) stateListener.remove();
                 };
 
-                const resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
+                    if (data.status === false) {
+                        cleanup();
+                    }
+                });
+
+                resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     if (data.matches && data.matches.length > 0) {
                         setSearchTerm(data.matches[0]);
                     }
@@ -77,9 +92,9 @@ const RemitoDetailsPage = () => {
                     if (result && result.matches && result.matches.length > 0) {
                         setSearchTerm(result.matches[0]);
                     }
-                    cleanup();
+                    // Esperamos a listeningState: false para cleanup
                 }).catch(error => {
-                    console.error('Native speech error details:', error);
+                    console.error('Native speech start error:', error);
                     const errorDetails = error.message || String(error);
 
                     if (errorDetails.includes('not implemented')) {
@@ -93,10 +108,11 @@ const RemitoDetailsPage = () => {
                 // Timeout de seguridad
                 cleanupTimer = setTimeout(() => {
                     cleanup();
-                }, 10000);
+                    SpeechRecognition.stop();
+                }, 15000);
 
             } catch (error) {
-                console.error('Outer Native speech error:', error);
+                console.error('Core Native speech error:', error);
                 setIsListening(false);
             }
             return;
