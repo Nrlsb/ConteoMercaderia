@@ -18,6 +18,8 @@ const AdminPage = lazy(() => import('./components/AdminPage'));
 const InventoryPage = lazy(() => import('./components/InventoryPage'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const StockPage = lazy(() => import('./components/StockPage'));
+const ReceiptsList = lazy(() => import('./components/ReceiptsList'));
+const ReceiptDetailsPage = lazy(() => import('./components/ReceiptDetailsPage'));
 
 const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -100,6 +102,16 @@ const AppContent = () => {
                 <Route path="/stock" element={
                   <ProtectedRoute>
                     <StockPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/receipts" element={
+                  <ProtectedRoute>
+                    <ReceiptsList />
+                  </ProtectedRoute>
+                } />
+                <Route path="/receipts/:id" element={
+                  <ProtectedRoute>
+                    <ReceiptDetailsPage />
                   </ProtectedRoute>
                 } />
               </Routes>
