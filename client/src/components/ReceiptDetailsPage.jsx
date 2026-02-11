@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -32,9 +33,7 @@ const ReceiptDetailsPage = () => {
 
     const fetchReceiptDetails = async () => {
         try {
-            const response = await axios.get(`http://localhost:3000/api/receipts/${id}`, {
-                headers: { 'x-auth-token': token }
-            });
+            const response = await api.get(`/api/receipts/${id}`);
             setReceipt(response.data);
             setItems(response.data.items || []);
             setLoading(false);
@@ -56,16 +55,14 @@ const ReceiptDetailsPage = () => {
         try {
             if (activeTab === 'load') {
                 // Mode: Load Expected Items (scan provider code)
-                await axios.post(`http://localhost:3000/api/receipts/${id}/items`,
-                    { code, quantity: qty },
-                    { headers: { 'x-auth-token': token } }
+                await api.post(`/api/receipts/${id}/items`,
+                    { code, quantity: qty }
                 );
                 toast.success(`Producto agregado (Cant: ${qty})`);
             } else {
                 // Mode: Control (scan any code to increment verified)
-                await axios.post(`http://localhost:3000/api/receipts/${id}/scan`,
-                    { code, quantity: qty },
-                    { headers: { 'x-auth-token': token } }
+                await api.post(`/api/receipts/${id}/scan`,
+                    { code, quantity: qty }
                 );
                 // toast.success(`Producto verificado (+${qty})`);
                 // Play success sound if possible?
@@ -90,9 +87,7 @@ const ReceiptDetailsPage = () => {
         if (!window.confirm('¿Está seguro de finalizar este ingreso? No se podrán realizar más cambios.')) return;
 
         try {
-            await axios.put(`http://localhost:3000/api/receipts/${id}/close`, {}, {
-                headers: { 'x-auth-token': token }
-            });
+            await api.put(`/api/receipts/${id}/close`, {});
             toast.success('Ingreso finalizado');
             fetchReceiptDetails();
         } catch (error) {

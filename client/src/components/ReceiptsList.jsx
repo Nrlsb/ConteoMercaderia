@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -17,9 +17,7 @@ const ReceiptsList = () => {
 
     const fetchReceipts = async () => {
         try {
-            const response = await axios.get('http://localhost:3000/api/receipts', {
-                headers: { 'x-auth-token': token }
-            });
+            const response = await api.get('/api/receipts');
             setReceipts(response.data);
             setLoading(false);
         } catch (error) {
@@ -34,9 +32,8 @@ const ReceiptsList = () => {
         if (!newRemitoNumber.trim()) return;
 
         try {
-            const response = await axios.post('http://localhost:3000/api/receipts',
-                { remitoNumber: newRemitoNumber },
-                { headers: { 'x-auth-token': token } }
+            const response = await api.post('/api/receipts',
+                { remitoNumber: newRemitoNumber }
             );
             toast.success('Ingreso creado correctamente');
             setNewRemitoNumber('');
