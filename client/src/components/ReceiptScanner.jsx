@@ -77,7 +77,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             // 1. Attempt AI Parsing via Server
             toast.info('Analizando con IA para mayor precisión...');
             const api = (await import('../api')).default;
-            const response = await api.post('/ai/parse-remito', { text });
+            const response = await api.post('/api/ai/parse-remito', { text });
 
             if (response.data && response.data.length > 0) {
                 setParsedItems(response.data);
