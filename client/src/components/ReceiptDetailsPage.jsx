@@ -3,8 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import ReceiptScanner from './ReceiptScanner';
+import Scanner from './Scanner';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { Capacitor } from '@capacitor/core';
 
 const ReceiptDetailsPage = () => {
     const { id } = useParams();
@@ -17,7 +20,9 @@ const ReceiptDetailsPage = () => {
     const [scanInput, setScanInput] = useState('');
     const [quantityInput, setQuantityInput] = useState(1);
     const [processing, setProcessing] = useState(false);
-    const [showScanner, setShowScanner] = useState(false);
+    const [showScanner, setShowScanner] = useState(false); // For Receipt OCR
+    const [isListening, setIsListening] = useState(false); // For Voice Search
+    const [isBarcodeReaderActive, setIsBarcodeReaderActive] = useState(false); // For Barcode Scanner
     const [visibleItems, setVisibleItems] = useState(20);
 
     // Focus management
@@ -45,6 +50,97 @@ const ReceiptDetailsPage = () => {
             toast.error('Error al cargar los detalles');
             setLoading(false);
         }
+    };
+
+    const handleVoiceSearch = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const { available } = await SpeechRecognition.available();
+                if (!available) {
+                    toast.error('El reconocimiento de voz no está disponible.');
+                    return;
+                }
+
+                const { speechRecognition } = await SpeechRecognition.checkPermissions();
+                if (speechRecognition !== 'granted') {
+                    const { speechRecognition: newPermission } = await SpeechRecognition.requestPermissions();
+                    if (newPermission !== 'granted') {
+                        toast.error('Permiso de micrófono denegado.');
+                        return;
+                    }
+                }
+
+                if (isListening) {
+                    await SpeechRecognition.stop();
+                    return;
+                }
+
+                setIsListening(true);
+                let resultListener;
+                let stateListener;
+
+                const cleanup = () => {
+                    setIsListening(false);
+                    if (resultListener) resultListener.remove();
+                    if (stateListener) stateListener.remove();
+                };
+
+                stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
+                    if (data.status === false) cleanup();
+                });
+
+                resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                    if (data.matches && data.matches.length > 0) {
+                        setScanInput(data.matches[0]);
+                    }
+                });
+
+                SpeechRecognition.start({
+                    language: 'es-ES',
+                    maxResults: 1,
+                    prompt: 'Diga el código o nombre del producto',
+                    partialResults: true,
+                    popup: false
+                }).then(result => {
+                    if (result && result.matches && result.matches.length > 0) {
+                        setScanInput(result.matches[0]);
+                    }
+                }).catch(error => {
+                    console.error('Speech error:', error);
+                    cleanup();
+                });
+
+                setTimeout(() => {
+                    cleanup();
+                    SpeechRecognition.stop();
+                }, 15000);
+
+            } catch (error) {
+                console.error('Core Voice error:', error);
+                setIsListening(false);
+            }
+            return;
+        }
+
+        // Web Fallback
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            toast.error('Navegador no compatible con voz.');
+            return;
+        }
+
+        const SpeechRecognitionWeb = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognitionWeb();
+        recognition.lang = 'es-ES';
+        recognition.interimResults = false;
+        recognition.onstart = () => setIsListening(true);
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setScanInput(transcript);
+            setIsListening(false);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognition.start();
     };
 
     const handleScan = async (e) => {
@@ -84,6 +180,13 @@ const ReceiptDetailsPage = () => {
         } finally {
             setProcessing(false);
         }
+    };
+
+    const handleBarcodeScan = (code) => {
+        setScanInput(code);
+        setIsBarcodeReaderActive(false);
+        // Toast with info
+        toast.info(`Código capturado: ${code}`);
     };
 
     const handleFinalize = async () => {
@@ -204,15 +307,40 @@ const ReceiptDetailsPage = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 {activeTab === 'load' ? 'Escanear Código de Proveedor' : 'Escanear Producto (Interno/Prov)'}
                             </label>
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                value={scanInput}
-                                onChange={(e) => setScanInput(e.target.value)}
-                                className="w-full text-lg p-2 border rounded focus:ring-2 focus:ring-blue-500"
-                                placeholder="Escanear..."
-                                disabled={processing}
-                            />
+                            <div className="relative">
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={scanInput}
+                                    onChange={(e) => setScanInput(e.target.value)}
+                                    className="w-full text-lg p-2 pr-20 border rounded focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Escanear..."
+                                    disabled={processing}
+                                />
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-1 gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={handleVoiceSearch}
+                                        className={`p-1.5 rounded-full transition-colors focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                                        title="Buscar por voz"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                        </svg>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsBarcodeReaderActive(true)}
+                                        className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none"
+                                        title="Escanear con cámara"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div className="w-24">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -316,6 +444,29 @@ const ReceiptDetailsPage = () => {
                         onClose={() => setShowScanner(false)}
                         onScanComplete={handleScanComplete}
                     />
+                )}
+
+                {isBarcodeReaderActive && (
+                    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                        <div className="p-4 bg-gray-900 flex justify-between items-center text-white">
+                            <h3 className="font-bold">Escáner de Barcode</h3>
+                            <button
+                                onClick={() => setIsBarcodeReaderActive(false)}
+                                className="px-4 py-2 bg-red-600 rounded-lg text-sm font-bold"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                        <div className="flex-1 relative">
+                            <Scanner
+                                onScan={handleBarcodeScan}
+                                isEnabled={isBarcodeReaderActive}
+                            />
+                        </div>
+                        <div className="p-6 bg-gray-900 text-center text-gray-400 text-sm">
+                            Apunte al código de barras para escanear
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
