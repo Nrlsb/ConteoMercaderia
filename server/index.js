@@ -128,6 +128,8 @@ app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
     }
 
     try {
+        console.log(`[AI PARSER] Recibido texto para procesar. Longitud: ${text.length}`);
+
         const prompt = `
             Eres un experto en extraer datos de documentos de logística (Remitos).
             Dado el siguiente texto extraído por un OCR de una imagen, identifica los productos, códigos y cantidades.
@@ -150,16 +152,22 @@ app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
         const response = await result.response;
         const resultText = response.text();
 
+        console.log(`[AI PARSER] Respuesta de Gemini recibida`);
+
         // Extract JSON from response (handling potential markdown formatting)
         const jsonMatch = resultText.match(/\[[\s\S]*\]/);
         const parsedItems = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
-        console.log(`[AI PARSER] Successfully parsed ${parsedItems.length} items`);
+        console.log(`[AI PARSER] Sincronización exitosa: ${parsedItems.length} items encontrados`);
         res.json(parsedItems);
 
     } catch (error) {
-        console.error('Error in AI parsing:', error);
-        res.status(500).json({ message: 'Error procesando el texto con IA' });
+        console.error('CRITICAL ERROR in AI parsing:', error);
+        res.status(500).json({
+            message: 'Error procesando el texto con IA',
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
