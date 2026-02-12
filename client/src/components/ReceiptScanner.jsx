@@ -1,48 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { Ocr, TextDetections } from '@capacitor-community/image-to-text';
+import Tesseract from 'tesseract.js';
 import { toast } from 'sonner';
 
 const ReceiptScanner = ({ onScanComplete, onClose }) => {
     const [parsedItems, setParsedItems] = useState([]);
     const [isScanning, setIsScanning] = useState(false);
+    const [error, setError] = useState(null);
+    const [progress, setProgress] = useState(0);
 
-    useEffect(() => {
-        startScan();
-    }, []);
-
-    const startScan = async () => {
+    const startScan = async (sourceType) => {
         setIsScanning(true);
+        setError(null);
+        setProgress(0);
         try {
+            // Check permissions only if using Camera
+            if (sourceType === CameraSource.Camera) {
+                const permissions = await Camera.checkPermissions();
+                if (permissions.camera !== 'granted') {
+                    const request = await Camera.requestPermissions();
+                    if (request.camera !== 'granted') {
+                        throw new Error('Permisos de cámara denegados. Por favor habilítelos en la configuración.');
+                    }
+                }
+            }
+
             const photo = await Camera.getPhoto({
                 quality: 90,
                 allowEditing: true,
                 resultType: CameraResultType.Uri,
-                source: CameraSource.Camera
+                source: sourceType
             });
 
-            if (photo.path) {
-                const data = await Ocr.detectText({ filename: photo.path });
+            if (photo.webPath) {
+                const result = await Tesseract.recognize(
+                    photo.webPath,
+                    'eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                setProgress(parseInt(m.progress * 100));
+                            }
+                        }
+                    }
+                );
 
-                if (data.textDetections && data.textDetections.length > 0) {
-                    // Join all text detections into a single string for parsing
-                    const fullText = data.textDetections.map(d => d.text).join('\n');
-                    parseReceiptText(fullText);
+                const text = result.data.text;
+
+                if (text && text.trim().length > 0) {
+                    parseReceiptText(text);
                 } else {
                     toast.info('No se detectó texto en la imagen');
-                    onClose();
+                    setError('No se pudo leer texto en la imagen seleccionada.');
                 }
-            } else {
-                onClose();
             }
 
         } catch (error) {
             console.error('Error al escanear:', error);
-            // Verify if error is "User cancelled photos app"
-            if (error.message !== 'User cancelled photos app') {
-                toast.error('Error al acceder a la cámara o procesar imagen');
+            if (error.message && error.message.includes('cancelled')) {
+                // User cancelled
+            } else {
+                toast.error(`Error: ${error.message}`);
+                setError(error.message || 'Error desconocido al procesar imagen');
             }
-            onClose();
         } finally {
             setIsScanning(false);
         }
@@ -56,18 +76,32 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             const trimmed = line.trim();
             if (!trimmed) return;
 
-            // Simple regex to find a number (quantity) and alphanumeric string (code)
-            const quantityMatch = trimmed.match(/(\d+(\.\d+)?)/);
+            // Regex for: Starts with number (quantity), then text (code/desc)
+            const quantityStartMatch = trimmed.match(/^(\d+(\.\d+)?)\s+(.*)/);
 
+            if (quantityStartMatch) {
+                const qty = parseFloat(quantityStartMatch[1]);
+                const rest = quantityStartMatch[3].trim();
+                if (qty < 10000 && rest.length > 2) {
+                    items.push({
+                        original: trimmed,
+                        code: rest.split(' ')[0], // Take first word as code
+                        quantity: qty,
+                        description: rest
+                    });
+                    return;
+                }
+            }
+
+            // Fallback: try to find any number
+            const quantityMatch = trimmed.match(/(\d+(\.\d+)?)/);
             if (quantityMatch) {
                 const qty = parseFloat(quantityMatch[0]);
                 const potentialCode = trimmed.replace(quantityMatch[0], '').trim();
-
-                // Filter out short noise and unrealistic quantities
                 if (potentialCode.length > 3 && qty < 10000) {
                     items.push({
                         original: trimmed,
-                        code: potentialCode.split(' ')[0], // Take first word as code
+                        code: potentialCode.split(' ')[0],
                         quantity: qty,
                         description: potentialCode
                     });
@@ -75,12 +109,11 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             }
         });
 
-        // If items found, set them for review, otherwise close or retry
         if (items.length > 0) {
             setParsedItems(items);
         } else {
-            toast.error('No se encontraron items válidos. Intente acercar más la cámara.');
-            onClose();
+            toast.error('No se encontraron items válidos.');
+            setError('No se encontraron productos o cantidades válidas en la imagen. Intente recortar mejor la imagen.');
         }
     };
 
@@ -90,81 +123,119 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
     };
 
     if (isScanning) {
-        return <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 text-white">Abriendo cámara...</div>;
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-lg shadow-xl text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-lg font-medium">Procesando imagen...</p>
+                    <p className="text-sm text-gray-500 mt-2">{progress}% completado</p>
+                </div>
+            </div>
+        );
     }
 
-    if (parsedItems.length === 0) {
-        return null;
+    if (parsedItems.length > 0) {
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-white p-4 rounded-lg w-full max-w-lg h-[90vh] flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold">Confirmar Items</h2>
+                        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                            ✕
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-auto">
+                        <div className="space-y-2">
+                            {parsedItems.map((item, index) => (
+                                <div key={index} className="flex gap-2 items-center bg-gray-100 p-2 rounded">
+                                    <input
+                                        type="text"
+                                        value={item.code}
+                                        className="border p-1 w-24 text-sm"
+                                        onChange={(e) => {
+                                            const newItems = [...parsedItems];
+                                            newItems[index].code = e.target.value;
+                                            setParsedItems(newItems);
+                                        }}
+                                        placeholder="Código"
+                                    />
+                                    <input
+                                        type="number"
+                                        value={item.quantity}
+                                        className="border p-1 w-16 text-sm"
+                                        onChange={(e) => {
+                                            const newItems = [...parsedItems];
+                                            newItems[index].quantity = parseFloat(e.target.value);
+                                            setParsedItems(newItems);
+                                        }}
+                                        placeholder="Cant"
+                                    />
+                                    <div className="flex-1 text-xs text-gray-500 truncate">
+                                        {item.description}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newItems = parsedItems.filter((_, i) => i !== index);
+                                            setParsedItems(newItems);
+                                        }}
+                                        className="text-red-500 hover:text-red-700"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                        <button
+                            onClick={() => setParsedItems([])}
+                            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                        >
+                            Reintentar
+                        </button>
+                        <button
+                            onClick={handleConfirm}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold flex-1"
+                        >
+                            Importar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-            <div className="bg-white p-4 rounded-lg w-full max-w-lg h-[90vh] flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Confirmar Items Escaneados</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                        ✕
-                    </button>
-                </div>
+            <div className="bg-white p-6 rounded-lg w-full max-w-sm text-center">
+                <h2 className="text-xl font-bold mb-6">Escanear Remito</h2>
 
-                <div className="flex-1 overflow-auto">
-                    <div className="space-y-2">
-                        {parsedItems.map((item, index) => (
-                            <div key={index} className="flex gap-2 items-center bg-gray-100 p-2 rounded">
-                                <input
-                                    type="text"
-                                    value={item.code}
-                                    className="border p-1 w-24 text-sm"
-                                    onChange={(e) => {
-                                        const newItems = [...parsedItems];
-                                        newItems[index].code = e.target.value;
-                                        setParsedItems(newItems);
-                                    }}
-                                    placeholder="Código"
-                                />
-                                <input
-                                    type="number"
-                                    value={item.quantity}
-                                    className="border p-1 w-16 text-sm"
-                                    onChange={(e) => {
-                                        const newItems = [...parsedItems];
-                                        newItems[index].quantity = parseFloat(e.target.value);
-                                        setParsedItems(newItems);
-                                    }}
-                                    placeholder="Cant"
-                                />
-                                <input
-                                    type="text"
-                                    value={item.description}
-                                    className="border p-1 flex-1 text-sm bg-gray-50 text-gray-500"
-                                    readOnly
-                                />
-                                <button
-                                    onClick={() => {
-                                        const newItems = parsedItems.filter((_, i) => i !== index);
-                                        setParsedItems(newItems);
-                                    }}
-                                    className="text-red-500 hover:text-red-700"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        ))}
+                {error && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 text-sm">
+                        {error}
                     </div>
-                </div>
+                )}
 
-                <div className="mt-4 flex gap-2">
+                <div className="space-y-4">
                     <button
-                        onClick={startScan}
-                        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                        onClick={() => startScan(CameraSource.Camera)}
+                        className="w-full py-4 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 flex items-center justify-center gap-3 text-lg font-medium"
                     >
-                        Escanear de nuevo
+                        <span>📸</span> Cámara
                     </button>
                     <button
-                        onClick={handleConfirm}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold flex-1"
+                        onClick={() => startScan(CameraSource.Photos)}
+                        className="w-full py-4 bg-purple-600 text-white rounded-lg shadow hover:bg-purple-700 flex items-center justify-center gap-3 text-lg font-medium"
                     >
-                        Importar {parsedItems.length} Items
+                        <span>🖼️</span> Galería
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className="w-full py-2 text-gray-500 hover:text-gray-700 mt-4"
+                    >
+                        Cancelar
                     </button>
                 </div>
             </div>
