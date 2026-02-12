@@ -10,18 +10,24 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
     const [error, setError] = useState(null);
     const [progress, setProgress] = useState(0);
 
-    const startScan = async (sourceType) => {
+    const blobToBase64 = (blob) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    const startScan = async () => {
         setIsScanning(true);
         setError(null);
         try {
-            // Check permissions only if using Camera
-            if (sourceType === CameraSource.Camera) {
-                const permissions = await Camera.checkPermissions();
-                if (permissions.camera !== 'granted') {
-                    const request = await Camera.requestPermissions();
-                    if (request.camera !== 'granted') {
-                        throw new Error('Permisos de cámara denegados.');
-                    }
+            const permissions = await Camera.checkPermissions();
+            if (permissions.camera !== 'granted') {
+                const request = await Camera.requestPermissions();
+                if (request.camera !== 'granted') {
+                    throw new Error('Permisos de cámara denegados.');
                 }
             }
 
@@ -29,7 +35,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                 quality: 90,
                 allowEditing: false,
                 resultType: CameraResultType.Base64,
-                source: sourceType
+                source: CameraSource.Camera
             });
 
             if (photo.base64String) {
@@ -38,12 +44,41 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                     format: photo.format
                 }]);
             }
-
         } catch (error) {
             console.error('Error al capturar:', error);
             if (error.message && !error.message.includes('cancelled')) {
                 toast.error(`Error: ${error.message}`);
-                setError(error.message || 'Error al capturar imagen');
+            }
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const pickGalleryImages = async () => {
+        setIsScanning(true);
+        setError(null);
+        try {
+            const result = await Camera.pickImages({
+                quality: 90
+            });
+
+            if (result.photos && result.photos.length > 0) {
+                const newImages = [];
+                for (const photo of result.photos) {
+                    const response = await fetch(photo.webPath);
+                    const blob = await response.blob();
+                    const base64 = await blobToBase64(blob);
+                    newImages.push({
+                        base64: base64,
+                        format: photo.format
+                    });
+                }
+                setCapturedImages(prev => [...prev, ...newImages]);
+            }
+        } catch (error) {
+            console.error('Error al seleccionar de galería:', error);
+            if (error.message && !error.message.includes('cancelled')) {
+                toast.error(`Error: ${error.message}`);
             }
         } finally {
             setIsScanning(false);
@@ -231,7 +266,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                                 </div>
                             ))}
                             <button
-                                onClick={() => startScan(CameraSource.Camera)}
+                                onClick={startScan}
                                 className="h-20 w-16 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-all"
                             >
                                 <span className="text-xl">+</span>
@@ -244,13 +279,13 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                         {capturedImages.length === 0 ? (
                             <>
                                 <button
-                                    onClick={() => startScan(CameraSource.Camera)}
+                                    onClick={startScan}
                                     className="w-full py-4 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 flex items-center justify-center gap-3 text-lg font-bold transition-transform active:scale-95"
                                 >
                                     <span>📸</span> Usar Cámara
                                 </button>
                                 <button
-                                    onClick={() => startScan(CameraSource.Photos)}
+                                    onClick={pickGalleryImages}
                                     className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 flex items-center justify-center gap-3 font-medium transition-colors"
                                 >
                                     <span>🖼️</span> Galería de Fotos
