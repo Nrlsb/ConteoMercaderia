@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
+import { downloadFile } from '../utils/downloadUtils';
+import { Toaster, toast } from 'sonner';
 import RemitoHistory from './RemitoHistory';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
@@ -273,10 +275,6 @@ const RemitoDetailsPage = () => {
                                 onClick={() => {
                                     api.get(`/api/remitos/${id}/export`, { responseType: 'blob' })
                                         .then((response) => {
-                                            const url = window.URL.createObjectURL(new Blob([response.data]));
-                                            const link = document.createElement('a');
-                                            link.href = url;
-
                                             // Try to extract filename from header or default
                                             const contentDisposition = response.headers['content-disposition'];
                                             let fileName = `Reporte_${remito.remito_number}.xlsx`;
@@ -286,12 +284,16 @@ const RemitoDetailsPage = () => {
                                                     fileName = fileNameMatch[1];
                                             }
 
-                                            link.setAttribute('download', fileName);
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            link.remove();
+                                            downloadFile(new Blob([response.data]), fileName)
+                                                .catch(err => {
+                                                    console.error('Download error:', err);
+                                                    toast.error('Error al procesar descarga');
+                                                });
                                         })
-                                        .catch((err) => console.error('Export failed', err));
+                                        .catch((err) => {
+                                            console.error('Export failed', err);
+                                            toast.error('Error al exportar Excel');
+                                        });
                                 }}
                                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue"
                             >

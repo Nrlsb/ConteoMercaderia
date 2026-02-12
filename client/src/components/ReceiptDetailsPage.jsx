@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import ReceiptScanner from './ReceiptScanner';
 import Scanner from './Scanner';
+import { downloadFile } from '../utils/downloadUtils';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
@@ -144,7 +145,9 @@ const ReceiptDetailsPage = () => {
                 resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
                     resetInactivityTimer();
                     if (data.matches && data.matches.length > 0) {
-                        setScanInput(data.matches[0]);
+                        const transcript = data.matches[0];
+                        setScanInput(transcript);
+                        executeSearch(transcript);
                     }
                 });
 
@@ -157,7 +160,9 @@ const ReceiptDetailsPage = () => {
                     popup: false
                 }).then(result => {
                     if (result && result.matches && result.matches.length > 0) {
-                        setScanInput(result.matches[0]);
+                        const transcript = result.matches[0];
+                        setScanInput(transcript);
+                        executeSearch(transcript);
                     }
                 }).catch(error => {
                     console.error('Speech error:', error);
@@ -348,13 +353,11 @@ const ReceiptDetailsPage = () => {
                         onClick={() => {
                             api.get(`/api/receipts/${id}/export`, { responseType: 'blob' })
                                 .then(response => {
-                                    const url = window.URL.createObjectURL(new Blob([response.data]));
-                                    const link = document.createElement('a');
-                                    link.href = url;
-                                    link.setAttribute('download', `Remito_${receipt?.remito_number}.xlsx`);
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    link.remove();
+                                    downloadFile(new Blob([response.data]), `Remito_${receipt?.remito_number}.xlsx`)
+                                        .catch(err => {
+                                            console.error('Download error:', err);
+                                            toast.error('Error al procesar descarga');
+                                        });
                                 })
                                 .catch(err => {
                                     console.error('Export error:', err);
