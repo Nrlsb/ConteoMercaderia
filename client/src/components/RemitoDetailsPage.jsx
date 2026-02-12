@@ -223,50 +223,7 @@ const RemitoDetailsPage = () => {
                                 </span>
                             </div>
 
-                            {/* Progress Indicator */}
-                            {(remito.items?.length > 0 || (remito.discrepancies?.missing?.length > 0)) && (
-                                <div className="mt-4 max-w-md">
-                                    <div className="flex justify-between items-center mb-1.5">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Avance del Conteo</span>
-                                        <span className="text-sm font-bold text-brand-blue">
-                                            {(() => {
-                                                const totalExpected = remito.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
-                                                // Calculate valid scanned items (capped at expected quantity per item)
-                                                const totalValidScanned = remito.items?.reduce((acc, item) => {
-                                                    let itemScanned = 0;
-                                                    userCounts.forEach(u => {
-                                                        const match = u.items.find(i => i.code === item.code);
-                                                        if (match) itemScanned += match.quantity;
-                                                    });
-                                                    return acc + Math.min(itemScanned, item.quantity);
-                                                }, 0) || 0;
 
-                                                return totalExpected > 0 ? Math.floor((totalValidScanned / totalExpected) * 100) : 100;
-                                            })()}%
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
-                                        <div
-                                            className="bg-brand-blue h-full rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-                                            style={{
-                                                width: `${(() => {
-                                                    const totalExpected = remito.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
-                                                    const totalValidScanned = remito.items?.reduce((acc, item) => {
-                                                        let itemScanned = 0;
-                                                        userCounts.forEach(u => {
-                                                            const match = u.items.find(i => i.code === item.code);
-                                                            if (match) itemScanned += match.quantity;
-                                                        });
-                                                        return acc + Math.min(itemScanned, item.quantity);
-                                                    }, 0) || 0;
-
-                                                    return totalExpected > 0 ? Math.floor((totalValidScanned / totalExpected) * 100) : 100;
-                                                })()}%`
-                                            }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Top Actions */}
