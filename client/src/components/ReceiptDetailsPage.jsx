@@ -18,6 +18,7 @@ const ReceiptDetailsPage = () => {
     const [quantityInput, setQuantityInput] = useState(1);
     const [processing, setProcessing] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
+    const [visibleItems, setVisibleItems] = useState(20);
 
     // Focus management
     const inputRef = useRef(null);
@@ -262,6 +263,7 @@ const ReceiptDetailsPage = () => {
                                     const diffB = b.expected_quantity - b.scanned_quantity;
                                     return diffB - diffA; // High discrepancies first
                                 })
+                                .slice(0, visibleItems)
                                 .map((item) => {
                                     const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
                                     let statusColor = 'bg-gray-100 text-gray-800';
@@ -297,6 +299,16 @@ const ReceiptDetailsPage = () => {
                             )}
                         </tbody>
                     </table>
+                    {items.length > visibleItems && (
+                        <div className="p-4 text-center border-t">
+                            <button
+                                onClick={() => setVisibleItems(prev => prev + 20)}
+                                className="text-blue-600 font-semibold hover:text-blue-800 text-sm"
+                            >
+                                Mostrar más ({items.length - visibleItems} restantes)
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {showScanner && (
