@@ -379,8 +379,10 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
 
         // 3. Log History
         const oldExpected = existingItem ? Number(existingItem.expected_quantity) : 0;
+        console.log(`[DEBUG_HISTORY] Adding item - Old Expected: ${oldExpected}, New Expected: ${newQuantity}`);
+
         if (oldExpected !== newQuantity) {
-            await supabase.from('receipt_items_history').insert({
+            const { error: historyError } = await supabase.from('receipt_items_history').insert({
                 receipt_id: id,
                 user_id: req.user.id,
                 operation: existingItem ? 'UPDATE_EXPECTED' : 'INSERT_EXPECTED',
@@ -389,6 +391,14 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
                 new_data: { expected_quantity: newQuantity },
                 changed_at: new Date().toISOString()
             });
+
+            if (historyError) {
+                console.error('[DEBUG_HISTORY] Error inserting history (Add Item):', historyError);
+            } else {
+                console.log('[DEBUG_HISTORY] History insertion successful (Add Item)');
+            }
+        } else {
+            console.log('[DEBUG_HISTORY] Quantities are equal, skipping history log.');
         }
 
         res.json(savedItem);
@@ -460,8 +470,10 @@ app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
         if (saveError) throw saveError;
 
         // Log History
+        console.log(`[DEBUG_HISTORY] Scan item - Old Scanned: ${oldScanned}, New Scanned: ${newScanned}`);
+
         if (oldScanned !== newScanned) {
-            await supabase.from('receipt_items_history').insert({
+            const { error: historyError } = await supabase.from('receipt_items_history').insert({
                 receipt_id: id,
                 user_id: req.user.id,
                 operation: existingItem ? 'UPDATE_SCANNED' : 'INSERT_SCANNED',
@@ -470,6 +482,14 @@ app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
                 new_data: { scanned_quantity: newScanned },
                 changed_at: new Date().toISOString()
             });
+
+            if (historyError) {
+                console.error('[DEBUG_HISTORY] Error inserting history (Scan Item):', historyError);
+            } else {
+                console.log('[DEBUG_HISTORY] History insertion successful (Scan Item)');
+            }
+        } else {
+            console.log('[DEBUG_HISTORY] Scanned quantities are equal, skipping history log.');
         }
 
         res.json(savedItem);
@@ -522,9 +542,13 @@ app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
 
         // Log History
         if (oldItem) {
-            const hasChanged = oldItem.expected_quantity !== expected_quantity || oldItem.scanned_quantity !== scanned_quantity;
+            const hasChanged = Number(oldItem.expected_quantity) !== Number(expected_quantity) || Number(oldItem.scanned_quantity) !== Number(scanned_quantity);
+            console.log(`[DEBUG_HISTORY] Manual Override - Changed: ${hasChanged}`);
+            console.log(`[DEBUG_HISTORY] Old: Esp=${oldItem.expected_quantity}, Ctr=${oldItem.scanned_quantity}`);
+            console.log(`[DEBUG_HISTORY] New: Esp=${expected_quantity}, Ctr=${scanned_quantity}`);
+
             if (hasChanged) {
-                await supabase.from('receipt_items_history').insert({
+                const { error: historyError } = await supabase.from('receipt_items_history').insert({
                     receipt_id: id,
                     user_id: req.user.id,
                     operation: 'MANUAL_OVERRIDE',
@@ -533,7 +557,17 @@ app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
                     new_data: { expected_quantity, scanned_quantity },
                     changed_at: new Date().toISOString()
                 });
+
+                if (historyError) {
+                    console.error('[DEBUG_HISTORY] Error inserting history (Manual Override):', historyError);
+                } else {
+                    console.log('[DEBUG_HISTORY] History insertion successful (Manual Override)');
+                }
+            } else {
+                console.log('[DEBUG_HISTORY] No changes detected, skipping history log.');
             }
+        } else {
+            console.log('[DEBUG_HISTORY] Old item not found for history logging.');
         }
 
         res.json(data[0]);
