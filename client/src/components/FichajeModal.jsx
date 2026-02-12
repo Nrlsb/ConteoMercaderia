@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity }) => {
+const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting }) => {
     const [quantity, setQuantity] = useState('');
     const inputRef = useRef(null);
 
@@ -17,6 +17,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (isSubmitting) return; // Guard
         const qty = parseInt(quantity, 10);
         if (!qty || qty < 1) return;
         onConfirm(qty);
@@ -59,8 +60,9 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                             type="number"
                             min="1"
                             value={quantity}
+                            disabled={isSubmitting}
                             onChange={(e) => setQuantity(e.target.value)}
-                            className="w-full h-14 px-4 text-2xl font-bold text-center border-2 border-brand-blue rounded-lg focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition"
+                            className="w-full h-14 px-4 text-2xl font-bold text-center border-2 border-brand-blue rounded-lg focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition disabled:opacity-50"
                             placeholder="0"
                             autoComplete="off"
                         />
@@ -81,23 +83,27 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     <button
                         onClick={onClose}
                         type="button"
-                        className="px-6 py-3 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition"
+                        disabled={isSubmitting}
+                        className="px-6 py-3 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition disabled:opacity-50"
                     >
                         Cancelar
                     </button>
                     <button
-                        onClick={handleSubmit}
-                        disabled={!quantity || parseInt(quantity, 10) < 1 || isOverExpected}
+                        disabled={!quantity || parseInt(quantity, 10) < 1 || isOverExpected || isSubmitting}
                         type="submit"
                         className={`px-6 py-3 font-bold rounded-lg shadow-md transition transform active:scale-95 flex items-center
-                            ${(!quantity || parseInt(quantity, 10) < 1 || isOverExpected)
+                            ${(!quantity || parseInt(quantity, 10) < 1 || isOverExpected || isSubmitting)
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
                                 : 'bg-brand-blue text-white hover:bg-blue-700 hover:shadow-lg'
                             }
                         `}
                     >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                        Confirmar
+                        {isSubmitting ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        ) : (
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        )}
+                        {isSubmitting ? 'Confirmando...' : 'Confirmar'}
                     </button>
                 </div>
             </div>

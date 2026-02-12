@@ -18,6 +18,7 @@ const RemitoForm = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isListening, setIsListening] = useState(false); // Voice Search State
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
+    const lockingRef = React.useRef(false); // Mutex for fichaje submission
 
 
     // Report State
@@ -628,8 +629,9 @@ const RemitoForm = () => {
 
     const handleFichajeConfirm = async (quantityToAdd) => {
         const { product, expectedQuantity } = fichajeState;
-        if (!product || isSubmittingFichaje) return;
+        if (!product || isSubmittingFichaje || lockingRef.current) return;
 
+        lockingRef.current = true;
         setIsSubmittingFichaje(true);
 
         try {
@@ -673,6 +675,7 @@ const RemitoForm = () => {
             console.error('[ERROR] handleFichajeConfirm failed:', error);
         } finally {
             setIsSubmittingFichaje(false);
+            lockingRef.current = false;
         }
     };
 
