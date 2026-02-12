@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Scanner from './Scanner';
 import Modal from './Modal';
+import ConfirmModal from './ConfirmModal';
 import FichajeModal from './FichajeModal';
 import ReportModal from './ReportModal';
 import api from '../api';
@@ -302,6 +303,8 @@ const RemitoForm = () => {
         message: '',
         type: 'info'
     });
+
+    const [showConfirmCreate, setShowConfirmCreate] = useState(false);
 
     // Clarification State
     const [showClarificationModal, setShowClarificationModal] = useState(false);
@@ -839,7 +842,11 @@ const RemitoForm = () => {
 
     const handleStartGeneralCount = async () => {
         if (!newCountName.trim()) return triggerModal('Error', 'Ingrese un nombre para el conteo', 'warning');
+        setShowConfirmCreate(true);
+    };
 
+    const handleActualCreateCount = async () => {
+        setShowConfirmCreate(false);
         try {
             const res = await api.post('/api/general-counts', {
                 name: newCountName,
@@ -904,6 +911,14 @@ const RemitoForm = () => {
                 title={modalConfig.title}
                 message={modalConfig.message}
                 type={modalConfig.type}
+            />
+
+            <ConfirmModal
+                isOpen={showConfirmCreate}
+                onClose={() => setShowConfirmCreate(false)}
+                onConfirm={handleActualCreateCount}
+                title="Confirmar Inicio de Conteo"
+                message="¿Actualizaste los saldos?"
             />
 
             <FichajeModal

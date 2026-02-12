@@ -2555,30 +2555,7 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
         console.log(`[DEBUG_SCAN] Incoming sync request for order ${orderNumber} from user ${userId}. Items count: ${items.length}`);
         if (items.length > 0) console.log(`[DEBUG_SCAN] Sample item:`, items[0]);
 
-        // Prepare History Logic BEFORE Upsert
-        const historyData = [];
-        for (const item of items) {
-            const { data: existing } = await supabase
-                .from('inventory_scans')
-                .select('quantity')
-                .match({ order_number: orderNumber, user_id: userId, code: item.code })
-                .maybeSingle();
-
-            const oldQty = existing ? existing.quantity : null;
-            const newQty = item.quantity;
-
-            if (oldQty !== newQty) {
-                historyData.push({
-                    order_number: orderNumber,
-                    user_id: userId,
-                    operation: oldQty === null ? 'INSERT' : 'UPDATE',
-                    code: item.code,
-                    old_data: oldQty !== null ? { quantity: oldQty } : null,
-                    new_data: { quantity: newQty },
-                    changed_at: new Date().toISOString()
-                });
-            }
-        }
+        /* Manual history logging removed as it is handled by DB triggers */
 
         // Prepare Upsert Data
         const upsertData = items.map(item => ({
@@ -2595,9 +2572,7 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
 
         if (upsertError) throw upsertError;
 
-        if (historyData.length > 0) {
-            await supabase.from('inventory_scans_history').insert(historyData);
-        }
+        /* Manual history logging removed */
 
 
         console.log(`[DEBUG_SCAN] Synced ${items.length} items for order ${orderNumber} by user ${userId}`);
@@ -2658,21 +2633,7 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
                 throw upsertError;
             }
 
-            // 3. Populate history ONLY if quantity actually changed
-            if (!existing || existing.quantity !== newQuantity) {
-                const { error: histError } = await supabase.from('inventory_scans_history').insert({
-                    order_number: orderNumber,
-                    user_id: userId,
-                    operation: existing ? 'UPDATE' : 'INSERT',
-                    code: internalCode,
-                    old_data: existing ? { quantity: existing.quantity } : null,
-                    new_data: { quantity: newQuantity },
-                    changed_at: new Date().toISOString()
-                });
-                if (histError) console.error(`[DEBUG_INCREMENTAL] Error inserting history for ${internalCode}:`, histError);
-            } else {
-                console.log(`[DEBUG_INCREMENTAL] No change for ${internalCode}, skipping history.`);
-            }
+            /* Manual history logging removed as it is handled by DB triggers */
 
             results.push({ code: internalCode, newQuantity });
         }
