@@ -43,7 +43,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                 </div>
 
                 {/* Body */}
-                <form onSubmit={handleSubmit} className="p-6">
+                <form id="fichaje-form" onSubmit={handleSubmit} className="p-6">
                     <div className="mb-6">
                         <h4 className="text-lg font-semibold text-gray-900 mb-1">{product.description || product.name}</h4>
                         <p className="text-sm text-gray-500 font-mono bg-gray-100 inline-block px-2 py-1 rounded">{product.code}</p>
@@ -91,6 +91,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     <button
                         disabled={!quantity || parseInt(quantity, 10) < 1 || isOverExpected || isSubmitting}
                         type="submit"
+                        form="fichaje-form"
                         className={`px-6 py-3 font-bold rounded-lg shadow-md transition transform active:scale-95 flex items-center
                             ${(!quantity || parseInt(quantity, 10) < 1 || isOverExpected || isSubmitting)
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
