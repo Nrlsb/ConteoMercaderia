@@ -238,12 +238,12 @@ const ReceiptDetailsPage = () => {
     const progress = totalExpected > 0 ? (totalScanned / totalExpected) * 100 : 0;
 
     return (
-        <div className="container mx-auto p-4">
+        <div className="container mx-auto p-4 max-w-lg md:max-w-5xl">
             {/* Header */}
-            <div className="bg-white p-4 rounded shadow mb-4 flex justify-between items-center">
+            <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-xl font-bold">Remito: {receipt.remito_number}</h1>
-                    <div className="text-sm text-gray-600">
+                    <h1 className="text-xl font-bold text-gray-900 leading-tight">Remito: {receipt.remito_number}</h1>
+                    <div className="text-sm mt-1">
                         Estado: <span className={receipt.status === 'finalized' ? 'text-green-600 font-bold' : 'text-yellow-600 font-bold'}>
                             {receipt.status === 'finalized' ? 'FINALIZADO' : 'ABIERTO'}
                         </span>
@@ -252,7 +252,7 @@ const ReceiptDetailsPage = () => {
                 {receipt.status !== 'finalized' && (
                     <button
                         onClick={handleFinalize}
-                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                        className="w-full sm:w-auto bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
                     >
                         Finalizar Ingreso
                     </button>
@@ -275,200 +275,250 @@ const ReceiptDetailsPage = () => {
 
             {/* Modes Tabs - Only if not finalized */}
             {receipt.status !== 'finalized' && (
-                <div className="flex mb-4 bg-gray-200 p-1 rounded">
-                    <button
-                        className={`flex-1 py-2 rounded font-medium ${activeTab === 'load' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
-                        onClick={() => setActiveTab('load')}
-                    >
-                        1. Cargar Remito (Proveedor)
-                    </button>
+                <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-1">
+                    <div className="flex flex-1 gap-1">
+                        <button
+                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'load' ? 'bg-white shadow-sm text-brand-blue' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('load')}
+                        >
+                            1. Cargar Remito
+                        </button>
+                        <button
+                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'control' ? 'bg-white shadow-sm text-brand-success' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('control')}
+                        >
+                            2. Controlar
+                        </button>
+                    </div>
                     {activeTab === 'load' && (
                         <button
                             onClick={() => setShowScanner(true)}
-                            className="ml-2 px-3 py-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm font-bold flex items-center gap-1"
+                            className="w-full sm:w-auto px-4 py-2.5 bg-brand-blue text-white rounded-lg hover:bg-blue-700 text-sm font-bold flex items-center justify-center gap-2 shadow-sm"
                         >
-                            📷 Escanear (OCR)
+                            <span>📷</span> Escanear OCR
                         </button>
                     )}
-                    <button
-                        className={`flex-1 py-2 rounded font-medium ${activeTab === 'control' ? 'bg-white shadow text-green-700' : 'text-gray-600'}`}
-                        onClick={() => setActiveTab('control')}
-                    >
-                        2. Controlar (Físico)
-                    </button>
                 </div>
             )}
 
             {/* Input Area */}
             {receipt.status !== 'finalized' && (
-                <div className="bg-white p-4 rounded shadow mb-4">
-                    <form onSubmit={handleScan} className="flex gap-2 items-end">
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {activeTab === 'load' ? 'Escanear Código de Proveedor' : 'Escanear Producto (Interno/Prov)'}
-                            </label>
-                            <div className="relative">
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    value={scanInput}
-                                    onChange={(e) => setScanInput(e.target.value)}
-                                    className="w-full text-lg p-2 pr-20 border rounded focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Escanear..."
-                                    disabled={processing}
-                                />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-1 gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={handleVoiceSearch}
-                                        className={`p-1.5 rounded-full transition-colors focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                                        title="Buscar por voz"
-                                    >
-                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-                                        </svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsBarcodeReaderActive(true)}
-                                        className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none"
-                                        title="Escanear con cámara"
-                                    >
-                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                        </svg>
-                                    </button>
+                <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100">
+                    <form onSubmit={handleScan} className="flex flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
+                                    {activeTab === 'load' ? 'Código de Proveedor' : 'Producto (Interno/Prov)'}
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={scanInput}
+                                        onChange={(e) => setScanInput(e.target.value)}
+                                        className="w-full text-lg p-3 pr-24 border rounded-xl focus:ring-2 focus:ring-brand-blue outline-none bg-gray-50"
+                                        placeholder="Escanear o escribir..."
+                                        disabled={processing}
+                                    />
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={handleVoiceSearch}
+                                            className={`p-2 rounded-lg transition-colors focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-brand-blue hover:bg-blue-50'}`}
+                                            title="Buscar por voz"
+                                        >
+                                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsBarcodeReaderActive(true)}
+                                            className="p-2 rounded-lg text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors focus:outline-none"
+                                            title="Escanear con cámara"
+                                        >
+                                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
+                            <div className="flex gap-2 items-end">
+                                <div className="flex-1 sm:w-24">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
+                                        Cant.
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={quantityInput}
+                                        onChange={(e) => setQuantityInput(e.target.value)}
+                                        className="w-full text-lg p-3 border rounded-xl outline-none focus:ring-2 focus:ring-brand-blue bg-gray-50"
+                                        min="0.1"
+                                        step="any"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={processing}
+                                    className={`flex-none px-8 py-3 h-[52px] rounded-xl text-white font-bold shadow-md transition-all ${activeTab === 'load' ? 'bg-brand-blue hover:bg-blue-700' : 'bg-brand-success hover:bg-green-700'}`}
+                                >
+                                    {processing ? '...' : 'OK'}
+                                </button>
+                            </div>
                         </div>
-                        <div className="w-24">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Cantidad
-                            </label>
-                            <input
-                                type="number"
-                                value={quantityInput}
-                                onChange={(e) => setQuantityInput(e.target.value)}
-                                className="w-full text-lg p-2 border rounded"
-                                min="0.1"
-                                step="any"
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={processing}
-                            className={`px-6 py-2 h-[46px] rounded text-white font-bold ${activeTab === 'load' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
-                            {processing ? '...' : 'OK'}
-                        </button>
                     </form>
-                    <div className="text-xs text-gray-500 mt-2">
+                    <div className="text-[10px] text-gray-400 mt-3 text-center uppercase tracking-widest font-bold">
                         {activeTab === 'load'
-                            ? 'Escanea el código que figura en el remito del proveedor para agregar a la lista de "Esperado".'
-                            : 'Escanea el producto físico para confirmar su recepción.'}
+                            ? 'Agrega items esperados según remito proveedor'
+                            : 'Confirma recepción de producto físico'}
                     </div>
                 </div>
             )}
 
             {/* Items List */}
-            <div className="bg-white shadow-md rounded-lg overflow-hidden mb-6">
-                <div className="overflow-x-auto">
+            <div className="mb-6">
+                {/* Desktop Table */}
+                <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden border border-gray-100">
                     <table className="min-w-full">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Escaneado</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-widest">Producto</th>
+                                <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
+                                <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Escaneado</th>
+                                <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Estado</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-white divide-y divide-gray-100">
                             {items
                                 .sort((a, b) => {
-                                    // Sort by remaining (issues first) or recent
                                     const diffA = a.expected_quantity - a.scanned_quantity;
                                     const diffB = b.expected_quantity - b.scanned_quantity;
-                                    return diffB - diffA; // High discrepancies first
+                                    return diffB - diffA;
                                 })
                                 .slice(0, visibleItems)
                                 .map((item) => {
                                     const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
                                     let statusColor = 'bg-gray-100 text-gray-800';
-                                    if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800'; // Not started
-                                    else if (diff === 0) statusColor = 'bg-green-100 text-green-800'; // Perfect
-                                    else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800'; // Missing
-                                    else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800'; // Over
+                                    if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800';
+                                    else if (diff === 0) statusColor = 'bg-green-100 text-green-800';
+                                    else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800';
+                                    else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800';
 
                                     return (
-                                        <tr key={item.id}>
-                                            <td className="px-4 py-2">
-                                                <div className="text-sm font-medium text-gray-900">{item.products?.description || 'Sin descripción'}</div>
-                                                <div className="text-xs text-gray-500">
-                                                    Int: {item.product_code} | Prov: {item.products?.provider_code || '-'}
+                                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-5 py-4">
+                                                <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
+                                                <div className="text-xs text-gray-400 font-medium mt-1">
+                                                    INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2 text-sm text-gray-900 font-bold">{item.expected_quantity}</td>
-                                            <td className="px-4 py-2 text-sm text-gray-900 font-bold">{item.scanned_quantity}</td>
-                                            <td className="px-4 py-2 text-sm">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
-                                                    {diff === 0 ? 'OK' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
+                                            <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
+                                            <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
+                                            <td className="px-5 py-4 text-center">
+                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
+                                                    {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
                                                 </span>
                                             </td>
                                         </tr>
                                     );
                                 })}
-                            {items.length === 0 && (
-                                <tr>
-                                    <td colSpan="4" className="px-4 py-8 text-center text-gray-500">
-                                        No hay items cargados aún. Comienza escaneando en la pestaña "Cargar Remito".
-                                    </td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
-                    {items.length > visibleItems && (
-                        <div className="p-4 text-center border-t">
-                            <button
-                                onClick={() => setVisibleItems(prev => prev + 20)}
-                                className="text-blue-600 font-semibold hover:text-blue-800 text-sm"
-                            >
-                                Mostrar más ({items.length - visibleItems} restantes)
-                            </button>
-                        </div>
-                    )}
                 </div>
 
-                {showScanner && (
-                    <ReceiptScanner
-                        onClose={() => setShowScanner(false)}
-                        onScanComplete={handleScanComplete}
-                    />
+                {/* Mobile Cards */}
+                <div className="md:hidden space-y-3">
+                    {items
+                        .sort((a, b) => {
+                            const diffA = a.expected_quantity - a.scanned_quantity;
+                            const diffB = b.expected_quantity - b.scanned_quantity;
+                            return diffB - diffA;
+                        })
+                        .slice(0, visibleItems)
+                        .map((item) => {
+                            const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                            let statusBadge = 'bg-gray-100 text-gray-600';
+                            if (item.scanned_quantity === 0) statusBadge = 'bg-red-50 text-brand-alert';
+                            else if (diff === 0) statusBadge = 'bg-green-50 text-brand-success';
+                            else if (diff > 0) statusBadge = 'bg-yellow-50 text-yellow-700';
+                            else if (diff < 0) statusBadge = 'bg-orange-50 text-orange-700';
+
+                            return (
+                                <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
+                                    <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
+                                    <p className="text-[10px] text-gray-400 font-bold mb-3 uppercase tracking-wider">
+                                        INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                    </p>
+
+                                    <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+                                        <div className="flex gap-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
+                                                <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-gray-400 uppercase">Escaneado</span>
+                                                <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
+                                            </div>
+                                        </div>
+                                        <div className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase ${statusBadge}`}>
+                                            {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                </div>
+
+                {items.length === 0 && (
+                    <div className="bg-white p-12 text-center rounded-xl border border-dashed border-gray-200 text-gray-400 font-medium">
+                        No hay productos cargados aún.
+                    </div>
                 )}
 
-                {isBarcodeReaderActive && (
-                    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-                        <div className="p-4 bg-gray-900 flex justify-between items-center text-white">
-                            <h3 className="font-bold">Escáner de Barcode</h3>
-                            <button
-                                onClick={() => setIsBarcodeReaderActive(false)}
-                                className="px-4 py-2 bg-red-600 rounded-lg text-sm font-bold"
-                            >
-                                Cerrar
-                            </button>
-                        </div>
-                        <div className="flex-1 relative">
-                            <Scanner
-                                onScan={handleBarcodeScan}
-                                isEnabled={isBarcodeReaderActive}
-                            />
-                        </div>
-                        <div className="p-6 bg-gray-900 text-center text-gray-400 text-sm">
-                            Apunte al código de barras para escanear
-                        </div>
+                {items.length > visibleItems && (
+                    <div className="mt-4 text-center">
+                        <button
+                            onClick={() => setVisibleItems(prev => prev + 20)}
+                            className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 px-8 rounded-xl text-sm transition-colors"
+                        >
+                            Ver más ({items.length - visibleItems} productos)
+                        </button>
                     </div>
                 )}
             </div>
+
+            {showScanner && (
+                <ReceiptScanner
+                    onClose={() => setShowScanner(false)}
+                    onScanComplete={handleScanComplete}
+                />
+            )}
+
+            {isBarcodeReaderActive && (
+                <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                    <div className="p-4 bg-gray-900 flex justify-between items-center text-white">
+                        <h3 className="font-bold">Escáner de Barcode</h3>
+                        <button
+                            onClick={() => setIsBarcodeReaderActive(false)}
+                            className="px-4 py-2 bg-red-600 rounded-lg text-sm font-bold"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                    <div className="flex-1 relative">
+                        <Scanner
+                            onScan={handleBarcodeScan}
+                            isEnabled={isBarcodeReaderActive}
+                        />
+                    </div>
+                    <div className="p-6 bg-gray-900 text-center text-gray-400 text-sm">
+                        Apunte al código de barras para escanear
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
