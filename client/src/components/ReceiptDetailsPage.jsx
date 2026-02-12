@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 const ReceiptDetailsPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { token } = useAuth();
+    const { user } = useAuth(); // token no se usa y no existe en AuthContext
     const [receipt, setReceipt] = useState(null);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -76,7 +76,7 @@ const ReceiptDetailsPage = () => {
         } catch (error) {
             console.error('Scan error:', error);
             if (error.response?.status === 404) {
-                toast.error('Producto no encontrado');
+                toast.error(`Producto no encontrado: ${code}`);
             } else {
                 toast.error('Error al procesar código');
             }
@@ -97,8 +97,6 @@ const ReceiptDetailsPage = () => {
             toast.error('Error al finalizar');
         }
     };
-
-    if (loading) return <div className="p-4 text-center">Cargando...</div>;
 
     const handleScanComplete = async (items) => {
         setProcessing(true);
@@ -127,6 +125,7 @@ const ReceiptDetailsPage = () => {
         setProcessing(false);
     };
 
+    if (loading) return <div className="p-4 text-center">Cargando...</div>;
     if (!receipt) return <div className="p-4 text-center">No encontrado</div>;
 
     // Calculate progress
@@ -244,67 +243,69 @@ const ReceiptDetailsPage = () => {
             )}
 
             {/* Items List */}
-            <div className="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto mb-6">
-                <table className="min-w-full sticky top-0">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Escaneado</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {items
-                            .sort((a, b) => {
-                                // Sort by remaining (issues first) or recent
-                                const diffA = a.expected_quantity - a.scanned_quantity;
-                                const diffB = b.expected_quantity - b.scanned_quantity;
-                                return diffB - diffA; // High discrepancies first
-                            })
-                            .map((item) => {
-                                const diff = item.expected_quantity - item.scanned_quantity;
-                                let statusColor = 'bg-gray-100 text-gray-800';
-                                if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800'; // Not started
-                                else if (diff === 0) statusColor = 'bg-green-100 text-green-800'; // Perfect
-                                else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800'; // Missing
-                                else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800'; // Over
-
-                                return (
-                                    <tr key={item.id}>
-                                        <td className="px-4 py-2">
-                                            <div className="text-sm font-medium text-gray-900">{item.products?.description}</div>
-                                            <div className="text-xs text-gray-500">
-                                                Int: {item.product_code} | Prov: {item.products?.provider_code || '-'}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-2 text-sm text-gray-900 font-bold">{item.expected_quantity}</td>
-                                        <td className="px-4 py-2 text-sm text-gray-900 font-bold">{item.scanned_quantity}</td>
-                                        <td className="px-4 py-2 text-sm">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
-                                                {diff === 0 ? 'OK' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        {items.length === 0 && (
+            <div className="bg-white shadow-md rounded-lg overflow-hidden flex-1 flex flex-col mb-6 min-h-0">
+                <div className="overflow-y-auto flex-1">
+                    <table className="min-w-full">
+                        <thead className="bg-gray-50">
                             <tr>
-                                <td colSpan="4" className="px-4 py-8 text-center text-gray-500">
-                                    No hay items cargados aún. Comienza escaneando en la pestaña "Cargar Remito".
-                                </td>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Esperado</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Escaneado</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                             </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {items
+                                .sort((a, b) => {
+                                    // Sort by remaining (issues first) or recent
+                                    const diffA = a.expected_quantity - a.scanned_quantity;
+                                    const diffB = b.expected_quantity - b.scanned_quantity;
+                                    return diffB - diffA; // High discrepancies first
+                                })
+                                .map((item) => {
+                                    const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                    let statusColor = 'bg-gray-100 text-gray-800';
+                                    if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800'; // Not started
+                                    else if (diff === 0) statusColor = 'bg-green-100 text-green-800'; // Perfect
+                                    else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800'; // Missing
+                                    else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800'; // Over
 
-            {showScanner && (
-                <ReceiptScanner
-                    onClose={() => setShowScanner(false)}
-                    onScanComplete={handleScanComplete}
-                />
-            )}
+                                    return (
+                                        <tr key={item.id}>
+                                            <td className="px-4 py-2">
+                                                <div className="text-sm font-medium text-gray-900">{item.products?.description || 'Sin descripción'}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    Int: {item.product_code} | Prov: {item.products?.provider_code || '-'}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2 text-sm text-gray-900 font-bold">{item.expected_quantity}</td>
+                                            <td className="px-4 py-2 text-sm text-gray-900 font-bold">{item.scanned_quantity}</td>
+                                            <td className="px-4 py-2 text-sm">
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
+                                                    {diff === 0 ? 'OK' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            {items.length === 0 && (
+                                <tr>
+                                    <td colSpan="4" className="px-4 py-8 text-center text-gray-500">
+                                        No hay items cargados aún. Comienza escaneando en la pestaña "Cargar Remito".
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {showScanner && (
+                    <ReceiptScanner
+                        onClose={() => setShowScanner(false)}
+                        onScanComplete={handleScanComplete}
+                    />
+                )}
+            </div>
         </div>
     );
 };
