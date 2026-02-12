@@ -61,13 +61,24 @@ const RemitoDetailsPage = () => {
 
                 let resultListener;
                 let stateListener;
+                let inactivityTimer;
                 let cleanupTimer;
 
                 const cleanup = () => {
                     setIsListening(false);
+                    if (inactivityTimer) clearTimeout(inactivityTimer);
                     if (cleanupTimer) clearTimeout(cleanupTimer);
                     if (resultListener) resultListener.remove();
                     if (stateListener) stateListener.remove();
+                };
+
+                const resetInactivityTimer = () => {
+                    if (inactivityTimer) clearTimeout(inactivityTimer);
+                    inactivityTimer = setTimeout(() => {
+                        console.log('Voice search: Inactivity timeout reached');
+                        cleanup();
+                        SpeechRecognition.stop();
+                    }, 5000);
                 };
 
                 stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
@@ -77,11 +88,13 @@ const RemitoDetailsPage = () => {
                 });
 
                 resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                    resetInactivityTimer();
                     if (data.matches && data.matches.length > 0) {
                         setSearchTerm(data.matches[0]);
                     }
                 });
 
+                resetInactivityTimer();
                 SpeechRecognition.start({
                     language: 'es-ES',
                     maxResults: 1,
@@ -105,11 +118,11 @@ const RemitoDetailsPage = () => {
                     cleanup();
                 });
 
-                // Timeout de seguridad
+                // Timeout de seguridad (aumentado a 30s)
                 cleanupTimer = setTimeout(() => {
                     cleanup();
                     SpeechRecognition.stop();
-                }, 15000);
+                }, 30000);
 
             } catch (error) {
                 console.error('Core Native speech error:', error);

@@ -168,13 +168,24 @@ const RemitoForm = () => {
 
                 let resultListener;
                 let stateListener;
+                let inactivityTimer;
                 let cleanupTimer;
 
                 const cleanup = () => {
                     setIsListening(false);
+                    if (inactivityTimer) clearTimeout(inactivityTimer);
                     if (cleanupTimer) clearTimeout(cleanupTimer);
                     if (resultListener) resultListener.remove();
                     if (stateListener) stateListener.remove();
+                };
+
+                const resetInactivityTimer = () => {
+                    if (inactivityTimer) clearTimeout(inactivityTimer);
+                    inactivityTimer = setTimeout(() => {
+                        console.log('Voice search: Inactivity timeout reached');
+                        cleanup();
+                        SpeechRecognition.stop();
+                    }, 5000);
                 };
 
                 // Escuchamos el estado del micrófono para saber cuándo cerrar
@@ -186,6 +197,7 @@ const RemitoForm = () => {
                 });
 
                 resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
+                    resetInactivityTimer();
                     if (data.matches && data.matches.length > 0) {
                         const transcript = data.matches[0];
                         setManualCode(transcript);
@@ -193,6 +205,7 @@ const RemitoForm = () => {
                 });
 
                 // Iniciamos el reconocimiento
+                resetInactivityTimer();
                 SpeechRecognition.start({
                     language: 'es-ES',
                     maxResults: 1,
@@ -219,11 +232,11 @@ const RemitoForm = () => {
                     cleanup();
                 });
 
-                // Timeout de seguridad: 15 segundos máximo por sesión de voz
+                // Timeout de seguridad: 30 segundos máximo por sesión de voz
                 cleanupTimer = setTimeout(() => {
                     cleanup();
                     SpeechRecognition.stop();
-                }, 15000);
+                }, 30000);
 
             } catch (error) {
                 console.error('Core Native speech error:', error);
