@@ -333,7 +333,7 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
         // Search by provider_code first, then internal code
         let { data: product, error: prodError } = await supabase
             .from('products')
-            .select('code, provider_code')
+            .select('code, provider_code, description')
             .eq('provider_code', code)
             .maybeSingle();
 
@@ -341,7 +341,7 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
             // Try internal code
             const { data: productInternal } = await supabase
                 .from('products')
-                .select('code, provider_code')
+                .select('code, provider_code, description')
                 .eq('code', code)
                 .maybeSingle();
             product = productInternal;
@@ -351,8 +351,7 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
             return res.status(404).json({ message: 'Producto no encontrado con ese código' });
         }
 
-        // 2. Upsert receipt_id, product_code
-        // We need to fetch existing item to add quantity or upsert
+        // 2. Fetch existing item to log history
         const { data: existingItem } = await supabase
             .from('receipt_items')
             .select('*')
@@ -377,6 +376,20 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
             .single();
 
         if (saveError) throw saveError;
+
+        // 3. Log History
+        const oldExpected = existingItem ? Number(existingItem.expected_quantity) : 0;
+        if (oldExpected !== newQuantity) {
+            await supabase.from('receipt_items_history').insert({
+                receipt_id: id,
+                user_id: req.user.id,
+                operation: existingItem ? 'UPDATE_EXPECTED' : 'INSERT_EXPECTED',
+                product_code: product.code,
+                old_data: { expected_quantity: oldExpected },
+                new_data: { expected_quantity: newQuantity },
+                changed_at: new Date().toISOString()
+            });
+        }
 
         res.json(savedItem);
     } catch (error) {
@@ -425,9 +438,11 @@ app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
 
         let newScanned = qtyToAdd;
         let currentExpected = 0;
+        let oldScanned = 0;
 
         if (existingItem) {
-            newScanned = (Number(existingItem.scanned_quantity) || 0) + qtyToAdd;
+            oldScanned = (Number(existingItem.scanned_quantity) || 0);
+            newScanned = oldScanned + qtyToAdd;
             currentExpected = existingItem.expected_quantity;
         }
 
@@ -443,6 +458,19 @@ app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
             .single();
 
         if (saveError) throw saveError;
+
+        // Log History
+        if (oldScanned !== newScanned) {
+            await supabase.from('receipt_items_history').insert({
+                receipt_id: id,
+                user_id: req.user.id,
+                operation: existingItem ? 'UPDATE_SCANNED' : 'INSERT_SCANNED',
+                product_code: productCode,
+                old_data: { scanned_quantity: oldScanned },
+                new_data: { scanned_quantity: newScanned },
+                changed_at: new Date().toISOString()
+            });
+        }
 
         res.json(savedItem);
 
@@ -476,6 +504,13 @@ app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
     const { expected_quantity, scanned_quantity } = req.body;
 
     try {
+        // Fetch existing for history
+        const { data: oldItem } = await supabase
+            .from('receipt_items')
+            .select('*')
+            .eq('id', itemId)
+            .single();
+
         const { data, error } = await supabase
             .from('receipt_items')
             .update({ expected_quantity, scanned_quantity })
@@ -484,11 +519,66 @@ app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
             .select();
 
         if (error) throw error;
+
+        // Log History
+        if (oldItem) {
+            const hasChanged = oldItem.expected_quantity !== expected_quantity || oldItem.scanned_quantity !== scanned_quantity;
+            if (hasChanged) {
+                await supabase.from('receipt_items_history').insert({
+                    receipt_id: id,
+                    user_id: req.user.id,
+                    operation: 'MANUAL_OVERRIDE',
+                    product_code: oldItem.product_code,
+                    old_data: { expected_quantity: oldItem.expected_quantity, scanned_quantity: oldItem.scanned_quantity },
+                    new_data: { expected_quantity, scanned_quantity },
+                    changed_at: new Date().toISOString()
+                });
+            }
+        }
+
         res.json(data[0]);
 
     } catch (error) {
         console.error('Error updating receipt item:', error);
         res.status(500).json({ message: 'Error updating item' });
+    }
+});
+
+// Get Receipt History
+app.get('/api/receipt-history/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: history, error } = await supabase
+            .from('receipt_items_history')
+            .select('*')
+            .eq('receipt_id', id)
+            .order('changed_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Enrich with usernames and product descriptions
+        const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
+        const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
+
+        const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+        const { data: products } = await supabase.from('products').select('code, description').in('code', productCodes);
+
+        const userMap = {};
+        if (users) users.forEach(u => userMap[u.id] = u.username);
+
+        const productMap = {};
+        if (products) products.forEach(p => productMap[p.code] = p.description);
+
+        const enrichedHistory = history.map(entry => ({
+            ...entry,
+            username: userMap[entry.user_id] || 'Desconocido',
+            description: productMap[entry.product_code] || 'Sin descripción'
+        }));
+
+        res.json(enrichedHistory);
+    } catch (error) {
+        console.error('Error fetching receipt history:', error);
+        res.status(500).json({ message: 'Error fetching history' });
     }
 });
 

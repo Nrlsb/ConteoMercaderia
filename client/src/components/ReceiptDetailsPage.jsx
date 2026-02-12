@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
+import ReceiptHistory from './ReceiptHistory';
 
 const ReceiptDetailsPage = () => {
     const { id } = useParams();
@@ -395,32 +396,40 @@ const ReceiptDetailsPage = () => {
             </div>
 
             {/* Modes Tabs - Only if not finalized */}
-            {receipt.status !== 'finalized' && (
-                <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-1">
-                    <div className="flex flex-1 gap-1">
-                        <button
-                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'load' ? 'bg-white shadow-sm text-brand-blue' : 'text-gray-500'}`}
-                            onClick={() => setActiveTab('load')}
-                        >
-                            1. Cargar Remito
-                        </button>
-                        <button
-                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'control' ? 'bg-white shadow-sm text-brand-success' : 'text-gray-500'}`}
-                            onClick={() => setActiveTab('control')}
-                        >
-                            2. Controlar
-                        </button>
-                    </div>
-                    {activeTab === 'load' && (
-                        <button
-                            onClick={() => setShowScanner(true)}
-                            className="w-full sm:w-auto px-4 py-2.5 bg-brand-blue text-white rounded-lg hover:bg-blue-700 text-sm font-bold flex items-center justify-center gap-2 shadow-sm"
-                        >
-                            <span>📷</span> Escanear OCR
-                        </button>
+            <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-1">
+                <div className="flex flex-1 gap-1">
+                    {receipt.status !== 'finalized' && (
+                        <>
+                            <button
+                                className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'load' ? 'bg-white shadow-sm text-brand-blue' : 'text-gray-500'}`}
+                                onClick={() => setActiveTab('load')}
+                            >
+                                1. Cargar
+                            </button>
+                            <button
+                                className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'control' ? 'bg-white shadow-sm text-brand-success' : 'text-gray-500'}`}
+                                onClick={() => setActiveTab('control')}
+                            >
+                                2. Controlar
+                            </button>
+                        </>
                     )}
+                    <button
+                        className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
+                        onClick={() => setActiveTab('history')}
+                    >
+                        Historial
+                    </button>
                 </div>
-            )}
+                {activeTab === 'load' && receipt.status !== 'finalized' && (
+                    <button
+                        onClick={() => setShowScanner(true)}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-brand-blue text-white rounded-lg hover:bg-blue-700 text-sm font-bold flex items-center justify-center gap-2 shadow-sm"
+                    >
+                        <span>📷</span> OCR
+                    </button>
+                )}
+            </div>
 
             {/* Input Area */}
             {receipt.status !== 'finalized' && (
@@ -507,118 +516,122 @@ const ReceiptDetailsPage = () => {
                 </div>
             )}
 
-            {/* Items List */}
-            <div className="mb-6">
-                {/* Desktop Table */}
-                <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden border border-gray-100">
-                    <table className="min-w-full">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-widest">Producto</th>
-                                <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
-                                <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Escaneado</th>
-                                <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-100">
-                            {items
-                                .sort((a, b) => {
-                                    const diffA = a.expected_quantity - a.scanned_quantity;
-                                    const diffB = b.expected_quantity - b.scanned_quantity;
-                                    return diffB - diffA;
-                                })
-                                .slice(0, visibleItems)
-                                .map((item) => {
-                                    const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
-                                    let statusColor = 'bg-gray-100 text-gray-800';
-                                    if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800';
-                                    else if (diff === 0) statusColor = 'bg-green-100 text-green-800';
-                                    else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800';
-                                    else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800';
+            {/* Content based on Tab */}
+            {activeTab === 'history' ? (
+                <ReceiptHistory receiptId={id} />
+            ) : (
+                <div className="mb-6">
+                    {/* Desktop Table */}
+                    <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden border border-gray-100">
+                        <table className="min-w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-widest">Producto</th>
+                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
+                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Escaneado</th>
+                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-100">
+                                {items
+                                    .sort((a, b) => {
+                                        const diffA = a.expected_quantity - a.scanned_quantity;
+                                        const diffB = b.expected_quantity - b.scanned_quantity;
+                                        return diffB - diffA;
+                                    })
+                                    .slice(0, visibleItems)
+                                    .map((item) => {
+                                        const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                        let statusColor = 'bg-gray-100 text-gray-800';
+                                        if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800';
+                                        else if (diff === 0) statusColor = 'bg-green-100 text-green-800';
+                                        else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800';
+                                        else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800';
 
-                                    return (
-                                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-5 py-4">
-                                                <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
-                                                <div className="text-xs text-gray-400 font-medium mt-1">
-                                                    INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                        return (
+                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-5 py-4">
+                                                    <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
+                                                    <div className="text-xs text-gray-400 font-medium mt-1">
+                                                        INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
+                                                <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
+                                                <td className="px-5 py-4 text-center">
+                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
+                                                        {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile Cards */}
+                    <div className="md:hidden space-y-3">
+                        {items
+                            .sort((a, b) => {
+                                const diffA = a.expected_quantity - a.scanned_quantity;
+                                const diffB = b.expected_quantity - b.scanned_quantity;
+                                return diffB - diffA;
+                            })
+                            .slice(0, visibleItems)
+                            .map((item) => {
+                                const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                let statusBadge = 'bg-gray-100 text-gray-600';
+                                if (item.scanned_quantity === 0) statusBadge = 'bg-red-50 text-brand-alert';
+                                else if (diff === 0) statusBadge = 'bg-green-50 text-brand-success';
+                                else if (diff > 0) statusBadge = 'bg-yellow-50 text-yellow-700';
+                                else if (diff < 0) statusBadge = 'bg-orange-50 text-orange-700';
+
+                                return (
+                                    <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
+                                        <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
+                                        <p className="text-[10px] text-gray-400 font-bold mb-3 uppercase tracking-wider">
+                                            INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                        </p>
+
+                                        <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+                                            <div className="flex gap-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
+                                                    <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
                                                 </div>
-                                            </td>
-                                            <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
-                                            <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
-                                            <td className="px-5 py-4 text-center">
-                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
-                                                    {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Mobile Cards */}
-                <div className="md:hidden space-y-3">
-                    {items
-                        .sort((a, b) => {
-                            const diffA = a.expected_quantity - a.scanned_quantity;
-                            const diffB = b.expected_quantity - b.scanned_quantity;
-                            return diffB - diffA;
-                        })
-                        .slice(0, visibleItems)
-                        .map((item) => {
-                            const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
-                            let statusBadge = 'bg-gray-100 text-gray-600';
-                            if (item.scanned_quantity === 0) statusBadge = 'bg-red-50 text-brand-alert';
-                            else if (diff === 0) statusBadge = 'bg-green-50 text-brand-success';
-                            else if (diff > 0) statusBadge = 'bg-yellow-50 text-yellow-700';
-                            else if (diff < 0) statusBadge = 'bg-orange-50 text-orange-700';
-
-                            return (
-                                <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
-                                    <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold mb-3 uppercase tracking-wider">
-                                        INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
-                                    </p>
-
-                                    <div className="flex justify-between items-center border-t border-gray-50 pt-3">
-                                        <div className="flex gap-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
-                                                <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Escaneado</span>
+                                                    <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] font-bold text-gray-400 uppercase">Escaneado</span>
-                                                <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
+                                            <div className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase ${statusBadge}`}>
+                                                {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
                                             </div>
-                                        </div>
-                                        <div className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase ${statusBadge}`}>
-                                            {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                    </div>
+
+                    {items.length === 0 && (
+                        <div className="bg-white p-12 text-center rounded-xl border border-dashed border-gray-200 text-gray-400 font-medium">
+                            No hay productos cargados aún.
+                        </div>
+                    )}
+
+                    {items.length > visibleItems && (
+                        <div className="mt-4 text-center">
+                            <button
+                                onClick={() => setVisibleItems(prev => prev + 20)}
+                                className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 px-8 rounded-xl text-sm transition-colors"
+                            >
+                                Ver más ({items.length - visibleItems} productos)
+                            </button>
+                        </div>
+                    )}
                 </div>
-
-                {items.length === 0 && (
-                    <div className="bg-white p-12 text-center rounded-xl border border-dashed border-gray-200 text-gray-400 font-medium">
-                        No hay productos cargados aún.
-                    </div>
-                )}
-
-                {items.length > visibleItems && (
-                    <div className="mt-4 text-center">
-                        <button
-                            onClick={() => setVisibleItems(prev => prev + 20)}
-                            className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 px-8 rounded-xl text-sm transition-colors"
-                        >
-                            Ver más ({items.length - visibleItems} productos)
-                        </button>
-                    </div>
-                )}
-            </div>
+            )}
 
             {showScanner && (
                 <ReceiptScanner
