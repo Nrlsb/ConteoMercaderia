@@ -177,6 +177,72 @@ app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
     }
 });
 
+// AI Image Parsing Endpoint (Gemini Vision)
+app.post('/api/ai/parse-image', verifyToken, multer({ storage: multer.memoryStorage() }).single('image'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No se recibió ninguna imagen' });
+    }
+
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'tu_clave_aqui') {
+        return res.status(503).json({ message: 'AI Parsing not configured (Missing API Key)' });
+    }
+
+    try {
+        console.log(`[AI IMAGE PARSER] Procesando imagen. Tamaño: ${req.file.size} bytes`);
+
+        // Convert buffer to generative parts
+        const imageParts = [
+            {
+                inlineData: {
+                    data: req.file.buffer.toString("base64"),
+                    mimeType: req.file.mimetype
+                },
+            },
+        ];
+
+        const prompt = `
+            Eres un experto en extracción de datos de remitos de logística.
+            Analiza la imagen adjunta y extrae todos los productos listados en la tabla del remito.
+            
+            REGLAS CRÍTICAS:
+            1. Devuelve SOLO un array JSON válido de objetos.
+            2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
+            3. El "code" es el código del producto (suele estar en la primera columna).
+            4. La "quantity" es la cantidad pedida/enviada. Si ves decimales (ej: 42,00), conviértelos a número (42).
+            5. La "description" es el nombre del producto.
+            6. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
+            7. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada, de lo contrario usa la impresa.
+            8. Sé extremadamente preciso con los códigos numéricos.
+
+            Formato esperado:
+            [
+              {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+              ...
+            ]
+        `;
+
+        const result = await model.generateContent([prompt, ...imageParts]);
+        const response = await result.response;
+        const resultText = response.text();
+
+        console.log(`[AI IMAGE PARSER] Respuesta recibida de Gemini`);
+
+        // Extract JSON from response
+        const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+        const parsedItems = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+        console.log(`[AI IMAGE PARSER] Extracción exitosa: ${parsedItems.length} items encontrados`);
+        res.json(parsedItems);
+
+    } catch (error) {
+        console.error('CRITICAL ERROR in AI image parsing:', error);
+        res.status(500).json({
+            message: 'Error procesando la imagen con IA',
+            details: error.message
+        });
+    }
+});
+
 // --- RECEIPTS ROUTES ---
 
 // Create Receipt

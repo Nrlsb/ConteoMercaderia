@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import Tesseract from 'tesseract.js';
 import { toast } from 'sonner';
 
 const ReceiptScanner = ({ onScanComplete, onClose }) => {
@@ -12,7 +11,7 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
     const startScan = async (sourceType) => {
         setIsScanning(true);
         setError(null);
-        setProgress(0);
+        setProgress(20); // Simular inicio de carga
         try {
             // Check permissions only if using Camera
             if (sourceType === CameraSource.Camera) {
@@ -20,38 +19,42 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                 if (permissions.camera !== 'granted') {
                     const request = await Camera.requestPermissions();
                     if (request.camera !== 'granted') {
-                        throw new Error('Permisos de cámara denegados. Por favor habilítelos en la configuración.');
+                        throw new Error('Permisos de cámara denegados.');
                     }
                 }
             }
 
             const photo = await Camera.getPhoto({
                 quality: 90,
-                allowEditing: true,
-                resultType: CameraResultType.Uri,
+                allowEditing: false,
+                resultType: CameraResultType.Base64, // Cambiado a Base64 para envío directo
                 source: sourceType
             });
 
-            if (photo.webPath) {
-                const result = await Tesseract.recognize(
-                    photo.webPath,
-                    'eng',
-                    {
-                        logger: m => {
-                            if (m.status === 'recognizing text') {
-                                setProgress(parseInt(m.progress * 100));
-                            }
-                        }
+            if (photo.base64String) {
+                setProgress(50);
+                toast.info('Analizando con IA de alta precisión...');
+
+                const api = (await import('../api')).default;
+
+                // Crear FormData para enviar la imagen
+                const blob = await (await fetch(`data:image/${photo.format};base64,${photo.base64String}`)).blob();
+                const formData = new FormData();
+                formData.append('image', blob, `remito.${photo.format}`);
+
+                const response = await api.post('/api/ai/parse-image', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
                     }
-                );
+                });
 
-                const text = result.data.text;
-
-                if (text && text.trim().length > 0) {
-                    parseReceiptText(text);
+                if (response.data && response.data.length > 0) {
+                    setParsedItems(response.data);
+                    toast.success('Escaneo completado correctamente');
+                    setProgress(100);
                 } else {
-                    toast.info('No se detectó texto en la imagen');
-                    setError('No se pudo leer texto en la imagen seleccionada.');
+                    toast.info('No se detectaron productos en la imagen');
+                    setError('No se pudo extraer información clara del remito.');
                 }
             }
 
@@ -65,81 +68,6 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             }
         } finally {
             setIsScanning(false);
-        }
-    };
-
-    const parseReceiptText = async (text) => {
-        setIsScanning(true);
-        setError(null);
-        setProgress(0);
-
-        try {
-            // 1. Attempt AI Parsing via Server
-            toast.info('Analizando con IA para mayor precisión...');
-            const api = (await import('../api')).default;
-            const response = await api.post('/api/ai/parse-remito', { text });
-
-            if (response.data && response.data.length > 0) {
-                setParsedItems(response.data);
-                toast.success('Escaneo completado con IA');
-                setIsScanning(false);
-                return;
-            }
-        } catch (aiError) {
-            console.warn('AI Parsing failed or not configured, falling back to local regex:', aiError);
-            if (aiError.response?.status === 503) {
-                toast.info('Usando motor local (IA no configurada)');
-            } else {
-                toast.error('Error en IA, usando motor local');
-            }
-        } finally {
-            setIsScanning(false);
-        }
-
-        // 2. Fallback: Local Regex Parsing
-        const lines = text.split('\n');
-        const items = [];
-
-        lines.forEach(line => {
-            const trimmed = line.trim();
-            if (!trimmed) return;
-
-            console.log('Processing line (Local):', trimmed);
-
-            const remitoMatch = trimmed.match(/^(\d+)\s+(\d+(?:[.,]\d+)?)\s+(.*)/);
-            if (remitoMatch) {
-                const code = remitoMatch[1];
-                const rawQty = remitoMatch[2].replace(',', '.');
-                const qty = parseFloat(rawQty);
-                let description = remitoMatch[3].trim();
-                description = description.replace(/^[\d\s.,]+/, '').trim();
-
-                if (code.length >= 3 && qty < 10000 && description.length > 2) {
-                    items.push({ original: trimmed, code, quantity: qty, description });
-                    return;
-                }
-            }
-
-            const quantityStartMatch = trimmed.match(/^(\d+(\.\d+)?)\s+(.*)/);
-            if (quantityStartMatch) {
-                const qty = parseFloat(quantityStartMatch[1]);
-                const rest = quantityStartMatch[3].trim();
-                if (qty < 10000 && rest.length > 2 && qty < 1000) {
-                    items.push({
-                        original: trimmed,
-                        code: rest.split(' ')[0],
-                        quantity: qty,
-                        description: rest
-                    });
-                }
-            }
-        });
-
-        if (items.length > 0) {
-            setParsedItems(items);
-        } else {
-            toast.error('No se encontraron items válidos.');
-            setError('No se detectaron productos. Asegúrese de que la imagen sea legible.');
         }
     };
 
