@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import ReceiptScanner from './ReceiptScanner';
 import Scanner from './Scanner';
+import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -24,6 +25,19 @@ const ReceiptDetailsPage = () => {
     const [isListening, setIsListening] = useState(false); // For Voice Search
     const [isBarcodeReaderActive, setIsBarcodeReaderActive] = useState(false); // For Barcode Scanner
     const [visibleItems, setVisibleItems] = useState(20);
+
+    // Intelligent Search State
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const searchTimeoutRef = useRef(null);
+
+    // Fichaje Modal State
+    const [fichajeState, setFichajeState] = useState({
+        isOpen: false,
+        product: null,
+        existingQuantity: 0,
+        expectedQuantity: null
+    });
 
     // Focus management
     const inputRef = useRef(null);
@@ -50,6 +64,33 @@ const ReceiptDetailsPage = () => {
             toast.error('Error al cargar los detalles');
             setLoading(false);
         }
+    };
+
+    const executeSearch = async (value) => {
+        if (!value || value.length < 2) {
+            setShowSuggestions(false);
+            setSuggestions([]);
+            return;
+        }
+
+        try {
+            const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+            setSuggestions(res.data);
+            setShowSuggestions(res.data.length > 0);
+        } catch (error) {
+            console.error('Error searching products:', error);
+        }
+    };
+
+    const handleInputChange = (e) => {
+        const value = e.target.value;
+        setScanInput(value);
+
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+        searchTimeoutRef.current = setTimeout(() => {
+            executeSearch(value);
+        }, 300);
     };
 
     const handleVoiceSearch = async () => {
@@ -158,32 +199,71 @@ const ReceiptDetailsPage = () => {
     };
 
     const handleScan = async (e) => {
-        e.preventDefault();
-        if (!scanInput.trim() || processing) return;
+        if (e) e.preventDefault();
+        const code = scanInput.trim();
+        if (!code) return;
+
+        // Try to find product in current items first (for expected quantity)
+        const existingItem = items.find(i => i.product_code === code || i.products?.provider_code === code);
+
+        const openModal = (product, expQty, currentScanned) => {
+            setFichajeState({
+                isOpen: true,
+                product: product,
+                existingQuantity: currentScanned,
+                expectedQuantity: expQty
+            });
+            setShowSuggestions(false);
+        };
+
+        if (existingItem) {
+            openModal({
+                code: existingItem.product_code,
+                description: existingItem.products?.description || 'Producto'
+            }, existingItem.expected_quantity, existingItem.scanned_quantity);
+        } else {
+            // Fetch from API
+            try {
+                setProcessing(true);
+                const response = await api.get(`/api/products/${code}`);
+                const product = response.data;
+                openModal({
+                    code: product.code,
+                    description: product.description
+                }, null, 0);
+            } catch (error) {
+                console.error('Error fetching product:', error);
+                toast.error('Producto no encontrado');
+            } finally {
+                setProcessing(false);
+            }
+        }
+    };
+
+    const handleFichajeConfirm = async (quantityToAdd) => {
+        const { product } = fichajeState;
+        if (!product || processing) return;
 
         setProcessing(true);
-        const code = scanInput.trim();
-        const qty = parseFloat(quantityInput) || 1;
+        const code = product.code;
+        const qty = parseFloat(quantityToAdd) || 1;
 
         try {
             if (activeTab === 'load') {
-                // Mode: Load Expected Items (scan provider code)
                 await api.post(`/api/receipts/${id}/items`,
                     { code, quantity: qty }
                 );
                 toast.success(`Producto agregado (Cant: ${qty})`);
             } else {
-                // Mode: Control (scan any code to increment verified)
                 await api.post(`/api/receipts/${id}/scan`,
                     { code, quantity: qty }
                 );
-                // toast.success(`Producto verificado (+${qty})`);
-                // Play success sound if possible?
             }
 
             setScanInput('');
-            setQuantityInput(1); // Reset quantity to 1 after scan
-            await fetchReceiptDetails(); // Refresh to show update
+            setQuantityInput(1);
+            setFichajeState(prev => ({ ...prev, isOpen: false }));
+            await fetchReceiptDetails();
         } catch (error) {
             console.error('Scan error:', error);
             if (error.response?.status === 404) {
@@ -263,14 +343,38 @@ const ReceiptDetailsPage = () => {
                         </span>
                     </div>
                 </div>
-                {receipt.status !== 'finalized' && (
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                     <button
-                        onClick={handleFinalize}
-                        className="w-full sm:w-auto bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
+                        onClick={() => {
+                            api.get(`/api/receipts/${id}/export`, { responseType: 'blob' })
+                                .then(response => {
+                                    const url = window.URL.createObjectURL(new Blob([response.data]));
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.setAttribute('download', `Remito_${receipt?.remito_number}.xlsx`);
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    link.remove();
+                                })
+                                .catch(err => {
+                                    console.error('Export error:', err);
+                                    toast.error('Error al descargar Excel');
+                                });
+                        }}
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all"
                     >
-                        Finalizar Ingreso
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Excel
                     </button>
-                )}
+                    {receipt.status !== 'finalized' && (
+                        <button
+                            onClick={handleFinalize}
+                            className="bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
+                        >
+                            Finalizar Ingreso
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Progress */}
@@ -329,11 +433,33 @@ const ReceiptDetailsPage = () => {
                                         ref={inputRef}
                                         type="text"
                                         value={scanInput}
-                                        onChange={(e) => setScanInput(e.target.value)}
+                                        onChange={handleInputChange}
                                         className="w-full text-lg p-3 pr-24 border rounded-xl focus:ring-2 focus:ring-brand-blue outline-none bg-gray-50"
                                         placeholder="Escanear o escribir..."
                                         disabled={processing}
+                                        autoComplete="off"
                                     />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <div className="absolute z-50 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                                            {suggestions.map((s, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    className="w-full text-left p-3 hover:bg-blue-50 border-b last:border-0 transition-colors"
+                                                    onClick={() => {
+                                                        setScanInput(s.code);
+                                                        setSuggestions([]);
+                                                        setShowSuggestions(false);
+                                                        // Auto-scan when selected
+                                                        setTimeout(() => handleScan(), 50);
+                                                    }}
+                                                >
+                                                    <div className="font-bold text-gray-900">{s.description}</div>
+                                                    <div className="text-xs text-gray-500">COD: {s.code} {s.provider_code ? `| PROV: ${s.provider_code}` : ''}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
                                         <button
                                             type="button"
@@ -360,19 +486,6 @@ const ReceiptDetailsPage = () => {
                                 </div>
                             </div>
                             <div className="flex gap-2 items-end">
-                                <div className="flex-1 sm:w-24">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
-                                        Cant.
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={quantityInput}
-                                        onChange={(e) => setQuantityInput(e.target.value)}
-                                        className="w-full text-lg p-3 border rounded-xl outline-none focus:ring-2 focus:ring-brand-blue bg-gray-50"
-                                        min="0.1"
-                                        step="any"
-                                    />
-                                </div>
                                 <button
                                     type="submit"
                                     disabled={processing}
@@ -533,6 +646,15 @@ const ReceiptDetailsPage = () => {
                     </div>
                 </div>
             )}
+
+            <FichajeModal
+                isOpen={fichajeState.isOpen}
+                onClose={() => setFichajeState(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={handleFichajeConfirm}
+                product={fichajeState.product}
+                existingQuantity={fichajeState.existingQuantity}
+                expectedQuantity={fichajeState.expectedQuantity}
+            />
         </div>
     );
 };

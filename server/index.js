@@ -492,6 +492,59 @@ app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
     }
 });
 
+// Export Receipt to Excel
+app.get('/api/receipts/:id/export', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (receiptError) throw receiptError;
+
+        const { data: items, error: itemsError } = await supabase
+            .from('receipt_items')
+            .select(`
+                *,
+                products (
+                    description,
+                    code,
+                    provider_code
+                )
+            `)
+            .eq('receipt_id', id);
+
+        if (itemsError) throw itemsError;
+
+        const xlsx = require('xlsx');
+        const workbook = xlsx.utils.book_new();
+
+        const data = items.map(item => ({
+            'Código Interno': item.product_code,
+            'Código Proveedor': item.products?.provider_code || '-',
+            'Descripción': item.products?.description || 'Sin descripción',
+            'Cant. Esperada': Number(item.expected_quantity) || 0,
+            'Cant. Controlada': Number(item.scanned_quantity) || 0,
+            'Diferencia': (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0)
+        }));
+
+        const worksheet = xlsx.utils.json_to_sheet(data);
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Detalle Remito');
+
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Remito_${receipt.remito_number}.xlsx`);
+        res.send(buffer);
+
+    } catch (error) {
+        console.error('Error exporting receipt:', error);
+        res.status(500).json({ message: 'Error al exportar remito' });
+    }
+});
+
 // API Routes
 
 // Product Import Endpoint (Admin only)
