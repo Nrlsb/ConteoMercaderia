@@ -76,44 +76,72 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             const trimmed = line.trim();
             if (!trimmed) return;
 
-            // Regex for: Starts with number (quantity), then text (code/desc)
+            // Log line for debugging
+            console.log('Processing line:', trimmed);
+
+            // Strategy 1: "Remito" format -> Code (digits) | Quantity (number) | ... | Description
+            // Regex: Start with digits (Code), space, number (Qty), space, rest
+            const remitoMatch = trimmed.match(/^(\d+)\s+(\d+(?:[.,]\d+)?)\s+(.*)/);
+
+            if (remitoMatch) {
+                const code = remitoMatch[1];
+                const rawQty = remitoMatch[2].replace(',', '.');
+                const qty = parseFloat(rawQty);
+                let description = remitoMatch[3].trim();
+
+                // Clean up description: remove "BULTOS" and "CAPACID." columns if they exist (usually just numbers)
+                // Example: "3 4 CETOL..." -> Remove "3 4"
+                description = description.replace(/^[\d\s.,]+/, '').trim();
+
+                if (code.length >= 3 && qty < 10000 && description.length > 2) {
+                    items.push({
+                        original: trimmed,
+                        code: code,
+                        quantity: qty,
+                        description: description
+                    });
+                    return; // Match found, skip fallback
+                }
+            }
+
+            // Strategy 2: Fallback (Old Logic) - Quantity first
+            // Only use this if the first strategy didn't produce a valid item
+            // Regex: Starts with number (quantity), then text
             const quantityStartMatch = trimmed.match(/^(\d+(\.\d+)?)\s+(.*)/);
 
             if (quantityStartMatch) {
                 const qty = parseFloat(quantityStartMatch[1]);
                 const rest = quantityStartMatch[3].trim();
+                // Heuristic: If "rest" starts with a long number, maybe THAT is the code? 
+                // But for now, let's keep it simple.
                 if (qty < 10000 && rest.length > 2) {
+                    // Check if this looks like a Remito line that failed the first regex?
+                    // Unlikely if the first regex is broad enough for "digits space digits".
+
+                    // Only add if we are desperate or sure it's not a misread Remito line
+                    // For now, let's skip adding it if it looks like a Code (large integer)
+                    if (qty > 1000) {
+                        // Likely a code, not a quantity
+                        return;
+                    }
+
                     items.push({
                         original: trimmed,
-                        code: rest.split(' ')[0], // Take first word as code
+                        code: rest.split(' ')[0],
                         quantity: qty,
                         description: rest
-                    });
-                    return;
-                }
-            }
-
-            // Fallback: try to find any number
-            const quantityMatch = trimmed.match(/(\d+(\.\d+)?)/);
-            if (quantityMatch) {
-                const qty = parseFloat(quantityMatch[0]);
-                const potentialCode = trimmed.replace(quantityMatch[0], '').trim();
-                if (potentialCode.length > 3 && qty < 10000) {
-                    items.push({
-                        original: trimmed,
-                        code: potentialCode.split(' ')[0],
-                        quantity: qty,
-                        description: potentialCode
                     });
                 }
             }
         });
 
+        console.log('Parsed items:', items);
+
         if (items.length > 0) {
             setParsedItems(items);
         } else {
             toast.error('No se encontraron items válidos.');
-            setError('No se encontraron productos o cantidades válidas en la imagen. Intente recortar mejor la imagen.');
+            setError('No se detectaron productos. Asegúrese de que la imagen sea legible y tenga el formato: Código Cantidad Descripción');
         }
     };
 
