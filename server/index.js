@@ -20,7 +20,7 @@ if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 5) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Cambiado a gemini-2.0-flash según disponibilidad en el dashboard del usuario
+// Usar gemini-2.5-flash según confirmación del usuario de que es lo que le funciona
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 const app = express();
@@ -174,6 +174,255 @@ app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
             details: error.message,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
+    }
+});
+
+// --- RECEIPTS ROUTES ---
+
+// Create Receipt
+app.post('/api/receipts', verifyToken, async (req, res) => {
+    const { remitoNumber } = req.body;
+    if (!remitoNumber) return res.status(400).json({ message: 'Missing remito number' });
+
+    try {
+        const { data, error } = await supabase
+            .from('receipts')
+            .insert([{
+                remito_number: remitoNumber,
+                created_by: req.user.username,
+                date: new Date()
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.status(201).json(data);
+    } catch (error) {
+        console.error('Error creating receipt:', error);
+        res.status(500).json({ message: 'Error creating receipt' });
+    }
+});
+
+// Get Receipts
+app.get('/api/receipts', verifyToken, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('receipts')
+            .select('*')
+            .order('date', { ascending: false });
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching receipts:', error);
+        res.status(500).json({ message: 'Error fetching receipts' });
+    }
+});
+
+// Get Receipt Details
+app.get('/api/receipts/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (receiptError) throw receiptError;
+
+        const { data: items, error: itemsError } = await supabase
+            .from('receipt_items')
+            .select(`
+                *,
+                products (
+                    description,
+                    brand,
+                    code,
+                    barcode,
+                    provider_code
+                )
+            `)
+            .eq('receipt_id', id);
+
+        if (itemsError) throw itemsError;
+
+        res.json({ ...receipt, items });
+    } catch (error) {
+        console.error('Error fetching receipt details:', error);
+        res.status(500).json({ message: 'Error fetching receipt details' });
+    }
+});
+
+// Add/Update Expected Item (by Provider Code or Internal Code)
+// mode: 'provider' (default) or 'internal'
+app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { code, quantity } = req.body;
+
+    if (!code || !quantity) return res.status(400).json({ message: 'Missing code or quantity' });
+
+    try {
+        // 1. Find the product first
+        // Search by provider_code first, then internal code
+        let { data: product, error: prodError } = await supabase
+            .from('products')
+            .select('code, provider_code')
+            .eq('provider_code', code)
+            .maybeSingle();
+
+        if (!product) {
+            // Try internal code
+            const { data: productInternal } = await supabase
+                .from('products')
+                .select('code, provider_code')
+                .eq('code', code)
+                .maybeSingle();
+            product = productInternal;
+        }
+
+        if (!product) {
+            return res.status(404).json({ message: 'Producto no encontrado con ese código' });
+        }
+
+        // 2. Upsert receipt_id, product_code
+        // We need to fetch existing item to add quantity or upsert
+        const { data: existingItem } = await supabase
+            .from('receipt_items')
+            .select('*')
+            .eq('receipt_id', id)
+            .eq('product_code', product.code)
+            .maybeSingle();
+
+        let newQuantity = quantity;
+        if (existingItem) {
+            // If it exists, we add to expectation
+            newQuantity = (Number(existingItem.expected_quantity) || 0) + Number(quantity);
+        }
+
+        const { data: savedItem, error: saveError } = await supabase
+            .from('receipt_items')
+            .upsert({
+                receipt_id: id,
+                product_code: product.code,
+                expected_quantity: newQuantity
+            }, { onConflict: 'receipt_id, product_code' })
+            .select()
+            .single();
+
+        if (saveError) throw saveError;
+
+        res.json(savedItem);
+    } catch (error) {
+        console.error('Error adding receipt item:', error);
+        res.status(500).json({ message: 'Error adding receipt item' });
+    }
+});
+
+// Increment Scanned Quantity (Control)
+app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { code, quantity } = req.body;
+
+    if (!code) return res.status(400).json({ message: 'Missing code' });
+    const qtyToAdd = quantity || 1;
+
+    try {
+        let productCode = null;
+
+        // Try exact match on code (internal)
+        const { data: pCode } = await supabase.from('products').select('code').eq('code', code).maybeSingle();
+        if (pCode) productCode = pCode.code;
+
+        if (!productCode) {
+            // Try barcode
+            const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
+            if (pBar) productCode = pBar.code;
+        }
+
+        if (!productCode) {
+            // Try provider code
+            const { data: pProv } = await supabase.from('products').select('code').eq('provider_code', code).maybeSingle();
+            if (pProv) productCode = pProv.code;
+        }
+
+        if (!productCode) {
+            return res.status(404).json({ message: 'Producto no encontrado' });
+        }
+
+        const { data: existingItem } = await supabase
+            .from('receipt_items')
+            .select('*')
+            .eq('receipt_id', id)
+            .eq('product_code', productCode)
+            .maybeSingle();
+
+        let newScanned = qtyToAdd;
+        let currentExpected = 0;
+
+        if (existingItem) {
+            newScanned = (Number(existingItem.scanned_quantity) || 0) + qtyToAdd;
+            currentExpected = existingItem.expected_quantity;
+        }
+
+        const { data: savedItem, error: saveError } = await supabase
+            .from('receipt_items')
+            .upsert({
+                receipt_id: id,
+                product_code: productCode,
+                scanned_quantity: newScanned,
+                expected_quantity: currentExpected
+            }, { onConflict: 'receipt_id, product_code' })
+            .select()
+            .single();
+
+        if (saveError) throw saveError;
+
+        res.json(savedItem);
+
+    } catch (error) {
+        console.error('Error scanning receipt item:', error);
+        res.status(500).json({ message: 'Error scanning item' });
+    }
+});
+
+// Close Receipt
+app.put('/api/receipts/:id/close', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('receipts')
+            .update({ status: 'finalized' })
+            .eq('id', id)
+            .select();
+
+        if (error) throw error;
+        res.json(data[0]);
+    } catch (error) {
+        console.error('Error closing receipt:', error);
+        res.status(500).json({ message: 'Error closing receipt' });
+    }
+});
+
+// Update Receipt Item (Manual override)
+app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
+    const { id, itemId } = req.params;
+    const { expected_quantity, scanned_quantity } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('receipt_items')
+            .update({ expected_quantity, scanned_quantity })
+            .eq('id', itemId)
+            .eq('receipt_id', id)
+            .select();
+
+        if (error) throw error;
+        res.json(data[0]);
+
+    } catch (error) {
+        console.error('Error updating receipt item:', error);
+        res.status(500).json({ message: 'Error updating item' });
     }
 });
 
@@ -2970,262 +3219,6 @@ async function getAllScansBatch(orderNumbers) {
     }
     return allScans;
 }
-
-// --- RECEIPTS ROUTES ---
-
-// Create Receipt
-app.post('/api/receipts', verifyToken, async (req, res) => {
-    const { remitoNumber } = req.body;
-    if (!remitoNumber) return res.status(400).json({ message: 'Missing remito number' });
-
-    try {
-        const { data, error } = await supabase
-            .from('receipts')
-            .insert([{
-                remito_number: remitoNumber,
-                created_by: req.user.username,
-                date: new Date()
-            }])
-            .select()
-            .single();
-
-        if (error) throw error;
-        res.status(201).json(data);
-    } catch (error) {
-        console.error('Error creating receipt:', error);
-        res.status(500).json({ message: 'Error creating receipt' });
-    }
-});
-
-// Get Receipts
-app.get('/api/receipts', verifyToken, async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from('receipts')
-            .select('*')
-            .order('date', { ascending: false });
-
-        if (error) throw error;
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching receipts:', error);
-        res.status(500).json({ message: 'Error fetching receipts' });
-    }
-});
-
-// Get Receipt Details
-app.get('/api/receipts/:id', verifyToken, async (req, res) => {
-    const { id } = req.params;
-    try {
-        const { data: receipt, error: receiptError } = await supabase
-            .from('receipts')
-            .select('*')
-            .eq('id', id)
-            .single();
-
-        if (receiptError) throw receiptError;
-
-        const { data: items, error: itemsError } = await supabase
-            .from('receipt_items')
-            .select(`
-                *,
-                products (
-                    description,
-                    brand,
-                    code,
-                    barcode,
-                    provider_code
-                )
-            `)
-            .eq('receipt_id', id);
-
-        if (itemsError) throw itemsError;
-
-        res.json({ ...receipt, items });
-    } catch (error) {
-        console.error('Error fetching receipt details:', error);
-        res.status(500).json({ message: 'Error fetching receipt details' });
-    }
-});
-
-// Add/Update Expected Item (by Provider Code or Internal Code)
-// mode: 'provider' (default) or 'internal'
-app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
-    const { id } = req.params;
-    const { code, quantity } = req.body;
-
-    if (!code || !quantity) return res.status(400).json({ message: 'Missing code or quantity' });
-
-    try {
-        // 1. Find the product first
-        // Search by provider_code first, then internal code
-        let { data: product, error: prodError } = await supabase
-            .from('products')
-            .select('code, provider_code')
-            .eq('provider_code', code)
-            .maybeSingle();
-
-        if (!product) {
-            // Try internal code
-            const { data: productInternal } = await supabase
-                .from('products')
-                .select('code, provider_code')
-                .eq('code', code)
-                .maybeSingle();
-            product = productInternal;
-        }
-
-        if (!product) {
-            return res.status(404).json({ message: 'Producto no encontrado con ese código' });
-        }
-
-        // 2. Upsert receipt_id, product_code
-        // We need to fetch existing item to add quantity or upsert
-        const { data: existingItem } = await supabase
-            .from('receipt_items')
-            .select('*')
-            .eq('receipt_id', id)
-            .eq('product_code', product.code)
-            .maybeSingle();
-
-        let newQuantity = quantity;
-        if (existingItem) {
-            // If it exists, should we add or replace? Usually add if scanning same thing again.
-            // But if modifying a line, maybe replace.
-            // Let's assume ADDING to expectation for now.
-            newQuantity = (Number(existingItem.expected_quantity) || 0) + Number(quantity);
-        }
-
-        const { data: savedItem, error: saveError } = await supabase
-            .from('receipt_items')
-            .upsert({
-                receipt_id: id,
-                product_code: product.code,
-                expected_quantity: newQuantity
-            }, { onConflict: 'receipt_id, product_code' })
-            .select()
-            .single();
-
-        if (saveError) throw saveError;
-
-        res.json(savedItem);
-    } catch (error) {
-        console.error('Error adding receipt item:', error);
-        res.status(500).json({ message: 'Error adding receipt item' });
-    }
-});
-
-// Increment Scanned Quantity (Control)
-app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
-    const { id } = req.params;
-    const { code, quantity } = req.body; // Quantity usually 1
-
-    if (!code) return res.status(400).json({ message: 'Missing code' });
-    const qtyToAdd = quantity || 1;
-
-    try {
-        // 1. Identify Product
-        // Try internal code, barcode, provider_code
-        // This logic mimics /api/products/:barcode roughly but scoped to finding ONE product code
-        let productCode = null;
-
-        // Try exact match on code (internal)
-        const { data: pCode } = await supabase.from('products').select('code').eq('code', code).maybeSingle();
-        if (pCode) productCode = pCode.code;
-
-        if (!productCode) {
-            // Try barcode
-            const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
-            if (pBar) productCode = pBar.code;
-        }
-
-        if (!productCode) {
-            // Try provider code
-            const { data: pProv } = await supabase.from('products').select('code').eq('provider_code', code).maybeSingle();
-            if (pProv) productCode = pProv.code;
-        }
-
-        if (!productCode) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
-        }
-
-        // 2. Update Receipt Item
-        // If item wasn't in "expected", we add it with expected=0
-        const { data: existingItem } = await supabase
-            .from('receipt_items')
-            .select('*')
-            .eq('receipt_id', id)
-            .eq('product_code', productCode)
-            .maybeSingle();
-
-        let newScanned = qtyToAdd;
-        let currentExpected = 0;
-
-        if (existingItem) {
-            newScanned = (Number(existingItem.scanned_quantity) || 0) + qtyToAdd;
-            currentExpected = existingItem.expected_quantity;
-        }
-
-        const { data: savedItem, error: saveError } = await supabase
-            .from('receipt_items')
-            .upsert({
-                receipt_id: id,
-                product_code: productCode,
-                scanned_quantity: newScanned,
-                expected_quantity: currentExpected // Preserve expected
-            }, { onConflict: 'receipt_id, product_code' })
-            .select()
-            .single();
-
-        if (saveError) throw saveError;
-
-        res.json(savedItem);
-
-    } catch (error) {
-        console.error('Error scanning receipt item:', error);
-        res.status(500).json({ message: 'Error scanning item' });
-    }
-});
-
-// Close Receipt
-app.put('/api/receipts/:id/close', verifyToken, async (req, res) => {
-    const { id } = req.params;
-    try {
-        const { data, error } = await supabase
-            .from('receipts')
-            .update({ status: 'finalized' })
-            .eq('id', id)
-            .select();
-
-        if (error) throw error;
-        res.json(data[0]);
-    } catch (error) {
-        console.error('Error closing receipt:', error);
-        res.status(500).json({ message: 'Error closing receipt' });
-    }
-});
-
-// Update Receipt Item (Manual override)
-app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
-    const { id, itemId } = req.params;
-    const { expected_quantity, scanned_quantity } = req.body;
-
-    try {
-        const { data, error } = await supabase
-            .from('receipt_items')
-            .update({ expected_quantity, scanned_quantity })
-            .eq('id', itemId)
-            .eq('receipt_id', id) // Security check
-            .select();
-
-        if (error) throw error;
-        res.json(data[0]);
-
-    } catch (error) {
-        console.error('Error updating receipt item:', error);
-        res.status(500).json({ message: 'Error updating item' });
-    }
-});
 
 // The catch-all handler must be at the end, after all other routes
 app.get(/(.*)/, (req, res) => {
