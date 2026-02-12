@@ -20,7 +20,8 @@ if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 5) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// Usamos gemini-1.5-flash-latest que suele ser más estable en el SDK
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 const app = express();
 const port = process.env.PORT || 3000;
