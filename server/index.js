@@ -10,8 +10,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 dotenv.config();
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -110,6 +114,54 @@ const verifyAdmin = (req, res, next) => {
         res.status(403).json({ message: 'Access denied: Admins only' });
     }
 };
+
+// AI Parsing Endpoint
+app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
+    const { text } = req.body;
+
+    if (!text || !text.trim()) {
+        return res.status(400).json({ message: 'No se recibió texto para procesar' });
+    }
+
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'tu_clave_aqui') {
+        return res.status(503).json({ message: 'AI Parsing not configured (Missing API Key)' });
+    }
+
+    try {
+        const prompt = `
+            Eres un experto en extraer datos de documentos de logística (Remitos).
+            Dado el siguiente texto extraído por un OCR de una imagen, identifica los productos, códigos y cantidades.
+            
+            REGLAS:
+            1. Devuelve SOLO un array JSON de objetos.
+            2. Cada objeto debe tener las llaves: "code" (string), "quantity" (number), "description" (string).
+            3. Si una línea no parece un producto (encabezados, fechas, totales), ignórala.
+            4. Si el código parece estar pegado a la cantidad o descripción, sepáralos.
+            5. Los códigos suelen ser numéricos largos.
+            6. Sé conservador: si no estás seguro de un campo, intenta deducirlo o ignora la línea.
+            
+            TEXTO OCR:
+            ---
+            ${text}
+            ---
+        `;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const resultText = response.text();
+
+        // Extract JSON from response (handling potential markdown formatting)
+        const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+        const parsedItems = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+        console.log(`[AI PARSER] Successfully parsed ${parsedItems.length} items`);
+        res.json(parsedItems);
+
+    } catch (error) {
+        console.error('Error in AI parsing:', error);
+        res.status(500).json({ message: 'Error procesando el texto con IA' });
+    }
+});
 
 // API Routes
 
