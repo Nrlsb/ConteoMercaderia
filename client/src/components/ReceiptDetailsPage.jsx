@@ -135,7 +135,7 @@ const ReceiptDetailsPage = () => {
     const progress = totalExpected > 0 ? (totalScanned / totalExpected) * 100 : 0;
 
     return (
-        <div className="container mx-auto p-4 flex flex-col h-[calc(100vh-80px)]">
+        <div className="container mx-auto p-4">
             {/* Header */}
             <div className="bg-white p-4 rounded shadow mb-4 flex justify-between items-center">
                 <div>
@@ -244,8 +244,8 @@ const ReceiptDetailsPage = () => {
             )}
 
             {/* Items List */}
-            <div className="bg-white shadow-md rounded-lg overflow-hidden flex-1 flex flex-col mb-6 min-h-0">
-                <div className="overflow-y-auto flex-1">
+            <div className="bg-white shadow-md rounded-lg overflow-hidden mb-6">
+                <div className="overflow-x-auto">
                     <table className="min-w-full">
                         <thead className="bg-gray-50">
                             <tr>
