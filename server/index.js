@@ -2555,27 +2555,9 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
         console.log(`[DEBUG_SCAN] Incoming sync request for order ${orderNumber} from user ${userId}. Items count: ${items.length}`);
         if (items.length > 0) console.log(`[DEBUG_SCAN] Sample item:`, items[0]);
 
-        // Prepare Upsert Data
-        const upsertData = items.map(item => ({
-            order_number: orderNumber,
-            user_id: userId,
-            code: item.code,
-            quantity: item.quantity,
-            timestamp: new Date().toISOString()
-        }));
-
-        const { error } = await supabase
-            .from('inventory_scans')
-            .upsert(upsertData, { onConflict: 'order_number, user_id, code' });
-
-        if (error) throw error;
-
-        // Populate history ONLY for changed items
+        // Prepare History Logic BEFORE Upsert
         const historyData = [];
         for (const item of items) {
-            // Fetch current quantity for comparison if not already known
-            // In /api/inventory/scan (Submit/Sync), 'items' contains TOTAL quantities.
-            // We need to know what was in the DB to decide if this is a change.
             const { data: existing } = await supabase
                 .from('inventory_scans')
                 .select('quantity')
@@ -2598,9 +2580,25 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
             }
         }
 
+        // Prepare Upsert Data
+        const upsertData = items.map(item => ({
+            order_number: orderNumber,
+            user_id: userId,
+            code: item.code,
+            quantity: item.quantity,
+            timestamp: new Date().toISOString()
+        }));
+
+        const { error: upsertError } = await supabase
+            .from('inventory_scans')
+            .upsert(upsertData, { onConflict: 'order_number, user_id, code' });
+
+        if (upsertError) throw upsertError;
+
         if (historyData.length > 0) {
             await supabase.from('inventory_scans_history').insert(historyData);
         }
+
 
         console.log(`[DEBUG_SCAN] Synced ${items.length} items for order ${orderNumber} by user ${userId}`);
 

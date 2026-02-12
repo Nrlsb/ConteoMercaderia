@@ -17,6 +17,8 @@ const RemitoForm = () => {
     const [remitoNumber, setRemitoNumber] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [isListening, setIsListening] = useState(false); // Voice Search State
+    const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
+
 
     // Report State
     const [reportConfig, setReportConfig] = useState({
@@ -626,66 +628,54 @@ const RemitoForm = () => {
 
     const handleFichajeConfirm = async (quantityToAdd) => {
         const { product, expectedQuantity } = fichajeState;
-        if (!product) return;
+        if (!product || isSubmittingFichaje) return;
 
-        setItems(prevItems => {
-            const existingItem = prevItems.find(i => i.code === product.code);
-            let newItemState;
+        setIsSubmittingFichaje(true);
 
-            // Validate against expected
-            let validationMessage = null;
-            const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
+        try {
+            setItems(prevItems => {
+                const existingItem = prevItems.find(i => i.code === product.code);
+                let validationMessage = null;
+                const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
 
-            if (expectedQuantity !== null && newTotal > expectedQuantity) {
-                validationMessage = 'Excede cantidad solicitada';
-                // We show a toast/notification? Standard logic adds it with red border.
-            }
+                if (expectedQuantity !== null && newTotal > expectedQuantity) {
+                    validationMessage = 'Excede cantidad solicitada';
+                }
 
-            if (existingItem) {
-                // Move updated item to the end so it appears as most recent
-                const updatedItem = { ...existingItem, quantity: newTotal, validationError: validationMessage };
-                return [...prevItems.filter(i => i.code !== product.code), updatedItem];
-            } else {
-                return [...prevItems, {
-                    code: product.code,
-                    name: product.name,
-                    quantity: quantityToAdd,
-                    validationError: validationMessage
-                }];
-            }
-        });
+                if (existingItem) {
+                    const updatedItem = { ...existingItem, quantity: newTotal, validationError: validationMessage };
+                    return [...prevItems.filter(i => i.code !== product.code), updatedItem];
+                } else {
+                    return [...prevItems, {
+                        code: product.code,
+                        name: product.name,
+                        quantity: quantityToAdd,
+                        validationError: validationMessage
+                    }];
+                }
+            });
 
-        // Close modal
-        setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
-
-        // Auto-sync to inventory_scans if in general count mode
-        console.log('[DEBUG_FRONTEND] Checking auto-sync conditions:', {
-            countMode,
-            hasSelectedCount: !!selectedCount,
-            selectedCountID: selectedCount?.id,
-            productCode: product.code,
-            quantity: quantityToAdd
-        });
-
-        if (countMode === 'products' && selectedCount) {
-            console.log('[DEBUG_FRONTEND] Scheduling sync...');
-            // Wait for state update, then sync
-            setTimeout(async () => {
-                console.log('[DEBUG_FRONTEND] Executing sync inside timeout...');
+            // Auto-sync to inventory_scans if in general count mode
+            if (countMode === 'products' && selectedCount) {
                 await syncToInventoryScans(product.code, quantityToAdd);
-            }, 100);
-        } else {
-            console.warn('[DEBUG_FRONTEND] Auto-sync SKIPPED. Conditions met?', countMode === 'products' && !!selectedCount);
-        }
-
-        // Optional: Trigger success sound or visual feedback
-        if (expectedQuantity !== null && expectedQuantity !== undefined) {
-            const currentQty = (items.find(i => i.code === product.code)?.quantity || 0);
-            if (currentQty + quantityToAdd > expectedQuantity) {
-                triggerModal('Advertencia', `Se ha superado la cantidad solicitada para ${product.name}`, 'warning');
             }
+
+            // Close modal only after successful sync
+            setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
+
+            if (expectedQuantity !== null && expectedQuantity !== undefined) {
+                const currentQty = (items.find(i => i.code === product.code)?.quantity || 0);
+                if (currentQty + quantityToAdd > expectedQuantity) {
+                    triggerModal('Advertencia', `Se ha superado la cantidad solicitada para ${product.name}`, 'warning');
+                }
+            }
+        } catch (error) {
+            console.error('[ERROR] handleFichajeConfirm failed:', error);
+        } finally {
+            setIsSubmittingFichaje(false);
         }
     };
+
 
     // Sync to inventory_scans for general count mode
     // Sync to inventory_scans for general count mode
@@ -920,7 +910,9 @@ const RemitoForm = () => {
                 product={fichajeState.product}
                 existingQuantity={fichajeState.existingQuantity}
                 expectedQuantity={fichajeState.expectedQuantity}
+                isSubmitting={isSubmittingFichaje}
             />
+
 
             <ReportModal
                 isOpen={reportConfig.isOpen}
