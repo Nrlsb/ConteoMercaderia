@@ -302,6 +302,86 @@ const ReceiptDetailsPage = () => {
         }
     };
 
+    const handleReopen = async () => {
+        if (!window.confirm('¿Está seguro de reabrir este ingreso? Podrá realizar cambios nuevamente.')) return;
+
+        try {
+            await api.put(`/api/receipts/${id}/reopen`, {});
+            toast.success('Ingreso reabierto');
+            fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error reabriendo:', error);
+            toast.error('Error al reabrir');
+        }
+    };
+
+    const handlePrintDifferences = () => {
+        const diffItems = items.filter(item => {
+            const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+            return diff !== 0;
+        });
+
+        if (diffItems.length === 0) {
+            toast.info('No hay diferencias para imprimir');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank');
+        const html = `
+            <html>
+                <head>
+                    <title>Diferencias de Ingreso - Remito ${receipt.remito_number}</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 20px; }
+                        h1 { color: #333; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                        th { background-color: #f4f4f4; }
+                        .diff-falta { color: #d32f2f; font-weight: bold; }
+                        .diff-sobra { color: #388e3c; font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Diferencias de Ingreso</h1>
+                    <p><strong>Remito:</strong> ${receipt.remito_number}</p>
+                    <p><strong>Fecha:</strong> ${new Date(receipt.date).toLocaleString()}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Código</th>
+                                <th>Esperado</th>
+                                <th>Escaneado</th>
+                                <th>Diferencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${diffItems.map(item => {
+            const diff = (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0);
+            const label = diff > 0 ? `Sobra ${diff}` : `Falta ${Math.abs(diff)}`;
+            const className = diff > 0 ? 'diff-sobra' : 'diff-falta';
+            return `
+                                    <tr>
+                                        <td>${item.products?.description || 'Sin descripción'}</td>
+                                        <td>${item.product_code}</td>
+                                        <td>${item.expected_quantity}</td>
+                                        <td>${item.scanned_quantity}</td>
+                                        <td class="${className}">${label}</td>
+                                    </tr>
+                                `;
+        }).join('')}
+                        </tbody>
+                    </table>
+                    <script>
+                        window.onload = () => { window.print(); window.close(); };
+                    </script>
+                </body>
+            </html>
+        `;
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
+
     const handleScanComplete = async (items) => {
         setProcessing(true);
         let successCount = 0;
@@ -351,6 +431,13 @@ const ReceiptDetailsPage = () => {
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                     <button
+                        onClick={handlePrintDifferences}
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all"
+                    >
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        Diferencias
+                    </button>
+                    <button
                         onClick={() => {
                             api.get(`/api/receipts/${id}/export`, { responseType: 'blob' })
                                 .then(response => {
@@ -370,13 +457,22 @@ const ReceiptDetailsPage = () => {
                         <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         Excel
                     </button>
-                    {receipt.status !== 'finalized' && (
+                    {receipt.status !== 'finalized' ? (
                         <button
                             onClick={handleFinalize}
                             className="bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
                         >
                             Finalizar Ingreso
                         </button>
+                    ) : (
+                        user?.role === 'admin' && (
+                            <button
+                                onClick={handleReopen}
+                                className="bg-amber-500 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-amber-600 shadow-sm transition-colors"
+                            >
+                                Reabrir Ingreso
+                            </button>
+                        )
                     )}
                 </div>
             </div>

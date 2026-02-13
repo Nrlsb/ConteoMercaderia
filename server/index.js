@@ -518,6 +518,24 @@ app.put('/api/receipts/:id/close', verifyToken, async (req, res) => {
     }
 });
 
+// Reopen Receipt (Admin only)
+app.put('/api/receipts/:id/reopen', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('receipts')
+            .update({ status: 'open' })
+            .eq('id', id)
+            .select();
+
+        if (error) throw error;
+        res.json(data[0]);
+    } catch (error) {
+        console.error('Error reopening receipt:', error);
+        res.status(500).json({ message: 'Error reopening receipt' });
+    }
+});
+
 // Update Receipt Item (Manual override)
 app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
     const { id, itemId } = req.params;
