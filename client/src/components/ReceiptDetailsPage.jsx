@@ -457,6 +457,36 @@ const ReceiptDetailsPage = () => {
                         <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         Excel
                     </button>
+                    <button
+                        onClick={() => {
+                            const diffItems = items.filter(item => {
+                                const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                return diff !== 0;
+                            });
+
+                            if (diffItems.length === 0) {
+                                toast.info('No hay diferencias para exportar');
+                                return;
+                            }
+
+                            api.get(`/api/receipts/${id}/export-differences`, { responseType: 'blob' })
+                                .then(response => {
+                                    downloadFile(new Blob([response.data]), `Diferencias_Remito_${receipt?.remito_number}.xlsx`)
+                                        .catch(err => {
+                                            console.error('Download error:', err);
+                                            toast.error('Error al procesar descarga');
+                                        });
+                                })
+                                .catch(err => {
+                                    console.error('Export error:', err);
+                                    toast.error('Error al descargar Excel de diferencias');
+                                });
+                        }}
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all"
+                    >
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Excel Dif.
+                    </button>
                     {receipt.status !== 'finalized' ? (
                         <button
                             onClick={handleFinalize}
