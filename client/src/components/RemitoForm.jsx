@@ -304,6 +304,7 @@ const RemitoForm = () => {
     });
 
     const [isLoadingXml, setIsLoadingXml] = useState(false);
+    const [xmlSelectedBranch, setXmlSelectedBranch] = useState('');
 
     const [showConfirmCreate, setShowConfirmCreate] = useState(false);
 
@@ -431,6 +432,9 @@ const RemitoForm = () => {
                 const file = files[i];
                 const formData = new FormData();
                 formData.append('file', file);
+                if (xmlSelectedBranch) {
+                    formData.append('sucursal', xmlSelectedBranch);
+                }
 
                 const response = await api.post('/api/pre-remitos/import-xml', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
@@ -1334,6 +1338,23 @@ const RemitoForm = () => {
 
                         <div className="border-t border-gray-200 pt-6 mt-2">
                             <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
+
+                            {/* Branch Selector for XML Upload */}
+                            <div className="mb-4">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
+                                <select
+                                    value={xmlSelectedBranch}
+                                    onChange={(e) => setXmlSelectedBranch(e.target.value)}
+                                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
+                                >
+                                    <option value="">Seleccionar Sucursal (Opcional)</option>
+                                    <option value="Global">Global / Casa Central</option>
+                                    {branches.map((b) => (
+                                        <option key={b.id} value={b.name}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div className="flex items-center gap-3">
                                 <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
                                     <input

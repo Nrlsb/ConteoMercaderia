@@ -2205,6 +2205,8 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
 
 // Import Stock from XML (ERP)
 app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+    const { sucursal } = req.body;
+
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
     }
@@ -2259,6 +2261,19 @@ app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ stora
             .single();
 
         if (error) throw error;
+
+        // 3. Create entry in pedidos_ventas for branch info
+        if (sucursal) {
+            const { error: pvError } = await supabase
+                .from('pedidos_ventas')
+                .insert([{
+                    order_number: orderNumber,
+                    sucursal: sucursal,
+                    numero_pv: null // Placeholder as XML might not have a PV number directly
+                }]);
+
+            if (pvError) console.error('Error creating pedidos_ventas record:', pvError);
+        }
 
         res.json({
             message: 'Stock imported successfully',
