@@ -287,7 +287,7 @@ const RemitoForm = () => {
     };
 
     // Pre-remito state
-    const [preRemitoNumber, setPreRemitoNumber] = useState('');
+    const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
     const [preRemitoList, setPreRemitoList] = useState([]);
     const [expectedItems, setExpectedItems] = useState(null); // null = no pre-remito loaded
     const [preRemitoStatus, setPreRemitoStatus] = useState(''); // 'loading', 'found', 'not_found', 'error'
@@ -378,16 +378,42 @@ const RemitoForm = () => {
     }, []);
 
     const handleLoadPreRemito = async () => {
-        if (!preRemitoNumber) return;
+        if (selectedPreRemitos.length === 0) return;
         setPreRemitoStatus('loading');
         try {
-            const response = await api.get(`/api/pre-remitos/${preRemitoNumber}`);
-            setExpectedItems(response.data.items); // items now contain { code, barcode, quantity, description } from DB
+            const results = await Promise.all(
+                selectedPreRemitos.map(num => api.get(`/api/pre-remitos/${num}`))
+            );
+
+            // Consolidate items
+            const mergedItemsMap = {};
+            const orderNumbers = [];
+
+            results.forEach(res => {
+                const { items, order_number } = res.data;
+                orderNumbers.push(order_number);
+
+                if (items && Array.isArray(items)) {
+                    items.forEach(item => {
+                        const code = item.code;
+                        if (mergedItemsMap[code]) {
+                            mergedItemsMap[code].quantity += Number(item.quantity) || 0;
+                        } else {
+                            mergedItemsMap[code] = {
+                                ...item,
+                                quantity: Number(item.quantity) || 0
+                            };
+                        }
+                    });
+                }
+            });
+
+            const mergedItems = Object.values(mergedItemsMap);
+            setExpectedItems(mergedItems);
             setPreRemitoStatus('found');
-            // Auto-fill remito number with the order number
-            setRemitoNumber(preRemitoNumber);
+            setRemitoNumber(orderNumbers.join(', '));
         } catch (error) {
-            console.error('Error loading pre-remito:', error);
+            console.error('Error loading pre-remitos:', error);
             setPreRemitoStatus('not_found');
             setExpectedItems(null);
         }
@@ -429,7 +455,7 @@ const RemitoForm = () => {
             // Auto-select and load the LAST pre-remito if only one was uploaded, 
             // otherwise just let the user pick from the updated list.
             if (files.length === 1 && lastOrderNumber) {
-                setPreRemitoNumber(lastOrderNumber);
+                setSelectedPreRemitos([lastOrderNumber]);
                 setTimeout(async () => {
                     setPreRemitoStatus('loading');
                     try {
@@ -607,7 +633,7 @@ const RemitoForm = () => {
             setItems([]);
             setRemitoNumber('');
             setExpectedItems(null);
-            setPreRemitoNumber('');
+            setSelectedPreRemitos([]);
             setPreRemitoStatus('');
         } catch (error) {
             console.error('Error submitting remito:', error);
@@ -1244,32 +1270,64 @@ const RemitoForm = () => {
 
                     <div className="grid grid-cols-1 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedido</label>
-                            <div className="flex flex-col md:flex-row gap-3">
-                                <select
-                                    value={preRemitoNumber}
-                                    onChange={(e) => setPreRemitoNumber(e.target.value)}
-                                    className="flex-1 h-12 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm text-base bg-white"
-                                >
-                                    <option value="">Seleccione un pedido...</option>
-                                    {Array.isArray(preRemitoList) && preRemitoList.map((pre) => (
-                                        <option key={pre.id} value={pre.order_number}>
-                                            {pre.inventory_id ? `ID: ${pre.inventory_id} - ` : ''}
-                                            {pre.numero_pv
-                                                ? `PV: ${pre.numero_pv} - Suc: ${pre.sucursal}`
-                                                : `Conteo #${pre.order_number.slice(-8)} (${new Date(pre.created_at).toLocaleDateString()})`}
-                                        </option>
-                                    ))}
-                                </select>
+                            <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
+                            <div className="space-y-3">
+                                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white space-y-1 custom-scrollbar">
+                                    {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
+                                        preRemitoList.map((pre) => {
+                                            const isSelected = selectedPreRemitos.includes(pre.order_number);
+                                            return (
+                                                <label
+                                                    key={pre.id}
+                                                    className={`flex items-center p-3 rounded-lg border transition cursor-pointer hover:bg-blue-50 ${isSelected ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue' : 'border-gray-100 bg-gray-50/30'}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => {
+                                                            if (isSelected) {
+                                                                setSelectedPreRemitos(selectedPreRemitos.filter(num => num !== pre.order_number));
+                                                            } else {
+                                                                setSelectedPreRemitos([...selectedPreRemitos, pre.order_number]);
+                                                            }
+                                                        }}
+                                                        className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue"
+                                                    />
+                                                    <div className="ml-3 flex-1">
+                                                        <div className="text-sm font-bold text-gray-800">
+                                                            {pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`}
+                                                        </div>
+                                                        <div className="text-xs text-brand-gray flex justify-between mt-0.5">
+                                                            <span>{pre.sucursal || 'Sin Sucursal'}</span>
+                                                            <span>{new Date(pre.created_at).toLocaleDateString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="p-4 text-center text-gray-500 text-sm italic">
+                                            No hay pedidos pendientes disponibles
+                                        </div>
+                                    )}
+                                </div>
+
                                 <button
                                     onClick={handleLoadPreRemito}
-                                    disabled={!preRemitoNumber}
-                                    className={`h-12 w-full md:w-auto px-6 rounded-lg transition font-medium shadow-sm flex items-center justify-center ${!preRemitoNumber
+                                    disabled={selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'}
+                                    className={`h-12 w-full rounded-lg transition font-medium shadow-sm flex items-center justify-center ${selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         : 'bg-brand-blue text-white hover:bg-blue-800'
                                         }`}
                                 >
-                                    Cargar
+                                    {preRemitoStatus === 'loading' ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            Cargando...
+                                        </>
+                                    ) : (
+                                        `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Pedidos` : 'Pedidos'}`
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -1307,57 +1365,22 @@ const RemitoForm = () => {
                         <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
                             <div className="flex items-center mb-2">
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                <span className="font-bold text-lg">Pedido cargado con éxito</span>
-                                <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items esperados</span>
+                                <span className="font-bold text-lg">Pedidos cargados con éxito</span>
+                                <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items consolidados</span>
                             </div>
-                            {/* Show extra info if available */}
-                            {(() => {
-                                const selectedPre = preRemitoList.find(p => p.order_number === preRemitoNumber);
-                                if (selectedPre && (selectedPre.numero_pv || selectedPre.inventory_id)) {
-                                    return (
-                                        <div className="ml-7 text-sm grid grid-cols-2 gap-4">
-                                            {selectedPre.inventory_id && (
-                                                <div>
-                                                    <span className="font-semibold text-green-700">ID Inventario:</span>
-                                                    <span className="ml-1">{selectedPre.inventory_id}</span>
-                                                </div>
-                                            )}
-                                            {selectedPre.numero_pv && (
-                                                <>
-                                                    <div>
-                                                        <span className="font-semibold text-green-700">Pedido de Venta (PV):</span>
-                                                        <span className="ml-1">{selectedPre.numero_pv}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-semibold text-green-700">Sucursal:</span>
-                                                        <span className="ml-1">{selectedPre.sucursal}</span>
-                                                    </div>
-                                                </>
-                                            )}
-                                            {selectedPre.order_number && (
-                                                <div>
-                                                    <span className="font-semibold text-green-700">Interno:</span>
-                                                    <span className="ml-1">#{selectedPre.order_number.slice(-8)}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            })()}
-                        </div>
-                    )}
-
-                    {preRemitoStatus === 'not_found' && (
-                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            <span className="font-medium">Pedido no encontrado.</span>
+                            {/* Show summary of IDs if multiple */}
+                            {selectedPreRemitos.length > 1 && (
+                                <div className="ml-7 text-xs text-green-700 mt-1">
+                                    Consolidando: {selectedPreRemitos.map(num => `#${num.slice(-6)}`).join(', ')}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8">
+
+            <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8 mt-8">
                 {/* Left Column: Inputs */}
                 <div className="lg:col-span-1 space-y-6">
                     {/* Remito Number Input Removed - Auto-assigned from Order */}

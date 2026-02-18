@@ -1102,11 +1102,12 @@ app.post('/api/remitos', verifyToken, async (req, res) => {
         if (error) throw error;
 
         // Update pre-remito status to 'processed'
-        // We don't await the result strictly for the response, but it should happen
+        // Supports multiple order numbers separated by comma
+        const orderNumbers = remitoNumber.split(',').map(n => n.trim());
         await supabase
             .from('pre_remitos')
             .update({ status: 'processed' })
-            .eq('order_number', remitoNumber);
+            .in('order_number', orderNumbers);
 
         res.status(201).json(data[0]);
     } catch (error) {
