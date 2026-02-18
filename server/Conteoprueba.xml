@@ -1,0 +1,388 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>Microsiga Protheus</Author>
+  <LastAuthor>luks benitez</LastAuthor>
+  <Created>2011-11-11T00:00:00Z</Created>
+  <Version>16.00</Version>
+ </DocumentProperties>
+ <OfficeDocumentSettings xmlns="urn:schemas-microsoft-com:office:office">
+  <AllowPNG/>
+ </OfficeDocumentSettings>
+ <ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+  <WindowHeight>7185</WindowHeight>
+  <WindowWidth>20400</WindowWidth>
+  <WindowTopX>32767</WindowTopX>
+  <WindowTopY>32767</WindowTopY>
+  <ProtectStructure>False</ProtectStructure>
+  <ProtectWindows>False</ProtectWindows>
+ </ExcelWorkbook>
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Bottom"/>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+  </Style>
+  <Style ss:ID="s63">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="3"
+     ss:Color="#FFFFFF"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#333399"/>
+   <Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s65">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#4F81BD"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#4F81BD"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#4F81BD" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s66">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#B8CCE4" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s67">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#B8CCE4" ss:Pattern="Solid"/>
+   <NumberFormat ss:Format="_-* #,##0.0000_-;\-* #,##0.0000_-;_-* &quot;-&quot;??_-;_-@_-"/>
+  </Style>
+  <Style ss:ID="s68">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s69">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/>
+   <NumberFormat ss:Format="_-* #,##0.0000_-;\-* #,##0.0000_-;_-* &quot;-&quot;??_-;_-@_-"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="1-Inventario">
+  <Table ss:ExpandedColumnCount="7" ss:ExpandedRowCount="30" x:FullColumns="1"
+   x:FullRows="1" ss:DefaultColumnWidth="42" ss:DefaultRowHeight="15">
+   <Column ss:Width="46.5"/>
+   <Column ss:Width="21.75"/>
+   <Column ss:Width="270"/>
+   <Column ss:Width="39.75" ss:Span="3"/>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:MergeAcross="6" ss:StyleID="s63"><Data ss:Type="String">Inventario</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Id Inventario</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Codigo</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Descripcion</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Saldo Stock</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Conteo 1</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Conteo 2</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Conteo 3</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">005025</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">CINTA AISLADORA DOBLE A NEGRO (C146) 18MMX10MT</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">004576</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">MEMBRANA ASFALTICA MEGAFLEX GEOTRANS X 36KG</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">4</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">005598</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">LATEX INTERIOR/EXTERIOR ALBA CONSTRUCTOR MATE GRIS PATAGONICO X 1</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">002280</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">DISCO LIJA DOBLE A MASTER PLUMA AUF8P 127X-240</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">007349</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">BS-02 ADITIVO SEC X 1</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">0.76</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">007400</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">A400 BASE SINT. EXT. RAP. X 20</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">0.64</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">007313</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">F313 AMARILLO ORGANICO X 3,5</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000835</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">PROTECTOR SUBCARROCERIA MMB ACUOSA NEGRO X 3,600</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">012327</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">FONDO CONVERTIDOR DE OXIDO ALBA MATE GRIS X 1</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001291</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">ESMALTE SINTETICO SATINOL SATINADO BASE T X 0,900</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">007053</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">IMPREGNANTE PARA MADERA CETOL BALANCE CLASSIC BRILLANTE CAOBA X  4</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">007057</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">IMPREGNANTE PARA MADERA CETOL BALANCE CLASSIC BRILLANTE NATURAL X  4</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">3</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">007190</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">IMPREGNANTE PARA MADERA CETOL BALANCE CLASSIC BRILLANTE NOGAL X  4</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">3</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">007059</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">IMPREGNANTE PARA MADERA CETOL BALANCE CLASSIC BRILLANTE ROBLE X  4</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">6</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">001646</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">ENVASE DE HOJALATA VACIO X 4</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">4</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001725</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">IMPERMEABILIZANTE PARA FRENTES Y MUROS DURALBA MATE BASE F X  8,700</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">3</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">001924</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">IMPERMEABILIZANTE PARA FRENTES PLAVICON MATE BLANCO X 12</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001737</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">IMPERMEABILIZANTE PARA FRENTES Y MUROS DURALBA MATE BASE T X 17,400</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000684</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">PROTECTOR PARA LADRILLO DURALBA SATINADO CON PELICULA CERAMICO  X  4</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">8</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000391</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">IMPERMEABILIZANTE PARA FRENTES Y MUROS DURALBA MATE BLANCO X  4</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">001734</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">IMPERMEABILIZANTE PARA FRENTES Y MUROS DURALBA MATE BASE F X  3,600</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001013</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">COLORANTE CONCENTRADO ACOTONE XY1 AMARILLO OXIDO X 0,720</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1.34</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">007003</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">MOLDURA DE TERGOPOL ATTENEAS CORNIZA AT 35 X 2 MTS.</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000452</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">ESTOPA PARA LUSTRE LUMAR BLANCA X 0,300 (31/A)</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">3</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000562</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">LIJA TELA ESMERIL DOBLE A N  80</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000780</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">LIJA RUBI FLEX DOBLE A N 120/150 F.</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000783</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">LIJA DOBLE A MASTER N 150</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">146</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000017</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001918</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">SELLADOR SINTETICO PARA FISURAS Y GRIETAS PLAVICON SELLADOR PILETAS X 0,450</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">4</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <PageSetup>
+    <Header x:Margin="0.31496062000000002"/>
+    <Footer x:Margin="0.31496062000000002"/>
+    <PageMargins x:Bottom="0.78740157499999996" x:Left="0.511811024"
+     x:Right="0.511811024" x:Top="0.78740157499999996"/>
+   </PageSetup>
+   <Unsynced/>
+   <Selected/>
+   <Panes>
+    <Pane>
+     <Number>3</Number>
+     <RangeSelection>R1C1:R1C7</RangeSelection>
+    </Pane>
+   </Panes>
+   <ProtectObjects>False</ProtectObjects>
+   <ProtectScenarios>False</ProtectScenarios>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>

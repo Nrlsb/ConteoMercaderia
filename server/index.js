@@ -2104,6 +2104,7 @@ app.get('/api/pre-remitos', verifyToken, async (req, res) => {
             .select(`
                 id,
                 order_number,
+                inventory_id,
                 created_at,
                 pedidos_ventas (
                     numero_pv,
@@ -2208,7 +2209,7 @@ app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ stora
     }
 
     try {
-        const items = await parseExcelXml(req.file.buffer);
+        const { items, inventoryId } = await parseExcelXml(req.file.buffer);
 
         if (!items || items.length === 0) {
             return res.status(400).json({ message: 'No valid items found in XML' });
@@ -2248,6 +2249,7 @@ app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ stora
             .insert([
                 {
                     order_number: orderNumber,
+                    inventory_id: inventoryId,
                     items: items, // Save parsed items [ {code, description, quantity}, ... ]
                     status: 'pending'
                 }

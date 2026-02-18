@@ -1242,9 +1242,10 @@ const RemitoForm = () => {
                                     <option value="">Seleccione un pedido...</option>
                                     {Array.isArray(preRemitoList) && preRemitoList.map((pre) => (
                                         <option key={pre.id} value={pre.order_number}>
+                                            {pre.inventory_id ? `ID: ${pre.inventory_id} - ` : ''}
                                             {pre.numero_pv
                                                 ? `PV: ${pre.numero_pv} - Suc: ${pre.sucursal}`
-                                                : `Conteo #${pre.order_number} (${new Date(pre.created_at).toLocaleDateString()})`}
+                                                : `Conteo #${pre.order_number.slice(-8)} (${new Date(pre.created_at).toLocaleDateString()})`}
                                         </option>
                                     ))}
                                 </select>
@@ -1299,21 +1300,33 @@ const RemitoForm = () => {
                             {/* Show extra info if available */}
                             {(() => {
                                 const selectedPre = preRemitoList.find(p => p.order_number === preRemitoNumber);
-                                if (selectedPre && selectedPre.numero_pv) {
+                                if (selectedPre && (selectedPre.numero_pv || selectedPre.inventory_id)) {
                                     return (
                                         <div className="ml-7 text-sm grid grid-cols-2 gap-4">
-                                            <div>
-                                                <span className="font-semibold text-green-700">Pedido de Venta (PV):</span>
-                                                <span className="ml-1">{selectedPre.numero_pv}</span>
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold text-green-700">Sucursal:</span>
-                                                <span className="ml-1">{selectedPre.sucursal}</span>
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold text-green-700">Pre-Remito:</span>
-                                                <span className="ml-1">{selectedPre.order_number}</span>
-                                            </div>
+                                            {selectedPre.inventory_id && (
+                                                <div>
+                                                    <span className="font-semibold text-green-700">ID Inventario:</span>
+                                                    <span className="ml-1">{selectedPre.inventory_id}</span>
+                                                </div>
+                                            )}
+                                            {selectedPre.numero_pv && (
+                                                <>
+                                                    <div>
+                                                        <span className="font-semibold text-green-700">Pedido de Venta (PV):</span>
+                                                        <span className="ml-1">{selectedPre.numero_pv}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-semibold text-green-700">Sucursal:</span>
+                                                        <span className="ml-1">{selectedPre.sucursal}</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {selectedPre.order_number && (
+                                                <div>
+                                                    <span className="font-semibold text-green-700">Interno:</span>
+                                                    <span className="ml-1">#{selectedPre.order_number.slice(-8)}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 }
@@ -1321,6 +1334,7 @@ const RemitoForm = () => {
                             })()}
                         </div>
                     )}
+
                     {preRemitoStatus === 'not_found' && (
                         <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -1552,7 +1566,7 @@ const RemitoForm = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
