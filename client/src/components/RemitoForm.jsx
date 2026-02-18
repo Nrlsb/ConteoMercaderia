@@ -296,13 +296,14 @@ const RemitoForm = () => {
     const [manualSuggestions, setManualSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
 
-    // Modal State
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
         title: '',
         message: '',
         type: 'info'
     });
+
+    const [isLoadingXml, setIsLoadingXml] = useState(false);
 
     const [showConfirmCreate, setShowConfirmCreate] = useState(false);
 
@@ -389,6 +390,54 @@ const RemitoForm = () => {
             console.error('Error loading pre-remito:', error);
             setPreRemitoStatus('not_found');
             setExpectedItems(null);
+        }
+    };
+
+    const handleXmlUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setIsLoadingXml(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await api.post('/api/pre-remitos/import-xml', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const newOrderNumber = response.data.orderNumber;
+            triggerModal('Éxito', `Stock importado correctamente. Pedido: ${newOrderNumber}`, 'success');
+
+            // Refresh pre-remitos list
+            const refreshRes = await api.get('/api/pre-remitos');
+            if (Array.isArray(refreshRes.data)) {
+                setPreRemitoList(refreshRes.data);
+            }
+
+            // Auto-select and load the new pre-remito
+            setPreRemitoNumber(newOrderNumber);
+
+            // We need to wait a bit for state to update or just call the loader directly
+            setTimeout(async () => {
+                setPreRemitoStatus('loading');
+                try {
+                    const detailRes = await api.get(`/api/pre-remitos/${newOrderNumber}`);
+                    setExpectedItems(detailRes.data.items);
+                    setPreRemitoStatus('found');
+                    setRemitoNumber(newOrderNumber);
+                } catch (err) {
+                    console.error('Error auto-loading new XML remito:', err);
+                }
+            }, 500);
+
+        } catch (error) {
+            console.error('Error uploading XML:', error);
+            triggerModal('Error', 'Error al importar XML Stock.', 'error');
+        } finally {
+            setIsLoadingXml(false);
+            // Reset input
+            e.target.value = '';
         }
     };
 
@@ -1210,6 +1259,33 @@ const RemitoForm = () => {
                                     Cargar
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="border-t border-gray-200 pt-6 mt-2">
+                            <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
+                            <div className="flex items-center gap-3">
+                                <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
+                                    <input
+                                        type="file"
+                                        accept=".xml"
+                                        className="hidden"
+                                        onChange={handleXmlUpload}
+                                        disabled={isLoadingXml}
+                                    />
+                                    {isLoadingXml ? (
+                                        <div className="flex items-center text-gray-500">
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            Procesando XML...
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center text-green-700">
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            <span className="font-medium text-sm">Subir DocConteo.xml</span>
+                                        </div>
+                                    )}
+                                </label>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
                         </div>
                     </div>
 
