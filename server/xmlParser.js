@@ -74,23 +74,28 @@ const parseExcelXml = async (buffer) => {
             // Col 2: Codigo (Internal)
             // ...
 
-            // Skip Header
-            if (columns[2] === 'Codigo' || columns[3] === 'Descripcion' || columns[6] === 'Saldo Stock') {
-                continue;
-            }
-
             // Extraction
             const currentInventoryId = columns[1];
             const code = columns[2];
             let description = columns[3];
-            const rawQuantity = columns[6];
+            // In the user image, Saldo Stock is in col 4 (D). 
+            // In previous versions it was mentioned as col 6.
+            const rawQuantity = columns[4] || columns[6];
 
-            // Capture inventoryId from the first data row if not already captured
-            if (!inventoryId && currentInventoryId) {
-                inventoryId = String(currentInventoryId).trim();
+            // Skip Header (Detect if "Codigo" is in col 2 or "Descripcion" in col 3)
+            if (code === 'Codigo' || description === 'Descripcion' || rawQuantity === 'Saldo Stock') {
+                continue;
             }
 
-            // Validate: Must have code and valid quantity
+            // Capture inventoryId from the first data row if it looks like a number
+            if (!inventoryId && currentInventoryId) {
+                const cleanedId = String(currentInventoryId).trim();
+                if (/^\d+$/.test(cleanedId)) {
+                    inventoryId = cleanedId;
+                }
+            }
+
+            // Validate: Must have code and valid description
             if (!code || !description) continue;
 
             description = description.trim();
