@@ -1,0 +1,316 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>Microsiga Protheus</Author>
+  <LastAuthor>luks benitez</LastAuthor>
+  <Created>2011-11-11T00:00:00Z</Created>
+  <Version>16.00</Version>
+ </DocumentProperties>
+ <OfficeDocumentSettings xmlns="urn:schemas-microsoft-com:office:office">
+  <AllowPNG/>
+ </OfficeDocumentSettings>
+ <ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+  <WindowHeight>7185</WindowHeight>
+  <WindowWidth>20400</WindowWidth>
+  <WindowTopX>32767</WindowTopX>
+  <WindowTopY>32767</WindowTopY>
+  <ProtectStructure>False</ProtectStructure>
+  <ProtectWindows>False</ProtectWindows>
+ </ExcelWorkbook>
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Bottom"/>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+  </Style>
+  <Style ss:ID="s63">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="3"
+     ss:Color="#FFFFFF"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#333399"/>
+   <Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s65">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#4F81BD"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#4F81BD"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#4F81BD" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s66">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#B8CCE4" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s67">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#B8CCE4"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#B8CCE4" ss:Pattern="Solid"/>
+   <NumberFormat ss:Format="_-* #,##0.0000_-;\-* #,##0.0000_-;_-* &quot;-&quot;??_-;_-@_-"/>
+  </Style>
+  <Style ss:ID="s68">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="s69">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Bottom"/>
+   <Borders>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"
+     ss:Color="#DCE6F1"/>
+   </Borders>
+   <Font ss:FontName="Courier New" x:Family="Swiss" ss:Size="6" ss:Color="#000000"/>
+   <Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/>
+   <NumberFormat ss:Format="_-* #,##0.0000_-;\-* #,##0.0000_-;_-* &quot;-&quot;??_-;_-@_-"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="1-Inventario">
+  <Table ss:ExpandedColumnCount="7" ss:ExpandedRowCount="22" x:FullColumns="1"
+   x:FullRows="1" ss:DefaultColumnWidth="42" ss:DefaultRowHeight="15">
+   <Column ss:Width="46.5"/>
+   <Column ss:Width="21.75"/>
+   <Column ss:Width="248.25"/>
+   <Column ss:Width="39.75" ss:Span="3"/>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:MergeAcross="6" ss:StyleID="s63"><Data ss:Type="String">Inventario</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Id Inventario</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Codigo</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Descripcion</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Saldo Stock</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Conteo 1</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Conteo 2</Data></Cell>
+    <Cell ss:StyleID="s65"><Data ss:Type="String">Conteo 3</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">005610</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">REVESTIMIENTO TEXTURADO TERPLAST REVOQUE ACRILICO CLEAR X 25</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">005609</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">REVESTIMIENTO TEXTURADO TERPLAST REVOQUE ACRILICO BLANCO X 25</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">005062</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">FONDO IMPERMEABLE TERPLAST X 25</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">003051</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">PINTURA PARA PILETA TERSUAVE AL AGUA AZUL X 10</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">004330</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">REVESTIMIENTO TEXTURADO TERPLAST ROMANO GRUESO BLANCO X 25</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">004331</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">REVESTIMIENTO TEXTURADO TERPLAST ROMANO GRUESO CLEAR X 25</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">004333</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">REVESTIMIENTO TEXTURADO TERPLAST ROMANO FINO BLANCO X 25</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">004334</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">REVESTIMIENTO TEXTURADO TERPLAST ROMANO FINO CLEAR X 25</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">003783</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">MASILLA PARA YESO TERSUAVE X 16</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">3</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001967</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">PROTECTOR PARA LADRILLO TERSIDRYL AL AGUA MATE SIN PELICULA X 10</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">001832</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">PROTECTOR PARA LADRILLO TERSIDRYL AL AGUA SEMI MATE CON PELICULA X 10</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">003784</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">MASILLA PARA YESO TERSUAVE X 32</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">4</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">001968</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">PROTECTOR PARA LADRILLO TERSIDRYL AL AGUA MATE SIN PELICULA X 20</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">001833</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">PROTECTOR PARA LADRILLO TERSIDRYL AL AGUA SEMI MATE CON PELICULA X 20</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">003052</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">PINTURA PARA PILETA TERSUAVE AL AGUA AZUL X 20</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">003056</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">PINTURA PARA PILETA TERSUAVE AL AGUA BLANCO X 10</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">003057</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">PINTURA PARA PILETA TERSUAVE AL AGUA BLANCO X 20</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">1</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">003064</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">PINTURA PARA PILETA TERSUAVE AL SOLVENTE AZUL X 10</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s66"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">003070</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">PINTURA PARA PILETA TERSUAVE AL SOLVENTE AZUL X 20</Data></Cell>
+    <Cell ss:StyleID="s67"><Data ss:Type="Number">2</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s66"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+   <Row ss:AutoFitHeight="0">
+    <Cell ss:StyleID="s68"><Data ss:Type="String">000033</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">002883</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">IMPERMEABILIZANTE PARA TECHOS TERSITECH NEGRO X 20</Data></Cell>
+    <Cell ss:StyleID="s69"><Data ss:Type="Number">4</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+    <Cell ss:StyleID="s68"><Data ss:Type="String">___________</Data></Cell>
+   </Row>
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <PageSetup>
+    <Header x:Margin="0.31496062000000002"/>
+    <Footer x:Margin="0.31496062000000002"/>
+    <PageMargins x:Bottom="0.78740157499999996" x:Left="0.511811024"
+     x:Right="0.511811024" x:Top="0.78740157499999996"/>
+   </PageSetup>
+   <Unsynced/>
+   <Selected/>
+   <Panes>
+    <Pane>
+     <Number>3</Number>
+     <RangeSelection>R1C1:R1C7</RangeSelection>
+    </Pane>
+   </Panes>
+   <ProtectObjects>False</ProtectObjects>
+   <ProtectScenarios>False</ProtectScenarios>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>

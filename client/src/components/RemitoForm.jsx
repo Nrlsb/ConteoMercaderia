@@ -394,20 +394,31 @@ const RemitoForm = () => {
     };
 
     const handleXmlUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
         setIsLoadingXml(true);
-        const formData = new FormData();
-        formData.append('file', file);
+        let lastOrderNumber = null;
 
         try {
-            const response = await api.post('/api/pre-remitos/import-xml', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const formData = new FormData();
+                formData.append('file', file);
 
-            const newOrderNumber = response.data.orderNumber;
-            triggerModal('Éxito', `Stock importado correctamente. Pedido: ${newOrderNumber}`, 'success');
+                const response = await api.post('/api/pre-remitos/import-xml', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                lastOrderNumber = response.data.orderNumber;
+                console.log(`Processed file ${i + 1}/${files.length}: ${lastOrderNumber}`);
+            }
+
+            if (files.length > 1) {
+                triggerModal('Éxito', `${files.length} archivos importados correctamente.`, 'success');
+            } else if (lastOrderNumber) {
+                triggerModal('Éxito', `Stock importado correctamente. Pedido: ${lastOrderNumber}`, 'success');
+            }
 
             // Refresh pre-remitos list
             const refreshRes = await api.get('/api/pre-remitos');
@@ -415,21 +426,22 @@ const RemitoForm = () => {
                 setPreRemitoList(refreshRes.data);
             }
 
-            // Auto-select and load the new pre-remito
-            setPreRemitoNumber(newOrderNumber);
-
-            // We need to wait a bit for state to update or just call the loader directly
-            setTimeout(async () => {
-                setPreRemitoStatus('loading');
-                try {
-                    const detailRes = await api.get(`/api/pre-remitos/${newOrderNumber}`);
-                    setExpectedItems(detailRes.data.items);
-                    setPreRemitoStatus('found');
-                    setRemitoNumber(newOrderNumber);
-                } catch (err) {
-                    console.error('Error auto-loading new XML remito:', err);
-                }
-            }, 500);
+            // Auto-select and load the LAST pre-remito if only one was uploaded, 
+            // otherwise just let the user pick from the updated list.
+            if (files.length === 1 && lastOrderNumber) {
+                setPreRemitoNumber(lastOrderNumber);
+                setTimeout(async () => {
+                    setPreRemitoStatus('loading');
+                    try {
+                        const detailRes = await api.get(`/api/pre-remitos/${lastOrderNumber}`);
+                        setExpectedItems(detailRes.data.items);
+                        setPreRemitoStatus('found');
+                        setRemitoNumber(lastOrderNumber);
+                    } catch (err) {
+                        console.error('Error auto-loading new XML remito:', err);
+                    }
+                }, 500);
+            }
 
         } catch (error) {
             console.error('Error uploading XML:', error);
@@ -1269,6 +1281,7 @@ const RemitoForm = () => {
                                     <input
                                         type="file"
                                         accept=".xml"
+                                        multiple
                                         className="hidden"
                                         onChange={handleXmlUpload}
                                         disabled={isLoadingXml}
