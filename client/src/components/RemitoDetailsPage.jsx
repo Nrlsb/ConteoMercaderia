@@ -54,60 +54,18 @@ const RemitoDetailsPage = () => {
                     }
                 }
 
-                if (isListening) {
-                    await SpeechRecognition.stop();
-                    return;
-                }
-
                 setIsListening(true);
 
-                let resultListener;
-                let stateListener;
-                let inactivityTimer;
-                let cleanupTimer;
-
-                const cleanup = () => {
-                    setIsListening(false);
-                    if (inactivityTimer) clearTimeout(inactivityTimer);
-                    if (cleanupTimer) clearTimeout(cleanupTimer);
-                    if (resultListener) resultListener.remove();
-                    if (stateListener) stateListener.remove();
-                };
-
-                const resetInactivityTimer = () => {
-                    if (inactivityTimer) clearTimeout(inactivityTimer);
-                    inactivityTimer = setTimeout(() => {
-                        console.log('Voice search: Inactivity timeout reached');
-                        cleanup();
-                        SpeechRecognition.stop();
-                    }, 5000);
-                };
-
-                stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
-                    if (data.status === false) {
-                        cleanup();
-                    }
-                });
-
-                resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
-                    resetInactivityTimer();
-                    if (data.matches && data.matches.length > 0) {
-                        setSearchTerm(data.matches[0]);
-                    }
-                });
-
-                resetInactivityTimer();
                 SpeechRecognition.start({
                     language: 'es-ES',
                     maxResults: 1,
                     prompt: 'Busque un producto...',
-                    partialResults: true,
-                    popup: false
+                    partialResults: false,
+                    popup: true
                 }).then(result => {
                     if (result && result.matches && result.matches.length > 0) {
                         setSearchTerm(result.matches[0]);
                     }
-                    // Esperamos a listeningState: false para cleanup
                 }).catch(error => {
                     console.error('Native speech start error:', error);
                     const errorDetails = error.message || String(error);
@@ -117,14 +75,9 @@ const RemitoDetailsPage = () => {
                     } else if (!errorDetails.includes('No match')) {
                         setError(`Error de voz: ${errorDetails}`);
                     }
-                    cleanup();
+                }).finally(() => {
+                    setIsListening(false);
                 });
-
-                // Timeout de seguridad (aumentado a 30s)
-                cleanupTimer = setTimeout(() => {
-                    cleanup();
-                    SpeechRecognition.stop();
-                }, 30000);
 
             } catch (error) {
                 console.error('Core Native speech error:', error);

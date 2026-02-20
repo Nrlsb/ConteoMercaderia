@@ -169,67 +169,22 @@ const RemitoForm = () => {
                     }
                 }
 
-                if (isListening) {
-                    await SpeechRecognition.stop();
-                    return;
-                }
-
                 setIsListening(true);
 
-                let resultListener;
-                let stateListener;
-                let inactivityTimer;
-                let cleanupTimer;
-
-                const cleanup = () => {
-                    setIsListening(false);
-                    if (inactivityTimer) clearTimeout(inactivityTimer);
-                    if (cleanupTimer) clearTimeout(cleanupTimer);
-                    if (resultListener) resultListener.remove();
-                    if (stateListener) stateListener.remove();
-                };
-
-                const resetInactivityTimer = () => {
-                    if (inactivityTimer) clearTimeout(inactivityTimer);
-                    inactivityTimer = setTimeout(() => {
-                        console.log('Voice search: Inactivity timeout reached');
-                        cleanup();
-                        SpeechRecognition.stop();
-                    }, 5000);
-                };
-
-                // Escuchamos el estado del micrófono para saber cuándo cerrar
-                stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
-                    console.log('Voice state status:', data.status);
-                    if (data.status === false) {
-                        cleanup();
-                    }
-                });
-
-                resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
-                    resetInactivityTimer();
-                    if (data.matches && data.matches.length > 0) {
-                        const transcript = data.matches[0];
-                        setManualCode(transcript);
-                    }
-                });
-
-                // Iniciamos el reconocimiento
-                resetInactivityTimer();
                 SpeechRecognition.start({
                     language: 'es-ES',
                     maxResults: 1,
                     prompt: 'Diga el código o nombre del producto',
-                    partialResults: true,
-                    popup: false
+                    partialResults: false,
+                    popup: true
                 }).then(result => {
-                    // En modo popup:false, este result suele llegar cuando termina la sesión
                     if (result && result.matches && result.matches.length > 0) {
                         const finalTranscript = result.matches[0];
                         setManualCode(finalTranscript);
-                        executeSearch(finalTranscript);
+                        if (typeof executeSearch === 'function') {
+                            executeSearch(finalTranscript);
+                        }
                     }
-                    // No llamamos a cleanup aquí directamente, esperamos al evento 'listeningState' con status: false
                 }).catch(error => {
                     console.error('Native speech start error:', error);
                     const errorDetails = error.message || String(error);
@@ -239,14 +194,9 @@ const RemitoForm = () => {
                     } else if (!errorDetails.includes('No match')) {
                         triggerModal('Error de Reconocimiento', `Detalle técnico: ${errorDetails}`, 'error');
                     }
-                    cleanup();
+                }).finally(() => {
+                    setIsListening(false);
                 });
-
-                // Timeout de seguridad: 30 segundos máximo por sesión de voz
-                cleanupTimer = setTimeout(() => {
-                    cleanup();
-                    SpeechRecognition.stop();
-                }, 30000);
 
             } catch (error) {
                 console.error('Core Native speech error:', error);
@@ -1488,7 +1438,7 @@ const RemitoForm = () => {
                                     </button>
                                 </div>
 
-                                {showSuggestions && manualSuggestions.length > 0 && (
+                                {showSuggestions && manualSuggestions.length > 0 && manualCode.trim() !== '' && (
                                     <ul className="absolute bottom-full left-0 min-w-full w-auto max-w-[90vw] sm:max-w-xl bg-white border border-gray-200 rounded-lg shadow-lg mb-1 max-h-60 overflow-y-auto z-50">
                                         {manualSuggestions.map((item, idx) => (
                                             <li

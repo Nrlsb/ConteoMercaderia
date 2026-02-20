@@ -113,52 +113,14 @@ const ReceiptDetailsPage = () => {
                     }
                 }
 
-                if (isListening) {
-                    await SpeechRecognition.stop();
-                    return;
-                }
-
                 setIsListening(true);
-                let resultListener;
-                let stateListener;
-                let inactivityTimer;
 
-                const cleanup = () => {
-                    setIsListening(false);
-                    if (inactivityTimer) clearTimeout(inactivityTimer);
-                    if (resultListener) resultListener.remove();
-                    if (stateListener) stateListener.remove();
-                };
-
-                const resetInactivityTimer = () => {
-                    if (inactivityTimer) clearTimeout(inactivityTimer);
-                    inactivityTimer = setTimeout(() => {
-                        console.log('Voice search: Inactivity timeout reached');
-                        cleanup();
-                        SpeechRecognition.stop();
-                    }, 5000);
-                };
-
-                stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
-                    if (data.status === false) cleanup();
-                });
-
-                resultListener = await SpeechRecognition.addListener('partialResults', (data) => {
-                    resetInactivityTimer();
-                    if (data.matches && data.matches.length > 0) {
-                        const transcript = data.matches[0];
-                        setScanInput(transcript);
-                        executeSearch(transcript);
-                    }
-                });
-
-                resetInactivityTimer();
                 SpeechRecognition.start({
                     language: 'es-ES',
                     maxResults: 1,
                     prompt: 'Diga el código o nombre del producto',
-                    partialResults: true,
-                    popup: false
+                    partialResults: false,
+                    popup: true
                 }).then(result => {
                     if (result && result.matches && result.matches.length > 0) {
                         const transcript = result.matches[0];
@@ -167,14 +129,9 @@ const ReceiptDetailsPage = () => {
                     }
                 }).catch(error => {
                     console.error('Speech error:', error);
-                    cleanup();
+                }).finally(() => {
+                    setIsListening(false);
                 });
-
-                // Safety timeout
-                setTimeout(() => {
-                    cleanup();
-                    SpeechRecognition.stop();
-                }, 30000);
 
             } catch (error) {
                 console.error('Core Voice error:', error);
@@ -204,9 +161,9 @@ const ReceiptDetailsPage = () => {
         recognition.start();
     };
 
-    const handleScan = async (e) => {
+    const handleScan = async (e, overrideCode = null) => {
         if (e) e.preventDefault();
-        const code = scanInput.trim();
+        const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
         // Try to find product in current items first (for expected quantity)
@@ -284,9 +241,10 @@ const ReceiptDetailsPage = () => {
 
     const handleBarcodeScan = (code) => {
         setScanInput(code);
-        setIsBarcodeReaderActive(false);
         // Toast with info
         toast.info(`Código capturado: ${code}`);
+        // Auto trigger the scan processing
+        setTimeout(() => handleScan(null, code), 50);
     };
 
     const handleFinalize = async () => {
@@ -570,7 +528,7 @@ const ReceiptDetailsPage = () => {
                                         disabled={processing}
                                         autoComplete="off"
                                     />
-                                    {showSuggestions && suggestions.length > 0 && (
+                                    {showSuggestions && suggestions.length > 0 && scanInput.trim() !== '' && (
                                         <div className="absolute z-50 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto">
                                             {suggestions.map((s, idx) => (
                                                 <button
@@ -582,7 +540,7 @@ const ReceiptDetailsPage = () => {
                                                         setSuggestions([]);
                                                         setShowSuggestions(false);
                                                         // Auto-scan when selected
-                                                        setTimeout(() => handleScan(), 50);
+                                                        setTimeout(() => handleScan(null, s.code), 50);
                                                     }}
                                                 >
                                                     <div className="font-bold text-gray-900">{s.description}</div>
@@ -773,7 +731,7 @@ const ReceiptDetailsPage = () => {
                     <div className="flex-1 relative">
                         <Scanner
                             onScan={handleBarcodeScan}
-                            isEnabled={isBarcodeReaderActive}
+                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen}
                         />
                     </div>
                     <div className="p-6 bg-gray-900 text-center text-gray-400 text-sm">
