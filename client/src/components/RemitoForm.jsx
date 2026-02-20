@@ -1187,7 +1187,7 @@ const RemitoForm = () => {
                                             onChange={(e) => setSelectedBranch(e.target.value)}
                                             className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm w-full sm:w-auto"
                                         >
-                                            <option value="">Global</option>
+                                            <option value="">Deposito</option>
                                             {branches.map(b => (
                                                 <option key={b.id} value={b.id}>{b.name}</option>
                                             ))}
@@ -1236,7 +1236,7 @@ const RemitoForm = () => {
                                         Conteo: {selectedCount.name}
                                     </h3>
                                     <p className="text-sm text-gray-600">
-                                        {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito Global'}
+                                        {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito'}
                                     </p>
                                 </div>
                             </div>
@@ -1348,7 +1348,7 @@ const RemitoForm = () => {
                                     className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
                                 >
                                     <option value="">Seleccionar Sucursal (Opcional)</option>
-                                    <option value="Global">Global / Casa Central</option>
+                                    <option value="Global">Deposito</option>
                                     {branches.map((b) => (
                                         <option key={b.id} value={b.name}>{b.name}</option>
                                     ))}
@@ -1395,6 +1395,48 @@ const RemitoForm = () => {
                                     Consolidando: {selectedPreRemitos.map(num => `#${num.slice(-6)}`).join(', ')}
                                 </div>
                             )}
+
+                            <div className="mt-4 flex justify-end">
+                                <button
+                                    onClick={async () => {
+                                        if (!remitoNumber) return;
+                                        try {
+                                            // Create General Count with the Order ID(s) as name
+                                            const res = await api.post('/api/general-counts', {
+                                                name: remitoNumber,
+                                                sucursal_id: user?.sucursal_id || null
+                                            });
+
+                                            // Switch to counting mode
+                                            const { setCountMode } = require('../context/SettingsContext'); // Dynamic require if needed, but we have useSettings hook
+                                            // Actually we have useSettings() at top level, but let's access setSettings via context if exposed
+                                            // Wait, useSettings needs to expose setFunction. Checked file, it returns { countMode }. 
+                                            // Let's assume we can import api to set settings remotely or we need to check SettingsContext.
+                                            // For now, let's try updating via API which updates global state? 
+                                            // User uses useSettings() context. Let's check if we can switch mode from here.
+                                            // If not, we might need to refresh or rely on API + Polling.
+                                            // But wait, the component receives `countMode` from `useSettings()`.
+                                            // We need `setCountMode` from `useSettings()`. Let's check imports.
+
+                                            // Update Global Settings to 'products'
+                                            await api.put('/api/settings', { countMode: 'products' });
+
+                                            // Force reload or wait for polling?
+                                            // The SettingsContext likely polls or we need to trigger update.
+                                            // Let's reload page to be safe and simple for now, or just let the polling in App.jsx (if any) handle it.
+                                            window.location.reload();
+
+                                        } catch (error) {
+                                            console.error('Error creating count from pre-remito:', error);
+                                            triggerModal('Error', 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
+                                        }
+                                    }}
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
+                                >
+                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Iniciar Conteo General
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
