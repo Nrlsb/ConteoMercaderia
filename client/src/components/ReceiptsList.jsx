@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
 const ReceiptsList = () => {
-    const { token } = useAuth();
+    const { user } = useAuth();
     const [receipts, setReceipts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
@@ -42,6 +42,18 @@ const ReceiptsList = () => {
         } catch (error) {
             console.error('Error creating receipt:', error);
             toast.error('Error al crear el ingreso');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('¿Está seguro de que desea eliminar este ingreso?')) return;
+        try {
+            await api.delete(`/api/receipts/${id}`);
+            toast.success('Ingreso eliminado correctamente');
+            fetchReceipts();
+        } catch (error) {
+            console.error('Error deleting receipt:', error);
+            toast.error('Error al eliminar el ingreso');
         }
     };
 
@@ -130,9 +142,19 @@ const ReceiptsList = () => {
                                     <p className="text-gray-900 whitespace-no-wrap">{receipt.created_by}</p>
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                    <Link to={`/receipts/${receipt.id}`} className="text-blue-600 hover:text-blue-900 font-bold">
-                                        Ver Detalles
-                                    </Link>
+                                    <div className="flex gap-3 items-center">
+                                        <Link to={`/receipts/${receipt.id}`} className="text-blue-600 hover:text-blue-900 font-bold">
+                                            Ver Detalles
+                                        </Link>
+                                        {user && (user.role === 'admin' || user.role === 'superadmin') && (
+                                            <button
+                                                onClick={() => handleDelete(receipt.id)}
+                                                className="text-red-600 hover:text-red-900 font-bold"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -161,7 +183,17 @@ const ReceiptsList = () => {
                         </div>
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-600">Por: <span className="font-medium">{receipt.created_by}</span></span>
-                            <span className="text-brand-blue font-bold">Ver detalles →</span>
+                            <div className="flex gap-3 items-center">
+                                {user && (user.role === 'admin' || user.role === 'superadmin') && (
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); handleDelete(receipt.id); }}
+                                        className="text-red-600 hover:text-red-900 font-bold"
+                                    >
+                                        Eliminar
+                                    </button>
+                                )}
+                                <span className="text-brand-blue font-bold">Ver detalles →</span>
+                            </div>
                         </div>
                     </Link>
                 ))}

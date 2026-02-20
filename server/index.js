@@ -545,6 +545,25 @@ app.put('/api/receipts/:id/reopen', verifyToken, verifyAdmin, async (req, res) =
     }
 });
 
+// Delete Receipt (Admin only)
+app.delete('/api/receipts/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Delete history first
+        await supabase.from('receipt_items_history').delete().eq('receipt_id', id);
+        // Delete items
+        await supabase.from('receipt_items').delete().eq('receipt_id', id);
+        // Delete receipt
+        const { error } = await supabase.from('receipts').delete().eq('id', id);
+
+        if (error) throw error;
+        res.json({ message: 'Receipt deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting receipt:', error);
+        res.status(500).json({ message: 'Error deleting receipt' });
+    }
+});
+
 // Update Receipt Item (Manual override)
 app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
     const { id, itemId } = req.params;
