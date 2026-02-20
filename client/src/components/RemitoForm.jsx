@@ -36,6 +36,12 @@ const RemitoForm = () => {
     const [branches, setBranches] = useState([]);
     const [selectedBranch, setSelectedBranch] = useState('');
 
+    // Use ref to access current selectedCount in interval without triggering re-renders
+    const selectedCountRef = React.useRef(selectedCount);
+    useEffect(() => {
+        selectedCountRef.current = selectedCount;
+    }, [selectedCount]);
+
     // Poll for active general counts
     useEffect(() => {
         let interval;
@@ -46,7 +52,6 @@ const RemitoForm = () => {
                     const counts = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
                     setActiveCounts(counts);
 
-                    // Auto-select for non-admin users
                     if (user && user.role !== 'admin' && user.role !== 'superadmin') {
                         // Find count for user's branch
                         // If user.sucursal_id is missing, maybe they differ to Global? 
@@ -61,8 +66,9 @@ const RemitoForm = () => {
                         }
                     } else {
                         // Admin logic: keep selection if valid
-                        if (selectedCount) {
-                            const current = counts.find(c => c.id === selectedCount.id);
+                        const currentRef = selectedCountRef.current;
+                        if (currentRef) {
+                            const current = counts.find(c => c.id === currentRef.id);
                             if (current) {
                                 setSelectedCount(current);
                             }
@@ -80,7 +86,7 @@ const RemitoForm = () => {
             setSelectedCount(null);
         }
         return () => clearInterval(interval);
-    }, [countMode, selectedCount?.id, user]);
+    }, [countMode, user]);
 
     // Sync RemitoNumber with SelectedCount
     useEffect(() => {
@@ -751,8 +757,8 @@ const RemitoForm = () => {
                 }
             });
 
-            // Auto-sync to inventory_scans if in general count mode
-            if (countMode === 'products' && selectedCount) {
+            // Auto-sync to inventory_scans if selectedCount is present (regardless of mode)
+            if (selectedCount) {
                 await syncToInventoryScans(product.code, quantityToAdd);
             }
 
@@ -1411,14 +1417,12 @@ const RemitoForm = () => {
                                                 sucursal_id: user?.sucursal_id || null
                                             });
 
-                                            // Switch to counting mode
-                                            // Switch to counting mode using Context (which also updates API)
-                                            await setCountMode('products');
+                                            // Don't switch mode, just set the selected count to enable scanning
+                                            setSelectedCount(res.data);
+                                            triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
 
-                                            // Force reload or wait for polling?
-                                            // The SettingsContext likely polls or we need to trigger update.
-                                            // Let's reload page to be safe and simple for now, or just let the polling in App.jsx (if any) handle it.
-                                            window.location.reload();
+                                            // We stay in 'pre_remito' mode, so validation against expectedItems continues.
+                                            // The scan engine will now sync to the backend because selectedCount is set.
 
                                         } catch (error) {
                                             console.error('Error creating count from pre-remito:', error);
@@ -1428,7 +1432,7 @@ const RemitoForm = () => {
                                     className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
                                 >
                                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    Iniciar Conteo General
+                                    Iniciar Conteo
                                 </button>
                             </div>
                         </div>
