@@ -1188,7 +1188,7 @@ const RemitoForm = () => {
                                             className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm w-full sm:w-auto"
                                         >
                                             <option value="">Deposito</option>
-                                            {branches.map(b => (
+                                            {branches.filter(b => b.name !== 'Deposito').map(b => (
                                                 <option key={b.id} value={b.id}>{b.name}</option>
                                             ))}
                                         </select>
@@ -1349,7 +1349,7 @@ const RemitoForm = () => {
                                 >
                                     <option value="">Seleccionar Sucursal (Opcional)</option>
                                     <option value="Global">Deposito</option>
-                                    {branches.map((b) => (
+                                    {branches.filter(b => b.name !== 'Deposito').map((b) => (
                                         <option key={b.id} value={b.name}>{b.name}</option>
                                     ))}
                                 </select>
