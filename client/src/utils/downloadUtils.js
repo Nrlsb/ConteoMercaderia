@@ -8,6 +8,9 @@ import { Share } from '@capacitor/share';
  * @param {string} fileName - The desired file name
  */
 export const downloadFile = async (blob, fileName) => {
+    // Sanitize filename to prevent filesystem errors with characters like "/"
+    const safeFileName = fileName.replace(/[\\/:*?"<>|]/g, '-');
+
     if (Capacitor.isNativePlatform()) {
         try {
             // 1. Convert Blob to Base64
@@ -25,14 +28,14 @@ export const downloadFile = async (blob, fileName) => {
             // 2. Write to Filesystem
             // We use Cache or Documents directory. Cache is safer for temporary exports.
             const result = await Filesystem.writeFile({
-                path: fileName,
+                path: safeFileName,
                 data: base64Data,
                 directory: Directory.Cache
             });
 
             // 3. Share the file
             await Share.share({
-                title: fileName,
+                title: safeFileName,
                 text: 'Exportando documento...',
                 url: result.uri,
                 dialogTitle: 'Compartir o Guardar archivo'
@@ -47,7 +50,7 @@ export const downloadFile = async (blob, fileName) => {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', fileName);
+        link.setAttribute('download', safeFileName);
         document.body.appendChild(link);
         link.click();
         link.remove();
