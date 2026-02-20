@@ -1299,7 +1299,11 @@ const RemitoForm = () => {
                                                     />
                                                     <div className="ml-3 flex-1">
                                                         <div className="text-sm font-bold text-gray-800">
-                                                            {pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`}
+                                                            {
+                                                                pre.order_number.startsWith('STOCK-')
+                                                                    ? `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`
+                                                                    : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
+                                                            }
                                                         </div>
                                                         <div className="text-xs text-brand-gray flex justify-between mt-0.5">
                                                             <span>{pre.sucursal || 'Sin Sucursal'}</span>

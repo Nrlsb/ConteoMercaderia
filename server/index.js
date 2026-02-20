@@ -2134,7 +2134,7 @@ app.get('/api/pre-remitos', verifyToken, async (req, res) => {
         }));
 
         // Filter by branch if not admin
-        if (req.user.role !== 'admin') {
+        if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
             const { sucursal_id } = req.user;
             if (sucursal_id) {
                 // Get branch name
