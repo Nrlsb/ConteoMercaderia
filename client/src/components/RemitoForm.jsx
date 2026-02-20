@@ -47,7 +47,7 @@ const RemitoForm = () => {
                     setActiveCounts(counts);
 
                     // Auto-select for non-admin users
-                    if (user && user.role !== 'admin') {
+                    if (user && user.role !== 'admin' && user.role !== 'superadmin') {
                         // Find count for user's branch
                         // If user.sucursal_id is missing, maybe they differ to Global? 
                         // For now assuming strict match or fallback to Global if sucursal_id is null in count

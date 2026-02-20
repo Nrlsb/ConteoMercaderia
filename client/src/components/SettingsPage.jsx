@@ -8,7 +8,7 @@ const SettingsPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    if (user?.role !== 'admin') {
+    if (user?.role !== 'admin' && user?.role !== 'superadmin') {
         return (
             <div className="p-8 text-center text-red-600 font-bold">
                 No tienes permisos para acceder a esta configuración.

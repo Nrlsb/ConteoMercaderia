@@ -41,22 +41,22 @@ const Navigation = () => {
 
                 {/* Desktop Menu */}
                 <div className="hidden md:flex items-center space-x-4">
-                    {(user?.role === 'admin' || user?.role !== 'supervisor') && (
+                    {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role !== 'supervisor') && (
                         <Link to="/" className={getLinkClass('/')}>Nuevo Conteo</Link>
                     )}
-                    {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                    {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'supervisor') && (
                         <Link to="/list" className={getLinkClass('/list')}>Historial</Link>
                     )}
                     {/* {user?.role === 'admin' && (
                         <Link to="/discrepancies" className={getLinkClass('/discrepancies')}>Discrepancias</Link>
                     )} */}
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
                         <Link to="/admin" className={getLinkClass('/admin')}>Importar</Link>
                     )}
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
                         <Link to="/settings" className={getLinkClass('/settings')}>Configuración</Link>
                     )}
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
                         <Link to="/stock" className={getLinkClass('/stock')}>Stock</Link>
                     )}
                     <Link to="/receipts" className={getLinkClass('/receipts')}>Ingresos</Link>
@@ -94,22 +94,22 @@ const Navigation = () => {
             {isOpen && (
                 <div className="md:hidden bg-blue-900 border-t border-blue-800">
                     <div className="px-2 pt-2 pb-3 space-y-1">
-                        {(user?.role === 'admin' || user?.role !== 'supervisor') && (
+                        {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role !== 'supervisor') && (
                             <Link to="/" className={getMobileLinkClass('/')} onClick={() => setIsOpen(false)}>Nuevo Conteo</Link>
                         )}
-                        {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                        {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'supervisor') && (
                             <Link to="/list" className={getMobileLinkClass('/list')} onClick={() => setIsOpen(false)}>Historial</Link>
                         )}
                         {/* {user?.role === 'admin' && (
                             <Link to="/discrepancies" className={getMobileLinkClass('/discrepancies')} onClick={() => setIsOpen(false)}>Discrepancias</Link>
                         )} */}
-                        {user?.role === 'admin' && (
+                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
                             <Link to="/admin" className={getMobileLinkClass('/admin')} onClick={() => setIsOpen(false)}>Importar</Link>
                         )}
-                        {user?.role === 'admin' && (
+                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
                             <Link to="/settings" className={getMobileLinkClass('/settings')} onClick={() => setIsOpen(false)}>Configuración</Link>
                         )}
-                        {user?.role === 'admin' && (
+                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
                             <Link to="/stock" className={getMobileLinkClass('/stock')} onClick={() => setIsOpen(false)}>Stock</Link>
                         )}
                         <Link to="/receipts" className={getMobileLinkClass('/receipts')} onClick={() => setIsOpen(false)}>Ingresos</Link>

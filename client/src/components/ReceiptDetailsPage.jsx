@@ -488,7 +488,7 @@ const ReceiptDetailsPage = () => {
                             Finalizar Ingreso
                         </button>
                     ) : (
-                        user?.role === 'admin' && (
+                        (user?.role === 'admin' || user?.role === 'superadmin') && (
                             <button
                                 onClick={handleReopen}
                                 className="bg-amber-500 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-amber-600 shadow-sm transition-colors"
