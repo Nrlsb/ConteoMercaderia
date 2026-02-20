@@ -2400,7 +2400,7 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
 
     try {
         let finalSucursalId = sucursal_id || null;
-        let createdBy = req.user.username || 'System';
+        let createdBy = req.user.id;
 
         // Enforce branch for non-admins
         if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
