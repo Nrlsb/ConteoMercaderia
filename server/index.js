@@ -2422,6 +2422,24 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
             .single();
 
         if (error) {
+            // Handle FK violation (User ID mismatch between public.users and auth.users/referenced table)
+            if (error.code === '23503') {
+                console.warn(`FK Violation on created_by (${createdBy}). Retrying with NULL.`);
+                const { data: retryData, error: retryError } = await supabase
+                    .from('general_counts')
+                    .insert([{
+                        name,
+                        status: 'open',
+                        sucursal_id: finalSucursalId,
+                        created_by: null
+                    }])
+                    .select()
+                    .single();
+
+                if (retryError) throw retryError;
+                return res.json(retryData);
+            }
+
             if (error.code === '42P01') {
                 return res.status(500).json({ message: 'Table missing. Run setup_general_counts.sql' });
             }
