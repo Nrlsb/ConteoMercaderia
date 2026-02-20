@@ -2213,7 +2213,7 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
 });
 
 // Import Stock from XML (ERP)
-app.post('/api/pre-remitos/import-xml', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
     const { sucursal } = req.body;
 
     if (!req.file) {
