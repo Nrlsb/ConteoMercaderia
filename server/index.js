@@ -2394,19 +2394,29 @@ app.get('/api/general-counts/active', verifyToken, async (req, res) => {
     }
 });
 
-app.post('/api/general-counts', verifyToken, verifyAdmin, async (req, res) => {
+app.post('/api/general-counts', verifyToken, async (req, res) => {
     const { name, sucursal_id } = req.body;
     if (!name) return res.status(400).json({ message: 'Name is required' });
 
     try {
-        // Removed check for existing open count to allow multiples
+        let finalSucursalId = sucursal_id || null;
+        let createdBy = req.user.username || 'System';
+
+        // Enforce branch for non-admins
+        if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+            if (!req.user.sucursal_id) {
+                return res.status(403).json({ message: 'Usuario sin sucursal asignada no puede crear conteos.' });
+            }
+            finalSucursalId = req.user.sucursal_id;
+        }
 
         const { data, error } = await supabase
             .from('general_counts')
             .insert([{
                 name,
                 status: 'open',
-                sucursal_id: sucursal_id || null // Optional: defaults to null (Global/Deposito implicitly or just no branch filter)
+                sucursal_id: finalSucursalId,
+                created_by: createdBy
             }])
             .select()
             .single();
