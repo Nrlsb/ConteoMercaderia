@@ -64,7 +64,7 @@ const Navigation = () => {
                         <div className="flex flex-col items-end">
                             <span className="text-sm font-medium leading-none">{user?.username}</span>
                             <span className="text-xs text-blue-200">
-                                {user?.role === 'admin' ? 'Administrador' : user?.role === 'supervisor' ? 'Supervisor' : 'Operador'}
+                                {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Administrador' : user?.role === 'supervisor' ? 'Supervisor' : 'Operador'}
                             </span>
                         </div>
                         <button
@@ -119,7 +119,7 @@ const Navigation = () => {
                             <div className="ml-3">
                                 <div className="text-base font-medium leading-none text-white">{user?.username}</div>
                                 <div className="text-sm font-medium leading-none text-blue-300 mt-1">
-                                    {user?.role === 'admin' ? 'Administrador' : user?.role === 'supervisor' ? 'Supervisor' : 'Operador'}
+                                    {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Administrador' : user?.role === 'supervisor' ? 'Supervisor' : 'Operador'}
                                 </div>
                             </div>
                             <button
