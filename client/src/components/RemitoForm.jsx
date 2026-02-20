@@ -12,7 +12,7 @@ import { Capacitor } from '@capacitor/core';
 
 const RemitoForm = () => {
     const { user } = useAuth();
-    const { countMode } = useSettings();
+    const { countMode, setCountMode } = useSettings();
     const [items, setItems] = useState([]);
     const [manualCode, setManualCode] = useState('');
     const [remitoNumber, setRemitoNumber] = useState('');
@@ -1412,18 +1412,8 @@ const RemitoForm = () => {
                                             });
 
                                             // Switch to counting mode
-                                            const { setCountMode } = require('../context/SettingsContext'); // Dynamic require if needed, but we have useSettings hook
-                                            // Actually we have useSettings() at top level, but let's access setSettings via context if exposed
-                                            // Wait, useSettings needs to expose setFunction. Checked file, it returns { countMode }. 
-                                            // Let's assume we can import api to set settings remotely or we need to check SettingsContext.
-                                            // For now, let's try updating via API which updates global state? 
-                                            // User uses useSettings() context. Let's check if we can switch mode from here.
-                                            // If not, we might need to refresh or rely on API + Polling.
-                                            // But wait, the component receives `countMode` from `useSettings()`.
-                                            // We need `setCountMode` from `useSettings()`. Let's check imports.
-
-                                            // Update Global Settings to 'products'
-                                            await api.put('/api/settings', { countMode: 'products' });
+                                            // Switch to counting mode using Context (which also updates API)
+                                            await setCountMode('products');
 
                                             // Force reload or wait for polling?
                                             // The SettingsContext likely polls or we need to trigger update.
