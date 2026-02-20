@@ -1,18 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api';
 import { toast } from 'sonner';
-import { Edit2, Save, X } from 'lucide-react';
+import { Edit2, Save, X, UserPlus, Trash2 } from 'lucide-react';
 
 const UsersManage = () => {
     const [users, setUsers] = useState([]);
     const [branches, setBranches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState(null);
-    const [formData, setFormData] = useState({ role: '', sucursal_id: '', password: '' });
+    const [isCreating, setIsCreating] = useState(false);
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '' });
+
+    // Get current user from storage or context (quick fix as we don't have context here)
+    const [currentUser, setCurrentUser] = useState(null);
 
     useEffect(() => {
         fetchData();
+        checkCurrentUser();
     }, []);
+
+    const checkCurrentUser = async () => {
+        try {
+            const res = await axios.get('/api/auth/user');
+            setCurrentUser(res.data);
+        } catch (error) {
+            console.error('Error fetching current user', error);
+        }
+    }
 
     const fetchData = async () => {
         setLoading(true);
@@ -33,49 +47,115 @@ const UsersManage = () => {
 
     const handleEdit = (user) => {
         setEditingUser(user);
+        setIsCreating(false);
         setFormData({
+            username: user.username,
             role: user.role,
             sucursal_id: user.sucursal_id || '',
             password: '' // Reset password field
         });
     };
 
+    const handleCreate = () => {
+        setEditingUser(null);
+        setIsCreating(true);
+        setFormData({
+            username: '',
+            password: '',
+            role: 'user',
+            sucursal_id: ''
+        });
+    }
+
     const handleCancel = () => {
         setEditingUser(null);
-        setFormData({ role: '', sucursal_id: '', password: '' });
+        setIsCreating(false);
+        setFormData({ username: '', password: '', role: '', sucursal_id: '' });
     };
+
+    const handleDelete = async (id) => {
+        if (!confirm('¿Estás seguro de que deseas eliminar este usuario?')) return;
+        try {
+            await axios.delete(`/api/users/${id}`);
+            toast.success('Usuario eliminado');
+            fetchData();
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al eliminar usuario');
+        }
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const payload = {
-                role: formData.role,
-                sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id
-            };
-            if (formData.password) {
-                payload.password = formData.password;
-            }
+            if (isCreating) {
+                if (!formData.username || !formData.password || !formData.role) {
+                    return toast.error('Por favor completa todos los campos requeridos');
+                }
+                const payload = {
+                    username: formData.username,
+                    password: formData.password,
+                    role: formData.role,
+                    sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id
+                };
+                await axios.post('/api/users', payload);
+                toast.success('Usuario creado exitosamente');
+            } else {
+                const payload = {
+                    role: formData.role,
+                    sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id
+                };
+                if (formData.password) {
+                    payload.password = formData.password;
+                }
 
-            await axios.put(`/api/users/${editingUser.id}`, payload);
-            toast.success('Usuario actualizado');
+                await axios.put(`/api/users/${editingUser.id}`, payload);
+                toast.success('Usuario actualizado');
+            }
             fetchData();
             handleCancel();
         } catch (error) {
             console.error(error);
-            toast.error('Error al actualizar usuario');
+            toast.error(error.response?.data?.message || 'Error al guardar usuario');
         }
     };
 
     if (loading) return <div className="p-4">Cargando usuarios...</div>;
 
+    const isSuperAdmin = currentUser?.role === 'superadmin';
+
     return (
         <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-            <h2 className="text-xl font-bold mb-4">Gestión de Usuarios</h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Gestión de Usuarios</h2>
+                {isSuperAdmin && (
+                    <button
+                        onClick={handleCreate}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded flex items-center gap-2 text-sm"
+                    >
+                        <UserPlus size={16} /> Nuevo Usuario
+                    </button>
+                )}
+            </div>
 
-            {editingUser && (
+            {(editingUser || isCreating) && (
                 <form onSubmit={handleSubmit} className="mb-6 p-4 bg-gray-50 rounded border border-gray-200">
-                    <h3 className="text-lg font-semibold mb-3">Editar Usuario: {editingUser.username}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <h3 className="text-lg font-semibold mb-3">
+                        {isCreating ? 'Crear Nuevo Usuario' : `Editar Usuario: ${editingUser.username}`}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        {isCreating && (
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Usuario</label>
+                                <input
+                                    type="text"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                    required
+                                />
+                            </div>
+                        )}
                         <div>
                             <label className="block text-gray-700 text-sm font-bold mb-2">Rol</label>
                             <select
@@ -86,6 +166,7 @@ const UsersManage = () => {
                                 <option value="user">Usuario</option>
                                 <option value="admin">Administrador</option>
                                 <option value="supervisor">Supervisor</option>
+                                {isSuperAdmin && <option value="superadmin">Superadmin</option>}
                             </select>
                         </div>
                         <div>
@@ -102,13 +183,16 @@ const UsersManage = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Nueva Contraseña (Opcional)</label>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">
+                                {isCreating ? 'Contraseña' : 'Nueva Contraseña (Opcional)'}
+                            </label>
                             <input
                                 type="password"
                                 value={formData.password}
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                placeholder="Dejar en blanco para no cambiar"
+                                placeholder={isCreating ? "Contraseña requerida" : "Dejar en blanco para no cambiar"}
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                required={isCreating}
                             />
                         </div>
                     </div>
@@ -147,13 +231,21 @@ const UsersManage = () => {
                             <span className="font-medium">Sucursal:</span> {user.sucursal_name || 'Sin Asignar'}
                         </div>
 
-                        <div className="flex justify-end pt-3 border-t border-gray-100">
+                        <div className="flex justify-end pt-3 border-t border-gray-100 gap-2">
                             <button
                                 onClick={() => handleEdit(user)}
                                 className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
                             >
                                 <Edit2 size={16} className="mr-1" /> Editar
                             </button>
+                            {isSuperAdmin && (
+                                <button
+                                    onClick={() => handleDelete(user.id)}
+                                    className="flex items-center text-red-600 hover:text-red-800 text-sm font-medium"
+                                >
+                                    <Trash2 size={16} className="mr-1" /> Eliminar
+                                </button>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -190,6 +282,15 @@ const UsersManage = () => {
                                         >
                                             <Edit2 size={18} />
                                         </button>
+                                        {isSuperAdmin && (
+                                            <button
+                                                onClick={() => handleDelete(user.id)}
+                                                className="text-red-600 hover:text-red-800"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                 </td>
                             </tr>

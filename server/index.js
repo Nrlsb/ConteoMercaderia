@@ -114,10 +114,19 @@ const verifyToken = async (req, res, next) => {
 
 // Middleware to verify admin role
 const verifyAdmin = (req, res, next) => {
-    if (req.user && req.user.role === 'admin') {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
         next();
     } else {
         res.status(403).json({ message: 'Access denied: Admins only' });
+    }
+};
+
+// Middleware to verify superadmin role
+const verifySuperAdmin = (req, res, next) => {
+    if (req.user && req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(403).json({ message: 'Access denied: Superadmins only' });
     }
 };
 
@@ -3111,7 +3120,7 @@ app.delete('/api/sucursales/:id', verifyToken, verifyAdmin, async (req, res) => 
     }
 });
 
-// --- User Management Routes (Admin) ---
+// --- User Management Routes (Admin/Superadmin) ---
 
 // Get all users
 app.get('/api/users', verifyToken, verifyAdmin, async (req, res) => {
@@ -3136,12 +3145,78 @@ app.get('/api/users', verifyToken, verifyAdmin, async (req, res) => {
     }
 });
 
-// Update user (including sucursal)
+// Create User (Superadmin)
+app.post('/api/users', verifyToken, verifySuperAdmin, async (req, res) => {
+    const { username, password, role, sucursal_id } = req.body;
+
+    if (!username || !password || !role) {
+        return res.status(400).json({ message: 'Faltan datos requeridos (usuario, contraseña, rol)' });
+    }
+
+    try {
+        // Check if user exists
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle();
+
+        if (existingUser) {
+            return res.status(400).json({ message: 'El nombre de usuario ya existe' });
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Generate Session ID
+        const sessionId = uuidv4();
+
+        const newUser = {
+            username,
+            password: hashedPassword,
+            role,
+            sucursal_id: sucursal_id || null,
+            current_session_id: sessionId,
+            is_session_active: false
+        };
+
+        const { data, error } = await supabase
+            .from('users')
+            .insert([newUser])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json({ message: 'Usuario creado exitosamente', user: data });
+
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ message: 'Error al crear usuario' });
+    }
+});
+
+// Update user (including sucursal and role)
 app.put('/api/users/:id', verifyToken, verifyAdmin, async (req, res) => {
     const { id } = req.params;
     const { role, sucursal_id, password } = req.body;
+    const requesterRole = req.user.role;
 
     try {
+        // Prevent admins from modifying superadmins or creating/promoting to superadmin
+        if (requesterRole !== 'superadmin') {
+            // Check if target user is superadmin
+            const { data: targetUser } = await supabase.from('users').select('role').eq('id', id).single();
+            if (targetUser && targetUser.role === 'superadmin') {
+                return res.status(403).json({ message: 'No tienes permiso para modificar a un Superadmin' });
+            }
+            // Check if trying to promote to superadmin
+            if (role === 'superadmin') {
+                return res.status(403).json({ message: 'No tienes permiso para asignar el rol de Superadmin' });
+            }
+        }
+
         const updates = {};
         if (role) updates.role = role;
         if (sucursal_id !== undefined) updates.sucursal_id = sucursal_id; // Allow null to clear
@@ -3162,6 +3237,24 @@ app.put('/api/users/:id', verifyToken, verifyAdmin, async (req, res) => {
     } catch (error) {
         console.error('Error updating user:', error);
         res.status(500).json({ message: 'Error updating user' });
+    }
+});
+
+// Delete User (Superadmin)
+app.delete('/api/users/:id', verifyToken, verifySuperAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const { error } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        res.json({ message: 'User deleted' });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ message: 'Error withdrawing user' });
     }
 });
 

@@ -25,6 +25,11 @@ const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
   if (loading) return <div className="flex justify-center items-center h-screen">Cargando...</div>;
   if (!isAuthenticated) return <Navigate to="/login" />;
+
+  if (role === 'admin' && user?.role === 'superadmin') {
+    return children;
+  }
+
   if (role && user?.role !== role) return <Navigate to="/" />;
   return children;
 };
