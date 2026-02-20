@@ -1145,6 +1145,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 status,
                 items,
                 created_at,
+                id_inventory,
                 pedidos_ventas (
                     numero_pv,
                     sucursal
@@ -1171,6 +1172,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             preRemitoMap[pre.order_number] = {
                 numero_pv: pre.pedidos_ventas?.[0]?.numero_pv || '-',
                 sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
+                id_inventory: pre.id_inventory,
                 items: pre.items || []
             };
         });
@@ -1289,7 +1291,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 date: pre.created_at,
                 numero_pv: pre.pedidos_ventas?.[0]?.numero_pv || '-',
                 sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
-                count_name: countsMap[pre.order_number] || null,
+                count_name: countsMap[pre.order_number] || pre.id_inventory || null,
                 progress: stats.progress,
                 scanned_brands: stats.scanned_brands,
                 is_finalized: false,
@@ -1328,7 +1330,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 ...remito,
                 numero_pv: extraInfo.numero_pv,
                 sucursal: extraInfo.sucursal,
-                count_name: countName || null,
+                count_name: countName || extraInfo.id_inventory || null,
                 is_finalized: true,
                 type: 'remito'
             };
@@ -2261,7 +2263,7 @@ app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.me
             .insert([
                 {
                     order_number: orderNumber,
-                    inventory_id: inventoryId,
+                    id_inventory: inventoryId,
                     items: items, // Save parsed items [ {code, description, quantity}, ... ]
                     status: 'pending'
                 }

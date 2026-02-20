@@ -28,6 +28,7 @@ create table if not exists pre_remitos (
   order_number text unique not null,
   items jsonb, -- Stores array of items
   status text default 'pending',
+  id_inventory text,
   created_at timestamp with time zone default now()
 );
 
