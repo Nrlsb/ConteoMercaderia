@@ -84,6 +84,11 @@ const RemitoList = () => {
 
     // Filter Logic
     const filteredRemitos = remitos.filter(remito => {
+        // Enforce: Only initiated (general_count) or finalized (remito)
+        if (remito.type === 'pre_remito') return false;
+        // User requested: "Si el conteo fue eliminado no lo muestres"
+        if (remito.status === 'voided') return false;
+
         const matchesSearch = remito.remito_number.toLowerCase().includes(searchTerm.toLowerCase());
 
         let matchesDate = true;
