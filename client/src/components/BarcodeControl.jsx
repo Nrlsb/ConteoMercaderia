@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import Scanner from './Scanner';
+import api from '../api';
 
 const BarcodeControl = () => {
     const [scannedBarcode, setScannedBarcode] = useState('');
@@ -47,33 +48,24 @@ const BarcodeControl = () => {
         setSearchResults([]);
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/products/barcode/${code}`, {
-                headers: {
-                    'x-auth-token': token
-                }
+            const response = await api.get(`/api/products/barcode/${code}`);
+            const data = response.data;
+            setProduct(data);
+            setEditData({
+                description: data.description || '',
+                code: data.code || '',
+                barcode: data.barcode || '',
+                provider_code: data.provider_code || ''
             });
-
-            if (res.ok) {
-                const data = await res.json();
-                setProduct(data);
-                setEditData({
-                    description: data.description || '',
-                    code: data.code || '',
-                    barcode: data.barcode || '',
-                    provider_code: data.provider_code || ''
-                });
-            } else if (res.status === 404) {
-                setError('code_not_found'); // Special error state
-            } else {
-                const errData = await res.json();
-                setError(errData.message || 'Error al buscar el producto');
-                toast.error('Error al buscar el producto');
-            }
         } catch (err) {
             console.error('Lookup error:', err);
-            setError('Error de conexión');
-            toast.error('Error de conexión');
+            if (err.response && err.response.status === 404) {
+                setError('code_not_found'); // Special error state
+            } else {
+                const msg = err.response?.data?.message || 'Error al buscar el producto';
+                setError(msg);
+                toast.error(msg);
+            }
         } finally {
             setLoading(false);
             setInputBarcode(''); // clear input for next scan
@@ -86,28 +78,15 @@ const BarcodeControl = () => {
         if (!product) return;
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/products/${product.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-                body: JSON.stringify(editData)
-            });
-
-            if (res.ok) {
-                const updated = await res.json();
-                setProduct(updated);
-                setEditMode(false);
-                toast.success('Producto actualizado correctamente');
-            } else {
-                const errData = await res.json();
-                toast.error(errData.message || 'Error al actualizar');
-            }
+            const response = await api.put(`/api/products/${product.id}`, editData);
+            const updated = response.data;
+            setProduct(updated);
+            setEditMode(false);
+            toast.success('Producto actualizado correctamente');
         } catch (err) {
             console.error('Update error:', err);
-            toast.error('Error de conexión al actualizar');
+            const msg = err.response?.data?.message || 'Error al actualizar';
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
@@ -119,19 +98,11 @@ const BarcodeControl = () => {
 
         setSearching(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/products/search?q=${encodeURIComponent(searchQuery)}`, {
-                headers: { 'x-auth-token': token }
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setSearchResults(data);
-                if (data.length === 0) {
-                    toast.info('No se encontraron productos para esta búsqueda');
-                }
-            } else {
-                toast.error('Error al realizar la búsqueda');
+            const response = await api.get(`/api/products/search?q=${encodeURIComponent(searchQuery)}`);
+            const data = response.data;
+            setSearchResults(data);
+            if (data.length === 0) {
+                toast.info('No se encontraron productos para esta búsqueda');
             }
         } catch (err) {
             console.error('Search error:', err);
@@ -148,37 +119,24 @@ const BarcodeControl = () => {
 
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/products/${selectedProduct.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-                body: JSON.stringify({ barcode: scannedBarcode })
+            const response = await api.put(`/api/products/${selectedProduct.id}`, { barcode: scannedBarcode });
+            const updated = response.data;
+            toast.success('Código de barras vinculado exitosamente');
+            // Refresh the view to show the newly linked product
+            setProduct(updated);
+            setEditData({
+                description: updated.description || '',
+                code: updated.code || '',
+                barcode: updated.barcode || '',
+                provider_code: updated.provider_code || ''
             });
-
-            if (res.ok) {
-                const updated = await res.json();
-                toast.success('Código de barras vinculado exitosamente');
-                // Refresh the view to show the newly linked product
-                setProduct(updated);
-                setEditData({
-                    description: updated.description || '',
-                    code: updated.code || '',
-                    barcode: updated.barcode || '',
-                    provider_code: updated.provider_code || ''
-                });
-                setError(null);
-                setSearchQuery('');
-                setSearchResults([]);
-            } else {
-                const errData = await res.json();
-                toast.error(errData.message || 'Error al vincular el código');
-            }
+            setError(null);
+            setSearchQuery('');
+            setSearchResults([]);
         } catch (err) {
             console.error('Link error:', err);
-            toast.error('Error de conexión al vincular');
+            const msg = err.response?.data?.message || 'Error al vincular el código';
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
