@@ -20,6 +20,7 @@ const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const StockPage = lazy(() => import('./components/StockPage'));
 const ReceiptsList = lazy(() => import('./components/ReceiptsList'));
 const ReceiptDetailsPage = lazy(() => import('./components/ReceiptDetailsPage'));
+const BarcodeControl = lazy(() => import('./components/BarcodeControl'));
 
 const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -117,6 +118,11 @@ const AppContent = () => {
                 <Route path="/receipts/:id" element={
                   <ProtectedRoute>
                     <ReceiptDetailsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/barcode-control" element={
+                  <ProtectedRoute>
+                    <BarcodeControl />
                   </ProtectedRoute>
                 } />
               </Routes>

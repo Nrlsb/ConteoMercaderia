@@ -784,6 +784,83 @@ app.get('/api/receipts/:id/export-differences', verifyToken, async (req, res) =>
 
 // API Routes
 
+// --- PRODUCT CONTROL ENDPOINTS ---
+
+// Search products by query (description, code, or provider code)
+app.get('/api/products/search', verifyToken, async (req, res) => {
+    const { q } = req.query;
+    if (!q) {
+        return res.status(400).json({ message: 'Se requiere un término de búsqueda' });
+    }
+
+    try {
+        const queryTerm = `%${q}%`;
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .or(`description.ilike.${queryTerm},code.ilike.${queryTerm},provider_code.ilike.${queryTerm}`)
+            .limit(20);
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error searching products:', error);
+        res.status(500).json({ message: 'Error al buscar productos' });
+    }
+});
+
+// Get product by exact barcode
+app.get('/api/products/barcode/:barcode', verifyToken, async (req, res) => {
+    const { barcode } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('barcode', barcode)
+            .maybeSingle();
+
+        if (error) throw error;
+        
+        if (!data) {
+            return res.status(404).json({ message: 'Producto no encontrado' });
+        }
+        
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching product by barcode:', error);
+        res.status(500).json({ message: 'Error al buscar producto por código de barras' });
+    }
+});
+
+// Update product details
+app.put('/api/products/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { description, code, barcode, provider_code } = req.body;
+
+    try {
+        const updateData = {};
+        if (description !== undefined) updateData.description = description;
+        if (code !== undefined) updateData.code = code;
+        if (barcode !== undefined) updateData.barcode = barcode;
+        if (provider_code !== undefined) updateData.provider_code = provider_code;
+
+        const { data, error } = await supabase
+            .from('products')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        
+        res.json(data);
+    } catch (error) {
+        console.error('Error updating product:', error);
+        res.status(500).json({ message: 'Error al actualizar producto' });
+    }
+});
+
 // Product Import Endpoint (Admin only)
 app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
     if (!req.file) {
