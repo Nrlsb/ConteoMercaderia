@@ -958,7 +958,7 @@ const RemitoForm = () => {
     };
 
     return (
-        <div className="max-w-5xl mx-auto bg-white md:p-8 p-4 rounded-xl shadow-none md:shadow-xl my-0 md:my-8 border-none md:border border-gray-200 relative min-h-screen md:min-h-0">
+        <div className="relative w-full h-full">
             <Modal
                 isOpen={modalConfig.isOpen}
                 onClose={closeModal}
@@ -1111,512 +1111,514 @@ const RemitoForm = () => {
                 </div>
             )}
 
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 border-b border-gray-100 pb-4 gap-2">
-                <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
-                <div className="text-sm text-brand-gray">
-                    {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            <div className={`max-w-5xl mx-auto bg-white md:p-8 p-4 rounded-xl shadow-none md:shadow-xl my-0 md:my-8 border-none md:border border-gray-200 relative min-h-screen md:min-h-0 ${isScanning ? 'hidden' : 'block'}`}>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 border-b border-gray-100 pb-4 gap-2">
+                    <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
+                    <div className="text-sm text-brand-gray">
+                        {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </div>
                 </div>
-            </div>
 
-            {/* General Count Manager - Only for 'products' mode */}
-            {countMode === 'products' && (
-                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
-                    {!selectedCount ? (
-                        /* Selection Mode: List of Open Counts */
-                        user?.role !== 'admin' ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-center">
-                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-blue mb-4"></div>
-                                <h3 className="text-lg font-semibold text-gray-700">Esperando inicio de conteo...</h3>
-                                <p className="text-sm text-gray-500 mt-2 max-w-md">
-                                    El administrador debe iniciar un conteo para tu sucursal ({branches.find(b => b.id === user?.sucursal_id)?.name || 'Asignada'}).
-                                    <br />
-                                    El sistema lo detectará automáticamente.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-4">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                                    <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
-                                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                                        <input
-                                            type="text"
-                                            placeholder="Nuevo Conteo (ej: Depósito)"
-                                            value={newCountName}
-                                            onChange={(e) => setNewCountName(e.target.value)}
-                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-48"
-                                        />
-                                        <select
-                                            value={selectedBranch}
-                                            onChange={(e) => setSelectedBranch(e.target.value)}
-                                            className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm w-full sm:w-auto"
-                                        >
-                                            <option value="">Deposito</option>
-                                            {branches.filter(b => b.name !== 'Deposito').map(b => (
-                                                <option key={b.id} value={b.id}>{b.name}</option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            onClick={handleStartGeneralCount}
-                                            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 text-sm whitespace-nowrap w-full sm:w-auto"
-                                        >
-                                            + Crear
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {activeCounts.length === 0 ? (
-                                    <p className="text-gray-500 italic p-4 text-center bg-white rounded-lg border border-dashed border-gray-300">
-                                        No hay conteos activos. Crea uno para comenzar.
+                {/* General Count Manager - Only for 'products' mode */}
+                {countMode === 'products' && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                        {!selectedCount ? (
+                            /* Selection Mode: List of Open Counts */
+                            user?.role !== 'admin' ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-blue mb-4"></div>
+                                    <h3 className="text-lg font-semibold text-gray-700">Esperando inicio de conteo...</h3>
+                                    <p className="text-sm text-gray-500 mt-2 max-w-md">
+                                        El administrador debe iniciar un conteo para tu sucursal ({branches.find(b => b.id === user?.sucursal_id)?.name || 'Asignada'}).
+                                        <br />
+                                        El sistema lo detectará automáticamente.
                                     </p>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {activeCounts.map(count => (
-                                            <button
-                                                key={count.id}
-                                                onClick={() => handleSelectCount(count)}
-                                                className="p-4 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg text-left transition shadow-sm hover:shadow"
-                                            >
-                                                <div className="font-bold text-gray-800 mb-1">{count.name}</div>
-                                                <div className="text-xs text-gray-500 flex justify-between">
-                                                    <span>{count.sucursal_name || 'Global'}</span>
-                                                    <span>{new Date(count.created_at).toLocaleDateString()}</span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    ) : (
-                        /* Active Mode: Working on a Conteo */
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-full bg-green-100 text-green-600">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-800">
-                                        Conteo: {selectedCount.name}
-                                    </h3>
-                                    <p className="text-sm text-gray-600">
-                                        {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                {user?.role === 'admin' && (
-                                    <button
-                                        onClick={() => setSelectedCount(null)}
-                                        className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition"
-                                    >
-                                        Cambiar Conteo
-                                    </button>
-                                )}
-                                {user?.role === 'admin' && (
-                                    <button
-                                        onClick={handleStopGeneralCount}
-                                        className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 border border-red-200"
-                                    >
-                                        Finalizar Conteo
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Pre-Remito Section - Only Visible if countMode is 'pre_remito' */}
-            {countMode === 'pre_remito' && (
-                <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                        <svg className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        <h3 className="text-lg font-semibold text-brand-dark">Cargar Conteo</h3>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
-                            <div className="space-y-3">
-                                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white space-y-1 custom-scrollbar">
-                                    {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
-                                        preRemitoList.map((pre) => {
-                                            const isSelected = selectedPreRemitos.includes(pre.order_number);
-                                            return (
-                                                <label
-                                                    key={pre.id}
-                                                    className={`flex items-center p-3 rounded-lg border transition cursor-pointer hover:bg-blue-50 ${isSelected ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue' : 'border-gray-100 bg-gray-50/30'}`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => {
-                                                            if (isSelected) {
-                                                                setSelectedPreRemitos(selectedPreRemitos.filter(num => num !== pre.order_number));
-                                                            } else {
-                                                                setSelectedPreRemitos([...selectedPreRemitos, pre.order_number]);
-                                                            }
-                                                        }}
-                                                        className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue"
-                                                    />
-                                                    <div className="ml-3 flex-1">
-                                                        <div className="text-sm font-bold text-gray-800">
-                                                            {
-                                                                pre.order_number.startsWith('STOCK-')
-                                                                    ? `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`
-                                                                    : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
-                                                            }
-                                                        </div>
-                                                        <div className="text-xs text-brand-gray flex justify-between mt-0.5">
-                                                            <span>{pre.sucursal || 'Sin Sucursal'}</span>
-                                                            <span>{new Date(pre.created_at).toLocaleDateString()}</span>
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="p-4 text-center text-gray-500 text-sm italic">
-                                            No hay pedidos pendientes disponibles
-                                        </div>
-                                    )}
-                                </div>
-
-                                <button
-                                    onClick={handleLoadPreRemito}
-                                    disabled={selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'}
-                                    className={`h-12 w-full rounded-lg transition font-medium shadow-sm flex items-center justify-center ${selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        : 'bg-brand-blue text-white hover:bg-blue-800'
-                                        }`}
-                                >
-                                    {preRemitoStatus === 'loading' ? (
-                                        <>
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                            Cargando...
-                                        </>
-                                    ) : (
-                                        `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Pedidos` : 'Pedidos'}`
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="border-t border-gray-200 pt-6 mt-2">
-                            <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
-
-                            {/* Branch Selector for XML Upload */}
-                            <div className="mb-4">
-                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
-                                <select
-                                    value={xmlSelectedBranch}
-                                    onChange={(e) => setXmlSelectedBranch(e.target.value)}
-                                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
-                                >
-                                    <option value="">Seleccionar Sucursal (Opcional)</option>
-                                    <option value="Global">Deposito</option>
-                                    {branches.filter(b => b.name !== 'Deposito').map((b) => (
-                                        <option key={b.id} value={b.name}>{b.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
-                                    <input
-                                        type="file"
-                                        accept=".xml"
-                                        multiple
-                                        className="hidden"
-                                        onChange={handleXmlUpload}
-                                        disabled={isLoadingXml}
-                                    />
-                                    {isLoadingXml ? (
-                                        <div className="flex items-center text-gray-500">
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                            Procesando XML...
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center text-green-700">
-                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                            <span className="font-medium text-sm">Subir DocConteo.xml</span>
-                                        </div>
-                                    )}
-                                </label>
-                            </div>
-                            <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
-                        </div>
-                    </div>
-
-                    {preRemitoStatus === 'found' && (
-                        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
-                            <div className="flex items-center mb-2">
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                <span className="font-bold text-lg">Pedidos cargados con éxito</span>
-                                <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items consolidados</span>
-                            </div>
-                            {/* Show summary of IDs if multiple */}
-                            {selectedPreRemitos.length > 1 && (
-                                <div className="ml-7 text-xs text-green-700 mt-1">
-                                    Consolidando: {selectedPreRemitos.map(num => `#${num.slice(-6)}`).join(', ')}
-                                </div>
-                            )}
-
-                            <div className="mt-4 flex justify-end">
-                                <button
-                                    onClick={async () => {
-                                        if (!remitoNumber) return;
-                                        try {
-                                            // Create General Count with the Order ID(s) as name
-                                            const res = await api.post('/api/general-counts', {
-                                                name: remitoNumber,
-                                                sucursal_id: user?.sucursal_id || null
-                                            });
-
-                                            // Don't switch mode, just set the selected count to enable scanning
-                                            setSelectedCount(res.data);
-                                            triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
-
-                                            // We stay in 'pre_remito' mode, so validation against expectedItems continues.
-                                            // The scan engine will now sync to the backend because selectedCount is set.
-
-                                        } catch (error) {
-                                            console.error('Error creating count from pre-remito:', error);
-                                            triggerModal('Error', 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
-                                        }
-                                    }}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
-                                >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    Iniciar Conteo
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-
-            <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8 mt-8">
-                {/* Left Column: Inputs */}
-                <div className="lg:col-span-1 space-y-6">
-                    {/* Remito Number Input Removed - Auto-assigned from Order */}
-                    <div className="hidden">
-                        <label className="block text-sm font-medium text-brand-dark mb-2">Número de Remito (Final)</label>
-                        <input
-                            type="text"
-                            value={remitoNumber}
-                            readOnly
-                            className="w-full h-12 p-3 border border-gray-200 bg-gray-50 rounded-lg text-gray-500"
-                        />
-                    </div>
-
-                    <div className="bg-white p-4 md:p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 className="text-lg font-semibold mb-4 text-brand-dark">Agregar Productos</h3>
-
-                        {/* Manual Input */}
-                        <form onSubmit={handleManualSubmit} className="mb-0 relative">
-                            <label className="block text-xs font-medium text-brand-gray mb-1 uppercase tracking-wide">Ingreso Manual</label>
-                            <div className="flex flex-col gap-3 relative">
-                                <input
-                                    type="text"
-                                    value={manualCode}
-                                    onChange={handleManualChangeDebounced}
-                                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Delay to allow click on suggestion
-                                    onFocus={() => manualCode.length >= 2 && setShowSuggestions(true)}
-                                    className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition text-base"
-                                    placeholder="Código o Descripción"
-                                    autoFocus
-                                    autoComplete="off"
-                                />
-
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center mb-16">
-                                    <button
-                                        type="button" // Prevent form submit
-                                        onClick={handleVoiceSearch}
-                                        className={`p-1.5 rounded-full transition-colors focus:outline-none z-10 ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                                            }`}
-                                        title="Ingresar por voz"
-                                    >
-                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-
-                                {showSuggestions && manualSuggestions.length > 0 && manualCode.trim() !== '' && (
-                                    <ul className="absolute bottom-full left-0 min-w-full w-auto max-w-[90vw] sm:max-w-xl bg-white border border-gray-200 rounded-lg shadow-lg mb-1 max-h-60 overflow-y-auto z-50">
-                                        {manualSuggestions.map((item, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => handleSelectSuggestion(item)}
-                                                className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center"
-                                            >
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="block text-sm font-medium text-gray-800 whitespace-normal break-words">{item.description}</span>
-                                                    <span className="block text-xs text-gray-500">{item.code}</span>
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-
-                                <button type="submit" className="h-12 w-full bg-brand-blue text-white border border-transparent rounded-lg hover:bg-blue-800 transition shadow-sm flex items-center justify-center font-medium">
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                                    Agregar
-                                </button>
-                            </div>
-                        </form>
-
-                        <div className="relative mt-6">
-                            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                <div className="w-full border-t border-gray-200"></div>
-                            </div>
-                            <div className="relative flex justify-center">
-                                <span className="px-2 bg-white text-sm text-gray-400">O escanear</span>
-                            </div>
-                        </div>
-
-                        {/* Camera Scanner Toggle */}
-                        <div className="mt-6">
-                            {!isScanning && (
-                                <button
-                                    onClick={() => setIsScanning(true)}
-                                    className="w-full flex items-center justify-center px-4 py-3 rounded-lg border-2 border-brand-blue text-brand-blue hover:bg-blue-50 transition font-medium"
-                                >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                    Usar Cámara
-                                </button>
-                            )}
-
-                            {isScanning && (
-                                <div className="fixed inset-0 z-[45] bg-black flex flex-col">
-                                    <div className="relative h-[90%] w-full bg-black flex items-center justify-center overflow-hidden">
-                                        <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan} />
-                                    </div>
-                                    <div className="h-[10%] w-full bg-white flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
-                                        <button
-                                            onClick={() => setIsScanning(false)}
-                                            className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
-                                        >
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                            Detener Cámara
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Column: Item List */}
-                <div className="lg:col-span-2 flex flex-col h-full">
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
-                        <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                            <h3 className="font-semibold text-brand-dark flex items-center">
-                                <svg className="w-5 h-5 mr-2 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                                Items Escaneados
-                            </h3>
-                            <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length}</span>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 min-h-[400px]">
-                            {items.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                                    <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
-                                    <p className="text-lg font-medium">Lista vacía</p>
-                                    <p className="text-sm">Escanea productos para comenzar</p>
                                 </div>
                             ) : (
-                                items.slice().reverse().slice(0, 20).map((item, index) => {
-                                    const expectedQty = getExpectedQty(item.code);
-                                    const isUnexpected = expectedItems && expectedQty === null;
-                                    const isOverQty = expectedItems && expectedQty !== null && item.quantity > expectedQty;
-                                    const hasError = isUnexpected || isOverQty;
-
-                                    return (
-                                        <div key={index} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border transition hover:shadow-md gap-4 ${hasError ? 'border-l-4 border-l-brand-alert border-y-gray-100 border-r-gray-100' : 'border-l-4 border-l-brand-success border-y-gray-100 border-r-gray-100'}`}>
-                                            <div className="flex-1 w-full">
-                                                <div className="flex items-center justify-between sm:justify-start">
-                                                    <p className="font-semibold text-brand-dark text-lg">{item.name}</p>
-                                                    {hasError && <span className="ml-2 text-brand-alert"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></span>}
-                                                </div>
-                                                <p className="text-sm text-brand-gray font-mono tracking-wide">{item.code}</p>
-                                                {isUnexpected && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ No solicitado</p>}
-                                                {isOverQty && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ Excede cantidad</p>}
-                                            </div>
-
-                                            <div className="flex items-center justify-between w-full sm:w-auto gap-6">
-                                                <div className="flex flex-col items-end">
-                                                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                                                        <button
-                                                            className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
-                                                            onClick={() => handleQuantityChange(item.code, Math.max(1, item.quantity - 1))}
-                                                        >
-                                                            -
-                                                        </button>
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            value={item.quantity}
-                                                            onChange={(e) => handleQuantityChange(item.code, e.target.value)}
-                                                            className="w-14 p-0 bg-transparent border-0 text-center font-bold text-brand-dark focus:ring-0 text-lg"
-                                                        />
-                                                        <button
-                                                            className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
-                                                            onClick={() => handleQuantityChange(item.code, item.quantity + 1)}
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleRemoveItem(item.code)}
-                                                    className="text-gray-400 hover:text-brand-alert p-2 rounded-full hover:bg-red-50 transition"
-                                                    title="Eliminar item"
-                                                >
-                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                </button>
-                                            </div>
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                                        <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
+                                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                                            <input
+                                                type="text"
+                                                placeholder="Nuevo Conteo (ej: Depósito)"
+                                                value={newCountName}
+                                                onChange={(e) => setNewCountName(e.target.value)}
+                                                className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-48"
+                                            />
+                                            <select
+                                                value={selectedBranch}
+                                                onChange={(e) => setSelectedBranch(e.target.value)}
+                                                className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm w-full sm:w-auto"
+                                            >
+                                                <option value="">Deposito</option>
+                                                {branches.filter(b => b.name !== 'Deposito').map(b => (
+                                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                onClick={handleStartGeneralCount}
+                                                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 text-sm whitespace-nowrap w-full sm:w-auto"
+                                            >
+                                                + Crear
+                                            </button>
                                         </div>
-                                    );
-                                })
-                            )}
-                        </div>
+                                    </div>
 
-                        {/* Solo mostrar botón de submit en modo pre-remito */}
-                        {countMode !== 'products' && (
-                            <div className="p-4 bg-white border-t border-gray-200">
-                                <button
-                                    onClick={handleSubmitRemito}
-                                    disabled={items.length === 0 || !remitoNumber}
-                                    className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center shadow-lg ${items.length > 0 && remitoNumber
-                                        ? 'bg-brand-success text-white hover:bg-green-600 hover:shadow-xl transform hover:-translate-y-0.5'
-                                        : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                                        }`}
-                                >
-                                    {items.length > 0 && remitoNumber ? (
-                                        <>
-                                            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                            Cargar Conteo
-                                        </>
+                                    {activeCounts.length === 0 ? (
+                                        <p className="text-gray-500 italic p-4 text-center bg-white rounded-lg border border-dashed border-gray-300">
+                                            No hay conteos activos. Crea uno para comenzar.
+                                        </p>
                                     ) : (
-                                        'Cargar Conteo'
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            {activeCounts.map(count => (
+                                                <button
+                                                    key={count.id}
+                                                    onClick={() => handleSelectCount(count)}
+                                                    className="p-4 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg text-left transition shadow-sm hover:shadow"
+                                                >
+                                                    <div className="font-bold text-gray-800 mb-1">{count.name}</div>
+                                                    <div className="text-xs text-gray-500 flex justify-between">
+                                                        <span>{count.sucursal_name || 'Global'}</span>
+                                                        <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
                                     )}
-                                </button>
-                            </div>
-                        )}
+                                </div>
+                            )
+                        ) : (
+                            /* Active Mode: Working on a Conteo */
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-full bg-green-100 text-green-600">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-800">
+                                            Conteo: {selectedCount.name}
+                                        </h3>
+                                        <p className="text-sm text-gray-600">
+                                            {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito'}
+                                        </p>
+                                    </div>
+                                </div>
 
-                        {/* Mensaje informativo en modo general */}
-                        {countMode === 'products' && selectedCount && (
-                            <div className="p-4 bg-blue-50 border-t border-blue-200">
-                                <div className="flex items-center text-sm text-blue-800">
-                                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    <span className="font-medium">Los productos se sincronizan automáticamente. El administrador cerrará el conteo cuando todos terminen.</span>
+                                <div className="flex items-center gap-2">
+                                    {user?.role === 'admin' && (
+                                        <button
+                                            onClick={() => setSelectedCount(null)}
+                                            className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition"
+                                        >
+                                            Cambiar Conteo
+                                        </button>
+                                    )}
+                                    {user?.role === 'admin' && (
+                                        <button
+                                            onClick={handleStopGeneralCount}
+                                            className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 border border-red-200"
+                                        >
+                                            Finalizar Conteo
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Pre-Remito Section - Only Visible if countMode is 'pre_remito' */}
+                {countMode === 'pre_remito' && (
+                    <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                            <svg className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <h3 className="text-lg font-semibold text-brand-dark">Cargar Conteo</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
+                                <div className="space-y-3">
+                                    <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white space-y-1 custom-scrollbar">
+                                        {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
+                                            preRemitoList.map((pre) => {
+                                                const isSelected = selectedPreRemitos.includes(pre.order_number);
+                                                return (
+                                                    <label
+                                                        key={pre.id}
+                                                        className={`flex items-center p-3 rounded-lg border transition cursor-pointer hover:bg-blue-50 ${isSelected ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue' : 'border-gray-100 bg-gray-50/30'}`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                if (isSelected) {
+                                                                    setSelectedPreRemitos(selectedPreRemitos.filter(num => num !== pre.order_number));
+                                                                } else {
+                                                                    setSelectedPreRemitos([...selectedPreRemitos, pre.order_number]);
+                                                                }
+                                                            }}
+                                                            className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue"
+                                                        />
+                                                        <div className="ml-3 flex-1">
+                                                            <div className="text-sm font-bold text-gray-800">
+                                                                {
+                                                                    pre.order_number.startsWith('STOCK-')
+                                                                        ? `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`
+                                                                        : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
+                                                                }
+                                                            </div>
+                                                            <div className="text-xs text-brand-gray flex justify-between mt-0.5">
+                                                                <span>{pre.sucursal || 'Sin Sucursal'}</span>
+                                                                <span>{new Date(pre.created_at).toLocaleDateString()}</span>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="p-4 text-center text-gray-500 text-sm italic">
+                                                No hay pedidos pendientes disponibles
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={handleLoadPreRemito}
+                                        disabled={selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'}
+                                        className={`h-12 w-full rounded-lg transition font-medium shadow-sm flex items-center justify-center ${selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : 'bg-brand-blue text-white hover:bg-blue-800'
+                                            }`}
+                                    >
+                                        {preRemitoStatus === 'loading' ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                Cargando...
+                                            </>
+                                        ) : (
+                                            `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Pedidos` : 'Pedidos'}`
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-gray-200 pt-6 mt-2">
+                                <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
+
+                                {/* Branch Selector for XML Upload */}
+                                <div className="mb-4">
+                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
+                                    <select
+                                        value={xmlSelectedBranch}
+                                        onChange={(e) => setXmlSelectedBranch(e.target.value)}
+                                        className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
+                                    >
+                                        <option value="">Seleccionar Sucursal (Opcional)</option>
+                                        <option value="Global">Deposito</option>
+                                        {branches.filter(b => b.name !== 'Deposito').map((b) => (
+                                            <option key={b.id} value={b.name}>{b.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
+                                        <input
+                                            type="file"
+                                            accept=".xml"
+                                            multiple
+                                            className="hidden"
+                                            onChange={handleXmlUpload}
+                                            disabled={isLoadingXml}
+                                        />
+                                        {isLoadingXml ? (
+                                            <div className="flex items-center text-gray-500">
+                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                Procesando XML...
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center text-green-700">
+                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                <span className="font-medium text-sm">Subir DocConteo.xml</span>
+                                            </div>
+                                        )}
+                                    </label>
+                                </div>
+                                <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
+                            </div>
+                        </div>
+
+                        {preRemitoStatus === 'found' && (
+                            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+                                <div className="flex items-center mb-2">
+                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                    <span className="font-bold text-lg">Pedidos cargados con éxito</span>
+                                    <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items consolidados</span>
+                                </div>
+                                {/* Show summary of IDs if multiple */}
+                                {selectedPreRemitos.length > 1 && (
+                                    <div className="ml-7 text-xs text-green-700 mt-1">
+                                        Consolidando: {selectedPreRemitos.map(num => `#${num.slice(-6)}`).join(', ')}
+                                    </div>
+                                )}
+
+                                <div className="mt-4 flex justify-end">
+                                    <button
+                                        onClick={async () => {
+                                            if (!remitoNumber) return;
+                                            try {
+                                                // Create General Count with the Order ID(s) as name
+                                                const res = await api.post('/api/general-counts', {
+                                                    name: remitoNumber,
+                                                    sucursal_id: user?.sucursal_id || null
+                                                });
+
+                                                // Don't switch mode, just set the selected count to enable scanning
+                                                setSelectedCount(res.data);
+                                                triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
+
+                                                // We stay in 'pre_remito' mode, so validation against expectedItems continues.
+                                                // The scan engine will now sync to the backend because selectedCount is set.
+
+                                            } catch (error) {
+                                                console.error('Error creating count from pre-remito:', error);
+                                                triggerModal('Error', 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
+                                            }
+                                        }}
+                                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
+                                    >
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        Iniciar Conteo
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+
+                <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8 mt-8">
+                    {/* Left Column: Inputs */}
+                    <div className="lg:col-span-1 space-y-6">
+                        {/* Remito Number Input Removed - Auto-assigned from Order */}
+                        <div className="hidden">
+                            <label className="block text-sm font-medium text-brand-dark mb-2">Número de Remito (Final)</label>
+                            <input
+                                type="text"
+                                value={remitoNumber}
+                                readOnly
+                                className="w-full h-12 p-3 border border-gray-200 bg-gray-50 rounded-lg text-gray-500"
+                            />
+                        </div>
+
+                        <div className="bg-white p-4 md:p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h3 className="text-lg font-semibold mb-4 text-brand-dark">Agregar Productos</h3>
+
+                            {/* Manual Input */}
+                            <form onSubmit={handleManualSubmit} className="mb-0 relative">
+                                <label className="block text-xs font-medium text-brand-gray mb-1 uppercase tracking-wide">Ingreso Manual</label>
+                                <div className="flex flex-col gap-3 relative">
+                                    <input
+                                        type="text"
+                                        value={manualCode}
+                                        onChange={handleManualChangeDebounced}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Delay to allow click on suggestion
+                                        onFocus={() => manualCode.length >= 2 && setShowSuggestions(true)}
+                                        className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition text-base"
+                                        placeholder="Código o Descripción"
+                                        autoFocus
+                                        autoComplete="off"
+                                    />
+
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center mb-16">
+                                        <button
+                                            type="button" // Prevent form submit
+                                            onClick={handleVoiceSearch}
+                                            className={`p-1.5 rounded-full transition-colors focus:outline-none z-10 ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                                                }`}
+                                            title="Ingresar por voz"
+                                        >
+                                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+
+                                    {showSuggestions && manualSuggestions.length > 0 && manualCode.trim() !== '' && (
+                                        <ul className="absolute bottom-full left-0 min-w-full w-auto max-w-[90vw] sm:max-w-xl bg-white border border-gray-200 rounded-lg shadow-lg mb-1 max-h-60 overflow-y-auto z-50">
+                                            {manualSuggestions.map((item, idx) => (
+                                                <li
+                                                    key={idx}
+                                                    onClick={() => handleSelectSuggestion(item)}
+                                                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center"
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="block text-sm font-medium text-gray-800 whitespace-normal break-words">{item.description}</span>
+                                                        <span className="block text-xs text-gray-500">{item.code}</span>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+
+                                    <button type="submit" className="h-12 w-full bg-brand-blue text-white border border-transparent rounded-lg hover:bg-blue-800 transition shadow-sm flex items-center justify-center font-medium">
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                                        Agregar
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div className="relative mt-6">
+                                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                                <div className="relative flex justify-center">
+                                    <span className="px-2 bg-white text-sm text-gray-400">O escanear</span>
+                                </div>
+                            </div>
+
+                            {/* Camera Scanner Toggle */}
+                            <div className="mt-6">
+                                {!isScanning && (
+                                    <button
+                                        onClick={() => setIsScanning(true)}
+                                        className="w-full flex items-center justify-center px-4 py-3 rounded-lg border-2 border-brand-blue text-brand-blue hover:bg-blue-50 transition font-medium"
+                                    >
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                        Usar Cámara
+                                    </button>
+                                )}
+
+                                {isScanning && (
+                                    <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
+                                        <div className="relative h-[90%] w-full bg-transparent flex items-center justify-center overflow-hidden">
+                                            <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan} />
+                                        </div>
+                                        <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
+                                            <button
+                                                onClick={() => setIsScanning(false)}
+                                                className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
+                                            >
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                Detener Cámara
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Item List */}
+                    <div className="lg:col-span-2 flex flex-col h-full">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
+                            <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                <h3 className="font-semibold text-brand-dark flex items-center">
+                                    <svg className="w-5 h-5 mr-2 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                                    Items Escaneados
+                                </h3>
+                                <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length}</span>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 min-h-[400px]">
+                                {items.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                        <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                                        <p className="text-lg font-medium">Lista vacía</p>
+                                        <p className="text-sm">Escanea productos para comenzar</p>
+                                    </div>
+                                ) : (
+                                    items.slice().reverse().slice(0, 20).map((item, index) => {
+                                        const expectedQty = getExpectedQty(item.code);
+                                        const isUnexpected = expectedItems && expectedQty === null;
+                                        const isOverQty = expectedItems && expectedQty !== null && item.quantity > expectedQty;
+                                        const hasError = isUnexpected || isOverQty;
+
+                                        return (
+                                            <div key={index} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border transition hover:shadow-md gap-4 ${hasError ? 'border-l-4 border-l-brand-alert border-y-gray-100 border-r-gray-100' : 'border-l-4 border-l-brand-success border-y-gray-100 border-r-gray-100'}`}>
+                                                <div className="flex-1 w-full">
+                                                    <div className="flex items-center justify-between sm:justify-start">
+                                                        <p className="font-semibold text-brand-dark text-lg">{item.name}</p>
+                                                        {hasError && <span className="ml-2 text-brand-alert"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></span>}
+                                                    </div>
+                                                    <p className="text-sm text-brand-gray font-mono tracking-wide">{item.code}</p>
+                                                    {isUnexpected && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ No solicitado</p>}
+                                                    {isOverQty && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ Excede cantidad</p>}
+                                                </div>
+
+                                                <div className="flex items-center justify-between w-full sm:w-auto gap-6">
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                                                            <button
+                                                                className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
+                                                                onClick={() => handleQuantityChange(item.code, Math.max(1, item.quantity - 1))}
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={item.quantity}
+                                                                onChange={(e) => handleQuantityChange(item.code, e.target.value)}
+                                                                className="w-14 p-0 bg-transparent border-0 text-center font-bold text-brand-dark focus:ring-0 text-lg"
+                                                            />
+                                                            <button
+                                                                className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
+                                                                onClick={() => handleQuantityChange(item.code, item.quantity + 1)}
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveItem(item.code)}
+                                                        className="text-gray-400 hover:text-brand-alert p-2 rounded-full hover:bg-red-50 transition"
+                                                        title="Eliminar item"
+                                                    >
+                                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            {/* Solo mostrar botón de submit en modo pre-remito */}
+                            {countMode !== 'products' && (
+                                <div className="p-4 bg-white border-t border-gray-200">
+                                    <button
+                                        onClick={handleSubmitRemito}
+                                        disabled={items.length === 0 || !remitoNumber}
+                                        className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center shadow-lg ${items.length > 0 && remitoNumber
+                                            ? 'bg-brand-success text-white hover:bg-green-600 hover:shadow-xl transform hover:-translate-y-0.5'
+                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                                            }`}
+                                    >
+                                        {items.length > 0 && remitoNumber ? (
+                                            <>
+                                                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                                Cargar Conteo
+                                            </>
+                                        ) : (
+                                            'Cargar Conteo'
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Mensaje informativo en modo general */}
+                            {countMode === 'products' && selectedCount && (
+                                <div className="p-4 bg-blue-50 border-t border-blue-200">
+                                    <div className="flex items-center text-sm text-blue-800">
+                                        <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <span className="font-medium">Los productos se sincronizan automáticamente. El administrador cerrará el conteo cuando todos terminen.</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

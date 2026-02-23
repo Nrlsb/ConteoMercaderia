@@ -20,3 +20,30 @@
     @apply bg-brand-bg text-brand-dark font-sans antialiased;
   }
 }
+
+/* Explicitly keep the scanner UI buttons visible - removed empty rule */
+
+/* Animation for the web scanner */
+@keyframes scan-line {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-scan-line {
+  animation: scan-line 2s linear infinite;
+}

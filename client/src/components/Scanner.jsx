@@ -59,10 +59,8 @@ const Scanner = ({ onScan, isEnabled = true }) => {
         }
 
         if (isNative) {
-            // For ML Kit, we usually just stop listening or the single-shot scan ends.
-            // If using continuous scanning, we'd call stopScan.
-            // For this implementation, we'll try to stop actively if running.
             try {
+                await BarcodeScanner.removeAllListeners();
                 await BarcodeScanner.stopScan();
             } catch (e) {
                 // Ignore error if not scanning
@@ -111,42 +109,27 @@ const Scanner = ({ onScan, isEnabled = true }) => {
 
             // 3. Start Scanning
             setIsScanning(true);
-            document.body.classList.add('barcode-scanner-active'); // Helper for transparency if needed
 
-            // We use 'scan' which typically opens a full-screen view or overlays.
-            // Note: ML Kit plugin 'scan' might be a one-off. For continuous, usage patterns vary.
-            // Let's implement single scan loop or continuous listener if supported.
-            // The @capacitor-mlkit/barcode-scanning typical 'scan' method opens a camera view.
-
-            const { barcodes } = await BarcodeScanner.scan({
+            const result = await BarcodeScanner.scan({
                 formats: [
                     'QR_CODE', 'EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E'
                 ]
             });
 
-            if (barcodes.length > 0) {
-                const code = barcodes[0].rawValue;
+            if (result.barcodes && result.barcodes.length > 0) {
+                const code = result.barcodes[0].rawValue;
                 handleScanSuccess(code);
             }
 
-            // Native scanner often auto-closes after scan. 
-            // If we want continuous, we'd loop.
-            // For now, let's assume one scan per trigger, or restart.
-            // But 'RemitoForm' expects continuous scanning roughly.
-            // If the native UI closes, we might need to restart it.
-            // Let's wait for the first scan and see.
-
             setIsScanning(false);
-            document.body.classList.remove('barcode-scanner-active');
 
         } catch (err) {
             console.error("Native scan error:", err);
             // Often "Canceled" if user backs out
-            if (!err.message.includes('canceled')) {
+            if (!err?.message?.toLowerCase().includes('canceled')) {
                 setError("Error en scanner nativo: " + err.message);
             }
             setIsScanning(false);
-            document.body.classList.remove('barcode-scanner-active');
         }
     };
 
@@ -258,27 +241,10 @@ const Scanner = ({ onScan, isEnabled = true }) => {
         if (onScan) {
             onScan(code);
         }
-
-        // Native logic: Only restart if we are STILL enabled.
-        // But since onScan likely triggers a modal that changes isEnabled to false,
-        // we should check that ref.
-        if (isNative) {
-            // Clear any existing timer just in case
-            if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-
-            // Wait a bit, then check if we should restart
-            restartTimerRef.current = setTimeout(() => {
-                if (isEnabledRef.current) {
-                    startNativeScan();
-                } else {
-                    console.log("Scanner disabled (modal open?), not restarting loop.");
-                }
-            }, 500);
-        }
     };
 
     return (
-        <div className="w-full h-full relative bg-black overflow-hidden group">
+        <div className={`w-full h-full relative overflow-hidden group ${isNative ? 'bg-transparent' : 'bg-black'}`}>
             {/* WEB SCANNER CONTAINER */}
             {!isNative && <div id="reader" className="w-full h-full object-cover"></div>}
 
@@ -324,26 +290,6 @@ const Scanner = ({ onScan, isEnabled = true }) => {
                 </div>
             )}
 
-            <style jsx>{`
-                @keyframes scan-line {
-                    0% { top: 0; opacity: 0; }
-                    10% { opacity: 1; }
-                    90% { opacity: 1; }
-                    100% { top: 100%; opacity: 0; }
-                }
-                .animate-scan-line {
-                    animation: scan-line 2s linear infinite;
-                }
-                :global(#reader video) {
-                    object-fit: cover !important;
-                    width: 100% !important;
-                    height: 100% !important;
-                    border-radius: 0 !important;
-                }
-                :global(body.barcode-scanner-active) {
-                    background: transparent !important;
-                }
-            `}</style>
         </div>
     );
 };
