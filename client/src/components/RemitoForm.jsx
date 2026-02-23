@@ -18,6 +18,7 @@ const RemitoForm = () => {
     const [remitoNumber, setRemitoNumber] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [isListening, setIsListening] = useState(false); // Voice Search State
+    const [isProcessingScan, setIsProcessingScan] = useState(false); // Scanner Pause State
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
 
@@ -615,6 +616,8 @@ const RemitoForm = () => {
     // Handle barcode scan (from camera or physical scanner)
     const handleScan = React.useCallback((rawCode) => {
         const inputCode = rawCode.trim(); // Trim whitespace/newlines
+        setIsScanning(false); // Close the camera immediately
+
         const currentItems = itemsRef.current;
         const currentExpectedItems = expectedItemsRef.current;
 
@@ -659,6 +662,7 @@ const RemitoForm = () => {
             openFichajeModal(resolvedProduct, expectedQty);
         } else {
             // Not in expected list (or no expected list). Fetch from API.
+            setIsProcessingScan(true);
             api.get(`/api/products/${inputCode}`)
                 .then(response => {
                     const productData = response.data;
@@ -673,6 +677,9 @@ const RemitoForm = () => {
                     console.error('Error fetching product:', error);
                     // Modified: Show warning instead of allowing generic product entry
                     triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
+                })
+                .finally(() => {
+                    setIsProcessingScan(false);
                 });
         }
     }, []); // Empty dependency array as we use refs/setters
@@ -1486,7 +1493,7 @@ const RemitoForm = () => {
                             {isScanning && (
                                 <div className="fixed inset-0 z-[45] bg-black flex flex-col">
                                     <div className="relative h-[90%] w-full bg-black flex items-center justify-center overflow-hidden">
-                                        <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal} />
+                                        <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan} />
                                     </div>
                                     <div className="h-[10%] w-full bg-white flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
                                         <button

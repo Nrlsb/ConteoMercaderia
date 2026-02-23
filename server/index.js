@@ -1104,6 +1104,35 @@ app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     }
 });
 
+// Update product barcode
+app.put('/api/products/:code/barcode', verifyToken, async (req, res) => {
+    const { code } = req.params;
+    const { barcode } = req.body;
+
+    if (!barcode) {
+        return res.status(400).json({ message: 'Barcode is required' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .update({ barcode: barcode })
+            .eq('code', code)
+            .select();
+
+        if (error) throw error;
+
+        if (data.length === 0) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        res.json({ message: 'Barcode updated successfully', product: data[0] });
+    } catch (error) {
+        console.error('Error updating barcode:', error);
+        res.status(500).json({ message: 'Error updating barcode' });
+    }
+});
+
 // Create new remito
 app.post('/api/remitos', verifyToken, async (req, res) => {
     const { remitoNumber, items, discrepancies, clarification } = req.body;

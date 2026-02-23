@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 const Scanner = ({ onScan, isEnabled = true }) => {
     // Shared state
@@ -202,7 +203,61 @@ const Scanner = ({ onScan, isEnabled = true }) => {
         lastScannedTimeRef.current = now;
 
         console.log("Scanned:", code);
-        onScan(code);
+        // --- Provide User Feedback (Beep & Vibrate) ---
+        if (isNative) {
+            try {
+                // Vibrate
+                Haptics.impact({ style: ImpactStyle.Heavy });
+
+                // Play standard beep sound natively if possible, or via HTML5 Audio
+                // Usually an HTML5 Audio beep is sufficient in capacitor if sound files are added, 
+                // but a simple synthesized beep or base64 audio works well without extra files
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // 800Hz
+                    gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.1);
+                }
+            } catch (e) {
+                console.log("Feedback error", e);
+            }
+        } else {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // 800Hz
+                    gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.1);
+                }
+            } catch (e) {
+                console.log("Feedback error web", e);
+            }
+        }
+
+        // Call the parent callback
+        if (onScan) {
+            onScan(code);
+        }
 
         // Native logic: Only restart if we are STILL enabled.
         // But since onScan likely triggers a modal that changes isEnabled to false,

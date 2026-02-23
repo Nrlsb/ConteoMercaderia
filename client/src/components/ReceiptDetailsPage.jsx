@@ -28,6 +28,10 @@ const ReceiptDetailsPage = () => {
     const [isBarcodeReaderActive, setIsBarcodeReaderActive] = useState(false); // For Barcode Scanner
     const [visibleItems, setVisibleItems] = useState(20);
 
+    // Bulk Import State (OCR)
+    const [isBulkImporting, setIsBulkImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+
     // Intelligent Search State
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -182,7 +186,8 @@ const ReceiptDetailsPage = () => {
         if (existingItem) {
             openModal({
                 code: existingItem.product_code,
-                description: existingItem.products?.description || 'Producto'
+                description: existingItem.products?.description || 'Producto',
+                barcode: existingItem.products?.barcode || existingItem.barcode || ''
             }, existingItem.expected_quantity, existingItem.scanned_quantity);
         } else {
             // Fetch from API
@@ -192,7 +197,8 @@ const ReceiptDetailsPage = () => {
                 const product = response.data;
                 openModal({
                     code: product.code,
-                    description: product.description
+                    description: product.description,
+                    barcode: product.barcode || ''
                 }, null, 0);
             } catch (error) {
                 console.error('Error fetching product:', error);
@@ -341,11 +347,13 @@ const ReceiptDetailsPage = () => {
     };
 
     const handleScanComplete = async (items) => {
-        setProcessing(true);
+        setIsBulkImporting(true);
+        setImportProgress({ current: 0, total: items.length });
         let successCount = 0;
         let failCount = 0;
 
-        for (const item of items) {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
             try {
                 // Post each item as 'expected'
                 // Assuming logic is similar to manual provider code input
@@ -358,13 +366,14 @@ const ReceiptDetailsPage = () => {
                 console.error(`Error importing item ${item.code}:`, error);
                 failCount++;
             }
+            setImportProgress({ current: i + 1, total: items.length });
         }
 
-        if (successCount > 0) toast.success(`${successCount} items importados correctamente`);
+        if (successCount > 0) toast.success(`¡Listo! ${successCount} productos cargados en la base de datos.`);
         if (failCount > 0) toast.error(`${failCount} fallaron al importar`);
 
         await fetchReceiptDetails();
-        setProcessing(false);
+        setIsBulkImporting(false);
     };
 
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
@@ -718,7 +727,7 @@ const ReceiptDetailsPage = () => {
             )}
 
             {isBarcodeReaderActive && (
-                <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                <div className="fixed inset-0 z-[45] bg-black flex flex-col">
                     <div className="p-4 bg-gray-900 flex justify-between items-center text-white">
                         <h3 className="font-bold">Escáner de Barcode</h3>
                         <button
@@ -731,11 +740,33 @@ const ReceiptDetailsPage = () => {
                     <div className="flex-1 relative">
                         <Scanner
                             onScan={handleBarcodeScan}
-                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen}
+                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !processing}
                         />
                     </div>
                     <div className="p-6 bg-gray-900 text-center text-gray-400 text-sm">
                         Apunte al código de barras para escanear
+                    </div>
+                </div>
+            )}
+
+            {isBulkImporting && (
+                <div className="fixed inset-0 z-[100] bg-black bg-opacity-75 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full text-center">
+                        <div className="w-16 h-16 border-4 border-blue-100 border-t-brand-blue rounded-full animate-spin mb-6"></div>
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">Cargando Productos</h2>
+                        <p className="text-sm text-gray-500 mb-6">
+                            Por favor espera, guardando en la base de datos...<br />
+                            ({importProgress.current} de {importProgress.total})
+                        </p>
+                        <div className="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden">
+                            <div
+                                className="bg-brand-blue h-full rounded-full transition-all duration-300"
+                                style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                            ></div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 italic">
+                            No podrás escanear hasta que termine el guardado.
+                        </p>
                     </div>
                 </div>
             )}

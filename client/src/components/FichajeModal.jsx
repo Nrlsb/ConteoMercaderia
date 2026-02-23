@@ -1,19 +1,60 @@
 import React, { useState, useEffect, useRef } from 'react';
+import api from '../api';
+import { toast } from 'sonner';
 
 const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting }) => {
     const [quantity, setQuantity] = useState('');
+    const [isEditingBarcode, setIsEditingBarcode] = useState(false);
+    const [barcodeInput, setBarcodeInput] = useState('');
+    const [currentBarcode, setCurrentBarcode] = useState('');
+    const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
+
     const inputRef = useRef(null);
+    const barcodeRef = useRef(null);
 
     // Reset quantity when modal opens or product changes
     useEffect(() => {
         if (isOpen) {
             setQuantity('');
+            setIsEditingBarcode(false);
+            setBarcodeInput(product?.barcode || '');
+            setCurrentBarcode(product?.barcode || '');
             // Focus input after a short delay to ensure modal is rendered
             setTimeout(() => {
                 inputRef.current?.focus();
             }, 100);
         }
     }, [isOpen, product]);
+
+    const handleUpdateBarcode = async () => {
+        if (!barcodeInput.trim()) {
+            toast.error("El código de barras no puede estar vacío.");
+            return;
+        }
+
+        setIsUpdatingBarcode(true);
+        try {
+            const response = await api.put(`/api/products/${product.code}/barcode`, {
+                barcode: barcodeInput.trim()
+            });
+            setCurrentBarcode(barcodeInput.trim());
+            setIsEditingBarcode(false);
+            product.barcode = barcodeInput.trim(); // Update the local product object too
+            toast.success("Código de barras actualizado en la base de datos.");
+
+            // Refocus quantity input
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
+
+        } catch (error) {
+            console.error('Error updating barcode:', error);
+            const msg = error.response?.data?.message || 'Error al actualizar el código de barras';
+            toast.error(msg);
+        } finally {
+            setIsUpdatingBarcode(false);
+        }
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -46,7 +87,69 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                 <form id="fichaje-form" onSubmit={handleSubmit} className="p-6">
                     <div className="mb-6">
                         <h4 className="text-lg font-semibold text-gray-900 mb-1">{product.description || product.name}</h4>
-                        <p className="text-sm text-gray-500 font-mono bg-gray-100 inline-block px-2 py-1 rounded">{product.code}</p>
+                        <div className="flex flex-col gap-2">
+                            <div>
+                                <span className="text-xs font-bold text-gray-500 uppercase">Código Interno: </span>
+                                <span className="text-sm text-gray-700 font-mono bg-gray-100 inline-block px-2 py-0.5 rounded">{product.code}</span>
+                            </div>
+
+                            {/* Barcode Edit Section */}
+                            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Código de Barras (Escaneable)</label>
+
+                                {isEditingBarcode ? (
+                                    <div className="flex gap-2">
+                                        <input
+                                            ref={barcodeRef}
+                                            type="text"
+                                            value={barcodeInput}
+                                            onChange={(e) => setBarcodeInput(e.target.value)}
+                                            className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none text-sm"
+                                            placeholder="Escanear o tipear código..."
+                                            disabled={isUpdatingBarcode}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleUpdateBarcode}
+                                            disabled={isUpdatingBarcode}
+                                            className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                        >
+                                            {isUpdatingBarcode ? '...' : 'Guardar'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsEditingBarcode(false);
+                                                setBarcodeInput(currentBarcode);
+                                            }}
+                                            disabled={isUpdatingBarcode}
+                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm font-bold text-gray-900 font-mono">
+                                            {currentBarcode ? currentBarcode : <span className="text-gray-400 italic">Sin código de barras</span>}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsEditingBarcode(true);
+                                                setTimeout(() => barcodeRef.current?.focus(), 50);
+                                            }}
+                                            className="p-1.5 text-brand-blue hover:bg-blue-50 rounded-md transition-colors"
+                                            title="Editar código de barras"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
 
