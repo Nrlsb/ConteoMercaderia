@@ -1,6 +1,7 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Toaster } from 'sonner';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { App as CapacitorApp } from '@capacitor/app';
 import Login from './components/Login';
 import Register from './components/Register';
 import Navigation from './components/Navigation';
@@ -51,10 +52,31 @@ const LoadingFallback = () => (
 
 const AppContent = () => {
   const { sessionExpired, closeSessionExpiredModal } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const attachListener = async () => {
+      const backListener = await CapacitorApp.addListener('backButton', () => {
+        if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/list') {
+          CapacitorApp.exitApp();
+        } else {
+          navigate(-1);
+        }
+      });
+      return backListener;
+    };
+
+    let listenerPromise = attachListener();
+
+    return () => {
+      listenerPromise.then(listener => listener.remove());
+    };
+  }, [navigate, location]);
 
   return (
     <>
-      <Toaster richColors position="top-center" />
+      <Toaster richColors position="top-center" swipeDirections={['left', 'right']} />
       <Modal
         isOpen={sessionExpired}
         onClose={closeSessionExpiredModal}
