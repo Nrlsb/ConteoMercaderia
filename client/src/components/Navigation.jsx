@@ -56,9 +56,6 @@ const Navigation = () => {
                     {(user?.role === 'admin' || user?.role === 'superadmin') && (
                         <Link to="/settings" className={getLinkClass('/settings')}>Configuración</Link>
                     )}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
-                        <Link to="/stock" className={getLinkClass('/stock')}>Stock</Link>
-                    )}
                     <Link to="/receipts" className={getLinkClass('/receipts')}>Ingresos</Link>
                     <Link to="/barcode-control" className={getLinkClass('/barcode-control')}>Control Códigos</Link>
                     <div className="flex items-center space-x-4 ml-6 pl-6 border-l border-blue-400/30">
@@ -109,9 +106,6 @@ const Navigation = () => {
                         )}
                         {(user?.role === 'admin' || user?.role === 'superadmin') && (
                             <Link to="/settings" className={getMobileLinkClass('/settings')} onClick={() => setIsOpen(false)}>Configuración</Link>
-                        )}
-                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
-                            <Link to="/stock" className={getMobileLinkClass('/stock')} onClick={() => setIsOpen(false)}>Stock</Link>
                         )}
                         <Link to="/receipts" className={getMobileLinkClass('/receipts')} onClick={() => setIsOpen(false)}>Ingresos</Link>
                         <Link to="/barcode-control" className={getMobileLinkClass('/barcode-control')} onClick={() => setIsOpen(false)}>Control Códigos</Link>

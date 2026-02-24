@@ -79,55 +79,6 @@ app.use(express.static(path.join(__dirname, '../client/dist')));
 // Serve APK files for App Updater
 app.use('/apk', express.static(path.join(__dirname, 'public/apk')));
 
-// App Version Endpoint Check
-app.get('/api/app-version', (req, res) => {
-    try {
-        const fs = require('fs');
-        const versionPath = path.join(__dirname, 'version.json');
-        if (fs.existsSync(versionPath)) {
-            const versionData = fs.readFileSync(versionPath, 'utf8');
-            const versionInfo = JSON.parse(versionData);
-            res.json(versionInfo);
-        } else {
-            res.status(404).json({ message: 'Version info not found' });
-        }
-    } catch (error) {
-        console.error('Error reading version info:', error);
-        res.status(500).json({ message: 'Error reading version info' });
-    }
-});
-
-// Update App Version (Superadmin Only)
-app.put('/api/app-version', verifyToken, verifySuperAdmin, (req, res) => {
-    try {
-        const { version, downloadUrl, releaseNotes } = req.body;
-
-        if (!version || !downloadUrl) {
-            return res.status(400).json({ message: 'Version y URL de descarga son requeridos' });
-        }
-
-        const fs = require('fs');
-        const versionPath = path.join(__dirname, 'version.json');
-
-        const newVersionData = {
-            version,
-            downloadUrl,
-            releaseNotes: releaseNotes || ''
-        };
-
-        fs.writeFileSync(versionPath, JSON.stringify(newVersionData, null, 2), 'utf8');
-        res.json({ message: 'Versión actualizada correctamente', data: newVersionData });
-    } catch (error) {
-        console.error('Error updating version info:', error);
-        res.status(500).json({ message: 'Error actualizando información de versión' });
-    }
-});
-
-// Basic Route (API check)
-app.get('/api/health', (req, res) => {
-    res.send('Control de Remitos API Running');
-});
-
 // Middleware to verify token
 const verifyToken = async (req, res, next) => {
     const token = req.header('x-auth-token');
@@ -176,6 +127,55 @@ const verifySuperAdmin = (req, res, next) => {
         res.status(403).json({ message: 'Access denied: Superadmins only' });
     }
 };
+
+// App Version Endpoint Check
+app.get('/api/app-version', (req, res) => {
+    try {
+        const fs = require('fs');
+        const versionPath = path.join(__dirname, 'version.json');
+        if (fs.existsSync(versionPath)) {
+            const versionData = fs.readFileSync(versionPath, 'utf8');
+            const versionInfo = JSON.parse(versionData);
+            res.json(versionInfo);
+        } else {
+            res.status(404).json({ message: 'Version info not found' });
+        }
+    } catch (error) {
+        console.error('Error reading version info:', error);
+        res.status(500).json({ message: 'Error reading version info' });
+    }
+});
+
+// Update App Version (Superadmin Only)
+app.put('/api/app-version', verifyToken, verifySuperAdmin, (req, res) => {
+    try {
+        const { version, downloadUrl, releaseNotes } = req.body;
+
+        if (!version || !downloadUrl) {
+            return res.status(400).json({ message: 'Version y URL de descarga son requeridos' });
+        }
+
+        const fs = require('fs');
+        const versionPath = path.join(__dirname, 'version.json');
+
+        const newVersionData = {
+            version,
+            downloadUrl,
+            releaseNotes: releaseNotes || ''
+        };
+
+        fs.writeFileSync(versionPath, JSON.stringify(newVersionData, null, 2), 'utf8');
+        res.json({ message: 'Versión actualizada correctamente', data: newVersionData });
+    } catch (error) {
+        console.error('Error updating version info:', error);
+        res.status(500).json({ message: 'Error actualizando información de versión' });
+    }
+});
+
+// Basic Route (API check)
+app.get('/api/health', (req, res) => {
+    res.send('Control de Remitos API Running');
+});
 
 // AI Parsing Endpoint
 app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {

@@ -19,7 +19,6 @@ const DiscrepancyList = lazy(() => import('./components/DiscrepancyList'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const InventoryPage = lazy(() => import('./components/InventoryPage'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
-const StockPage = lazy(() => import('./components/StockPage'));
 const ReceiptsList = lazy(() => import('./components/ReceiptsList'));
 const ReceiptDetailsPage = lazy(() => import('./components/ReceiptDetailsPage'));
 const BarcodeControl = lazy(() => import('./components/BarcodeControl'));
@@ -127,11 +126,6 @@ const AppContent = () => {
                 <Route path="/settings" element={
                   <ProtectedRoute role="admin">
                     <SettingsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/stock" element={
-                  <ProtectedRoute>
-                    <StockPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/receipts" element={
