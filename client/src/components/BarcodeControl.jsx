@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import Scanner from './Scanner';
 import api from '../api';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { Capacitor } from '@capacitor/core';
 
 const BarcodeControl = () => {
     const [scannedBarcode, setScannedBarcode] = useState('');
@@ -19,6 +21,11 @@ const BarcodeControl = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const searchTimeoutRef = useRef(null);
+
+    // Selected product to link
+    const [selectedProductToLink, setSelectedProductToLink] = useState(null);
 
     // Scanner state
     const [showScanner, setShowScanner] = useState(false);
@@ -91,6 +98,7 @@ const BarcodeControl = () => {
         setEditMode(false);
         setSearchQuery('');
         setSearchResults([]);
+        setSelectedProductToLink(null);
 
         try {
             const response = await api.get(`/api/products/barcode/${code}`);
@@ -149,13 +157,15 @@ const BarcodeControl = () => {
         }
     };
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!searchQuery.trim()) return;
+    const executeSearch = async (query) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            return;
+        }
 
         setSearching(true);
         try {
-            const response = await api.get(`/api/products/search?q=${encodeURIComponent(searchQuery)}`);
+            const response = await api.get(`/api/products/search?q=${encodeURIComponent(query)}`);
             const data = response.data;
             setSearchResults(data);
             if (data.length === 0) {
@@ -167,6 +177,88 @@ const BarcodeControl = () => {
         } finally {
             setSearching(false);
         }
+    };
+
+    const handleSearchInputChange = (e) => {
+        const value = e.target.value;
+        setSearchQuery(value);
+
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+        searchTimeoutRef.current = setTimeout(() => {
+            executeSearch(value);
+        }, 500);
+    };
+
+    const handleSearchSubmit = (e) => {
+        e.preventDefault();
+        executeSearch(searchQuery);
+    };
+
+    const handleVoiceSearch = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const { available } = await SpeechRecognition.available();
+                if (!available) {
+                    toast.error('El reconocimiento de voz no está disponible.');
+                    return;
+                }
+
+                const { speechRecognition } = await SpeechRecognition.checkPermissions();
+                if (speechRecognition !== 'granted') {
+                    const { speechRecognition: newPermission } = await SpeechRecognition.requestPermissions();
+                    if (newPermission !== 'granted') {
+                        toast.error('Permiso de micrófono denegado.');
+                        return;
+                    }
+                }
+
+                setIsListening(true);
+
+                SpeechRecognition.start({
+                    language: 'es-ES',
+                    maxResults: 1,
+                    prompt: 'Diga el nombre del producto a buscar',
+                    partialResults: false,
+                    popup: true
+                }).then(result => {
+                    if (result && result.matches && result.matches.length > 0) {
+                        const transcript = result.matches[0];
+                        setSearchQuery(transcript);
+                        executeSearch(transcript);
+                    }
+                }).catch(error => {
+                    console.error('Speech error:', error);
+                }).finally(() => {
+                    setIsListening(false);
+                });
+
+            } catch (error) {
+                console.error('Core Voice error:', error);
+                setIsListening(false);
+            }
+            return;
+        }
+
+        // Web Fallback
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            toast.error('Navegador no compatible con voz.');
+            return;
+        }
+
+        const SpeechRecognitionWeb = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognitionWeb();
+        recognition.lang = 'es-ES';
+        recognition.interimResults = false;
+        recognition.onstart = () => setIsListening(true);
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setSearchQuery(transcript);
+            executeSearch(transcript);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognition.start();
     };
 
     const handleLinkProduct = async (selectedProduct) => {
@@ -194,6 +286,7 @@ const BarcodeControl = () => {
             setError(null);
             setSearchQuery('');
             setSearchResults([]);
+            setSelectedProductToLink(null);
         } catch (err) {
             console.error('Link error:', err);
             const msg = err.response?.data?.message || 'Error al vincular el código';
@@ -210,6 +303,7 @@ const BarcodeControl = () => {
         setInputBarcode('');
         setSearchQuery('');
         setSearchResults([]);
+        setSelectedProductToLink(null);
         setTimeout(() => { if (!showScanner) inputRef.current?.focus() }, 100);
     };
 
@@ -422,14 +516,24 @@ const BarcodeControl = () => {
 
                                 <div className="mt-6 bg-white p-5 rounded border border-amber-100">
                                     <h4 className="font-semibold text-gray-800 mb-3">Buscar producto para vincular:</h4>
-                                    <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
-                                        <input
-                                            type="text"
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            placeholder="Buscar por descripción..."
-                                            className="input-field flex-grow shadow-sm"
-                                        />
+                                    <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-2 relative">
+                                        <div className="relative flex-grow">
+                                            <input
+                                                type="text"
+                                                value={searchQuery}
+                                                onChange={handleSearchInputChange}
+                                                placeholder="Buscar por descripción..."
+                                                className="input-field w-full shadow-sm pr-10"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleVoiceSearch}
+                                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                                                title="Buscar por voz"
+                                            >
+                                                <i className="fas fa-microphone"></i>
+                                            </button>
+                                        </div>
                                         <button
                                             type="submit"
                                             disabled={searching || !searchQuery.trim()}
@@ -440,7 +544,7 @@ const BarcodeControl = () => {
                                     </form>
 
                                     {/* Search Results */}
-                                    {searchResults.length > 0 && (
+                                    {!selectedProductToLink && searchResults.length > 0 && (
                                         <div className="mt-4 border border-gray-200 rounded">
                                             <div className="max-h-80 overflow-y-auto">
                                                 <table className="min-w-full divide-y divide-gray-200">
@@ -452,7 +556,7 @@ const BarcodeControl = () => {
                                                     </thead>
                                                     <tbody className="bg-white divide-y divide-gray-200">
                                                         {searchResults.map((item) => (
-                                                            <tr key={item.id} className="hover:bg-primary-50 transition-colors">
+                                                            <tr key={item.id} className="hover:bg-amber-50 transition-colors">
                                                                 <td className="px-3 py-3">
                                                                     <div className="text-sm font-medium text-gray-900 leading-snug mb-1">{item.description}</div>
                                                                     <div className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
@@ -462,16 +566,70 @@ const BarcodeControl = () => {
                                                                 </td>
                                                                 <td className="px-3 py-3 text-center align-middle">
                                                                     <button
-                                                                        onClick={() => handleLinkProduct(item)}
+                                                                        onClick={() => setSelectedProductToLink(item)}
                                                                         className="px-3 py-2 bg-amber-100 text-amber-700 hover:bg-amber-200 hover:text-amber-800 rounded font-medium transition-colors text-sm flex items-center justify-center gap-1 mx-auto w-full max-w-[100px]"
                                                                     >
-                                                                        <i className="fas fa-link text-xs"></i> Vincular
+                                                                        <i className="fas fa-check text-xs"></i> Seleccionar
                                                                     </button>
                                                                 </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
                                                 </table>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selectedProductToLink && (
+                                        <div className="mt-4 border border-amber-300 bg-amber-50 rounded-lg p-4 shadow-sm animate-fade-in">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h5 className="font-bold text-amber-900 flex items-center gap-2">
+                                                    <i className="fas fa-link text-amber-600"></i>
+                                                    Confirmar Vinculación
+                                                </h5>
+                                                <button
+                                                    onClick={() => setSelectedProductToLink(null)}
+                                                    className="text-gray-400 hover:text-gray-600 p-1"
+                                                    title="Cancelar selección"
+                                                >
+                                                    <i className="fas fa-times"></i>
+                                                </button>
+                                            </div>
+
+                                            <div className="bg-white p-3 rounded border border-amber-100 mb-4">
+                                                <p className="text-sm font-semibold text-gray-800 mb-2">{selectedProductToLink.description}</p>
+                                                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                                    <div><span className="font-medium">Cód Int:</span> {selectedProductToLink.code}</div>
+                                                    <div><span className="font-medium">Cód Prov:</span> {selectedProductToLink.provider_code || '-'}</div>
+                                                    <div className="col-span-2">
+                                                        <span className="font-medium text-gray-500">Cód Barras Actual:</span>{' '}
+                                                        {selectedProductToLink.barcode ? (
+                                                            <span className="text-gray-800 font-mono">{selectedProductToLink.barcode}</span>
+                                                        ) : (
+                                                            <span className="text-gray-400 italic">Ninguno</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-primary-50 border border-primary-200 p-3 rounded-lg mb-4 text-center">
+                                                <p className="text-xs text-primary-600 font-bold uppercase tracking-wider mb-1">Nuevo Código a Vincular</p>
+                                                <p className="text-xl font-mono font-bold text-primary-800">{scannedBarcode}</p>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setSelectedProductToLink(null)}
+                                                    className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                                                >
+                                                    Cancelar
+                                                </button>
+                                                <button
+                                                    onClick={() => handleLinkProduct(selectedProductToLink)}
+                                                    className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="fas fa-save"></i> Confirmar
+                                                </button>
                                             </div>
                                         </div>
                                     )}

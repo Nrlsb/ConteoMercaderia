@@ -1,0 +1,16 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: ­ƒôí add observability to secrets: https://dotenvx.com/ops
+--- PRODUCTOS FALTANTES EN BASE DE DATOS ---
+- C├│digo Interno: 005930 | C├│d. Prov: 081295 | Desc: MASILLA RAPIDA MMB GRIS X 1
+- C├│digo Interno: 005931 | C├│d. Prov: 081735 | Desc: PRIMER 4:1 MMB GRIS X 1
+- C├│digo Interno: 005935 | C├│d. Prov: 081715 | Desc: CLEAR HS 2:1 MMB INCOLORO X 1
+- C├│digo Interno: 005937 | C├│d. Prov: 081725 | Desc: CLEAR 4:1 MMB INCOLORO X 1
+- C├│digo Interno: 005939 | C├│d. Prov: 081504 | Desc: COMPUESTO PULIDOR MMB PASO 1 X 0,450
+- C├│digo Interno: 005941 | C├│d. Prov: 081604 | Desc: LUSTRE A MAQUINA MMB PASO 2 X 0,450
+- C├│digo Interno: 005943 | C├│d. Prov: 081704 | Desc: LUSTRE MANUAL MMB PASO 3 X 0,450
+- C├│digo Interno: 006059 | C├│d. Prov: 081763 | Desc: CATALIZADOR UNIVERSAL MMB X 0,250
+- C├│digo Interno: 012253 | C├│d. Prov: 5187668 | Desc: 
+- C├│digo Interno: 012254 | C├│d. Prov: 5187674 | Desc: 
+- C├│digo Interno: 012255 | C├│d. Prov: 5187678 | Desc: 
+- C├│digo Interno: 012257 | C├│d. Prov: 5187670 | Desc: 
+
+Total faltantes encontradas: 12
