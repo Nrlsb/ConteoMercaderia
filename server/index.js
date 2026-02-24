@@ -821,11 +821,11 @@ app.get('/api/products/barcode/:barcode', verifyToken, async (req, res) => {
             .maybeSingle();
 
         if (error) throw error;
-        
+
         if (!data) {
             return res.status(404).json({ message: 'Producto no encontrado' });
         }
-        
+
         res.json(data);
     } catch (error) {
         console.error('Error fetching product by barcode:', error);
@@ -844,7 +844,6 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
         if (code !== undefined) updateData.code = code;
         if (barcode !== undefined) updateData.barcode = barcode;
         if (provider_code !== undefined) updateData.provider_code = provider_code;
-
         const { data, error } = await supabase
             .from('products')
             .update(updateData)
@@ -853,11 +852,68 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
             .single();
 
         if (error) throw error;
-        
+
         res.json(data);
     } catch (error) {
         console.error('Error updating product:', error);
         res.status(500).json({ message: 'Error al actualizar producto' });
+    }
+});
+
+// --- BARCODE HISTORY ENDPOINTS ---
+
+// Get barcode history
+app.get('/api/barcode-history', verifyToken, async (req, res) => {
+    try {
+        const { data: history, error } = await supabase
+            .from('barcode_history')
+            .select(`
+                id,
+                action_type,
+                product_id,
+                product_description,
+                details,
+                created_by,
+                created_at,
+                users:created_by (username)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(50); // Mantenemos los ultimos 50 en frontend
+
+        if (error) throw error;
+        res.json(history);
+    } catch (error) {
+        console.error('Error fetching barcode history:', error);
+        res.status(500).json({ message: 'Error al obtener el historial de códigos' });
+    }
+});
+
+// Post barcode history
+app.post('/api/barcode-history', verifyToken, async (req, res) => {
+    const { action_type, product_id, product_description, details } = req.body;
+
+    if (!action_type || !product_description) {
+        return res.status(400).json({ message: 'Faltan campos requeridos para el historial' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('barcode_history')
+            .insert([{
+                action_type,
+                product_id: product_id || null,
+                product_description,
+                details,
+                created_by: req.user.id // Guardamos el ID del usuario
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.status(201).json(data);
+    } catch (error) {
+        console.error('Error recording barcode history:', error);
+        res.status(500).json({ message: 'Error registrando el cambio en el historial' });
     }
 });
 

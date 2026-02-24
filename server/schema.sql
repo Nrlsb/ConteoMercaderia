@@ -91,3 +91,6 @@ create table if not exists stock_sucursal (
   updated_at timestamp with time zone default now(),
   unique (product_code, sucursal_id)
 );
+
+-- Barcode History
+create table if not exists barcode_history (id uuid default uuid_generate_v4() primary key, action_type text, product_id uuid references products(id) on delete set null, product_description text, details text, created_by text, created_at timestamp with time zone default now());

@@ -23,19 +23,50 @@ const BarcodeControl = () => {
     // Scanner state
     const [showScanner, setShowScanner] = useState(false);
 
-    // History state
-    const [actionHistory, setActionHistory] = useState(() => {
-        try {
-            const saved = localStorage.getItem('barcode_history');
-            return saved ? JSON.parse(saved) : [];
-        } catch (e) {
-            return [];
-        }
-    });
+    // Tabs state
+    const [activeTab, setActiveTab] = useState('scanner'); // 'scanner' | 'history'
 
+    // History state
+    const [actionHistory, setActionHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    // Fetch history on mount and when switching to history tab
     useEffect(() => {
-        localStorage.setItem('barcode_history', JSON.stringify(actionHistory));
-    }, [actionHistory]);
+        if (activeTab === 'history') {
+            fetchHistory();
+        }
+    }, [activeTab]);
+
+    const fetchHistory = async () => {
+        setHistoryLoading(true);
+        try {
+            const response = await api.get('/api/barcode-history');
+            setActionHistory(response.data);
+        } catch (err) {
+            console.error('Error fetching history:', err);
+            toast.error('Error al cargar el historial');
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const logHistoryEvent = async (action_type, product, details) => {
+        try {
+            await api.post('/api/barcode-history', {
+                action_type,
+                product_id: product.id,
+                product_description: product.description || 'Producto sin descripción',
+                details
+            });
+            // If we are currently on the history tab, refresh it
+            if (activeTab === 'history') {
+                fetchHistory();
+            }
+        } catch (err) {
+            console.error('Error logging history:', err);
+            // Non-blocking error for the user
+        }
+    };
 
     // Focus input on mount and whenever we are not in edit mode or searching
     useEffect(() => {
@@ -103,13 +134,10 @@ const BarcodeControl = () => {
             if (product.provider_code !== updated.provider_code) changes.push('Cód Proveedor');
             if (product.barcode !== updated.barcode) changes.push('Cód Barras');
 
-            setActionHistory(prev => [{
-                id: Date.now(),
-                type: 'edit',
-                timestamp: new Date().toISOString(),
-                product: updated,
-                changes: changes.join(', ') || 'Modificación general'
-            }, ...prev].slice(0, 20)); // Mantener los últimos 20
+            const detailsStr = changes.join(', ') || 'Modificación general';
+
+            // Log to database
+            await logHistoryEvent('edit', updated, detailsStr);
 
             toast.success('Producto actualizado correctamente');
         } catch (err) {
@@ -151,13 +179,8 @@ const BarcodeControl = () => {
             const response = await api.put(`/api/products/${selectedProduct.id}`, { barcode: scannedBarcode });
             const updated = response.data;
 
-            setActionHistory(prev => [{
-                id: Date.now(),
-                type: 'link',
-                timestamp: new Date().toISOString(),
-                product: updated,
-                scanned_barcode: scannedBarcode
-            }, ...prev].slice(0, 20));
+            // Log to database
+            await logHistoryEvent('link', updated, `Cód Barras: ${scannedBarcode}`);
 
             toast.success('Código de barras vinculado exitosamente');
             // Refresh the view to show the newly linked product
@@ -201,290 +224,325 @@ const BarcodeControl = () => {
             <div className="bg-white rounded-xl shadow-md p-3 sm:p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 gap-3">
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">Control de Códigos de Barras</h2>
+                    {activeTab === 'scanner' && (
+                        <button
+                            onClick={resetView}
+                            className="btn btn-secondary text-sm flex items-center gap-2 w-full sm:w-auto justify-center"
+                            title="Limpiar pantalla"
+                        >
+                            <i className="fas fa-redo"></i> Limpiar
+                        </button>
+                    )}
+                </div>
+
+                {/* Tabs Navigation */}
+                <div className="flex border-b border-gray-200 mb-6 w-full">
                     <button
-                        onClick={resetView}
-                        className="btn btn-secondary text-sm flex items-center gap-2 w-full sm:w-auto justify-center"
-                        title="Limpiar pantalla"
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'scanner' ? 'border-primary-600 text-primary-600 bg-primary-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        onClick={() => setActiveTab('scanner')}
                     >
-                        <i className="fas fa-redo"></i> Limpiar
+                        <i className="fas fa-barcode mr-1.5 sm:mr-2"></i> Escanear
+                    </button>
+                    <button
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'history' ? 'border-primary-600 text-primary-600 bg-primary-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        onClick={() => setActiveTab('history')}
+                    >
+                        <i className="fas fa-history mr-1.5 sm:mr-2"></i> Historial
+                        {actionHistory.length > 0 && (
+                            <span className="ml-1.5 sm:ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs border border-gray-200">{actionHistory.length}</span>
+                        )}
                     </button>
                 </div>
 
-                {/* Main Scanner Input */}
-                <form onSubmit={handleScan} className="mb-6 sm:mb-8">
-                    <div className="relative flex flex-col sm:flex-row items-center max-w-lg mx-auto gap-2 sm:gap-3">
-                        <div className="relative w-full">
-                            <i className="fas fa-barcode absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg sm:text-xl"></i>
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                value={inputBarcode}
-                                onChange={(e) => setInputBarcode(e.target.value)}
-                                placeholder="Escanear o ingresar código..."
-                                className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg border-2 border-primary-500 focus:ring-4 focus:ring-primary-200 focus:border-primary-600 transition-all text-base sm:text-lg shadow-sm"
-                                disabled={loading}
-                                autoFocus
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={loading || !inputBarcode.trim()}
-                            className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 font-medium text-base sm:text-base flex-shrink-0 h-auto sm:h-[60px]"
-                        >
-                            Buscar
-                        </button>
-                    </div>
-                    <div className="flex justify-center mt-4">
-                        <button
-                            type="button"
-                            onClick={() => setShowScanner(true)}
-                            className="btn bg-gray-800 text-white hover:bg-gray-700 flex items-center gap-2"
-                        >
-                            <i className="fas fa-camera"></i> Usar Cámara / Escáner Nativo
-                        </button>
-                    </div>
-                    <p className="text-center text-sm text-gray-500 mt-4">
-                        El escáner de mano debería enviar automáticamente la consulta tras leer el código.
-                    </p>
-                </form>
-
-                {loading && (
-                    <div className="flex justify-center p-8">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-                    </div>
-                )}
-
-                {/* Product Found Section */}
-                {product && !loading && (
-                    <div className="border border-green-200 bg-green-50 rounded-lg p-3 sm:p-6 animate-fade-in shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start mb-4 gap-3">
-                            <h3 className="text-lg sm:text-xl font-bold text-green-800 flex items-center gap-2">
-                                <i className="fas fa-check-circle text-green-600"></i>
-                                Producto Encontrado
-                            </h3>
-                            {!editMode && (
-                                <button
-                                    onClick={() => setEditMode(true)}
-                                    className="px-4 py-2 bg-white sm:bg-transparent border sm:border-0 border-gray-200 rounded text-gray-700 sm:text-primary-600 font-medium text-sm flex items-center justify-center gap-2 w-full sm:w-auto hover:bg-gray-50"
-                                >
-                                    <i className="fas fa-edit"></i> Editar
-                                </button>
-                            )}
-                        </div>
-
-                        {editMode ? (
-                            <div className="space-y-4 bg-white p-4 rounded border border-gray-200">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                {activeTab === 'scanner' && (
+                    <div className="animate-fade-in">
+                        {/* Main Scanner Input */}
+                        <form onSubmit={handleScan} className="mb-6 sm:mb-8">
+                            <div className="relative flex flex-col sm:flex-row items-center max-w-lg mx-auto gap-2 sm:gap-3">
+                                <div className="relative w-full">
+                                    <i className="fas fa-barcode absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg sm:text-xl"></i>
                                     <input
+                                        ref={inputRef}
                                         type="text"
-                                        value={editData.description}
-                                        onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                                        className="input-field"
+                                        value={inputBarcode}
+                                        onChange={(e) => setInputBarcode(e.target.value)}
+                                        placeholder="Escanear o ingresar código..."
+                                        className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg border-2 border-primary-500 focus:ring-4 focus:ring-primary-200 focus:border-primary-600 transition-all text-base sm:text-lg shadow-sm"
+                                        disabled={loading}
+                                        autoFocus
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Código Interno</label>
-                                        <input
-                                            type="text"
-                                            value={editData.code}
-                                            onChange={(e) => setEditData({ ...editData, code: e.target.value })}
-                                            className="input-field"
-                                        />
+                                <button
+                                    type="submit"
+                                    disabled={loading || !inputBarcode.trim()}
+                                    className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 font-medium text-base sm:text-base flex-shrink-0 h-auto sm:h-[60px]"
+                                >
+                                    Buscar
+                                </button>
+                            </div>
+                            <div className="flex justify-center mt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowScanner(true)}
+                                    className="btn bg-gray-800 text-white hover:bg-gray-700 flex items-center gap-2"
+                                >
+                                    <i className="fas fa-camera"></i> Usar Cámara / Escáner Nativo
+                                </button>
+                            </div>
+                            <p className="text-center text-sm text-gray-500 mt-4">
+                                El escáner de mano debería enviar automáticamente la consulta tras leer el código.
+                            </p>
+                        </form>
+
+                        {loading && (
+                            <div className="flex justify-center p-8">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                            </div>
+                        )}
+
+                        {/* Product Found Section */}
+                        {product && !loading && (
+                            <div className="border border-green-200 bg-green-50 rounded-lg p-3 sm:p-6 animate-fade-in shadow-sm">
+                                <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start mb-4 gap-3">
+                                    <h3 className="text-lg sm:text-xl font-bold text-green-800 flex items-center gap-2">
+                                        <i className="fas fa-check-circle text-green-600"></i>
+                                        Producto Encontrado
+                                    </h3>
+                                    {!editMode && (
+                                        <button
+                                            onClick={() => setEditMode(true)}
+                                            className="px-4 py-2 bg-white sm:bg-transparent border sm:border-0 border-gray-200 rounded text-gray-700 sm:text-primary-600 font-medium text-sm flex items-center justify-center gap-2 w-full sm:w-auto hover:bg-gray-50"
+                                        >
+                                            <i className="fas fa-edit"></i> Editar
+                                        </button>
+                                    )}
+                                </div>
+
+                                {editMode ? (
+                                    <div className="space-y-4 bg-white p-4 rounded border border-gray-200">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                                            <input
+                                                type="text"
+                                                value={editData.description}
+                                                onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                                                className="input-field"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Código Interno</label>
+                                                <input
+                                                    type="text"
+                                                    value={editData.code}
+                                                    onChange={(e) => setEditData({ ...editData, code: e.target.value })}
+                                                    className="input-field"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Proveedor</label>
+                                                <input
+                                                    type="text"
+                                                    value={editData.provider_code}
+                                                    onChange={(e) => setEditData({ ...editData, provider_code: e.target.value })}
+                                                    className="input-field"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras</label>
+                                                <input
+                                                    type="text"
+                                                    value={editData.barcode}
+                                                    onChange={(e) => setEditData({ ...editData, barcode: e.target.value })}
+                                                    className="input-field bg-gray-50"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+                                            <button
+                                                onClick={() => {
+                                                    setEditMode(false);
+                                                    // revert changes
+                                                    setEditData({
+                                                        description: product.description || '',
+                                                        code: product.code || '',
+                                                        barcode: product.barcode || '',
+                                                        provider_code: product.provider_code || ''
+                                                    });
+                                                }}
+                                                className="btn btn-secondary w-full sm:w-auto"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                onClick={handleSaveEdit}
+                                                className="btn btn-primary w-full sm:w-auto"
+                                            >
+                                                Guardar Cambios
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Proveedor</label>
-                                        <input
-                                            type="text"
-                                            value={editData.provider_code}
-                                            onChange={(e) => setEditData({ ...editData, provider_code: e.target.value })}
-                                            className="input-field"
-                                        />
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 sm:gap-y-4 gap-x-6 bg-white p-3 sm:p-5 rounded border border-green-100">
+                                        <div className="col-span-1 sm:col-span-2 border-b border-gray-100 pb-2 sm:pb-3">
+                                            <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Descripción</p>
+                                            <p className="text-sm sm:text-lg font-medium text-gray-900 leading-tight sm:leading-normal">{product.description || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Código Interno</p>
+                                            <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.code || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
+                                            <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.provider_code || '-'}</p>
+                                        </div>
+                                        <div className="col-span-1 sm:col-span-2 mt-1 sm:mt-2 pt-2 sm:pt-3 border-t border-gray-100">
+                                            <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
+                                                <i className="fas fa-barcode"></i> Cód. Barras Activo
+                                            </p>
+                                            <div className="bg-primary-50 border border-primary-100 rounded-md sm:rounded-lg p-2 sm:p-3">
+                                                <p className="text-base sm:text-lg font-bold text-primary-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
+                                            </div>
+                                        </div>
                                     </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Not Found / Link Section */}
+                        {error === 'code_not_found' && !loading && (
+                            <div className="border border-amber-200 bg-amber-50 rounded-lg p-6 animate-fade-in shadow-sm">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-amber-800">
+                                    <i className="fas fa-exclamation-triangle text-2xl text-amber-500 flex-shrink-0"></i>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras</label>
-                                        <input
-                                            type="text"
-                                            value={editData.barcode}
-                                            onChange={(e) => setEditData({ ...editData, barcode: e.target.value })}
-                                            className="input-field bg-gray-50"
-                                        />
+                                        <h3 className="text-lg font-bold">Código no encontrado</h3>
+                                        <p className="text-sm break-all">El código de barras <span className="font-bold underline">{scannedBarcode}</span> no está asociado a ningún producto.</p>
                                     </div>
                                 </div>
-                                <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-                                    <button
-                                        onClick={() => {
-                                            setEditMode(false);
-                                            // revert changes
-                                            setEditData({
-                                                description: product.description || '',
-                                                code: product.code || '',
-                                                barcode: product.barcode || '',
-                                                provider_code: product.provider_code || ''
-                                            });
-                                        }}
-                                        className="btn btn-secondary w-full sm:w-auto"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={handleSaveEdit}
-                                        className="btn btn-primary w-full sm:w-auto"
-                                    >
-                                        Guardar Cambios
-                                    </button>
+
+                                <div className="mt-6 bg-white p-5 rounded border border-amber-100">
+                                    <h4 className="font-semibold text-gray-800 mb-3">Buscar producto para vincular:</h4>
+                                    <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder="Buscar por descripción..."
+                                            className="input-field flex-grow shadow-sm"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={searching || !searchQuery.trim()}
+                                            className="btn btn-primary flex justify-center items-center gap-2 w-full sm:w-auto"
+                                        >
+                                            {searching ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>} Buscar
+                                        </button>
+                                    </form>
+
+                                    {/* Search Results */}
+                                    {searchResults.length > 0 && (
+                                        <div className="mt-4 border border-gray-200 rounded">
+                                            <div className="max-h-80 overflow-y-auto">
+                                                <table className="min-w-full divide-y divide-gray-200">
+                                                    <thead className="bg-gray-50 sticky top-0">
+                                                        <tr>
+                                                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalles</th>
+                                                            <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Acción</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white divide-y divide-gray-200">
+                                                        {searchResults.map((item) => (
+                                                            <tr key={item.id} className="hover:bg-primary-50 transition-colors">
+                                                                <td className="px-3 py-3">
+                                                                    <div className="text-sm font-medium text-gray-900 leading-snug mb-1">{item.description}</div>
+                                                                    <div className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
+                                                                        <span><span className="font-semibold">Cód:</span> {item.code}</span>
+                                                                        <span><span className="font-semibold">Barras:</span> {item.barcode || '-'}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center align-middle">
+                                                                    <button
+                                                                        onClick={() => handleLinkProduct(item)}
+                                                                        className="px-3 py-2 bg-amber-100 text-amber-700 hover:bg-amber-200 hover:text-amber-800 rounded font-medium transition-colors text-sm flex items-center justify-center gap-1 mx-auto w-full max-w-[100px]"
+                                                                    >
+                                                                        <i className="fas fa-link text-xs"></i> Vincular
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 sm:gap-y-4 gap-x-6 bg-white p-3 sm:p-5 rounded border border-green-100">
-                                <div className="col-span-1 sm:col-span-2 border-b border-gray-100 pb-2 sm:pb-3">
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Descripción</p>
-                                    <p className="text-sm sm:text-lg font-medium text-gray-900 leading-tight sm:leading-normal">{product.description || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Código Interno</p>
-                                    <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.code || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
-                                    <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.provider_code || '-'}</p>
-                                </div>
-                                <div className="col-span-1 sm:col-span-2 mt-1 sm:mt-2 pt-2 sm:pt-3 border-t border-gray-100">
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
-                                        <i className="fas fa-barcode"></i> Cód. Barras Activo
-                                    </p>
-                                    <div className="bg-primary-50 border border-primary-100 rounded-md sm:rounded-lg p-2 sm:p-3">
-                                        <p className="text-base sm:text-lg font-bold text-primary-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
-                                    </div>
-                                </div>
+                        )}
+
+                        {/* Generic Error */}
+                        {error && error !== 'code_not_found' && !loading && (
+                            <div className="mt-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+                                <span className="block sm:inline">{error}</span>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* Not Found / Link Section */}
-                {error === 'code_not_found' && !loading && (
-                    <div className="border border-amber-200 bg-amber-50 rounded-lg p-6 animate-fade-in shadow-sm">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-amber-800">
-                            <i className="fas fa-exclamation-triangle text-2xl text-amber-500 flex-shrink-0"></i>
-                            <div>
-                                <h3 className="text-lg font-bold">Código no encontrado</h3>
-                                <p className="text-sm break-all">El código de barras <span className="font-bold underline">{scannedBarcode}</span> no está asociado a ningún producto.</p>
-                            </div>
-                        </div>
-
-                        <div className="mt-6 bg-white p-5 rounded border border-amber-100">
-                            <h4 className="font-semibold text-gray-800 mb-3">Buscar producto para vincular:</h4>
-                            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Buscar por descripción..."
-                                    className="input-field flex-grow shadow-sm"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={searching || !searchQuery.trim()}
-                                    className="btn btn-primary flex justify-center items-center gap-2 w-full sm:w-auto"
-                                >
-                                    {searching ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>} Buscar
-                                </button>
-                            </form>
-
-                            {/* Search Results */}
-                            {searchResults.length > 0 && (
-                                <div className="mt-4 border border-gray-200 rounded">
-                                    <div className="max-h-80 overflow-y-auto">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-gray-50 sticky top-0">
-                                                <tr>
-                                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalles</th>
-                                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Acción</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                {searchResults.map((item) => (
-                                                    <tr key={item.id} className="hover:bg-primary-50 transition-colors">
-                                                        <td className="px-3 py-3">
-                                                            <div className="text-sm font-medium text-gray-900 leading-snug mb-1">{item.description}</div>
-                                                            <div className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
-                                                                <span><span className="font-semibold">Cód:</span> {item.code}</span>
-                                                                <span><span className="font-semibold">Barras:</span> {item.barcode || '-'}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 py-3 text-center align-middle">
-                                                            <button
-                                                                onClick={() => handleLinkProduct(item)}
-                                                                className="px-3 py-2 bg-amber-100 text-amber-700 hover:bg-amber-200 hover:text-amber-800 rounded font-medium transition-colors text-sm flex items-center justify-center gap-1 mx-auto w-full max-w-[100px]"
-                                                            >
-                                                                <i className="fas fa-link text-xs"></i> Vincular
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Generic Error */}
-                {error && error !== 'code_not_found' && !loading && (
-                    <div className="mt-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-                        <span className="block sm:inline">{error}</span>
-                    </div>
-                )}
-
                 {/* History Section */}
-                {actionHistory.length > 0 && (
-                    <div className="mt-8 border-t border-gray-200 pt-6 animate-fade-in">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                <i className="fas fa-history text-gray-500"></i>
-                                Historial Reciente
-                            </h3>
-                            <button
-                                onClick={() => {
-                                    if (window.confirm('¿Seguro que deseas limpiar el historial local?')) {
-                                        setActionHistory([]);
-                                    }
-                                }}
-                                className="text-sm text-red-500 hover:text-red-700 self-start sm:self-auto"
-                            >
-                                <i className="fas fa-trash-alt mr-1"></i> Limpiar
-                            </button>
-                        </div>
-                        <div className="space-y-3">
-                            {actionHistory.map(item => (
-                                <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-                                    <div>
-                                        <p className="font-semibold text-gray-800 text-base">{item.product.description}</p>
-                                        <div className="mt-1.5 flex items-center gap-2">
-                                            {item.type === 'edit' ? (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100 text-blue-700 font-medium text-xs">
-                                                    <i className="fas fa-edit"></i>
-                                                    Editado: {item.changes}
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-100 text-green-700 font-medium text-xs">
-                                                    <i className="fas fa-link"></i>
-                                                    Vinculado código
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="text-xs text-gray-500 flex items-center gap-1.5 sm:justify-end border-t sm:border-t-0 border-gray-200 pt-2 sm:pt-0 shrink-0">
-                                        <i className="far fa-clock"></i>
-                                        {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
+                {activeTab === 'history' && (
+                    <div className="animate-fade-in pt-2">
+                        {historyLoading ? (
+                            <div className="flex justify-center py-10">
+                                <i className="fas fa-spinner fa-spin text-3xl text-primary-500"></i>
+                            </div>
+                        ) : actionHistory.length > 0 ? (
+                            <div>
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                        <i className="fas fa-history text-gray-500"></i>
+                                        Historial Reciente
+                                    </h3>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="space-y-3">
+                                    {actionHistory.map(item => (
+                                        <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow transition-shadow">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <p className="font-semibold text-gray-800 text-base">{item.product_description}</p>
+                                                    {item.users?.username && (
+                                                        <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                            <i className="fas fa-user text-[10px]"></i> {item.users.username}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="mt-1.5 flex items-center gap-2">
+                                                    {item.action_type === 'edit' ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100 text-blue-700 font-medium text-xs">
+                                                            <i className="fas fa-edit"></i>
+                                                            Editado: {item.details}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-100 text-green-700 font-medium text-xs">
+                                                            <i className="fas fa-link"></i>
+                                                            Vinculado: {item.details}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-gray-500 flex items-center gap-1.5 sm:justify-end border-t sm:border-t-0 border-gray-200 pt-2 sm:pt-0 shrink-0">
+                                                <i className="far fa-clock"></i>
+                                                {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-10 text-gray-500">
+                                <i className="fas fa-clipboard-list text-4xl mb-3 text-gray-300"></i>
+                                <p>No hay cambios recientes registrados en la base de datos.</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
