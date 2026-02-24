@@ -97,8 +97,8 @@ app.get('/api/app-version', (req, res) => {
     }
 });
 
-// Update App Version (Admin Only)
-app.put('/api/app-version', verifyToken, verifyAdmin, (req, res) => {
+// Update App Version (Superadmin Only)
+app.put('/api/app-version', verifyToken, verifySuperAdmin, (req, res) => {
     try {
         const { version, downloadUrl, releaseNotes } = req.body;
 
