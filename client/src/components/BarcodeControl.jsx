@@ -505,21 +505,20 @@ const BarcodeControl = () => {
 
                         {/* Not Found / Link Section */}
                         {error === 'code_not_found' && !loading && (
-                            <div className="border border-amber-200 bg-amber-50 rounded-lg p-6 animate-fade-in shadow-sm">
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-amber-800">
-                                    <i className="fas fa-exclamation-triangle text-2xl text-amber-500 flex-shrink-0"></i>
-                                    <div>
-                                        <h3 className="text-lg font-bold">Código no encontrado</h3>
-                                        <p className="text-sm break-all">El código de barras <span className="font-bold underline">{scannedBarcode}</span> no está asociado a ningún producto.</p>
+                            <div className="animate-fade-in">
+                                <div className="border border-amber-200 bg-amber-50 rounded-lg p-3 sm:p-4 shadow-sm mb-4">
+                                    <div className="flex items-start sm:items-center gap-3 text-amber-800">
+                                        <i className="fas fa-exclamation-triangle text-2xl text-amber-500 flex-shrink-0"></i>
+                                        <div>
+                                            <h3 className="text-lg font-bold">Código no encontrado</h3>
+                                            <p className="text-sm break-all">El código <span className="font-bold">{scannedBarcode}</span> no está asociado a ningún producto.</p>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="mt-6 bg-white p-4 sm:p-6 rounded-2xl border border-amber-200 shadow-md">
-                                    <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg">
-                                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-                                            <i className="fas fa-search"></i>
-                                        </div>
-                                        Vincular a un producto existente
+                                <div className="bg-white p-3 sm:p-5 rounded-xl border border-gray-200 shadow-sm">
+                                    <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-base sm:text-lg">
+                                        <i className="fas fa-search text-blue-500"></i> Vincular a un producto existente
                                     </h4>
 
                                     <form onSubmit={handleSearchSubmit} className="relative mb-4">
@@ -532,27 +531,29 @@ const BarcodeControl = () => {
                                                 placeholder="Nombre del producto..."
                                                 className="w-full pl-12 pr-24 py-3.5 rounded-xl border-2 border-gray-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-50 transition-all text-base shadow-sm outline-none bg-gray-50 focus:bg-white"
                                             />
-                                            {searchQuery && (
+                                            <div className="absolute right-2 flex items-center gap-1">
+                                                {searchQuery && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSearchQuery('');
+                                                            setSearchResults([]);
+                                                        }}
+                                                        className="text-gray-400 hover:text-gray-600 p-2 focus:outline-none"
+                                                        title="Limpiar búsqueda"
+                                                    >
+                                                        <i className="fas fa-times"></i>
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        setSearchQuery('');
-                                                        setSearchResults([]);
-                                                    }}
-                                                    className="absolute right-12 text-gray-400 hover:text-gray-600 p-2 focus:outline-none"
-                                                    title="Limpiar búsqueda"
+                                                    onClick={handleVoiceSearch}
+                                                    className={`p-2.5 rounded-lg transition-all focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'text-gray-500 hover:text-amber-600 hover:bg-amber-50'}`}
+                                                    title="Buscar por voz"
                                                 >
-                                                    <i className="fas fa-times"></i>
+                                                    <i className="fas fa-microphone text-lg"></i>
                                                 </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={handleVoiceSearch}
-                                                className={`absolute right-2 p-2.5 rounded-lg transition-all focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
-                                                title="Buscar por voz"
-                                            >
-                                                <i className="fas fa-microphone text-lg"></i>
-                                            </button>
+                                            </div>
                                         </div>
                                         <button type="submit" className="hidden">Buscar</button>
                                     </form>
@@ -565,19 +566,19 @@ const BarcodeControl = () => {
 
                                     {/* Search Results */}
                                     {!selectedProductToLink && searchResults.length > 0 && (
-                                        <div className="mt-4 border border-gray-100 rounded-xl bg-gray-50/50 p-2 sm:p-3 shadow-inner">
+                                        <div className="mt-4 border border-gray-100 rounded-xl bg-gray-50/50 p-2 shadow-inner">
                                             <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
                                                 {searchResults.map((item) => (
-                                                    <div key={item.id} className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm hover:border-amber-300 hover:shadow transition-all group flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+                                                    <div key={item.id} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm hover:border-amber-300 hover:shadow transition-all flex flex-col sm:flex-row gap-2 justify-between items-start sm:items-center">
                                                         <div className="flex-1 w-full">
-                                                            <h5 className="font-bold text-gray-900 mb-1.5 leading-tight group-hover:text-amber-700 transition-colors">{item.description}</h5>
+                                                            <h5 className="font-bold text-gray-900 mb-1 leading-snug">{item.description}</h5>
                                                             <div className="flex flex-wrap text-xs text-gray-600 gap-2 items-center">
-                                                                <span className="bg-gray-100 px-2 py-1 rounded-md font-mono border border-gray-200">
-                                                                    <span className="text-gray-400 font-sans text-[10px] uppercase tracking-wider mr-1">Cód</span>
+                                                                <span className="bg-gray-100 px-2 py-1 rounded font-mono border border-gray-200">
+                                                                    <span className="text-gray-400 font-sans text-[10px] uppercase mr-1">Cód</span>
                                                                     {item.code}
                                                                 </span>
                                                                 {item.barcode && (
-                                                                    <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-mono border border-blue-100 flex items-center gap-1">
+                                                                    <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded font-mono border border-blue-100 flex items-center gap-1">
                                                                         <i className="fas fa-barcode"></i> {item.barcode}
                                                                     </span>
                                                                 )}
@@ -585,9 +586,9 @@ const BarcodeControl = () => {
                                                         </div>
                                                         <button
                                                             onClick={() => setSelectedProductToLink(item)}
-                                                            className="w-full sm:w-auto px-5 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-500 hover:text-white rounded-lg font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95 shrink-0"
+                                                            className="w-full sm:w-auto px-4 py-2 bg-amber-100 text-amber-800 hover:bg-amber-500 hover:text-white rounded-lg font-bold transition-all text-sm flex items-center justify-center gap-2 shrink-0"
                                                         >
-                                                            <i className="fas fa-check"></i> Seleccionar
+                                                            Seleccionar
                                                         </button>
                                                     </div>
                                                 ))}
@@ -596,74 +597,70 @@ const BarcodeControl = () => {
                                     )}
 
                                     {selectedProductToLink && (
-                                        <div className="mt-4 border-2 border-amber-300 bg-amber-50 rounded-xl p-5 shadow-md animate-fade-in relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-200 rounded-bl-full opacity-50 pointer-events-none -z-0"></div>
-
-                                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                                <h5 className="font-bold text-amber-900 flex items-center gap-2 text-base sm:text-lg leading-tight pr-2">
-                                                    <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-700 flex shrink-0 items-center justify-center">
-                                                        <i className="fas fa-link"></i>
-                                                    </div>
-                                                    Confirmar Vinculación
+                                        <div className="mt-4 border border-gray-200 bg-gray-50/50 rounded-xl p-3 sm:p-4 shadow-sm animate-fade-in w-full">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h5 className="font-bold text-gray-800 flex items-center gap-2 text-base sm:text-lg">
+                                                    <i className="fas fa-link text-amber-500"></i> Confirmar Vinculación
                                                 </h5>
                                                 <button
                                                     onClick={() => setSelectedProductToLink(null)}
-                                                    className="w-8 h-8 flex shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-gray-700 transition-colors shadow-sm bg-white/50"
+                                                    className="w-8 h-8 flex shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors"
                                                     title="Cancelar selección"
                                                 >
                                                     <i className="fas fa-times"></i>
                                                 </button>
                                             </div>
 
-                                            <div className="bg-white p-3 sm:p-4 rounded-xl border border-amber-100 mb-4 shadow-sm relative z-10 w-full overflow-hidden">
-                                                <p className="text-sm sm:text-base font-bold text-gray-800 mb-3 break-words">{selectedProductToLink.description}</p>
-                                                <div className="grid grid-cols-2 gap-2 sm:gap-3 text-sm text-gray-600 bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-100">
+                                            <div className="bg-white p-3 rounded-xl border border-gray-200 mb-3 shadow-sm w-full">
+                                                <p className="text-sm sm:text-base font-bold text-gray-900 mb-2 leading-tight">{selectedProductToLink.description}</p>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
                                                     <div>
-                                                        <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cód Int</span>
-                                                        <span className="font-mono text-gray-900 font-medium break-all">{selectedProductToLink.code}</span>
+                                                        <span className="text-[10px] uppercase font-bold text-gray-400 mr-1">Cód Int</span>
+                                                        <span className="font-mono text-gray-900">{selectedProductToLink.code}</span>
                                                     </div>
                                                     <div>
-                                                        <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cód Prov</span>
-                                                        <span className="font-mono text-gray-900 font-medium break-all">{selectedProductToLink.provider_code || '-'}</span>
+                                                        <span className="text-[10px] uppercase font-bold text-gray-400 mr-1">Cód Prov</span>
+                                                        <span className="font-mono text-gray-900">{selectedProductToLink.provider_code || '-'}</span>
                                                     </div>
-                                                    <div className="col-span-2 pt-2 mt-1 border-t border-gray-200/60 w-full">
-                                                        <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Cód Barras Actual</span>
+                                                    <div className="w-full flex items-center gap-2 mt-1">
+                                                        <span className="text-[10px] uppercase font-bold text-gray-400">Actual</span>
                                                         {selectedProductToLink.barcode ? (
-                                                            <span className="inline-flex bg-white border border-gray-200 px-2 py-1.5 sm:px-3 rounded-md text-gray-800 font-mono text-xs sm:text-sm tracking-widest shadow-sm items-center gap-2 w-full sm:w-fit break-all">
-                                                                <i className="fas fa-barcode text-gray-400 shrink-0"></i>
-                                                                <span className="break-all">{selectedProductToLink.barcode}</span>
+                                                            <span className="bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
+                                                                <i className="fas fa-barcode mr-1 text-gray-400"></i>
+                                                                {selectedProductToLink.barcode}
                                                             </span>
                                                         ) : (
-                                                            <span className="text-gray-400 italic text-sm">Ninguno asociado</span>
+                                                            <span className="text-gray-400 italic text-xs">Ninguno</span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-primary-50 border-2 border-primary-200 p-3 sm:p-4 rounded-xl mb-4 sm:mb-5 text-center relative z-10 shadow-sm overflow-hidden group w-full">
-                                                <div className="absolute inset-0 bg-primary-100 opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                                                <p className="text-[10px] sm:text-xs text-primary-600 font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
-                                                    <i className="fas fa-qrcode"></i> Nuevo Código a Vincular
-                                                </p>
-                                                <div className="bg-white px-2 sm:px-4 py-2 rounded-lg border border-primary-100 shadow-sm w-full mx-auto max-w-full">
-                                                    <p className="text-lg sm:text-2xl font-mono font-black text-primary-800 tracking-wider sm:tracking-widest break-all">
-                                                        {scannedBarcode}
-                                                    </p>
-                                                </div>
+                                            <div className="bg-amber-50 border border-amber-200 p-2.5 sm:p-3 rounded-xl mb-4 text-center w-full">
+                                                <label className="block text-[10px] text-amber-700 font-bold uppercase mb-1.5 cursor-pointer">
+                                                    Nuevo Código a Vincular
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={scannedBarcode}
+                                                    onChange={(e) => setScannedBarcode(e.target.value)}
+                                                    className="w-full text-center text-lg sm:text-xl font-mono font-black text-amber-900 bg-white border border-amber-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm"
+                                                    placeholder="Ingrese o escanee el código"
+                                                />
                                             </div>
 
-                                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 relative z-10 w-full">
+                                            <div className="flex gap-2 w-full">
                                                 <button
                                                     onClick={() => setSelectedProductToLink(null)}
-                                                    className="w-full sm:flex-1 py-2.5 sm:py-3 bg-white border-2 border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95 text-sm sm:text-base"
+                                                    className="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all text-sm"
                                                 >
                                                     Cancelar
                                                 </button>
                                                 <button
                                                     onClick={() => handleLinkProduct(selectedProductToLink)}
-                                                    className="w-full sm:flex-[2] py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold hover:from-amber-600 hover:to-amber-700 transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 text-base sm:text-lg"
+                                                    className="flex-1 py-2.5 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-all shadow-sm text-sm"
                                                 >
-                                                    <i className="fas fa-save"></i> Confirmar
+                                                    Confirmar
                                                 </button>
                                             </div>
                                         </div>
@@ -743,7 +740,7 @@ const BarcodeControl = () => {
             {/* Scanner Modal overlay */}
             {showScanner && (
                 <div className="fixed inset-0 z-50 flex flex-col bg-black">
-                    <div className="flex justify-between items-center p-4 bg-gray-900 text-white">
+                    <div className="flex justify-between items-center px-4 pb-4 pt-10 sm:pt-4 bg-gray-900 text-white shadow-md relative z-[100]">
                         <h3 className="text-lg font-bold">Escanear Código</h3>
                         <button
                             onClick={() => setShowScanner(false)}
