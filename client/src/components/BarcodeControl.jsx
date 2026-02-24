@@ -159,9 +159,9 @@ const BarcodeControl = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-4 animate-fade-in">
-            <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3">
+        <div className="max-w-4xl mx-auto p-2 sm:p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-md p-3 sm:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 gap-3">
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">Control de Códigos de Barras</h2>
                     <button
                         onClick={resetView}
@@ -173,17 +173,17 @@ const BarcodeControl = () => {
                 </div>
 
                 {/* Main Scanner Input */}
-                <form onSubmit={handleScan} className="mb-8">
-                    <div className="relative flex flex-col sm:flex-row items-center max-w-lg mx-auto gap-3">
+                <form onSubmit={handleScan} className="mb-6 sm:mb-8">
+                    <div className="relative flex flex-col sm:flex-row items-center max-w-lg mx-auto gap-2 sm:gap-3">
                         <div className="relative w-full">
-                            <i className="fas fa-barcode absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl"></i>
+                            <i className="fas fa-barcode absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg sm:text-xl"></i>
                             <input
                                 ref={inputRef}
                                 type="text"
                                 value={inputBarcode}
                                 onChange={(e) => setInputBarcode(e.target.value)}
                                 placeholder="Escanear o ingresar código..."
-                                className="w-full pl-12 pr-4 py-4 rounded-lg border-2 border-primary-500 focus:ring-4 focus:ring-primary-200 focus:border-primary-600 transition-all text-lg shadow-sm"
+                                className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg border-2 border-primary-500 focus:ring-4 focus:ring-primary-200 focus:border-primary-600 transition-all text-base sm:text-lg shadow-sm"
                                 disabled={loading}
                                 autoFocus
                             />
@@ -191,7 +191,7 @@ const BarcodeControl = () => {
                         <button
                             type="submit"
                             disabled={loading || !inputBarcode.trim()}
-                            className="w-full sm:w-auto px-6 py-4 sm:py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 font-medium text-lg sm:text-base flex-shrink-0"
+                            className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 font-medium text-base sm:text-base flex-shrink-0 h-auto sm:h-[60px]"
                         >
                             Buscar
                         </button>
@@ -218,8 +218,8 @@ const BarcodeControl = () => {
 
                 {/* Product Found Section */}
                 {product && !loading && (
-                    <div className="border border-green-200 bg-green-50 rounded-lg p-6 animate-fade-in shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3">
+                    <div className="border border-green-200 bg-green-50 rounded-lg p-3 sm:p-6 animate-fade-in shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start mb-4 gap-3">
                             <h3 className="text-lg sm:text-xl font-bold text-green-800 flex items-center gap-2">
                                 <i className="fas fa-check-circle text-green-600"></i>
                                 Producto Encontrado
@@ -227,7 +227,7 @@ const BarcodeControl = () => {
                             {!editMode && (
                                 <button
                                     onClick={() => setEditMode(true)}
-                                    className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
+                                    className="px-4 py-2 bg-white sm:bg-transparent border sm:border-0 border-gray-200 rounded text-gray-700 sm:text-primary-600 font-medium text-sm flex items-center justify-center gap-2 w-full sm:w-auto hover:bg-gray-50"
                                 >
                                     <i className="fas fa-edit"></i> Editar
                                 </button>
@@ -299,24 +299,26 @@ const BarcodeControl = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8 bg-white p-5 rounded border border-green-100">
-                                <div className="col-span-1 sm:col-span-2 border-b border-gray-100 pb-3">
-                                    <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Descripción</p>
-                                    <p className="text-lg font-medium text-gray-900">{product.description || '-'}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 sm:gap-y-4 gap-x-6 bg-white p-3 sm:p-5 rounded border border-green-100">
+                                <div className="col-span-1 sm:col-span-2 border-b border-gray-100 pb-2 sm:pb-3">
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Descripción</p>
+                                    <p className="text-sm sm:text-lg font-medium text-gray-900 leading-tight sm:leading-normal">{product.description || '-'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Código Interno</p>
-                                    <p className="text-base text-gray-900 font-mono bg-gray-50 p-1 rounded inline-block mt-1">{product.code || '-'}</p>
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Código Interno</p>
+                                    <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.code || '-'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Cód. Proveedor</p>
-                                    <p className="text-base text-gray-900 font-mono bg-gray-50 p-1 rounded inline-block mt-1">{product.provider_code || '-'}</p>
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
+                                    <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.provider_code || '-'}</p>
                                 </div>
-                                <div className="col-span-1 sm:col-span-2 mt-2 pt-3 border-t border-gray-100">
-                                    <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                <div className="col-span-1 sm:col-span-2 mt-1 sm:mt-2 pt-2 sm:pt-3 border-t border-gray-100">
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
                                         <i className="fas fa-barcode"></i> Cód. Barras Activo
                                     </p>
-                                    <p className="text-lg font-bold text-primary-700 bg-primary-50 p-2 rounded inline-block mt-1 border border-primary-100 tracking-widest break-all w-full leading-tight">{product.barcode || '-'}</p>
+                                    <div className="bg-primary-50 border border-primary-100 rounded-md sm:rounded-lg p-2 sm:p-3">
+                                        <p className="text-base sm:text-lg font-bold text-primary-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
+                                    </div>
                                 </div>
                             </div>
                         )}
