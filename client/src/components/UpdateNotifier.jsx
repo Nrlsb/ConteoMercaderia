@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import Modal from './Modal';
 import api from '../api';
 
@@ -7,6 +8,8 @@ const UpdateNotifier = () => {
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [dismissed, setDismissed] = useState(false);
+
+    const isNative = Capacitor.isNativePlatform();
 
     const isNewerVersion = (current, latest) => {
         const currentParts = current.split('.').map(Number);
@@ -22,22 +25,21 @@ const UpdateNotifier = () => {
     };
 
     useEffect(() => {
+        if (!isNative) return;
+
         const checkForUpdates = async () => {
             try {
-                // En desarrollo local o navegador puro, App.getInfo puede fallar o no ser relevante
-                // pero intentamos usarlo.
-                let currentVersion = '1.0.0'; // Default fallback
+                let currentVersion = '1.0.0';
                 try {
                     const info = await CapacitorApp.getInfo();
                     currentVersion = info.version;
                 } catch (e) {
-                    // Silencioso en web
+                    // Fallback local
                 }
 
                 const response = await api.get('/api/app-version');
                 const serverInfo = response.data;
 
-                // Comparación simple de versiones (ej. 1.0.0 vs 1.0.1)
                 if (isNewerVersion(currentVersion, serverInfo.version)) {
                     setUpdateInfo(serverInfo);
                 }
@@ -47,11 +49,10 @@ const UpdateNotifier = () => {
         };
 
         checkForUpdates();
-        const intervalId = setInterval(checkForUpdates, 30000); // Poll cada 30 segundos
+        const intervalId = setInterval(checkForUpdates, 30000);
         return () => clearInterval(intervalId);
-    }, []);
+    }, [isNative]);
 
-    // Effect para abrir el modal cuando hay info de actualización por primera vez en la sesión
     useEffect(() => {
         if (updateInfo && !dismissed) {
             setIsModalOpen(true);
@@ -60,7 +61,6 @@ const UpdateNotifier = () => {
 
     const handleDownload = () => {
         if (updateInfo?.downloadUrl) {
-            // Abre la URL en el navegador externo para bajar el APK
             window.open(updateInfo.downloadUrl, '_system');
             setIsModalOpen(false);
             setDismissed(true);
@@ -72,6 +72,8 @@ const UpdateNotifier = () => {
         setDismissed(true);
     };
 
+    if (!isNative) return null;
+
     return (
         <>
             <Modal
@@ -80,14 +82,16 @@ const UpdateNotifier = () => {
                 title="¡Nueva Actualización Disponible!"
                 message={`La versión ${updateInfo?.version} está disponible. Te recomendamos actualizar para obtener las últimas mejoras y correcciones.\n\nNovedades: ${updateInfo?.releaseNotes || 'Mejoras de rendimiento y estabilidad.'}`}
                 type="info"
-                confirmText="Descargar Actualización"
+                confirmText="Descargar"
                 onConfirm={handleDownload}
             />
 
-            {/* Banner top por si cierran el modal temporalmente */}
             {updateInfo && dismissed && (
-                <div className="bg-blue-100 border-b border-blue-300 px-4 py-2 flex justify-between items-center text-brand-dark z-40 shadow-sm animate-fade-in-down w-full">
-                    <div className="flex items-center gap-2">
+                <div
+                    className="bg-blue-100 border-b border-blue-300 px-4 py-2 flex justify-between items-center text-brand-dark z-40 shadow-sm animate-fade-in-down w-full"
+                    style={{ paddingTop: 'calc(var(--safe-area-top) + 0.5rem)' }}
+                >
+                    <div className="flex items-center gap-2 mt-1">
                         <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -97,7 +101,7 @@ const UpdateNotifier = () => {
                     </div>
                     <button
                         onClick={handleDownload}
-                        className="bg-brand-blue hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition shadow-sm whitespace-nowrap"
+                        className="bg-brand-blue hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition shadow-sm whitespace-nowrap mt-1"
                     >
                         Descargar
                     </button>
