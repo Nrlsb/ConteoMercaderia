@@ -55,6 +55,8 @@ const ReceiptHistory = ({ receiptId }) => {
                 return <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Control</span>;
             case 'MANUAL_OVERRIDE':
                 return <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Manual</span>;
+            case 'UPDATE_BARCODE':
+                return <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><i className="fas fa-barcode"></i> Cód Barras</span>;
             default:
                 return <span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Otro</span>;
         }
@@ -64,6 +66,16 @@ const ReceiptHistory = ({ receiptId }) => {
         const isExpected = operation.includes('EXPECTED');
         const isScanned = operation.includes('SCANNED');
         const isManual = operation === 'MANUAL_OVERRIDE';
+        const isBarcodeUpdate = operation === 'UPDATE_BARCODE';
+
+        if (isBarcodeUpdate) {
+            return (
+                <div className="flex flex-col items-end gap-1 text-xs">
+                    <span className="text-gray-400 line-through truncate max-w-[120px]">{oldData?.barcode || 'Ninguno'}</span>
+                    <span className="text-brand-blue font-bold truncate max-w-[120px]">{newData?.barcode}</span>
+                </div>
+            );
+        }
 
         if (isManual) {
             return (

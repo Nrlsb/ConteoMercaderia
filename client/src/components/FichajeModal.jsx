@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { toast } from 'sonner';
 
-const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting }) => {
+const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting, receiptId }) => {
     const [quantity, setQuantity] = useState('');
     const [isEditingBarcode, setIsEditingBarcode] = useState(false);
     const [barcodeInput, setBarcodeInput] = useState('');
@@ -34,6 +34,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
 
         setIsUpdatingBarcode(true);
         try {
+            const oldBarcode = currentBarcode; // Save old barcode for history
             const response = await api.put(`/api/products/${product.code}/barcode`, {
                 barcode: barcodeInput.trim()
             });
@@ -41,6 +42,34 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setIsEditingBarcode(false);
             product.barcode = barcodeInput.trim(); // Update the local product object too
             toast.success("Código de barras actualizado en la base de datos.");
+
+            // Log history
+            try {
+                // Determine the correct product_id (it could be 'id' if pure product, or 'product_id' if from a remito item)
+                const pId = response.data?.id || product.id || product.product_id;
+
+                if (pId) {
+                    await api.post('/api/barcode-history', {
+                        action_type: 'edit',
+                        product_id: pId,
+                        product_description: product.description || product.name || 'Producto sin descripción',
+                        details: `Cód Barras modificado a: ${barcodeInput.trim()}`
+                    });
+                }
+
+                // If we are within a receipt, log to receipt history too
+                if (receiptId) {
+                    await api.post('/api/receipt-items-history/barcode', {
+                        receipt_id: receiptId,
+                        product_code: product.code,
+                        new_barcode: barcodeInput.trim(),
+                        old_barcode: oldBarcode
+                    });
+                }
+            } catch (historyErr) {
+                console.error('Error logging history:', historyErr);
+                // Non-blocking error
+            }
 
             // Refocus quantity input
             setTimeout(() => {

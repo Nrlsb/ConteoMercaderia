@@ -835,6 +835,7 @@ const ReceiptDetailsPage = () => {
                 product={fichajeState.product}
                 existingQuantity={fichajeState.existingQuantity}
                 expectedQuantity={fichajeState.expectedQuantity}
+                receiptId={id}
             />
         </div>
     );

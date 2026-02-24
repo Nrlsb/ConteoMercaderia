@@ -624,6 +624,40 @@ app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
     }
 });
 
+// Update Barcode and log history for a specific receipt
+app.post('/api/receipt-items-history/barcode', verifyToken, async (req, res) => {
+    const { receipt_id, product_code, new_barcode, old_barcode } = req.body;
+
+    if (!receipt_id || !product_code || !new_barcode) {
+        return res.status(400).json({ message: 'Faltan campos (receipt_id, product_code, new_barcode)' });
+    }
+
+    try {
+        // Log History explicitly for the receipt
+        const { error: historyError } = await supabase.from('receipt_items_history').insert({
+            receipt_id: receipt_id,
+            user_id: req.user.id,
+            operation: 'UPDATE_BARCODE',
+            product_code: product_code,
+            old_data: { barcode: old_barcode || null },
+            new_data: { barcode: new_barcode },
+            changed_at: new Date().toISOString()
+        });
+
+        if (historyError) {
+            console.error('[DEBUG_HISTORY] Error inserting history (Barcode Update):', historyError);
+            return res.status(500).json({ message: 'Error al guardar el historial del código de barras en el remito' });
+        }
+
+        console.log('[DEBUG_HISTORY] History insertion successful (Barcode Update)');
+        res.status(201).json({ message: 'Historial guardado exitosamente' });
+
+    } catch (error) {
+        console.error('Error recording barcode update history for receipt:', error);
+        res.status(500).json({ message: 'Error general de servidor al guardar historial' });
+    }
+});
+
 // Get Receipt History
 app.get('/api/receipt-history/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
