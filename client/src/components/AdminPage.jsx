@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import axios from '../api';
-import { useNavigate } from 'react-router-dom';
-import BranchesManage from './BranchesManage';
-import UsersManage from './UsersManage';
-
-const AdminPage = () => {
+import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('data'); // 'data', 'branches', 'users'
     const navigate = useNavigate();
 
     const handleFileChange = (e) => {
@@ -48,184 +43,154 @@ const AdminPage = () => {
         <div className="container mx-auto p-4">
             <h1 className="text-3xl font-bold mb-6 text-gray-800">Administración</h1>
 
-            {/* Tabs Navigation */}
-            <div className="flex border-b mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
-                <button
-                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'data' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
-                    onClick={() => setActiveTab('data')}
-                >
-                    Importación
-                </button>
-                <button
-                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'branches' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
-                    onClick={() => setActiveTab('branches')}
-                >
-                    Sucursales
-                </button>
-                <button
-                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
-                    onClick={() => setActiveTab('users')}
-                >
-                    Usuarios
-                </button>
-            </div>
+            <>
+                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+                    <h2 className="text-xl mb-4 font-semibold">Importar Productos</h2>
+                    <p className="mb-4 text-gray-600">Sube el archivo Excel (BDConteo.xlsx) para actualizar la base de datos de productos.</p>
 
-            {/* Tab Content */}
-            {activeTab === 'data' && (
-                <>
-                    <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-                        <h2 className="text-xl mb-4 font-semibold">Importar Productos</h2>
-                        <p className="mb-4 text-gray-600">Sube el archivo Excel (BDConteo.xlsx) para actualizar la base de datos de productos.</p>
-
-                        <div className="mb-4">
-                            <input
-                                type="file"
-                                accept=".xlsx, .xls"
-                                onChange={handleFileChange}
-                                className="block w-full text-sm text-gray-500
+                    <div className="mb-4">
+                        <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            onChange={handleFileChange}
+                            className="block w-full text-sm text-gray-500
                                 file:mr-4 file:py-2 file:px-4
                                 file:rounded-full file:border-0
                                 file:text-sm file:font-semibold
                                 file:bg-blue-50 file:text-blue-700
                                 hover:file:bg-blue-100"
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <button
-                                onClick={handleUpload}
-                                disabled={isLoading}
-                                className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                {isLoading ? 'Procesando...' : 'Subir Archivo'}
-                            </button>
-                        </div>
+                        />
                     </div>
 
-                    {/* Import Stock XML Section */}
-                    <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-green-500">
-                        <h2 className="text-xl mb-4 text-green-700 font-bold">Importar Stock Inicial (XML)</h2>
-                        <p className="mb-4 text-gray-600">Sube el archivo XML (DocConteo.xml) del ERP para crear una nueva lista de conteo.</p>
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={handleUpload}
+                            disabled={isLoading}
+                            className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isLoading ? 'Procesando...' : 'Subir Archivo'}
+                        </button>
+                    </div>
+                </div>
 
-                        <div className="mb-4">
-                            <input
-                                type="file"
-                                accept=".xml"
-                                onChange={(e) => {
-                                    setFile(e.target.files[0]);
-                                    setStatus('');
-                                }}
-                                className="block w-full text-sm text-gray-500
+                {/* Import Stock XML Section */}
+                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-green-500">
+                    <h2 className="text-xl mb-4 text-green-700 font-bold">Importar Stock Inicial (XML)</h2>
+                    <p className="mb-4 text-gray-600">Sube el archivo XML (DocConteo.xml) del ERP para crear una nueva lista de conteo.</p>
+
+                    <div className="mb-4">
+                        <input
+                            type="file"
+                            accept=".xml"
+                            onChange={(e) => {
+                                setFile(e.target.files[0]);
+                                setStatus('');
+                            }}
+                            className="block w-full text-sm text-gray-500
                                 file:mr-4 file:py-2 file:px-4
                                 file:rounded-full file:border-0
                                 file:text-sm file:font-semibold
                                 file:bg-green-50 file:text-green-700
                                 hover:file:bg-green-100"
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <button
-                                onClick={async () => {
-                                    if (!file) {
-                                        setStatus('Por favor selecciona un archivo XML.');
-                                        return;
-                                    }
-                                    setIsLoading(true);
-                                    setStatus('Subiendo XML...');
-
-                                    const formData = new FormData();
-                                    formData.append('file', file);
-
-                                    try {
-                                        const response = await axios.post('/api/pre-remitos/import-xml', formData, {
-                                            headers: { 'Content-Type': 'multipart/form-data' }
-                                        });
-                                        setStatus(`Éxito: Stock importado correctamente. Pedido: ${response.data.orderNumber}`);
-                                    } catch (error) {
-                                        console.error(error);
-                                        setStatus('Error al importar XML Stock.');
-                                    } finally {
-                                        setIsLoading(false);
-                                    }
-                                }}
-                                disabled={isLoading}
-                                className={`bg-green-600 hover:bg-green-800 text-white font-bold py-2 px-4 rounded focus:outline-none shadow-lg transition
-                                     ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                {isLoading ? 'Procesando...' : 'Subir Stock XML'}
-                            </button>
-                        </div>
+                        />
                     </div>
 
-                    {/* Import Stock by Branch Section */}
-                    <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-orange-500">
-                        <h2 className="text-xl mb-4 text-orange-700 font-bold">Importar Stock por Sucursal (Excel)</h2>
-                        <p className="mb-4 text-gray-600">Sube el archivo Excel con el stock de todas las sucursales para actualizar la tabla de stock.</p>
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={async () => {
+                                if (!file) {
+                                    setStatus('Por favor selecciona un archivo XML.');
+                                    return;
+                                }
+                                setIsLoading(true);
+                                setStatus('Subiendo XML...');
 
-                        <div className="mb-4">
-                            <input
-                                type="file"
-                                accept=".xlsx, .xls"
-                                onChange={(e) => {
-                                    setFile(e.target.files[0]);
-                                    setStatus('');
-                                }}
-                                className="block w-full text-sm text-gray-500
+                                const formData = new FormData();
+                                formData.append('file', file);
+
+                                try {
+                                    const response = await axios.post('/api/pre-remitos/import-xml', formData, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+                                    setStatus(`Éxito: Stock importado correctamente. Pedido: ${response.data.orderNumber}`);
+                                } catch (error) {
+                                    console.error(error);
+                                    setStatus('Error al importar XML Stock.');
+                                } finally {
+                                    setIsLoading(false);
+                                }
+                            }}
+                            disabled={isLoading}
+                            className={`bg-green-600 hover:bg-green-800 text-white font-bold py-2 px-4 rounded focus:outline-none shadow-lg transition
+                                     ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isLoading ? 'Procesando...' : 'Subir Stock XML'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Import Stock by Branch Section */}
+                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-orange-500">
+                    <h2 className="text-xl mb-4 text-orange-700 font-bold">Importar Stock por Sucursal (Excel)</h2>
+                    <p className="mb-4 text-gray-600">Sube el archivo Excel con el stock de todas las sucursales para actualizar la tabla de stock.</p>
+
+                    <div className="mb-4">
+                        <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            onChange={(e) => {
+                                setFile(e.target.files[0]);
+                                setStatus('');
+                            }}
+                            className="block w-full text-sm text-gray-500
                                 file:mr-4 file:py-2 file:px-4
                                 file:rounded-full file:border-0
                                 file:text-sm file:font-semibold
                                 file:bg-orange-50 file:text-orange-700
                                 hover:file:bg-orange-100"
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <button
-                                onClick={async () => {
-                                    if (!file) {
-                                        setStatus('Por favor selecciona un archivo Excel.');
-                                        return;
-                                    }
-                                    setIsLoading(true);
-                                    setStatus('Subiendo y vinculando stock...');
-
-                                    const formData = new FormData();
-                                    formData.append('file', file);
-
-                                    try {
-                                        const response = await axios.post('/api/stock/import', formData, {
-                                            headers: { 'Content-Type': 'multipart/form-data' }
-                                        });
-                                        setStatus(`Éxito: ${response.data.message}. Procesados: ${response.data.totalRows}. Importados: ${response.data.imported}. Saltados: ${response.data.skipped}.`);
-                                    } catch (error) {
-                                        console.error(error);
-                                        setStatus('Error al importar Stock por Sucursal. Asegúrate de haber cargado los códigos en las sucursales.');
-                                    } finally {
-                                        setIsLoading(false);
-                                    }
-                                }}
-                                disabled={isLoading}
-                                className={`bg-orange-600 hover:bg-orange-800 text-white font-bold py-2 px-4 rounded focus:outline-none shadow-lg transition
-                                     ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                {isLoading ? 'Procesando...' : 'Subir Stock Sucursal'}
-                            </button>
-                        </div>
+                        />
                     </div>
 
-                    {status && (
-                        <div className={`mt-4 p-3 rounded ${status.startsWith('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                            {status}
-                        </div>
-                    )}
-                </>
-            )}
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={async () => {
+                                if (!file) {
+                                    setStatus('Por favor selecciona un archivo Excel.');
+                                    return;
+                                }
+                                setIsLoading(true);
+                                setStatus('Subiendo y vinculando stock...');
 
-            {activeTab === 'branches' && <BranchesManage />}
-            {activeTab === 'users' && <UsersManage />}
+                                const formData = new FormData();
+                                formData.append('file', file);
 
-            <div className="mt-8">
+                                try {
+                                    const response = await axios.post('/api/stock/import', formData, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+                                    setStatus(`Éxito: ${response.data.message}. Procesados: ${response.data.totalRows}. Importados: ${response.data.imported}. Saltados: ${response.data.skipped}.`);
+                                } catch (error) {
+                                    console.error(error);
+                                    setStatus('Error al importar Stock por Sucursal. Asegúrate de haber cargado los códigos en las sucursales.');
+                                } finally {
+                                    setIsLoading(false);
+                                }
+                            }}
+                            disabled={isLoading}
+                            className={`bg-orange-600 hover:bg-orange-800 text-white font-bold py-2 px-4 rounded focus:outline-none shadow-lg transition
+                                     ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isLoading ? 'Procesando...' : 'Subir Stock Sucursal'}
+                        </button>
+                    </div>
+                </div>
+
+                {status && (
+                    <div className={`mt-4 p-3 rounded ${status.startsWith('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                        {status}
+                    </div>
+                )}
+            </>            <div className="mt-8">
                 <button
                     onClick={() => navigate('/')}
                     className="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800"

@@ -4,8 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../api';
+import BranchesManage from './BranchesManage';
+import UsersManage from './UsersManage';
 
 const SettingsPage = () => {
+    const [activeTab, setActiveTab] = useState('general'); // 'general', 'branches', 'users'
     const { countMode, setCountMode } = useSettings();
     const { user, token } = useAuth();
     const navigate = useNavigate();
@@ -60,117 +63,143 @@ const SettingsPage = () => {
         <div className="max-w-4xl mx-auto bg-white md:p-8 p-4 rounded-xl shadow-md my-8 border border-gray-200">
             <h1 className="text-2xl font-bold mb-6 text-brand-dark border-b pb-4">Configuración del Sistema</h1>
 
-            <div className="space-y-6">
+            {/* Tabs Navigation */}
+            <div className="flex border-b mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
+                <button
+                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'general' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                    onClick={() => setActiveTab('general')}
+                >
+                    General
+                </button>
+                <button
+                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'branches' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                    onClick={() => setActiveTab('branches')}
+                >
+                    Sucursales
+                </button>
+                <button
+                    className={`px-4 py-2 font-semibold flex-shrink-0 ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                    onClick={() => setActiveTab('users')}
+                >
+                    Usuarios
+                </button>
+            </div>
 
-                {/* Count Mode Section */}
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-2">Modo de Conteo</h2>
-                    <p className="text-sm text-gray-500 mb-4">
-                        Define cómo se cargan los conteos en el escáner principal.
-                    </p>
+            {/* Tab Content */}
+            {activeTab === 'general' && (
+                <div className="space-y-6">
 
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <button
-                            onClick={() => setCountMode('pre_remito')}
-                            className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'pre_remito'
-                                ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
-                                : 'border-gray-200 hover:border-blue-300'
-                                }`}
-                        >
-                            <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'pre_remito' ? 'border-brand-blue' : 'border-gray-400'
-                                }`}>
-                                {countMode === 'pre_remito' && <div className="w-2.5 h-2.5 rounded-full bg-brand-blue" />}
-                            </div>
-                            <div>
-                                <span className={`block font-bold ${countMode === 'pre_remito' ? 'text-brand-blue' : 'text-gray-700'}`}>
-                                    Desde Carga (Conteo Específico)
-                                </span>
-                                <span className="text-sm text-gray-500 mt-1">
-                                    Requiere cargar un pedido/lista antes de escanear. Valida cantidades esperadas.
-                                </span>
-                            </div>
-                        </button>
-
-                        <button
-                            onClick={() => setCountMode('products')}
-                            className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'products'
-                                ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
-                                : 'border-gray-200 hover:border-blue-300'
-                                }`}
-                        >
-                            <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'products' ? 'border-brand-blue' : 'border-gray-400'
-                                }`}>
-                                {countMode === 'products' && <div className="w-2.5 h-2.5 rounded-full bg-brand-blue" />}
-                            </div>
-                            <div>
-                                <span className={`block font-bold ${countMode === 'products' ? 'text-brand-blue' : 'text-gray-700'}`}>
-                                    General (Tabla SB2)
-                                </span>
-                                <span className="text-sm text-gray-500 mt-1">
-                                    Escaneo libre contra la base de datos de productos (SB2). Sin cantidades pre-definidas.
-                                </span>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-
-                {/* App Version Management */}
-                {user?.role === 'superadmin' && (
-                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-6">
-                        <h2 className="text-lg font-semibold text-gray-800 mb-2">Versión Pública de la App</h2>
+                    {/* Count Mode Section */}
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-2">Modo de Conteo</h2>
                         <p className="text-sm text-gray-500 mb-4">
-                            Modifica la versión que los usuarios de la aplicación verán para ser notificados de una actualización.
+                            Define cómo se cargan los conteos en el escáner principal.
                         </p>
 
-                        <form onSubmit={handleUpdateVersion} className="space-y-4">
-                            <div className="flex flex-col md:flex-row gap-4">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Versión (ej: 1.0.0)</label>
-                                    <input
-                                        type="text"
-                                        value={versionData.version}
-                                        onChange={(e) => setVersionData({ ...versionData, version: e.target.value })}
-                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue"
-                                        required
-                                        placeholder="1.0.0"
-                                    />
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <button
+                                onClick={() => setCountMode('pre_remito')}
+                                className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'pre_remito'
+                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
+                                    : 'border-gray-200 hover:border-blue-300'
+                                    }`}
+                            >
+                                <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'pre_remito' ? 'border-brand-blue' : 'border-gray-400'
+                                    }`}>
+                                    {countMode === 'pre_remito' && <div className="w-2.5 h-2.5 rounded-full bg-brand-blue" />}
                                 </div>
-                                <div className="flex-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">URL de Descarga</label>
-                                    <input
-                                        type="text"
-                                        value={versionData.downloadUrl}
-                                        onChange={(e) => setVersionData({ ...versionData, downloadUrl: e.target.value })}
-                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue"
-                                        required
-                                        placeholder="/apk/ConteoMercaderia.apk"
-                                    />
+                                <div>
+                                    <span className={`block font-bold ${countMode === 'pre_remito' ? 'text-brand-blue' : 'text-gray-700'}`}>
+                                        Desde Carga (Conteo Específico)
+                                    </span>
+                                    <span className="text-sm text-gray-500 mt-1">
+                                        Requiere cargar un pedido/lista antes de escanear. Valida cantidades esperadas.
+                                    </span>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Notas de la Versión</label>
-                                <textarea
-                                    value={versionData.releaseNotes}
-                                    onChange={(e) => setVersionData({ ...versionData, releaseNotes: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue resize-none"
-                                    rows="3"
-                                    placeholder="Mejoras y correcciones en esta versión..."
-                                />
-                            </div>
-                            <div>
-                                <button
-                                    type="submit"
-                                    disabled={isSavingVersion}
-                                    className={`px-4 py-2 font-bold rounded text-white ${isSavingVersion ? 'bg-gray-400' : 'bg-brand-blue hover:bg-blue-600'} transition`}
-                                >
-                                    {isSavingVersion ? 'Guardando...' : 'Publicar Versión'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
+                            </button>
 
-            </div>
+                            <button
+                                onClick={() => setCountMode('products')}
+                                className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'products'
+                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
+                                    : 'border-gray-200 hover:border-blue-300'
+                                    }`}
+                            >
+                                <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'products' ? 'border-brand-blue' : 'border-gray-400'
+                                    }`}>
+                                    {countMode === 'products' && <div className="w-2.5 h-2.5 rounded-full bg-brand-blue" />}
+                                </div>
+                                <div>
+                                    <span className={`block font-bold ${countMode === 'products' ? 'text-brand-blue' : 'text-gray-700'}`}>
+                                        General (Tabla SB2)
+                                    </span>
+                                    <span className="text-sm text-gray-500 mt-1">
+                                        Escaneo libre contra la base de datos de productos (SB2). Sin cantidades pre-definidas.
+                                    </span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* App Version Management */}
+                    {user?.role === 'superadmin' && (
+                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-6">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Versión Pública de la App</h2>
+                            <p className="text-sm text-gray-500 mb-4">
+                                Modifica la versión que los usuarios de la aplicación verán para ser notificados de una actualización.
+                            </p>
+
+                            <form onSubmit={handleUpdateVersion} className="space-y-4">
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Versión (ej: 1.0.0)</label>
+                                        <input
+                                            type="text"
+                                            value={versionData.version}
+                                            onChange={(e) => setVersionData({ ...versionData, version: e.target.value })}
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue"
+                                            required
+                                            placeholder="1.0.0"
+                                        />
+                                    </div>
+                                    <div className="flex-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">URL de Descarga</label>
+                                        <input
+                                            type="text"
+                                            value={versionData.downloadUrl}
+                                            onChange={(e) => setVersionData({ ...versionData, downloadUrl: e.target.value })}
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue"
+                                            required
+                                            placeholder="/apk/ConteoMercaderia.apk"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Notas de la Versión</label>
+                                    <textarea
+                                        value={versionData.releaseNotes}
+                                        onChange={(e) => setVersionData({ ...versionData, releaseNotes: e.target.value })}
+                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue resize-none"
+                                        rows="3"
+                                        placeholder="Mejoras y correcciones en esta versión..."
+                                    />
+                                </div>
+                                <div>
+                                    <button
+                                        type="submit"
+                                        disabled={isSavingVersion}
+                                        className={`px-4 py-2 font-bold rounded text-white ${isSavingVersion ? 'bg-gray-400' : 'bg-brand-blue hover:bg-blue-600'} transition`}
+                                    >
+                                        {isSavingVersion ? 'Guardando...' : 'Publicar Versión'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+                </div>
+            )}
+            {activeTab === 'branches' && <BranchesManage />}
+            {activeTab === 'users' && <UsersManage />}
 
             <div className="mt-8 flex justify-end">
                 <button
