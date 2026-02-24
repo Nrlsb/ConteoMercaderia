@@ -23,6 +23,20 @@ const BarcodeControl = () => {
     // Scanner state
     const [showScanner, setShowScanner] = useState(false);
 
+    // History state
+    const [actionHistory, setActionHistory] = useState(() => {
+        try {
+            const saved = localStorage.getItem('barcode_history');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        localStorage.setItem('barcode_history', JSON.stringify(actionHistory));
+    }, [actionHistory]);
+
     // Focus input on mount and whenever we are not in edit mode or searching
     useEffect(() => {
         if (!editMode && product === null && !searchQuery) {
@@ -82,6 +96,21 @@ const BarcodeControl = () => {
             const updated = response.data;
             setProduct(updated);
             setEditMode(false);
+
+            const changes = [];
+            if (product.description !== updated.description) changes.push('Descripción');
+            if (product.code !== updated.code) changes.push('Cód Interno');
+            if (product.provider_code !== updated.provider_code) changes.push('Cód Proveedor');
+            if (product.barcode !== updated.barcode) changes.push('Cód Barras');
+
+            setActionHistory(prev => [{
+                id: Date.now(),
+                type: 'edit',
+                timestamp: new Date().toISOString(),
+                product: updated,
+                changes: changes.join(', ') || 'Modificación general'
+            }, ...prev].slice(0, 20)); // Mantener los últimos 20
+
             toast.success('Producto actualizado correctamente');
         } catch (err) {
             console.error('Update error:', err);
@@ -121,6 +150,15 @@ const BarcodeControl = () => {
         try {
             const response = await api.put(`/api/products/${selectedProduct.id}`, { barcode: scannedBarcode });
             const updated = response.data;
+
+            setActionHistory(prev => [{
+                id: Date.now(),
+                type: 'link',
+                timestamp: new Date().toISOString(),
+                product: updated,
+                scanned_barcode: scannedBarcode
+            }, ...prev].slice(0, 20));
+
             toast.success('Código de barras vinculado exitosamente');
             // Refresh the view to show the newly linked product
             setProduct(updated);
@@ -399,6 +437,54 @@ const BarcodeControl = () => {
                 {error && error !== 'code_not_found' && !loading && (
                     <div className="mt-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
                         <span className="block sm:inline">{error}</span>
+                    </div>
+                )}
+
+                {/* History Section */}
+                {actionHistory.length > 0 && (
+                    <div className="mt-8 border-t border-gray-200 pt-6 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <i className="fas fa-history text-gray-500"></i>
+                                Historial Reciente
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('¿Seguro que deseas limpiar el historial local?')) {
+                                        setActionHistory([]);
+                                    }
+                                }}
+                                className="text-sm text-red-500 hover:text-red-700 self-start sm:self-auto"
+                            >
+                                <i className="fas fa-trash-alt mr-1"></i> Limpiar
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            {actionHistory.map(item => (
+                                <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                                    <div>
+                                        <p className="font-semibold text-gray-800 text-base">{item.product.description}</p>
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                            {item.type === 'edit' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100 text-blue-700 font-medium text-xs">
+                                                    <i className="fas fa-edit"></i>
+                                                    Editado: {item.changes}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-100 text-green-700 font-medium text-xs">
+                                                    <i className="fas fa-link"></i>
+                                                    Vinculado código
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-gray-500 flex items-center gap-1.5 sm:justify-end border-t sm:border-t-0 border-gray-200 pt-2 sm:pt-0 shrink-0">
+                                        <i className="far fa-clock"></i>
+                                        {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
