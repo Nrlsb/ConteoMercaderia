@@ -7,7 +7,11 @@ import api from '../api';
 const UpdateNotifier = () => {
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [dismissed, setDismissed] = useState(false);
+
+    // Usar localStorage para recordar la versión que ya ignoramos o intentamos descargar
+    const [dismissedVersion, setDismissedVersion] = useState(
+        localStorage.getItem('dismissedUpdateVersion')
+    );
 
     const isNative = Capacitor.isNativePlatform();
 
@@ -54,22 +58,26 @@ const UpdateNotifier = () => {
     }, [isNative]);
 
     useEffect(() => {
-        if (updateInfo && !dismissed) {
+        if (updateInfo && updateInfo.version !== dismissedVersion) {
             setIsModalOpen(true);
         }
-    }, [updateInfo, dismissed]);
+    }, [updateInfo, dismissedVersion]);
 
     const handleDownload = () => {
         if (updateInfo?.downloadUrl) {
             window.open(updateInfo.downloadUrl, '_system');
             setIsModalOpen(false);
-            setDismissed(true);
+            setDismissedVersion(updateInfo.version);
+            localStorage.setItem('dismissedUpdateVersion', updateInfo.version);
         }
     };
 
     const handleClose = () => {
         setIsModalOpen(false);
-        setDismissed(true);
+        if (updateInfo) {
+            setDismissedVersion(updateInfo.version);
+            localStorage.setItem('dismissedUpdateVersion', updateInfo.version);
+        }
     };
 
     if (!isNative) return null;
@@ -86,7 +94,7 @@ const UpdateNotifier = () => {
                 onConfirm={handleDownload}
             />
 
-            {updateInfo && dismissed && (
+            {updateInfo && updateInfo.version === dismissedVersion && (
                 <div
                     className="bg-blue-100 border-b border-blue-300 px-4 py-2 flex justify-between items-center text-brand-dark z-40 shadow-sm animate-fade-in-down w-full"
                     style={{ paddingTop: 'calc(var(--safe-area-top) + 0.5rem)' }}
