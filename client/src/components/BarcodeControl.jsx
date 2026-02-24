@@ -4,7 +4,7 @@ import Scanner from './Scanner';
 import api from '../api';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList } from 'lucide-react';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter } from 'lucide-react';
 
 const BarcodeControl = () => {
     const [scannedBarcode, setScannedBarcode] = useState('');
@@ -38,6 +38,10 @@ const BarcodeControl = () => {
     const [actionHistory, setActionHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
 
+    // Date filter state
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
     // Fetch history on mount and when switching to history tab
     useEffect(() => {
         if (activeTab === 'history') {
@@ -48,13 +52,58 @@ const BarcodeControl = () => {
     const fetchHistory = async () => {
         setHistoryLoading(true);
         try {
-            const response = await api.get('/api/barcode-history');
+            let url = '/api/barcode-history';
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+
+            if (params.toString()) {
+                url += `?${params.toString()}`;
+            }
+
+            const response = await api.get(url);
             setActionHistory(response.data);
         } catch (err) {
             console.error('Error fetching history:', err);
             toast.error('Error al cargar el historial');
         } finally {
             setHistoryLoading(false);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        try {
+            let url = '/api/barcode-history/export';
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+
+            if (params.toString()) {
+                url += `?${params.toString()}`;
+            }
+
+            const response = await api.get(url, { responseType: 'blob' });
+
+            // Create a blob from the response data
+            const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const downloadUrl = window.URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `Historial_Codigos_Barras_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+
+            toast.success('Historial exportado correctamente');
+        } catch (err) {
+            console.error('Error exporting history:', err);
+            if (err.response && err.response.status === 404) {
+                toast.error('No hay datos para exportar en el rango seleccionado');
+            } else {
+                toast.error('Error al exportar el historial');
+            }
         }
     };
 
@@ -682,6 +731,45 @@ const BarcodeControl = () => {
                 {/* History Section */}
                 {activeTab === 'history' && (
                     <div className="animate-fade-in pt-2">
+                        {/* Date Filters and Export */}
+                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+                            <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha Desde</label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha Hasta</label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto flex flex-row gap-2">
+                                    <button
+                                        onClick={fetchHistory}
+                                        className="flex-1 sm:flex-none btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        disabled={historyLoading}
+                                    >
+                                        <Filter className="w-4 h-4" /> Filtrar
+                                    </button>
+                                    <button
+                                        onClick={handleExportExcel}
+                                        className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                    >
+                                        <Download className="w-4 h-4" /> Exportar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         {historyLoading ? (
                             <div className="flex justify-center py-10">
                                 <Loader2 className="w-10 h-10 text-primary-500 animate-spin" />
@@ -691,7 +779,7 @@ const BarcodeControl = () => {
                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                                         <History className="w-5 h-5 text-gray-500" />
-                                        Historial Reciente
+                                        Historial {startDate || endDate ? 'Filtrado' : 'Reciente'}
                                     </h3>
                                 </div>
                                 <div className="space-y-3">

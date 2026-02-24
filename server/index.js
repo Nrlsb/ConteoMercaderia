@@ -911,9 +911,11 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
 // --- BARCODE HISTORY ENDPOINTS ---
 
 // Get barcode history
+// Get barcode history
 app.get('/api/barcode-history', verifyToken, async (req, res) => {
+    const { startDate, endDate } = req.query;
     try {
-        const { data: history, error } = await supabase
+        let query = supabase
             .from('barcode_history')
             .select(`
                 id,
@@ -925,14 +927,109 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
                 created_at,
                 users:created_by (username)
             `)
-            .order('created_at', { ascending: false })
-            .limit(50); // Mantenemos los ultimos 50 en frontend
+            .order('created_at', { ascending: false });
+
+        // Apply date filters if available
+        if (startDate) {
+            // For start date, we accept values from the beginning of that day
+            const startStr = `${startDate}T00:00:00.000Z`;
+            query = query.gte('created_at', startStr);
+        }
+        if (endDate) {
+            // For end date, we encompass the whole day up to 23:59:59
+            const endStr = `${endDate}T23:59:59.999Z`;
+            query = query.lte('created_at', endStr);
+        }
+
+        // Only limit if there are no date filters provided, to keep general load balanced,
+        // although if they are not provided, maybe the user wants recent history
+        if (!startDate && !endDate) {
+            query = query.limit(50);
+        }
+
+        const { data: history, error } = await query;
 
         if (error) throw error;
         res.json(history);
     } catch (error) {
         console.error('Error fetching barcode history:', error);
         res.status(500).json({ message: 'Error al obtener el historial de códigos' });
+    }
+});
+
+// Export barcode history to Excel
+app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
+    const { startDate, endDate } = req.query;
+    try {
+        let query = supabase
+            .from('barcode_history')
+            .select(`
+                id,
+                action_type,
+                product_id,
+                product_description,
+                details,
+                created_by,
+                created_at,
+                users:created_by (username)
+            `)
+            .order('created_at', { ascending: false });
+
+        // Apply date filters if available
+        if (startDate) {
+            const startStr = `${startDate}T00:00:00.000Z`;
+            query = query.gte('created_at', startStr);
+        }
+        if (endDate) {
+            const endStr = `${endDate}T23:59:59.999Z`;
+            query = query.lte('created_at', endStr);
+        }
+
+        const { data: history, error } = await query;
+        if (error) throw error;
+
+        if (!history || history.length === 0) {
+            return res.status(404).json({ message: 'No hay datos para exportar en este período' });
+        }
+
+        const xlsx = require('xlsx');
+        const workbook = xlsx.utils.book_new();
+
+        // Map data to a good Excel format
+        const data = history.map(item => {
+            let actionStr = 'Desconocido';
+            if (item.action_type === 'edit') actionStr = 'Edición';
+            if (item.action_type === 'link') actionStr = 'Vinculación';
+
+            return {
+                'Fecha': new Date(item.created_at).toLocaleString('es-AR'),
+                'Producto': item.product_description || 'Sin descripción',
+                'Tipo de Acción': actionStr,
+                'Detalle': item.details || '-',
+                'Usuario': item.users?.username || 'Desconocido'
+            };
+        });
+
+        const worksheet = xlsx.utils.json_to_sheet(data);
+        // Adjust column widths slightly for readability
+        worksheet['!cols'] = [
+            { wch: 20 }, // Fecha
+            { wch: 50 }, // Producto
+            { wch: 15 }, // Acción
+            { wch: 40 }, // Detalle
+            { wch: 15 }  // Usuario
+        ];
+
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Historial');
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Historial_Codigos_Barras.xlsx');
+        res.send(buffer);
+
+    } catch (error) {
+        console.error('Error exporting barcode history:', error);
+        res.status(500).json({ message: 'Error al exportar el historial a Excel' });
     }
 });
 
