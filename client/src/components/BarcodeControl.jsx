@@ -514,119 +514,149 @@ const BarcodeControl = () => {
                                     </div>
                                 </div>
 
-                                <div className="mt-6 bg-white p-5 rounded border border-amber-100">
-                                    <h4 className="font-semibold text-gray-800 mb-3">Buscar producto para vincular:</h4>
-                                    <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-2 relative">
-                                        <div className="relative flex-grow">
+                                <div className="mt-6 bg-white p-4 sm:p-6 rounded-2xl border border-amber-200 shadow-md">
+                                    <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg">
+                                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                                            <i className="fas fa-search"></i>
+                                        </div>
+                                        Vincular a un producto existente
+                                    </h4>
+
+                                    <form onSubmit={handleSearchSubmit} className="relative mb-4">
+                                        <div className="relative flex items-center">
+                                            <i className="fas fa-box absolute left-4 text-gray-400 text-lg"></i>
                                             <input
                                                 type="text"
                                                 value={searchQuery}
                                                 onChange={handleSearchInputChange}
-                                                placeholder="Buscar por descripción..."
-                                                className="input-field w-full shadow-sm pr-10"
+                                                placeholder="Nombre del producto..."
+                                                className="w-full pl-12 pr-24 py-3.5 rounded-xl border-2 border-gray-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-50 transition-all text-base shadow-sm outline-none bg-gray-50 focus:bg-white"
                                             />
+                                            {searchQuery && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSearchQuery('');
+                                                        setSearchResults([]);
+                                                    }}
+                                                    className="absolute right-12 text-gray-400 hover:text-gray-600 p-2 focus:outline-none"
+                                                    title="Limpiar búsqueda"
+                                                >
+                                                    <i className="fas fa-times"></i>
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={handleVoiceSearch}
-                                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                                                className={`absolute right-2 p-2.5 rounded-lg transition-all focus:outline-none ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
                                                 title="Buscar por voz"
                                             >
-                                                <i className="fas fa-microphone"></i>
+                                                <i className="fas fa-microphone text-lg"></i>
                                             </button>
                                         </div>
-                                        <button
-                                            type="submit"
-                                            disabled={searching || !searchQuery.trim()}
-                                            className="btn btn-primary flex justify-center items-center gap-2 w-full sm:w-auto"
-                                        >
-                                            {searching ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>} Buscar
-                                        </button>
+                                        <button type="submit" className="hidden">Buscar</button>
                                     </form>
+
+                                    {searching && (
+                                        <div className="flex justify-center py-4">
+                                            <i className="fas fa-spinner fa-spin text-amber-500 text-2xl"></i>
+                                        </div>
+                                    )}
 
                                     {/* Search Results */}
                                     {!selectedProductToLink && searchResults.length > 0 && (
-                                        <div className="mt-4 border border-gray-200 rounded">
-                                            <div className="max-h-80 overflow-y-auto">
-                                                <table className="min-w-full divide-y divide-gray-200">
-                                                    <thead className="bg-gray-50 sticky top-0">
-                                                        <tr>
-                                                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalles</th>
-                                                            <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Acción</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white divide-y divide-gray-200">
-                                                        {searchResults.map((item) => (
-                                                            <tr key={item.id} className="hover:bg-amber-50 transition-colors">
-                                                                <td className="px-3 py-3">
-                                                                    <div className="text-sm font-medium text-gray-900 leading-snug mb-1">{item.description}</div>
-                                                                    <div className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
-                                                                        <span><span className="font-semibold">Cód:</span> {item.code}</span>
-                                                                        <span><span className="font-semibold">Barras:</span> {item.barcode || '-'}</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-3 py-3 text-center align-middle">
-                                                                    <button
-                                                                        onClick={() => setSelectedProductToLink(item)}
-                                                                        className="px-3 py-2 bg-amber-100 text-amber-700 hover:bg-amber-200 hover:text-amber-800 rounded font-medium transition-colors text-sm flex items-center justify-center gap-1 mx-auto w-full max-w-[100px]"
-                                                                    >
-                                                                        <i className="fas fa-check text-xs"></i> Seleccionar
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
+                                        <div className="mt-4 border border-gray-100 rounded-xl bg-gray-50/50 p-2 sm:p-3 shadow-inner">
+                                            <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                                                {searchResults.map((item) => (
+                                                    <div key={item.id} className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm hover:border-amber-300 hover:shadow transition-all group flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+                                                        <div className="flex-1 w-full">
+                                                            <h5 className="font-bold text-gray-900 mb-1.5 leading-tight group-hover:text-amber-700 transition-colors">{item.description}</h5>
+                                                            <div className="flex flex-wrap text-xs text-gray-600 gap-2 items-center">
+                                                                <span className="bg-gray-100 px-2 py-1 rounded-md font-mono border border-gray-200">
+                                                                    <span className="text-gray-400 font-sans text-[10px] uppercase tracking-wider mr-1">Cód</span>
+                                                                    {item.code}
+                                                                </span>
+                                                                {item.barcode && (
+                                                                    <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-mono border border-blue-100 flex items-center gap-1">
+                                                                        <i className="fas fa-barcode"></i> {item.barcode}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setSelectedProductToLink(item)}
+                                                            className="w-full sm:w-auto px-5 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-500 hover:text-white rounded-lg font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95 shrink-0"
+                                                        >
+                                                            <i className="fas fa-check"></i> Seleccionar
+                                                        </button>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     )}
 
                                     {selectedProductToLink && (
-                                        <div className="mt-4 border border-amber-300 bg-amber-50 rounded-lg p-4 shadow-sm animate-fade-in">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <h5 className="font-bold text-amber-900 flex items-center gap-2">
-                                                    <i className="fas fa-link text-amber-600"></i>
+                                        <div className="mt-4 border-2 border-amber-300 bg-amber-50 rounded-xl p-5 shadow-md animate-fade-in relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-200 rounded-bl-full opacity-50 pointer-events-none -z-0"></div>
+
+                                            <div className="flex justify-between items-start mb-4 relative z-10">
+                                                <h5 className="font-bold text-amber-900 flex items-center gap-2 text-lg">
+                                                    <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-700 flex items-center justify-center">
+                                                        <i className="fas fa-link"></i>
+                                                    </div>
                                                     Confirmar Vinculación
                                                 </h5>
                                                 <button
                                                     onClick={() => setSelectedProductToLink(null)}
-                                                    className="text-gray-400 hover:text-gray-600 p-1"
+                                                    className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-gray-700 transition-colors shadow-sm bg-white/50"
                                                     title="Cancelar selección"
                                                 >
                                                     <i className="fas fa-times"></i>
                                                 </button>
                                             </div>
 
-                                            <div className="bg-white p-3 rounded border border-amber-100 mb-4">
-                                                <p className="text-sm font-semibold text-gray-800 mb-2">{selectedProductToLink.description}</p>
-                                                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                                                    <div><span className="font-medium">Cód Int:</span> {selectedProductToLink.code}</div>
-                                                    <div><span className="font-medium">Cód Prov:</span> {selectedProductToLink.provider_code || '-'}</div>
-                                                    <div className="col-span-2">
-                                                        <span className="font-medium text-gray-500">Cód Barras Actual:</span>{' '}
+                                            <div className="bg-white p-4 rounded-xl border border-amber-100 mb-4 shadow-sm relative z-10">
+                                                <p className="text-base font-bold text-gray-800 mb-3">{selectedProductToLink.description}</p>
+                                                <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                    <div>
+                                                        <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cód Int</span>
+                                                        <span className="font-mono text-gray-900 font-medium">{selectedProductToLink.code}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cód Prov</span>
+                                                        <span className="font-mono text-gray-900 font-medium">{selectedProductToLink.provider_code || '-'}</span>
+                                                    </div>
+                                                    <div className="col-span-2 pt-2 mt-1 border-t border-gray-200/60">
+                                                        <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Cód Barras Actual</span>
                                                         {selectedProductToLink.barcode ? (
-                                                            <span className="text-gray-800 font-mono">{selectedProductToLink.barcode}</span>
+                                                            <span className="inline-block bg-white border border-gray-200 px-3 py-1.5 rounded-md text-gray-800 font-mono text-sm tracking-wider shadow-sm flex items-center gap-2 w-fit">
+                                                                <i className="fas fa-barcode text-gray-400"></i> {selectedProductToLink.barcode}
+                                                            </span>
                                                         ) : (
-                                                            <span className="text-gray-400 italic">Ninguno</span>
+                                                            <span className="text-gray-400 italic text-sm">Ninguno asociado</span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-primary-50 border border-primary-200 p-3 rounded-lg mb-4 text-center">
-                                                <p className="text-xs text-primary-600 font-bold uppercase tracking-wider mb-1">Nuevo Código a Vincular</p>
-                                                <p className="text-xl font-mono font-bold text-primary-800">{scannedBarcode}</p>
+                                            <div className="bg-primary-50 border-2 border-primary-200 p-4 rounded-xl mb-5 text-center relative z-10 shadow-sm relative overflow-hidden group">
+                                                <div className="absolute inset-0 bg-primary-100 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                                                <p className="text-xs text-primary-600 font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
+                                                    <i className="fas fa-qrcode"></i> Nuevo Código a Vincular
+                                                </p>
+                                                <p className="text-2xl font-mono font-black text-primary-800 tracking-widest bg-white inline-block px-4 py-2 rounded-lg border border-primary-100 shadow-sm">{scannedBarcode}</p>
                                             </div>
 
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-3 relative z-10">
                                                 <button
                                                     onClick={() => setSelectedProductToLink(null)}
-                                                    className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                                                    className="flex-1 py-3 bg-white border-2 border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95"
                                                 >
                                                     Cancelar
                                                 </button>
                                                 <button
                                                     onClick={() => handleLinkProduct(selectedProductToLink)}
-                                                    className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                    className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold hover:from-amber-600 hover:to-amber-700 transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 text-lg"
                                                 >
                                                     <i className="fas fa-save"></i> Confirmar
                                                 </button>

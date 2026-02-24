@@ -786,23 +786,37 @@ app.get('/api/receipts/:id/export-differences', verifyToken, async (req, res) =>
 
 // --- PRODUCT CONTROL ENDPOINTS ---
 
-// Search products by query (description, code, or provider code)
+// Search products by query (smart search: description, code, or provider code)
 app.get('/api/products/search', verifyToken, async (req, res) => {
     const { q } = req.query;
-    if (!q) {
-        return res.status(400).json({ message: 'Se requiere un término de búsqueda' });
-    }
+    if (!q || q.length < 2) return res.json([]);
 
     try {
-        const queryTerm = `%${q}%`;
+        // Try RPC first (which does advanced full-text or fuzzy search if it exists)
+        const { data: rpcData, error: rpcError } = await supabase.rpc('search_products', { search_term: q });
+
+        if (!rpcError && rpcData) {
+            return res.json(rpcData);
+        }
+
+        // Fallback to JS smart search if RPC fails or doesn't exist
+        const terms = q.trim().split(/\s+/).filter(Boolean);
+
+        // Build an 'And' string for description: 'description.ilike.%word1%,description.ilike.%word2%'
+        const descAnds = terms.map(t => `description.ilike.%${t}%`).join(',');
+
+        // Overall OR: either it matches all words in description, OR it matches the exact code or provider_code
+        const exactMatchTerm = `%${q.trim()}%`;
+        const orString = `and(${descAnds}),code.ilike.${exactMatchTerm},provider_code.ilike.${exactMatchTerm}`;
+
         const { data, error } = await supabase
             .from('products')
             .select('*')
-            .or(`description.ilike.${queryTerm},code.ilike.${queryTerm},provider_code.ilike.${queryTerm}`)
+            .or(orString)
             .limit(20);
 
         if (error) throw error;
-        res.json(data);
+        return res.json(data);
     } catch (error) {
         console.error('Error searching products:', error);
         res.status(500).json({ message: 'Error al buscar productos' });
@@ -1174,22 +1188,7 @@ app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer
     }
 });
 
-// Search products (DEBE IR ANTES de /:barcode para evitar conflicto de routing)
-app.get('/api/products/search', verifyToken, async (req, res) => {
-    const { q } = req.query;
-    if (!q || q.length < 2) return res.json([]);
-
-    try {
-        const { data, error } = await supabase
-            .rpc('search_products', { search_term: q });
-
-        if (error) throw error;
-        res.json(data);
-    } catch (error) {
-        console.error('Error searching products:', error);
-        res.status(500).json({ message: 'Error searching products' });
-    }
-});
+// Duplicate search endpoint removed to avoid conflict
 
 // Get product by barcode
 app.get('/api/products/:barcode', verifyToken, async (req, res) => {
