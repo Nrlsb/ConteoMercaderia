@@ -9,6 +9,7 @@ import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import UpdateNotifier from './components/UpdateNotifier';
 
 // Lazy Load Components
 const RemitoForm = lazy(() => import('./components/RemitoForm'));
@@ -85,6 +86,7 @@ const AppContent = () => {
         type="warning"
       />
       <div className="min-h-screen bg-gray-100 font-sans text-gray-900 flex flex-col" style={{ paddingBottom: 'var(--safe-area-bottom)' }}>
+        <UpdateNotifier />
         <Navigation />
         <main className="container mx-auto p-4 mt-4 flex-grow">
           <ErrorBoundary>
