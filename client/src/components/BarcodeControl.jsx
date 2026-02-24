@@ -600,37 +600,38 @@ const BarcodeControl = () => {
                                             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-200 rounded-bl-full opacity-50 pointer-events-none -z-0"></div>
 
                                             <div className="flex justify-between items-start mb-4 relative z-10">
-                                                <h5 className="font-bold text-amber-900 flex items-center gap-2 text-lg">
-                                                    <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-700 flex items-center justify-center">
+                                                <h5 className="font-bold text-amber-900 flex items-center gap-2 text-base sm:text-lg leading-tight pr-2">
+                                                    <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-700 flex shrink-0 items-center justify-center">
                                                         <i className="fas fa-link"></i>
                                                     </div>
                                                     Confirmar Vinculación
                                                 </h5>
                                                 <button
                                                     onClick={() => setSelectedProductToLink(null)}
-                                                    className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-gray-700 transition-colors shadow-sm bg-white/50"
+                                                    className="w-8 h-8 flex shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-gray-700 transition-colors shadow-sm bg-white/50"
                                                     title="Cancelar selección"
                                                 >
                                                     <i className="fas fa-times"></i>
                                                 </button>
                                             </div>
 
-                                            <div className="bg-white p-4 rounded-xl border border-amber-100 mb-4 shadow-sm relative z-10">
-                                                <p className="text-base font-bold text-gray-800 mb-3">{selectedProductToLink.description}</p>
-                                                <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                            <div className="bg-white p-3 sm:p-4 rounded-xl border border-amber-100 mb-4 shadow-sm relative z-10 w-full overflow-hidden">
+                                                <p className="text-sm sm:text-base font-bold text-gray-800 mb-3 break-words">{selectedProductToLink.description}</p>
+                                                <div className="grid grid-cols-2 gap-2 sm:gap-3 text-sm text-gray-600 bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-100">
                                                     <div>
                                                         <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cód Int</span>
-                                                        <span className="font-mono text-gray-900 font-medium">{selectedProductToLink.code}</span>
+                                                        <span className="font-mono text-gray-900 font-medium break-all">{selectedProductToLink.code}</span>
                                                     </div>
                                                     <div>
                                                         <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cód Prov</span>
-                                                        <span className="font-mono text-gray-900 font-medium">{selectedProductToLink.provider_code || '-'}</span>
+                                                        <span className="font-mono text-gray-900 font-medium break-all">{selectedProductToLink.provider_code || '-'}</span>
                                                     </div>
-                                                    <div className="col-span-2 pt-2 mt-1 border-t border-gray-200/60">
+                                                    <div className="col-span-2 pt-2 mt-1 border-t border-gray-200/60 w-full">
                                                         <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Cód Barras Actual</span>
                                                         {selectedProductToLink.barcode ? (
-                                                            <span className="inline-block bg-white border border-gray-200 px-3 py-1.5 rounded-md text-gray-800 font-mono text-sm tracking-wider shadow-sm flex items-center gap-2 w-fit">
-                                                                <i className="fas fa-barcode text-gray-400"></i> {selectedProductToLink.barcode}
+                                                            <span className="inline-flex bg-white border border-gray-200 px-2 py-1.5 sm:px-3 rounded-md text-gray-800 font-mono text-xs sm:text-sm tracking-widest shadow-sm items-center gap-2 w-full sm:w-fit break-all">
+                                                                <i className="fas fa-barcode text-gray-400 shrink-0"></i>
+                                                                <span className="break-all">{selectedProductToLink.barcode}</span>
                                                             </span>
                                                         ) : (
                                                             <span className="text-gray-400 italic text-sm">Ninguno asociado</span>
@@ -639,24 +640,28 @@ const BarcodeControl = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="bg-primary-50 border-2 border-primary-200 p-4 rounded-xl mb-5 text-center relative z-10 shadow-sm relative overflow-hidden group">
+                                            <div className="bg-primary-50 border-2 border-primary-200 p-3 sm:p-4 rounded-xl mb-4 sm:mb-5 text-center relative z-10 shadow-sm overflow-hidden group w-full">
                                                 <div className="absolute inset-0 bg-primary-100 opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                                                <p className="text-xs text-primary-600 font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
+                                                <p className="text-[10px] sm:text-xs text-primary-600 font-bold uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
                                                     <i className="fas fa-qrcode"></i> Nuevo Código a Vincular
                                                 </p>
-                                                <p className="text-2xl font-mono font-black text-primary-800 tracking-widest bg-white inline-block px-4 py-2 rounded-lg border border-primary-100 shadow-sm">{scannedBarcode}</p>
+                                                <div className="bg-white px-2 sm:px-4 py-2 rounded-lg border border-primary-100 shadow-sm w-full mx-auto max-w-full">
+                                                    <p className="text-lg sm:text-2xl font-mono font-black text-primary-800 tracking-wider sm:tracking-widest break-all">
+                                                        {scannedBarcode}
+                                                    </p>
+                                                </div>
                                             </div>
 
-                                            <div className="flex gap-3 relative z-10">
+                                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 relative z-10 w-full">
                                                 <button
                                                     onClick={() => setSelectedProductToLink(null)}
-                                                    className="flex-1 py-3 bg-white border-2 border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95"
+                                                    className="w-full sm:flex-1 py-2.5 sm:py-3 bg-white border-2 border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95 text-sm sm:text-base"
                                                 >
                                                     Cancelar
                                                 </button>
                                                 <button
                                                     onClick={() => handleLinkProduct(selectedProductToLink)}
-                                                    className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold hover:from-amber-600 hover:to-amber-700 transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 text-lg"
+                                                    className="w-full sm:flex-[2] py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold hover:from-amber-600 hover:to-amber-700 transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 text-base sm:text-lg"
                                                 >
                                                     <i className="fas fa-save"></i> Confirmar
                                                 </button>
