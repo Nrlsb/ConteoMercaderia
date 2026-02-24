@@ -187,10 +187,10 @@ const BarcodeControl = () => {
             setEditMode(false);
 
             const changes = [];
-            if (product.description !== updated.description) changes.push('Descripción');
-            if (product.code !== updated.code) changes.push('Cód Interno');
-            if (product.provider_code !== updated.provider_code) changes.push('Cód Proveedor');
-            if (product.barcode !== updated.barcode) changes.push('Cód Barras');
+            if (product.description !== updated.description) changes.push(`Descripción a "${updated.description}"`);
+            if (product.code !== updated.code) changes.push(`Cód Interno a "${updated.code}"`);
+            if (product.provider_code !== updated.provider_code) changes.push(`Cód Proveedor a "${updated.provider_code}"`);
+            if (product.barcode !== updated.barcode) changes.push(`Cód Barras a: ${updated.barcode}`);
 
             const detailsStr = changes.join(', ') || 'Modificación general';
 
