@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import Modal from './Modal';
+import api from '../api';
 
 const UpdateNotifier = () => {
     const [updateInfo, setUpdateInfo] = useState(null);
@@ -19,15 +20,13 @@ const UpdateNotifier = () => {
                     console.log('Capacitor plugin not available, using default version 1.0.0');
                 }
 
-                const response = await fetch('/api/app-version');
-                if (response.ok) {
-                    const serverInfo = await response.json();
+                const response = await api.get('/api/app-version');
+                const serverInfo = response.data;
 
-                    // Comparación simple de versiones (ej. 1.0.0 vs 1.0.1)
-                    if (isNewerVersion(currentVersion, serverInfo.version)) {
-                        setUpdateInfo(serverInfo);
-                        setIsModalOpen(true);
-                    }
+                // Comparación simple de versiones (ej. 1.0.0 vs 1.0.1)
+                if (isNewerVersion(currentVersion, serverInfo.version)) {
+                    setUpdateInfo(serverInfo);
+                    setIsModalOpen(true);
                 }
             } catch (error) {
                 console.error('Error checking for updates:', error);

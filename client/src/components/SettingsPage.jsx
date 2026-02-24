@@ -3,6 +3,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import api from '../api';
 
 const SettingsPage = () => {
     const { countMode, setCountMode } = useSettings();
@@ -20,15 +21,13 @@ const SettingsPage = () => {
 
     const fetchVersionData = async () => {
         try {
-            const response = await fetch('/api/app-version');
-            if (response.ok) {
-                const data = await response.json();
-                setVersionData({
-                    version: data.version || '',
-                    downloadUrl: data.downloadUrl || '',
-                    releaseNotes: data.releaseNotes || ''
-                });
-            }
+            const response = await api.get('/api/app-version');
+            const data = response.data;
+            setVersionData({
+                version: data.version || '',
+                downloadUrl: data.downloadUrl || '',
+                releaseNotes: data.releaseNotes || ''
+            });
         } catch (error) {
             console.error('Error fetching version data:', error);
         }
@@ -38,24 +37,12 @@ const SettingsPage = () => {
         e.preventDefault();
         setIsSavingVersion(true);
         try {
-            const response = await fetch('/api/app-version', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-auth-token': token
-                },
-                body: JSON.stringify(versionData)
-            });
-
-            if (response.ok) {
-                toast.success('Versión pública actualizada correctamente');
-            } else {
-                const errData = await response.json();
-                toast.error(`Error: ${errData.message || 'No se pudo actualizar la versión'}`);
-            }
+            await api.put('/api/app-version', versionData);
+            toast.success('Versión pública actualizada correctamente');
         } catch (error) {
             console.error('Error updating version:', error);
-            toast.error('Error de red al actualizar la versión');
+            const errMessage = error.response?.data?.message || 'Error de red al actualizar la versión';
+            toast.error(`Error: ${errMessage}`);
         } finally {
             setIsSavingVersion(false);
         }
