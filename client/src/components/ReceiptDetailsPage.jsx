@@ -31,6 +31,7 @@ const ReceiptDetailsPage = () => {
     // Bulk Import State (OCR)
     const [isBulkImporting, setIsBulkImporting] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+    const [importFailedItems, setImportFailedItems] = useState([]);
 
     // Intelligent Search State
     const [suggestions, setSuggestions] = useState([]);
@@ -351,6 +352,7 @@ const ReceiptDetailsPage = () => {
         setImportProgress({ current: 0, total: items.length });
         let successCount = 0;
         let failCount = 0;
+        const failedItemsLog = [];
 
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
@@ -365,12 +367,21 @@ const ReceiptDetailsPage = () => {
             } catch (error) {
                 console.error(`Error importing item ${item.code}:`, error);
                 failCount++;
+                failedItemsLog.push({
+                    code: item.code,
+                    description: item.description,
+                    quantity: item.quantity,
+                    error: error.response?.data?.message || 'Error desconocido'
+                });
             }
             setImportProgress({ current: i + 1, total: items.length });
         }
 
         if (successCount > 0) toast.success(`¡Listo! ${successCount} productos cargados en la base de datos.`);
-        if (failCount > 0) toast.error(`${failCount} fallaron al importar`);
+        if (failCount > 0) {
+            toast.error(`${failCount} fallaron al importar`);
+            setImportFailedItems(failedItemsLog);
+        }
 
         await fetchReceiptDetails();
         setIsBulkImporting(false);
@@ -768,6 +779,51 @@ const ReceiptDetailsPage = () => {
                         <p className="text-xs text-gray-400 mt-4 italic">
                             No podrás escanear hasta que termine el guardado.
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {importFailedItems.length > 0 && (
+                <div className="fixed inset-0 z-[110] bg-black bg-opacity-75 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl flex flex-col max-w-lg w-full max-h-[90vh]">
+                        <div className="p-4 border-b flex justify-between items-center bg-red-50 rounded-t-2xl">
+                            <h2 className="text-xl font-bold text-red-700 flex items-center gap-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                {importFailedItems.length} fallaron al importar
+                            </h2>
+                            <button onClick={() => setImportFailedItems([])} className="text-gray-500 hover:text-gray-900 p-1">
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            <p className="text-sm text-gray-600 mb-4">
+                                Los siguientes productos extraídos por la IA no pudieron ser importados, probablemente porque el código no coincide con ningún producto en la base de datos.
+                            </p>
+                            <div className="space-y-3">
+                                {importFailedItems.map((item, idx) => (
+                                    <div key={idx} className="border border-red-100 bg-white p-3 rounded-xl shadow-sm">
+                                        <div className="flex justify-between items-start gap-2 mb-1">
+                                            <div className="font-bold text-gray-900 text-sm">{item.description || 'Sin descripción'}</div>
+                                            <div className="font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs whitespace-nowrap">Cant: {item.quantity}</div>
+                                        </div>
+                                        <div className="text-xs font-mono text-gray-500 mb-2 mt-1">
+                                            Código: <span className="font-bold text-gray-700">{item.code || '-'}</span>
+                                        </div>
+                                        <div className="text-xs text-red-600 bg-red-50 py-1.5 px-2 rounded font-medium border border-red-100">
+                                            Error: {item.error}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="p-4 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+                            <button
+                                onClick={() => setImportFailedItems([])}
+                                className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-bold shadow-sm transition-colors"
+                            >
+                                Entendido
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
