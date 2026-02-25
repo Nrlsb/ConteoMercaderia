@@ -1177,8 +1177,8 @@ const RemitoForm = () => {
                     </div>
                 </div>
 
-                {/* General Count Manager - Only for 'products' mode */}
-                {countMode === 'products' && (
+                {/* General Count Manager - Visible when counts are active or in products mode */}
+                {(countMode === 'products' || selectedCount) && (
                     <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
                         {!selectedCount ? (
                             /* Selection Mode: List of Open Counts */
@@ -1734,8 +1734,8 @@ const RemitoForm = () => {
                                 )}
                             </div>
 
-                            {/* Solo mostrar botón de submit en modo pre-remito */}
-                            {countMode !== 'products' && (
+                            {/* Solo mostrar botón de submit en modo pre-remito y SI NO hay un conteo activo (se usa el de la cabecera) */}
+                            {countMode !== 'products' && !selectedCount && (
                                 <div className="p-4 bg-white border-t border-gray-200">
                                     <button
                                         onClick={handleSubmitRemito}
