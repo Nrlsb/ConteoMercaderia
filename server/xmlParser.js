@@ -35,6 +35,7 @@ const parseTrueXlsx = (buffer) => {
             else if (colLower.includes('descripcion')) descIdx = idx;
             else if (colLower.includes('saldo') || colLower.includes('stock')) qtyIdx = idx;
             else if (colLower.includes('id') && colLower.includes('inventario')) idIdx = idx;
+            else if (colLower.includes('barra') || colLower.includes('barcode')) barcodeIdx = idx;
         });
 
         // Fallbacks a los índices típicos (0-indexed) de la vieja estructura si los headers no hicieron match
@@ -53,6 +54,7 @@ const parseTrueXlsx = (buffer) => {
             // Intentar con fila de fallback si en D no hay nada e históricamente podía estar en F
             let rawQuantity = row[qtyIdx] !== undefined ? row[qtyIdx] : row[5];
             const currentInventoryId = row[idIdx];
+            const barcode = barcodeIdx !== -1 ? row[barcodeIdx] : null;
 
             if (!code || !description) continue;
 
@@ -71,7 +73,7 @@ const parseTrueXlsx = (buffer) => {
                 code: String(code).trim(),
                 description,
                 quantity,
-                barcode: null
+                barcode: barcode ? String(barcode).trim() : null
             });
         }
 
@@ -163,6 +165,7 @@ const parseLegacyXml = async (buffer) => {
             // In the user image, Saldo Stock is in col 4 (D). 
             // In previous versions it was mentioned as col 6.
             const rawQuantity = columns[4] || columns[6];
+            const barcode = columns[5] || columns[7] || null; // Speculative fallback for barcode in legacy XML
 
             // Skip Header (Detect if "Codigo" is in col 2 or "Descripcion" in col 3)
             if (code === 'Codigo' || description === 'Descripcion' || rawQuantity === 'Saldo Stock') {
@@ -188,7 +191,7 @@ const parseLegacyXml = async (buffer) => {
                 code: String(code).trim(),
                 description,
                 quantity,
-                barcode: null
+                barcode: barcode ? String(barcode).trim() : null
             });
         }
 

@@ -2681,6 +2681,27 @@ app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.me
             return res.status(400).json({ message: 'No valid items found in XML' });
         }
 
+        // 0. Fetch existing products to get barcodes and avoid overwriting with null
+        const uniqueCodes = [...new Set(items.map(i => i.code))];
+        const { data: existingProducts } = await supabase
+            .from('products')
+            .select('code, barcode')
+            .in('code', uniqueCodes);
+
+        const dbBarcodeMap = new Map();
+        if (existingProducts) {
+            existingProducts.forEach(p => {
+                if (p.barcode) dbBarcodeMap.set(p.code, p.barcode);
+            });
+        }
+
+        // Enrich items with barcodes from DB if not present in XML
+        items.forEach(item => {
+            if (!item.barcode && dbBarcodeMap.has(item.code)) {
+                item.barcode = dbBarcodeMap.get(item.code);
+            }
+        });
+
         const orderNumber = `STOCK-${new Date().toISOString().split('T')[0]}-${Date.now().toString().slice(-4)}`;
 
         // 1. Upsert Products (Ensure they exist in DB)
@@ -2691,7 +2712,7 @@ app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.me
                 productsMap.set(item.code, {
                     code: item.code,
                     description: item.description,
-                    barcode: item.barcode
+                    barcode: item.barcode // Using enriched barcode
                 });
             }
         });
