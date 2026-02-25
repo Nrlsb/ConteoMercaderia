@@ -1,6 +1,88 @@
 const xml2js = require('xml2js');
+const xlsx = require('xlsx');
 
-const parseExcelXml = async (buffer) => {
+const parseTrueXlsx = (buffer) => {
+    try {
+        const workbook = xlsx.read(buffer, { type: 'buffer' });
+        // Encontrar hoja que contenga "Inventario" o usar la primera
+        const sheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('inventario')) || workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+
+        const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+        const items = [];
+        let inventoryId = null;
+
+        if (rows.length === 0) return { items: [], inventoryId: null };
+
+        // Buscar fila de encabezados
+        let headerRowIdx = 0;
+        for (let i = 0; i < Math.min(10, rows.length); i++) {
+            const row = rows[i] || [];
+            if (row.some(cell => typeof cell === 'string' && cell.toLowerCase().includes('codigo'))) {
+                headerRowIdx = i;
+                break;
+            }
+        }
+
+        const headerRow = rows[headerRowIdx] || [];
+        let codeIdx = -1, descIdx = -1, qtyIdx = -1, idIdx = -1;
+
+        headerRow.forEach((col, idx) => {
+            if (typeof col !== 'string') return;
+            const colLower = col.toLowerCase();
+            if (colLower.includes('codigo')) codeIdx = idx;
+            else if (colLower.includes('descripcion')) descIdx = idx;
+            else if (colLower.includes('saldo') || colLower.includes('stock')) qtyIdx = idx;
+            else if (colLower.includes('id') && colLower.includes('inventario')) idIdx = idx;
+        });
+
+        // Fallbacks a los índices típicos (0-indexed) de la vieja estructura si los headers no hicieron match
+        // A=0, B=1, C=2, D=3, E=4, F=5
+        if (codeIdx === -1) codeIdx = 1; // B
+        if (descIdx === -1) descIdx = 2; // C
+        if (qtyIdx === -1) qtyIdx = 3;   // D (a veces era 5 / F)
+        if (idIdx === -1) idIdx = 0;     // A
+
+        for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
+
+            const code = row[codeIdx];
+            let description = row[descIdx];
+            // Intentar con fila de fallback si en D no hay nada e históricamente podía estar en F
+            let rawQuantity = row[qtyIdx] !== undefined ? row[qtyIdx] : row[5];
+            const currentInventoryId = row[idIdx];
+
+            if (!code || !description) continue;
+
+            if (!inventoryId && currentInventoryId) {
+                const cleanedId = String(currentInventoryId).trim();
+                if (/^\d+$/.test(cleanedId)) {
+                    inventoryId = cleanedId;
+                }
+            }
+
+            description = String(description).trim();
+            let quantity = parseFloat(rawQuantity);
+            if (isNaN(quantity)) quantity = 0;
+
+            items.push({
+                code: String(code).trim(),
+                description,
+                quantity,
+                barcode: null
+            });
+        }
+
+        return { items, inventoryId };
+    } catch (e) {
+        console.error('XLSX native Parse Error:', e);
+        throw new Error('Failed to process XLSX file');
+    }
+};
+
+const parseLegacyXml = async (buffer) => {
     const parser = new xml2js.Parser({ explicitArray: false });
     const content = buffer.toString('utf8');
 
@@ -118,4 +200,14 @@ const parseExcelXml = async (buffer) => {
     }
 };
 
+const parseExcelXml = async (buffer) => {
+    // Check magic number for ZIP/XLSX: PK..
+    const isZip = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4B;
+    if (isZip) {
+        return parseTrueXlsx(buffer);
+    }
+    return await parseLegacyXml(buffer);
+};
+
 module.exports = { parseExcelXml };
+

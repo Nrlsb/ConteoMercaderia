@@ -83,7 +83,7 @@ import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
                     <div className="mb-4">
                         <input
                             type="file"
-                            accept=".xml"
+                            accept=".xml, .xlsx, .xls"
                             onChange={(e) => {
                                 setFile(e.target.files[0]);
                                 setStatus('');

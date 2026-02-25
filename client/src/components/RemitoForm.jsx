@@ -1327,7 +1327,7 @@ const RemitoForm = () => {
                                     <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
                                         <input
                                             type="file"
-                                            accept=".xml"
+                                            accept=".xml, .xlsx, .xls"
                                             multiple
                                             className="hidden"
                                             onChange={handleXmlUpload}
