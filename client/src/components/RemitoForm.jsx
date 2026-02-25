@@ -1281,6 +1281,41 @@ const RemitoForm = () => {
                         </div>
 
                         <div className="grid grid-cols-1 gap-6">
+                            {activeCounts.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-medium text-brand-gray mb-2">Conteos en Curso ({activeCounts.length})</label>
+                                    <div className="space-y-3">
+                                        {activeCounts.map(count => (
+                                            <div key={count.id} className="flex items-center p-3 rounded-lg border border-blue-200 bg-blue-50 shadow-sm">
+                                                <div className="flex-1 flex justify-between items-center">
+                                                    <div>
+                                                        <div className="text-sm font-bold text-blue-900">
+                                                            Conteo Activo: {count.name}
+                                                        </div>
+                                                        <div className="text-xs text-blue-700 flex gap-2 mt-0.5">
+                                                            <span>{count.sucursal_name || 'Sin Sucursal'}</span>
+                                                            <span>•</span>
+                                                            <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            const orderNumbers = count.name.split(',').map(n => n.trim());
+                                                            handleResumeActiveCount(count, orderNumbers);
+                                                        }}
+                                                        className="text-sm bg-brand-blue hover:bg-blue-800 text-white px-4 py-2 rounded-lg shadow whitespace-nowrap font-medium transition"
+                                                    >
+                                                        Continuar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
                                 <div className="space-y-3">
@@ -1331,21 +1366,9 @@ const RemitoForm = () => {
                                                                 </div>
                                                             </div>
                                                             {isActiveCount && (
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
-                                                                        En Curso
-                                                                    </span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.preventDefault();
-                                                                            handleResumeActiveCount(activeCountMatched, [pre.order_number]);
-                                                                        }}
-                                                                        className="text-xs bg-brand-blue hover:bg-blue-700 text-white px-3 py-1.5 rounded shadow-sm whitespace-nowrap font-medium transition"
-                                                                    >
-                                                                        Continuar
-                                                                    </button>
-                                                                </div>
+                                                                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
+                                                                    En Curso
+                                                                </span>
                                                             )}
                                                         </div>
                                                     </label>
