@@ -1535,13 +1535,17 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             };
         });
 
-        // 5. Fetch Open General Counts
-        const { data: openGeneralCounts, error: openCountsError } = await supabase
+        // 5. Fetch Open and Closed General Counts (to ensure historical visibility even if report generation failed previously)
+        const { data: generalCounts, error: countsError } = await supabase
             .from('general_counts')
             .select('*')
-            .eq('status', 'open');
+            .neq('status', 'voided');
 
-        if (openCountsError) console.error('Error fetching open general counts:', openCountsError);
+        if (countsError) console.error('Error fetching general counts:', countsError);
+
+        // Split into open and closed
+        const openGeneralCounts = (generalCounts || []).filter(c => c.status === 'open');
+        const closedGeneralCounts = (generalCounts || []).filter(c => c.status === 'closed');
 
         // --- BATCH OPTIMIZATION START ---
 
@@ -1767,8 +1771,30 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             };
         });
 
+        // 7.1. Format Closed General Counts that might not have a Remito entry
+        const processedRemitoNumbers = new Set(remitosData.map(r => r.remito_number));
+        const closedCountsFormatted = closedGeneralCounts
+            .filter(c => !processedRemitoNumbers.has(c.id)) // Only those NOT already in remitos table
+            .map(count => {
+                const formatted = formatName(count.name || count.id);
+                return {
+                    id: count.id,
+                    remito_number: count.id,
+                    items: [], // Report missing, so items unknown or empty here
+                    status: 'processed',
+                    created_by: count.created_by || 'Admin',
+                    date: count.closed_at || count.created_at,
+                    numero_pv: formatted.numero_pv,
+                    sucursal: formatted.sucursal !== '-' ? formatted.sucursal : (count.sucursal_name || '-'),
+                    id_inventory: null,
+                    count_name: formatted.name,
+                    is_finalized: true,
+                    type: 'general_count'
+                };
+            });
+
         // Combined and sorted by date
-        const combined = [...openCountsFormatted, ...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const combined = [...openCountsFormatted, ...closedCountsFormatted, ...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         res.json(combined);
     } catch (error) {
@@ -2897,26 +2923,8 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
     const { id } = req.params;
 
     try {
-        // 1. Close the count
-        const { data: updatedCount, error: updateError } = await supabase
-            .from('general_counts')
-            .update({ status: 'closed', closed_at: new Date() })
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (updateError) throw updateError;
-
-        // 2. Generate Report (Fetch ALL scans paginated)
+        // 1. Generate Report Data (Fetch ALL scans paginated)
         const scans = await getAllScans(id);
-        const scansError = null;
-
-        // const { data: scans, error: scansError } = await supabase
-        //     .from('inventory_scans')
-        //     .select('code, quantity')
-        //     .eq('order_number', id);
-
-        if (scansError) throw scansError;
 
         // Aggregate
         const totals = {};
@@ -2926,19 +2934,32 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         const codes = Object.keys(totals);
 
+        // 2. Fetch the current count info to get the name and other details
+        const { data: currentCount, error: countFetchError } = await supabase
+            .from('general_counts')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (countFetchError || !currentCount) {
+            throw new Error('No se pudo encontrar el conteo para cerrar');
+        }
+
         // 3. Resolve Reference Products (Expected Stock)
         let allProducts = [];
 
         // Check if grouped stock import
-        const parts = (updatedCount.name || '').split(',').map(s => s.trim());
+        const parts = (currentCount.name || '').split(',').map(s => s.trim());
         const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
 
         if (linkedOrderNumbers.length > 0) {
             console.log(`[CLOSE_COUNT] Resolving reference products from imports: ${linkedOrderNumbers.join(', ')}`);
-            const { data: linkedPreRemitos } = await supabase
+            const { data: linkedPreRemitos, error: preRemitosError } = await supabase
                 .from('pre_remitos')
                 .select('items, id_inventory')
                 .in('order_number', linkedOrderNumbers);
+
+            if (preRemitosError) throw preRemitosError;
 
             if (linkedPreRemitos && linkedPreRemitos.length > 0) {
                 const mergedItemsMap = {};
@@ -2959,11 +2980,14 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
                     });
                 });
 
-                if (inventoryIds.size > 0) updatedCount.id_inventory = Array.from(inventoryIds).join(', ');
+                if (inventoryIds.size > 0) currentCount.id_inventory = Array.from(inventoryIds).join(', ');
 
                 // Enrich with barcodes from products table
                 const codesList = Object.keys(mergedItemsMap);
-                const { data: bars } = await supabase.from('products').select('code, barcode').in('code', codesList);
+                const { data: bars, error: barsError } = await supabase.from('products').select('code, barcode').in('code', codesList);
+
+                if (barsError) throw barsError;
+
                 const barMap = {};
                 if (bars) bars.forEach(b => barMap[b.code] = b.barcode);
 
@@ -2992,7 +3016,7 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
             };
         });
 
-        // Add any scanned items that might not exist in products table (should not happen usually but safe to handle)
+        // Add any scanned items that might not exist in products table
         const productCodes = new Set(allProducts.map(p => p.code));
         codes.forEach(scannedCode => {
             if (!productCodes.has(scannedCode)) {
@@ -3009,7 +3033,7 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         report.sort((a, b) => a.description.localeCompare(b.description));
 
-        // 3. Save snapshot to Remitos table (Upsert logic manual since remito_number might not be unique in schema)
+        // 4. Save snapshot to Remitos table
         const discrepancies = {
             missing: report.filter(i => i.difference < 0).map(i => ({
                 code: i.code,
@@ -3036,8 +3060,7 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         const remitoData = {
             remito_number: id,
-            id_inventory: updatedCount.id_inventory || null,
-            // Expected items for General Count is the theoretical current_stock
+            id_inventory: currentCount.id_inventory || null,
             items: allProducts.map(p => ({
                 code: p.code,
                 description: p.description,
@@ -3049,16 +3072,29 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
             created_by: req.user ? req.user.username : 'Sistema'
         };
 
+        let remitoResult;
         if (existingRemito) {
-            await supabase.from('remitos').update(remitoData).eq('id', existingRemito.id);
+            remitoResult = await supabase.from('remitos').update(remitoData).eq('id', existingRemito.id);
         } else {
-            await supabase.from('remitos').insert([remitoData]);
+            remitoResult = await supabase.from('remitos').insert([remitoData]);
         }
+
+        if (remitoResult.error) throw remitoResult.error;
+
+        // 5. FINALLY, Close the count only if everything above succeeded
+        const { data: updatedCount, error: updateError } = await supabase
+            .from('general_counts')
+            .update({ status: 'closed', closed_at: new Date() })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
 
         res.json({ count: updatedCount, report });
     } catch (error) {
         console.error('Error closing count:', error);
-        res.status(500).json({ message: 'Error closing count' });
+        res.status(500).json({ message: 'Error closing count: ' + error.message });
     }
 });
 
