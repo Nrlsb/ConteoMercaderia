@@ -2474,7 +2474,7 @@ app.get('/api/pre-remitos', verifyToken, async (req, res) => {
             .select(`
                 id,
                 order_number,
-                inventory_id,
+                id_inventory,
                 created_at,
                 pedidos_ventas (
                     numero_pv,

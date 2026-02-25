@@ -1265,7 +1265,7 @@ const RemitoForm = () => {
                                                             <div className="text-sm font-bold text-gray-800">
                                                                 {
                                                                     pre.order_number.startsWith('STOCK-')
-                                                                        ? `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`
+                                                                        ? (pre.id_inventory ? `Stock Inicial - ${pre.id_inventory} (${new Date(pre.created_at).toLocaleDateString()})` : `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`)
                                                                         : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
                                                                 }
                                                             </div>
@@ -1360,7 +1360,13 @@ const RemitoForm = () => {
                                 {/* Show summary of IDs if multiple */}
                                 {selectedPreRemitos.length > 1 && (
                                     <div className="ml-7 text-xs text-green-700 mt-1">
-                                        Consolidando: {selectedPreRemitos.map(num => `#${num.slice(-6)}`).join(', ')}
+                                        Consolidando: {selectedPreRemitos.map(num => {
+                                            const pre = preRemitoList.find(p => p.order_number === num);
+                                            if (pre && pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
+                                                return pre.id_inventory;
+                                            }
+                                            return `#${num.slice(-6)}`;
+                                        }).join(', ')}
                                     </div>
                                 )}
 
