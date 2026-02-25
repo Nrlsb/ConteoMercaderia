@@ -1972,9 +1972,21 @@ async function getFullRemitoDetails(id) {
                                 (pr.items || []).forEach(item => {
                                     const code = String(item.code).trim();
                                     if (!mergedItemsMap[code]) {
-                                        mergedItemsMap[code] = { ...item, code };
+                                        mergedItemsMap[code] = {
+                                            ...item,
+                                            code,
+                                            id_inventory: pr.id_inventory || null
+                                        };
                                     } else {
                                         mergedItemsMap[code].quantity += (item.quantity || 0);
+                                        // Si el producto está en otro pre-remito, concatenamos el ID de inventario si es distinto
+                                        if (pr.id_inventory && mergedItemsMap[code].id_inventory !== pr.id_inventory) {
+                                            if (!mergedItemsMap[code].id_inventory) {
+                                                mergedItemsMap[code].id_inventory = pr.id_inventory;
+                                            } else if (!mergedItemsMap[code].id_inventory.includes(pr.id_inventory)) {
+                                                mergedItemsMap[code].id_inventory += `, ${pr.id_inventory}`;
+                                            }
+                                        }
                                     }
                                 });
                             });
@@ -2143,7 +2155,8 @@ async function getFullRemitoDetails(id) {
                     code: expected.code,
                     description: expected.description || expected.name,
                     expected: expected.quantity,
-                    scanned: scannedQty
+                    scanned: scannedQty,
+                    id_inventory: expected.id_inventory // Conservar el ID de inventario
                 });
             }
         });
@@ -2168,7 +2181,8 @@ async function getFullRemitoDetails(id) {
                         code,
                         description: expected.description || expected.name,
                         expected: expected.quantity,
-                        scanned: scannedQty
+                        scanned: scannedQty,
+                        id_inventory: expected.id_inventory // Conservar el ID de inventario
                     });
                 }
             }
