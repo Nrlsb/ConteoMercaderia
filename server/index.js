@@ -1649,6 +1649,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 date: pre.created_at,
                 numero_pv: pre.pedidos_ventas?.[0]?.numero_pv || '-',
                 sucursal: pre.pedidos_ventas?.[0]?.sucursal || '-',
+                id_inventory: pre.id_inventory,
                 count_name: countsMap[pre.order_number] || pre.id_inventory || null,
                 progress: stats.progress,
                 scanned_brands: stats.scanned_brands,
@@ -1707,17 +1708,30 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 
         // 7. Enrich Open General Counts
         const openCountsFormatted = (openGeneralCounts || []).map(count => {
-            const stats = processOrderScans(count.id, []); // No expected items for general count
+            // Resolve items if grouped
+            let groupedItems = [];
+            const parts = (count.name || '').split(',').map(s => s.trim());
+            const linkedOrders = parts.filter(p => p.startsWith('STOCK-'));
+
+            linkedOrders.forEach(order => {
+                const info = preRemitoMap[order];
+                if (info && info.items) {
+                    groupedItems = [...groupedItems, ...info.items];
+                }
+            });
+
+            const stats = processOrderScans(count.id, groupedItems);
             const formatted = formatName(count.name || count.id);
             return {
                 id: count.id,
                 remito_number: count.id,
-                items: [],
+                items: groupedItems,
                 status: 'pending_scanned',
                 created_by: count.created_by || 'Admin',
                 date: count.created_at,
                 numero_pv: formatted.numero_pv,
                 sucursal: formatted.sucursal !== '-' ? formatted.sucursal : (count.sucursal_name || '-'),
+                id_inventory: linkedOrders.length > 0 ? preRemitoMap[linkedOrders[0]]?.id_inventory : null,
                 count_name: formatted.name,
                 progress: null, // General counts don't have progress bar usually
                 scanned_brands: stats.scanned_brands,
@@ -1732,10 +1746,21 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
         const processedFormatted = remitosData.map(remito => {
             const formatted = formatName(remito.remito_number);
 
+            let parsedItems = remito.items;
+            if (typeof remito.items === 'string') {
+                try {
+                    parsedItems = JSON.parse(remito.items);
+                } catch (e) {
+                    parsedItems = [];
+                }
+            }
+
             return {
                 ...remito,
+                items: parsedItems,
                 numero_pv: formatted.numero_pv,
                 sucursal: formatted.sucursal,
+                id_inventory: preRemitoMap[remito.remito_number]?.id_inventory || null,
                 count_name: formatted.name,
                 is_finalized: true,
                 type: 'remito'
@@ -1908,35 +1933,68 @@ async function getFullRemitoDetails(id) {
                     .maybeSingle();
 
                 if (generalCount) {
-                    // Fetch products with stock logic depending on sucursal
-                    // If sucursal_id is present, fetch from stock_sucursal
-                    // Else, fallback to products.current_stock (Global)
-
                     let items = [];
 
-                    if (generalCount.sucursal_id) {
-                        console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
+                    // New logic for grouped general counts: 
+                    // If name contains STOCK- order numbers, use ONLY those items as base
+                    const parts = (generalCount.name || '').split(',').map(s => s.trim());
+                    const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
 
-                        // Fetch stock specific to branch
-                        const { data: branchStock } = await supabase
-                            .from('stock_sucursal')
-                            .select('product_code, quantity, products(description, brand, brand_code)')
-                            .eq('sucursal_id', generalCount.sucursal_id);
-                        // Removed .gt('quantity', 0) to include 0 stock items
+                    if (linkedOrderNumbers.length > 0) {
+                        const { data: linkedPreRemitos } = await supabase
+                            .from('pre_remitos')
+                            .select('items')
+                            .in('order_number', linkedOrderNumbers);
 
-                        if (branchStock && branchStock.length > 0) {
-                            items = branchStock.map(s => ({
-                                code: s.product_code,
-                                name: s.products?.description || 'Desconocido',
-                                description: s.products?.description || 'Desconocido',
-                                quantity: Number(s.quantity),
-                                brand: s.products?.brand,
-                                brand_code: s.products?.brand_code
-                            }));
+                        if (linkedPreRemitos && linkedPreRemitos.length > 0) {
+                            const mergedItemsMap = {};
+                            linkedPreRemitos.forEach(pr => {
+                                (pr.items || []).forEach(item => {
+                                    const code = String(item.code).trim();
+                                    if (!mergedItemsMap[code]) {
+                                        mergedItemsMap[code] = { ...item, code };
+                                    } else {
+                                        mergedItemsMap[code].quantity += (item.quantity || 0);
+                                    }
+                                });
+                            });
+                            items = Object.values(mergedItemsMap);
+                        }
+                    }
+
+                    // Fallback to original logic if NO linked items found or NOT a grouped stock import
+                    if (items.length === 0) {
+                        if (generalCount.sucursal_id) {
+                            console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
+                            const { data: branchStock } = await supabase
+                                .from('stock_sucursal')
+                                .select('product_code, quantity, products(description, brand, brand_code)')
+                                .eq('sucursal_id', generalCount.sucursal_id);
+
+                            if (branchStock && branchStock.length > 0) {
+                                items = branchStock.map(s => ({
+                                    code: s.product_code,
+                                    name: s.products?.description || 'Desconocido',
+                                    description: s.products?.description || 'Desconocido',
+                                    quantity: Number(s.quantity),
+                                    brand: s.products?.brand,
+                                    brand_code: s.products?.brand_code
+                                }));
+                            } else {
+                                const { data: allProducts } = await supabase
+                                    .from('products')
+                                    .select('code, description, current_stock, brand, brand_code');
+
+                                items = (allProducts || []).map(p => ({
+                                    code: p.code,
+                                    name: p.description,
+                                    description: p.description,
+                                    quantity: 0,
+                                    brand: p.brand,
+                                    brand_code: p.brand_code
+                                }));
+                            }
                         } else {
-                            // Fallback: If branch has NO data, load ALL products with 0 quantity
-                            // This ensures the user sees the master list to count against
-                            console.log('Branch has no stock data. Loading master product list...');
                             const { data: allProducts } = await supabase
                                 .from('products')
                                 .select('code, description, current_stock, brand, brand_code');
@@ -1945,27 +2003,11 @@ async function getFullRemitoDetails(id) {
                                 code: p.code,
                                 name: p.description,
                                 description: p.description,
-                                quantity: 0, // Assume 0 for blind/initial count
+                                quantity: p.current_stock || 0,
                                 brand: p.brand,
                                 brand_code: p.brand_code
                             }));
                         }
-                    } else {
-                        // Legacy / Global mode
-                        // Fetch all active products
-                        const { data: allProducts } = await supabase
-                            .from('products')
-                            .select('code, description, current_stock, brand, brand_code');
-                        // Removed .gt('current_stock', 0) to include everything
-
-                        items = (allProducts || []).map(p => ({
-                            code: p.code,
-                            name: p.description,
-                            description: p.description,
-                            quantity: p.current_stock || 0,
-                            brand: p.brand,
-                            brand_code: p.brand_code
-                        }));
                     }
 
                     remito = {
@@ -2841,10 +2883,54 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         const codes = Object.keys(totals);
 
-        // 3. Fetch ALL Products
-        // We need the full list to show items that were NOT scanned (quantity 0)
-        // Fixed: Use pagination to avoid 1000 records limit
-        const allProducts = await getAllProducts();
+        // 3. Resolve Reference Products (Expected Stock)
+        let allProducts = [];
+
+        // Check if grouped stock import
+        const parts = (updatedCount.name || '').split(',').map(s => s.trim());
+        const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
+
+        if (linkedOrderNumbers.length > 0) {
+            console.log(`[CLOSE_COUNT] Resolving reference products from imports: ${linkedOrderNumbers.join(', ')}`);
+            const { data: linkedPreRemitos } = await supabase
+                .from('pre_remitos')
+                .select('items')
+                .in('order_number', linkedOrderNumbers);
+
+            if (linkedPreRemitos && linkedPreRemitos.length > 0) {
+                const mergedItemsMap = {};
+                linkedPreRemitos.forEach(pr => {
+                    (pr.items || []).forEach(item => {
+                        const code = String(item.code).trim();
+                        if (!mergedItemsMap[code]) {
+                            mergedItemsMap[code] = {
+                                code: code,
+                                description: item.description,
+                                current_stock: item.quantity || 0
+                            };
+                        } else {
+                            mergedItemsMap[code].current_stock += (item.quantity || 0);
+                        }
+                    });
+                });
+
+                // Enrich with barcodes from products table
+                const codesList = Object.keys(mergedItemsMap);
+                const { data: bars } = await supabase.from('products').select('code, barcode').in('code', codesList);
+                const barMap = {};
+                if (bars) bars.forEach(b => barMap[b.code] = b.barcode);
+
+                allProducts = Object.values(mergedItemsMap).map(p => ({
+                    ...p,
+                    barcode: barMap[p.code] || ''
+                }));
+            }
+        }
+
+        // Fallback: If not grouped or no items found, use FULL master list
+        if (allProducts.length === 0) {
+            allProducts = await getAllProducts();
+        }
 
         // Build Report Array iterating over ALL products
         const report = allProducts.map(product => {

@@ -419,6 +419,9 @@ const RemitoList = () => {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-semibold text-brand-blue font-mono">{remito.count_name || remito.remito_number}</span>
+                                                    {remito.id_inventory && (
+                                                        <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-0.5">ID: {remito.id_inventory}</span>
+                                                    )}
                                                     {remito.sucursal && remito.sucursal !== '-' && (
                                                         <span className="text-xs text-gray-500 mt-1">Sucursal: {remito.sucursal}</span>
                                                     )}
