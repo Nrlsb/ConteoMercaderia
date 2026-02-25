@@ -525,17 +525,7 @@ const RemitoForm = () => {
         if (isNaN(qty) || qty < 1) return;
 
         setItems(prevItems => prevItems.map(item => {
-            if (item.code === code) {
-                // Re-validate
-                let validationMessage = null;
-                const expectedQty = getExpectedQty(code);
-                if (expectedItems && expectedQty !== null) {
-                    if (qty > expectedQty) {
-                        validationMessage = 'Excede cantidad solicitada';
-                    }
-                }
-                return { ...item, quantity: qty, validationError: validationMessage };
-            }
+            return { ...item, quantity: qty, validationError: null };
             return item;
         }));
     };
@@ -737,13 +727,8 @@ const RemitoForm = () => {
 
         try {
             setItems(prevItems => {
-                const existingItem = prevItems.find(i => i.code === product.code);
                 let validationMessage = null;
                 const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
-
-                if (expectedQuantity !== null && newTotal > expectedQuantity) {
-                    validationMessage = 'Excede cantidad solicitada';
-                }
 
                 if (existingItem) {
                     const updatedItem = { ...existingItem, quantity: newTotal, validationError: validationMessage };
@@ -766,12 +751,7 @@ const RemitoForm = () => {
             // Close modal only after successful sync
             setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
 
-            if (expectedQuantity !== null && expectedQuantity !== undefined) {
-                const currentQty = (items.find(i => i.code === product.code)?.quantity || 0);
-                if (currentQty + quantityToAdd > expectedQuantity) {
-                    triggerModal('Advertencia', `Se ha superado la cantidad solicitada para ${product.name}`, 'warning');
-                }
-            }
+
         } catch (error) {
             console.error('[ERROR] handleFichajeConfirm failed:', error);
         } finally {
