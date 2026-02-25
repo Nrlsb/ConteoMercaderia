@@ -525,7 +525,9 @@ const RemitoForm = () => {
         if (isNaN(qty) || qty < 1) return;
 
         setItems(prevItems => prevItems.map(item => {
-            return { ...item, quantity: qty, validationError: null };
+            if (item.code === code) {
+                return { ...item, quantity: qty, validationError: null };
+            }
             return item;
         }));
     };
@@ -727,6 +729,7 @@ const RemitoForm = () => {
 
         try {
             setItems(prevItems => {
+                const existingItem = prevItems.find(i => i.code === product.code);
                 let validationMessage = null;
                 const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
 
