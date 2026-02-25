@@ -335,6 +335,50 @@ const RemitoForm = () => {
         fetchBranches();
     }, []);
 
+    const handleResumeActiveCount = async (count, orderNumbers) => {
+        try {
+            setPreRemitoStatus('loading');
+            const results = await Promise.all(
+                orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
+            );
+
+            // Consolidate items
+            const mergedItemsMap = {};
+            const loadedOrderNumbers = [];
+
+            results.forEach(res => {
+                const { items, order_number } = res.data;
+                loadedOrderNumbers.push(order_number);
+
+                if (items && Array.isArray(items)) {
+                    items.forEach(item => {
+                        const code = item.code;
+                        if (mergedItemsMap[code]) {
+                            mergedItemsMap[code].quantity += Number(item.quantity) || 0;
+                        } else {
+                            mergedItemsMap[code] = {
+                                ...item,
+                                quantity: Number(item.quantity) || 0
+                            };
+                        }
+                    });
+                }
+            });
+
+            const mergedItems = Object.values(mergedItemsMap);
+            setExpectedItems(mergedItems);
+
+            // Set the selected count to trigger the display of the active count
+            setSelectedCount(count);
+            setPreRemitoStatus('found');
+        } catch (error) {
+            console.error('Error resuming active count:', error);
+            triggerModal('Error', 'No se pudo cargar el conteo activo. Intente nuevamente.', 'error');
+            setPreRemitoStatus('not_found');
+            setExpectedItems(null);
+        }
+    };
+
     const handleLoadPreRemito = async () => {
         if (selectedPreRemitos.length === 0) return;
         setPreRemitoStatus('loading');
@@ -1244,16 +1288,17 @@ const RemitoForm = () => {
                                         {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
                                             preRemitoList.map((pre) => {
                                                 const isSelected = selectedPreRemitos.includes(pre.order_number);
-                                                const isActiveCount = activeCounts.some(c => c.name && c.name.includes(pre.order_number));
+                                                const activeCountMatched = activeCounts.find(c => c.name && c.name.includes(pre.order_number));
+                                                const isActiveCount = !!activeCountMatched;
 
                                                 return (
                                                     <label
                                                         key={pre.id}
                                                         className={`flex items-center p-3 rounded-lg border transition ${isActiveCount
-                                                                ? 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed'
-                                                                : isSelected
-                                                                    ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue cursor-pointer hover:bg-blue-50'
-                                                                    : 'border-gray-100 bg-gray-50/30 cursor-pointer hover:bg-blue-50'
+                                                            ? 'bg-gray-50 border-gray-200'
+                                                            : isSelected
+                                                                ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue cursor-pointer hover:bg-blue-50'
+                                                                : 'border-gray-100 bg-gray-50/30 cursor-pointer hover:bg-blue-50'
                                                             }`}
                                                     >
                                                         <input
@@ -1286,9 +1331,21 @@ const RemitoForm = () => {
                                                                 </div>
                                                             </div>
                                                             {isActiveCount && (
-                                                                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
-                                                                    En Curso
-                                                                </span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
+                                                                        En Curso
+                                                                    </span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            handleResumeActiveCount(activeCountMatched, [pre.order_number]);
+                                                                        }}
+                                                                        className="text-xs bg-brand-blue hover:bg-blue-700 text-white px-3 py-1.5 rounded shadow-sm whitespace-nowrap font-medium transition"
+                                                                    >
+                                                                        Continuar
+                                                                    </button>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </label>
