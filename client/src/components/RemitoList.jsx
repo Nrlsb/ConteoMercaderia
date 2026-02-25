@@ -278,9 +278,16 @@ const RemitoList = () => {
                                                     </span>
                                                 )}
                                             </div>
-                                            <span className="text-xs text-gray-500">
-                                                {new Date(remito.date).toLocaleDateString()} • {new Date(remito.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
+                                            <div className="flex flex-col gap-0.5">
+                                                {remito.sucursal && remito.sucursal !== '-' && (
+                                                    <span className="text-xs font-medium text-gray-500">
+                                                        Sucursal: {remito.sucursal}
+                                                    </span>
+                                                )}
+                                                <span className="text-xs text-gray-500">
+                                                    {new Date(remito.date).toLocaleDateString()} • {new Date(remito.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
                                         </div>
                                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${remito.status === 'processed'
                                             ? 'bg-green-100 text-green-800'
@@ -410,7 +417,12 @@ const RemitoList = () => {
                                             </td>
 
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="text-sm font-semibold text-brand-blue font-mono">{remito.count_name || remito.remito_number}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-semibold text-brand-blue font-mono">{remito.count_name || remito.remito_number}</span>
+                                                    {remito.sucursal && remito.sucursal !== '-' && (
+                                                        <span className="text-xs text-gray-500 mt-1">Sucursal: {remito.sucursal}</span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             <td className="px-6 py-4 whitespace-nowrap">

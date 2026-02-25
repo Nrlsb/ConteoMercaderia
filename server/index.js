@@ -1657,9 +1657,58 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             };
         });
 
+        // Helper to format names
+        const formatName = (rawName) => {
+            if (!rawName) return null;
+            const parts = rawName.split(',').map(s => s.trim());
+            let newNames = [];
+            let isStock = false;
+            let sucursales = [];
+            let pvs = [];
+
+            parts.forEach(num => {
+                const info = preRemitoMap[num];
+                if (num.startsWith('STOCK-')) {
+                    isStock = true;
+                    if (info && info.id_inventory) {
+                        newNames.push(info.id_inventory);
+                    } else if (countsMap[num]) {
+                        newNames.push(countsMap[num]);
+                    } else {
+                        newNames.push(num);
+                    }
+                } else {
+                    if (info && info.id_inventory) {
+                        newNames.push(info.id_inventory);
+                    } else if (countsMap[num]) {
+                        newNames.push(countsMap[num]);
+                    } else {
+                        newNames.push(num);
+                    }
+                }
+
+                if (info) {
+                    if (info.sucursal && info.sucursal !== '-') sucursales.push(info.sucursal);
+                    if (info.numero_pv && info.numero_pv !== '-') pvs.push(info.numero_pv);
+                }
+            });
+
+            const uniqueNames = [...new Set(newNames)];
+            let finalName = rawName;
+            if (uniqueNames.length > 0) {
+                finalName = isStock ? 'Stock Inicial - ' + uniqueNames.join(', ') : uniqueNames.join(', ');
+            }
+            return {
+                name: finalName,
+                sucursal: sucursales.length > 0 ? [...new Set(sucursales)].join(', ') : '-',
+                numero_pv: pvs.length > 0 ? [...new Set(pvs)].join(', ') : '-'
+            };
+        };
+
         // 7. Enrich Open General Counts
         const openCountsFormatted = (openGeneralCounts || []).map(count => {
             const stats = processOrderScans(count.id, []); // No expected items for general count
+            const formatted = formatName(count.name || count.id);
             return {
                 id: count.id,
                 remito_number: count.id,
@@ -1667,9 +1716,9 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 status: 'pending_scanned',
                 created_by: count.created_by || 'Admin',
                 date: count.created_at,
-                numero_pv: '-',
-                sucursal: '-',
-                count_name: count.name,
+                numero_pv: formatted.numero_pv,
+                sucursal: formatted.sucursal !== '-' ? formatted.sucursal : (count.sucursal_name || '-'),
+                count_name: formatted.name,
                 progress: null, // General counts don't have progress bar usually
                 scanned_brands: stats.scanned_brands,
                 is_finalized: false,
@@ -1681,14 +1730,13 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 
         // 8. Merge data
         const processedFormatted = remitosData.map(remito => {
-            const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
-            const countName = countsMap[remito.remito_number];
+            const formatted = formatName(remito.remito_number);
 
             return {
                 ...remito,
-                numero_pv: extraInfo.numero_pv,
-                sucursal: extraInfo.sucursal,
-                count_name: countName || extraInfo.id_inventory || null,
+                numero_pv: formatted.numero_pv,
+                sucursal: formatted.sucursal,
+                count_name: formatted.name,
                 is_finalized: true,
                 type: 'remito'
             };
