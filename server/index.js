@@ -1961,12 +1961,14 @@ async function getFullRemitoDetails(id) {
                     if (linkedOrderNumbers.length > 0) {
                         const { data: linkedPreRemitos } = await supabase
                             .from('pre_remitos')
-                            .select('items')
+                            .select('items, id_inventory')
                             .in('order_number', linkedOrderNumbers);
 
                         if (linkedPreRemitos && linkedPreRemitos.length > 0) {
                             const mergedItemsMap = {};
+                            const inventoryIds = new Set();
                             linkedPreRemitos.forEach(pr => {
+                                if (pr.id_inventory) inventoryIds.add(pr.id_inventory);
                                 (pr.items || []).forEach(item => {
                                     const code = String(item.code).trim();
                                     if (!mergedItemsMap[code]) {
@@ -1977,6 +1979,10 @@ async function getFullRemitoDetails(id) {
                                 });
                             });
                             items = Object.values(mergedItemsMap);
+                            // Set id_inventory from the first found (or comma separated if many, but usually it's one)
+                            if (inventoryIds.size > 0) {
+                                generalCount.id_inventory = Array.from(inventoryIds).join(', ');
+                            }
                         }
                     }
 
@@ -2032,6 +2038,7 @@ async function getFullRemitoDetails(id) {
                         id: generalCount.id,
                         remito_number: generalCount.id,
                         count_name: generalCount.name,
+                        id_inventory: generalCount.id_inventory,
                         items: items,
                         date: generalCount.created_at,
                         status: 'pending',
@@ -2916,12 +2923,14 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
             console.log(`[CLOSE_COUNT] Resolving reference products from imports: ${linkedOrderNumbers.join(', ')}`);
             const { data: linkedPreRemitos } = await supabase
                 .from('pre_remitos')
-                .select('items')
+                .select('items, id_inventory')
                 .in('order_number', linkedOrderNumbers);
 
             if (linkedPreRemitos && linkedPreRemitos.length > 0) {
                 const mergedItemsMap = {};
+                const inventoryIds = new Set();
                 linkedPreRemitos.forEach(pr => {
+                    if (pr.id_inventory) inventoryIds.add(pr.id_inventory);
                     (pr.items || []).forEach(item => {
                         const code = String(item.code).trim();
                         if (!mergedItemsMap[code]) {
@@ -2935,6 +2944,8 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
                         }
                     });
                 });
+
+                if (inventoryIds.size > 0) updatedCount.id_inventory = Array.from(inventoryIds).join(', ');
 
                 // Enrich with barcodes from products table
                 const codesList = Object.keys(mergedItemsMap);
@@ -3011,6 +3022,7 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         const remitoData = {
             remito_number: id,
+            id_inventory: updatedCount.id_inventory || null,
             // Expected items for General Count is the theoretical current_stock
             items: allProducts.map(p => ({
                 code: p.code,
