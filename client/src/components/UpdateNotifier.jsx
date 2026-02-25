@@ -10,7 +10,7 @@ const UpdateNotifier = () => {
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-
+    const [downloadProgress, setDownloadProgress] = useState(0);
     // Usar localStorage para recordar la versión que ya ignoramos o intentamos descargar
     const [dismissedVersion, setDismissedVersion] = useState(
         localStorage.getItem('dismissedUpdateVersion')
@@ -76,14 +76,26 @@ const UpdateNotifier = () => {
         }
 
         setIsDownloading(true);
+        setDownloadProgress(0);
+        let progressListener;
         try {
             const fileName = 'ConteoMercaderia_Update.apk';
+
+            progressListener = await Filesystem.addListener('progress', (progress) => {
+                if (progress.url === finalUrl) {
+                    const percentage = progress.contentLength > 0 
+                        ? Math.round((progress.bytes / progress.contentLength) * 100) 
+                        : 0;
+                    setDownloadProgress(percentage);
+                }
+            });
 
             // Download file
             const downloadResult = await Filesystem.downloadFile({
                 url: finalUrl,
                 path: fileName,
-                directory: Directory.Data
+                directory: Directory.Data,
+                progress: true
             });
 
             // Open APK
@@ -100,6 +112,9 @@ const UpdateNotifier = () => {
             console.error('Error downloading or opening APK:', error);
             alert('Error al descargar o instalar la actualización.');
         } finally {
+            if (progressListener) {
+                progressListener.remove();
+            }
             setIsDownloading(false);
         }
     };
@@ -120,9 +135,13 @@ const UpdateNotifier = () => {
                 isOpen={isModalOpen}
                 onClose={handleClose}
                 title="¡Nueva Actualización Disponible!"
-                message={`La versión ${updateInfo?.version} está disponible. Te recomendamos actualizar para obtener las últimas mejoras y correcciones.\n\nNovedades: ${updateInfo?.releaseNotes || 'Mejoras de rendimiento y estabilidad.'}`}
+                message={
+                    isDownloading
+                        ? `Descargando actualización... ${downloadProgress}%`
+                        : `La versión ${updateInfo?.version} está disponible. Te recomendamos actualizar para obtener las últimas mejoras y correcciones.\n\nNovedades: ${updateInfo?.releaseNotes || 'Mejoras de rendimiento y estabilidad.'}`
+                }
                 type="info"
-                confirmText={isDownloading ? "Descargando..." : "Descargar"}
+                confirmText={isDownloading ? `Descargando... ${downloadProgress}%` : "Descargar"}
                 onConfirm={isDownloading ? undefined : handleDownload}
             />
 
@@ -144,7 +163,7 @@ const UpdateNotifier = () => {
                         disabled={isDownloading}
                         className={`bg-brand-blue hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition shadow-sm whitespace-nowrap mt-1 ${isDownloading ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
-                        {isDownloading ? 'Descargando...' : 'Descargar'}
+                        {isDownloading ? `Descargando... ${downloadProgress}%` : 'Descargar'}
                     </button>
                 </div>
             )}
