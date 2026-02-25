@@ -73,7 +73,7 @@ const parseTrueXlsx = (buffer) => {
                 code: String(code).trim(),
                 description,
                 quantity,
-                barcode: barcode ? String(barcode).trim() : null
+                barcode: (barcode && !/^[_\-]+$/.test(String(barcode).trim())) ? String(barcode).trim() : null
             });
         }
 
@@ -165,7 +165,7 @@ const parseLegacyXml = async (buffer) => {
             // In the user image, Saldo Stock is in col 4 (D). 
             // In previous versions it was mentioned as col 6.
             const rawQuantity = columns[4] || columns[6];
-            const barcode = columns[5] || columns[7] || null; // Speculative fallback for barcode in legacy XML
+            const barcode = null; // Do not attempt to extract barcode from legacy XML as it does not contain it
 
             // Skip Header (Detect if "Codigo" is in col 2 or "Descripcion" in col 3)
             if (code === 'Codigo' || description === 'Descripcion' || rawQuantity === 'Saldo Stock') {
@@ -191,7 +191,7 @@ const parseLegacyXml = async (buffer) => {
                 code: String(code).trim(),
                 description,
                 quantity,
-                barcode: barcode ? String(barcode).trim() : null
+                barcode: (barcode && !/^[_\-]+$/.test(String(barcode).trim())) ? String(barcode).trim() : null
             });
         }
 

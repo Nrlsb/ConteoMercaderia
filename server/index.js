@@ -1148,7 +1148,7 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
 
             if (!code) continue;
 
-            if (barcode === 'NULL' || barcode === 'null' || barcode === '') {
+            if (barcode === 'NULL' || barcode === 'null' || barcode === '' || /^[_\-]+$/.test(barcode)) {
                 barcode = null;
             }
 
