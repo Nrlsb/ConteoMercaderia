@@ -2089,9 +2089,10 @@ async function getFullRemitoDetails(id) {
             // Only add to extra if scanned quantity is > 0 and (not in expected OR scanned > expected)
             if (scannedQty > 0) {
                 if (!expected) {
+                    const productInfo = productMap[code];
                     discrepancies.extra.push({
                         code,
-                        description: 'Desconocido', // Will try to enrich below
+                        description: productInfo ? productInfo.description : 'Desconocido',
                         expected: 0,
                         scanned: scannedQty
                     });
