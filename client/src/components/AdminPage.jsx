@@ -44,34 +44,36 @@ import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
             <h1 className="text-3xl font-bold mb-6 text-gray-800">Administración</h1>
 
             <>
-                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-                    <h2 className="text-xl mb-4 font-semibold">Importar Productos</h2>
-                    <p className="mb-4 text-gray-600">Sube el archivo Excel (BDConteo.xlsx) para actualizar la base de datos de productos.</p>
+                {false && (
+                    <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+                        <h2 className="text-xl mb-4 font-semibold">Importar Productos</h2>
+                        <p className="mb-4 text-gray-600">Sube el archivo Excel (BDConteo.xlsx) para actualizar la base de datos de productos.</p>
 
-                    <div className="mb-4">
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleFileChange}
-                            className="block w-full text-sm text-gray-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-full file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-blue-50 file:text-blue-700
-                                hover:file:bg-blue-100"
-                        />
-                    </div>
+                        <div className="mb-4">
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleFileChange}
+                                className="block w-full text-sm text-gray-500
+                                    file:mr-4 file:py-2 file:px-4
+                                    file:rounded-full file:border-0
+                                    file:text-sm file:font-semibold
+                                    file:bg-blue-50 file:text-blue-700
+                                    hover:file:bg-blue-100"
+                            />
+                        </div>
 
-                    <div className="flex items-center justify-between">
-                        <button
-                            onClick={handleUpload}
-                            disabled={isLoading}
-                            className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            {isLoading ? 'Procesando...' : 'Subir Archivo'}
-                        </button>
+                        <div className="flex items-center justify-between">
+                            <button
+                                onClick={handleUpload}
+                                disabled={isLoading}
+                                className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {isLoading ? 'Procesando...' : 'Subir Archivo'}
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Import Stock XML Section */}
                 <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-green-500">
