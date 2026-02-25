@@ -518,6 +518,8 @@ const RemitoForm = () => {
 
     const handleRemoveItem = (code) => {
         setItems(items.filter(item => item.code !== code));
+        // Sincronizar eliminación con el servidor (cantidad 0)
+        syncTotalToInventory(code, 0);
     };
 
     const handleQuantityChange = (code, newQuantity) => {
@@ -530,6 +532,9 @@ const RemitoForm = () => {
             }
             return item;
         }));
+
+        // Sincronizar nueva cantidad absoluta con el servidor
+        syncTotalToInventory(code, qty);
     };
 
     const handleSubmitRemito = async () => {
@@ -764,8 +769,34 @@ const RemitoForm = () => {
     };
 
 
-    // Sync to inventory_scans for general count mode
-    // Sync to inventory_scans for general count mode
+    // Sync total quantity to inventory_scans (handles updates and "deletes")
+    const syncTotalToInventory = async (code, totalQuantity) => {
+        if (!selectedCount) return;
+
+        try {
+            console.log('Sincronizando cantidad absoluta:', {
+                orderNumber: selectedCount.id,
+                code: code,
+                total: totalQuantity
+            });
+
+            await api.post('/api/inventory/scan', {
+                orderNumber: selectedCount.id,
+                items: [{
+                    code: code,
+                    quantity: totalQuantity
+                }]
+            });
+
+            console.log(`✅ Sincronizado (Total): ${code} = ${totalQuantity}`);
+        } catch (error) {
+            console.error('Error in syncTotalToInventory:', error);
+            // No bloqueamos al usuario con un modal aquí para evitar interrumpir el flujo de edición rápida,
+            // pero lo logueamos por si acaso.
+        }
+    };
+
+    // Sync to inventory_scans for general count mode (incremental)
     const syncToInventoryScans = async (code, quantityToAdd) => {
         if (!selectedCount) return;
 
