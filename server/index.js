@@ -2006,6 +2006,8 @@ async function getFullRemitoDetails(id) {
 
     let userCounts = [];
     let totalScannedMap = {};
+    const userMap = {};
+    const productMap = {};
     let enrichedScans = [];
 
     if (scans && scans.length > 0) {
@@ -2015,8 +2017,6 @@ async function getFullRemitoDetails(id) {
         const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
         const { data: products } = await supabase.from('products').select('code, description, brand, brand_code').in('code', codes);
 
-        const userMap = {};
-        const productMap = {};
         if (users) users.forEach(u => userMap[u.id] = u.username);
         // Store complete product info including brand
         if (products) products.forEach(p => productMap[p.code] = {
@@ -2108,79 +2108,91 @@ async function getFullRemitoDetails(id) {
         });
 
         // Enrich all descriptions (Expected and Extra)
-        const allCodes = [
-            ...remito.items.map(i => i.code),
-            ...discrepancies.extra.map(d => d.code),
-            ...discrepancies.missing.map(d => d.code)
-        ];
+        // Optimization: Use already fetched productMap first to reduce codes to query
+        const missingCodes = new Set();
 
-        if (allCodes.length > 0) {
-            const { data: pData } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
+        const checkItem = (item) => {
+            if (!item.description || item.description === 'Desconocido' || item.description === 'Sin descripción') {
+                if (productMap[item.code]) {
+                    item.description = productMap[item.code].description;
+                    item.name = productMap[item.code].description;
+                    item.brand = productMap[item.code].brand;
+                } else {
+                    missingCodes.add(item.code);
+                }
+            }
+        };
+
+        (remito.items || []).forEach(checkItem);
+        (discrepancies.missing || []).forEach(checkItem);
+        (discrepancies.extra || []).forEach(checkItem);
+
+        if (missingCodes.size > 0) {
+            // Only fetch what's truly missing. This list will likely be small (<1000).
+            const { data: pData } = await supabase.from('products').select('code, description, brand').in('code', [...missingCodes]);
             if (pData) {
                 const pMap = {};
                 pData.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
 
-                // Update expected items
-                remito.items.forEach(item => {
+                const updateItem = (item) => {
                     if (pMap[item.code]) {
                         item.description = pMap[item.code].description;
                         item.name = pMap[item.code].description;
                         item.brand = pMap[item.code].brand;
                     }
-                });
+                };
 
-                // Update missing items
-                discrepancies.missing.forEach(d => {
-                    if (pMap[d.code]) {
-                        d.description = pMap[d.code].description;
-                        d.name = pMap[d.code].description;
-                        d.brand = pMap[d.code].brand;
-                    }
-                });
-
-                // Update extra items
-                discrepancies.extra.forEach(d => {
-                    if (pMap[d.code]) {
-                        d.description = pMap[d.code].description;
-                        d.name = pMap[d.code].description;
-                        d.brand = pMap[d.code].brand;
-                    }
-                });
+                (remito.items || []).forEach(updateItem);
+                (discrepancies.missing || []).forEach(updateItem);
+                (discrepancies.extra || []).forEach(updateItem);
             }
         }
         remito.discrepancies = discrepancies;
     } else if (isFinalized && remito.discrepancies) {
         // Enrich descriptions for all items in finalized remitos
-        const allCodes = [
-            ...(remito.items || []).map(i => i.code),
-            ...(remito.discrepancies.missing || []).map(d => d.code),
-            ...(remito.discrepancies.extra || []).map(d => d.code)
-        ];
+        const missingCodes = new Set();
 
-        if (allCodes.length > 0) {
-            const { data: prods } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
-            if (prods) {
-                const pMap = {};
-                prods.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
-
-                // Refresh expected items description
-                if (remito.items) {
-                    remito.items.forEach(item => {
-                        if (pMap[item.code]) {
-                            item.description = pMap[item.code].description;
-                            item.name = pMap[item.code].description;
-                            item.brand = pMap[item.code].brand;
-                        }
-                    });
+        const checkItem = (item) => {
+            if (!item.description || item.description === 'Desconocido' || item.description === 'Sin descripción') {
+                if (productMap[item.code]) {
+                    item.description = productMap[item.code].description;
+                    item.name = productMap[item.code].description;
+                    item.brand = productMap[item.code].brand;
+                } else {
+                    missingCodes.add(item.code);
                 }
+            }
+        };
 
-                [...(remito.discrepancies.missing || []), ...(remito.discrepancies.extra || [])].forEach(item => {
-                    if (pMap[item.code]) {
-                        item.description = pMap[item.code].description;
-                        item.name = pMap[item.code].description;
-                        item.brand = pMap[item.code].brand;
+        const updateItem = (item) => {
+            if (pMap && pMap[item.code]) {
+                item.description = pMap[item.code].description;
+                item.name = pMap[item.code].description;
+                item.brand = pMap[item.code].brand;
+            }
+        };
+
+        (remito.items || []).forEach(checkItem);
+        (remito.discrepancies.missing || []).forEach(checkItem);
+        (remito.discrepancies.extra || []).forEach(checkItem);
+
+        if (missingCodes.size > 0) {
+            const { data: prods } = await supabase.from('products').select('code, description, brand').in('code', [...missingCodes]);
+            if (prods) {
+                const pMapLocal = {};
+                prods.forEach(p => pMapLocal[p.code] = { description: p.description, brand: p.brand });
+
+                const updateItemLocal = (item) => {
+                    if (pMapLocal[item.code]) {
+                        item.description = pMapLocal[item.code].description;
+                        item.name = pMapLocal[item.code].description;
+                        item.brand = pMapLocal[item.code].brand;
                     }
-                });
+                };
+
+                (remito.items || []).forEach(updateItemLocal);
+                (remito.discrepancies.missing || []).forEach(updateItemLocal);
+                (remito.discrepancies.extra || []).forEach(updateItemLocal);
             }
         }
     }
