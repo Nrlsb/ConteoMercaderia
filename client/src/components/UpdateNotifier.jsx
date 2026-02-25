@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { FileOpener } from '@capacitor-community/file-opener';
 import Modal from './Modal';
 import api from '../api';
 
 const UpdateNotifier = () => {
     const [updateInfo, setUpdateInfo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Usar localStorage para recordar la versión que ya ignoramos o intentamos descargar
     const [dismissedVersion, setDismissedVersion] = useState(
@@ -63,12 +66,41 @@ const UpdateNotifier = () => {
         }
     }, [updateInfo, dismissedVersion]);
 
-    const handleDownload = () => {
-        if (updateInfo?.downloadUrl) {
-            window.open(updateInfo.downloadUrl, '_system');
+    const handleDownload = async () => {
+        if (!updateInfo?.downloadUrl || isDownloading) return;
+
+        let finalUrl = updateInfo.downloadUrl;
+        if (!finalUrl.startsWith('http')) {
+            const baseUrl = api.defaults.baseURL !== '/' ? api.defaults.baseURL : window.location.origin;
+            finalUrl = `${baseUrl.replace(/\/$/, '')}/${finalUrl.replace(/^\//, '')}`;
+        }
+
+        setIsDownloading(true);
+        try {
+            const fileName = 'ConteoMercaderia_Update.apk';
+
+            // Download file
+            const downloadResult = await Filesystem.downloadFile({
+                url: finalUrl,
+                path: fileName,
+                directory: Directory.Data
+            });
+
+            // Open APK
+            await FileOpener.open({
+                filePath: downloadResult.path,
+                contentType: 'application/vnd.android.package-archive',
+                openWithDefault: true
+            });
+
             setIsModalOpen(false);
             setDismissedVersion(updateInfo.version);
             localStorage.setItem('dismissedUpdateVersion', updateInfo.version);
+        } catch (error) {
+            console.error('Error downloading or opening APK:', error);
+            alert('Error al descargar o instalar la actualización.');
+        } finally {
+            setIsDownloading(false);
         }
     };
 
@@ -90,8 +122,8 @@ const UpdateNotifier = () => {
                 title="¡Nueva Actualización Disponible!"
                 message={`La versión ${updateInfo?.version} está disponible. Te recomendamos actualizar para obtener las últimas mejoras y correcciones.\n\nNovedades: ${updateInfo?.releaseNotes || 'Mejoras de rendimiento y estabilidad.'}`}
                 type="info"
-                confirmText="Descargar"
-                onConfirm={handleDownload}
+                confirmText={isDownloading ? "Descargando..." : "Descargar"}
+                onConfirm={isDownloading ? undefined : handleDownload}
             />
 
             {updateInfo && updateInfo.version === dismissedVersion && (
@@ -108,10 +140,11 @@ const UpdateNotifier = () => {
                         </span>
                     </div>
                     <button
-                        onClick={handleDownload}
-                        className="bg-brand-blue hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition shadow-sm whitespace-nowrap mt-1"
+                        onClick={isDownloading ? undefined : handleDownload}
+                        disabled={isDownloading}
+                        className={`bg-brand-blue hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition shadow-sm whitespace-nowrap mt-1 ${isDownloading ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
-                        Descargar
+                        {isDownloading ? 'Descargando...' : 'Descargar'}
                     </button>
                 </div>
             )}
