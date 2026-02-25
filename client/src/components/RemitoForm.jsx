@@ -1650,8 +1650,8 @@ const RemitoForm = () => {
                                     items.slice().reverse().slice(0, 20).map((item, index) => {
                                         const expectedQty = getExpectedQty(item.code);
                                         const isUnexpected = expectedItems && expectedQty === null;
-                                        const isOverQty = expectedItems && expectedQty !== null && item.quantity > expectedQty;
-                                        const hasError = isUnexpected || isOverQty;
+                                        const isOverQty = false;
+                                        const hasError = isUnexpected;
 
                                         return (
                                             <div key={index} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border transition hover:shadow-md gap-4 ${hasError ? 'border-l-4 border-l-brand-alert border-y-gray-100 border-r-gray-100' : 'border-l-4 border-l-brand-success border-y-gray-100 border-r-gray-100'}`}>
@@ -1662,7 +1662,7 @@ const RemitoForm = () => {
                                                     </div>
                                                     <p className="text-sm text-brand-gray font-mono tracking-wide">{item.code}</p>
                                                     {isUnexpected && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ No solicitado</p>}
-                                                    {isOverQty && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ Excede cantidad</p>}
+
                                                 </div>
 
                                                 <div className="flex items-center justify-between w-full sm:w-auto gap-6">
