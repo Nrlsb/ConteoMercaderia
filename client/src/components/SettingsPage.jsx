@@ -9,7 +9,6 @@ import UsersManage from './UsersManage';
 
 const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState('general'); // 'general', 'branches', 'users'
-    const { countMode, setCountMode } = useSettings();
     const { user, token } = useAuth();
     const navigate = useNavigate();
 
@@ -89,57 +88,7 @@ const SettingsPage = () => {
             {activeTab === 'general' && (
                 <div className="space-y-6">
 
-                    {/* Count Mode Section */}
-                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <h2 className="text-lg font-semibold text-gray-800 mb-2">Modo de Conteo</h2>
-                        <p className="text-sm text-gray-500 mb-4">
-                            Define cómo se cargan los conteos en el escáner principal.
-                        </p>
 
-                        <div className="flex flex-col md:flex-row gap-4">
-                            <button
-                                onClick={() => setCountMode('pre_remito')}
-                                className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'pre_remito'
-                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
-                                    : 'border-gray-200 hover:border-blue-300'
-                                    }`}
-                            >
-                                <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'pre_remito' ? 'border-brand-blue' : 'border-gray-400'
-                                    }`}>
-                                    {countMode === 'pre_remito' && <div className="w-2.5 h-2.5 rounded-full bg-brand-blue" />}
-                                </div>
-                                <div>
-                                    <span className={`block font-bold ${countMode === 'pre_remito' ? 'text-brand-blue' : 'text-gray-700'}`}>
-                                        Desde Carga (Conteo Específico)
-                                    </span>
-                                    <span className="text-sm text-gray-500 mt-1">
-                                        Requiere cargar un pedido/lista antes de escanear. Valida cantidades esperadas.
-                                    </span>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setCountMode('products')}
-                                className={`flex-1 p-4 rounded-lg border-2 transition text-left flex items-start gap-3 ${countMode === 'products'
-                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue'
-                                    : 'border-gray-200 hover:border-blue-300'
-                                    }`}
-                            >
-                                <div className={`mt-1 w-5 h-5 rounded-full border flex items-center justify-center ${countMode === 'products' ? 'border-brand-blue' : 'border-gray-400'
-                                    }`}>
-                                    {countMode === 'products' && <div className="w-2.5 h-2.5 rounded-full bg-brand-blue" />}
-                                </div>
-                                <div>
-                                    <span className={`block font-bold ${countMode === 'products' ? 'text-brand-blue' : 'text-gray-700'}`}>
-                                        General (Tabla SB2)
-                                    </span>
-                                    <span className="text-sm text-gray-500 mt-1">
-                                        Escaneo libre contra la base de datos de productos (SB2). Sin cantidades pre-definidas.
-                                    </span>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
 
                     {/* App Version Management */}
                     {user?.role === 'superadmin' && (
