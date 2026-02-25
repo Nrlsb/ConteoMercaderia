@@ -1290,7 +1290,17 @@ const RemitoForm = () => {
                                                 <div className="flex-1 flex justify-between items-center">
                                                     <div>
                                                         <div className="text-sm font-bold text-blue-900">
-                                                            Conteo Activo: {count.name}
+                                                            Conteo Activo: {count.name.split(',').map(n => n.trim()).map(num => {
+                                                                const pre = preRemitoList.find(p => p.order_number === num);
+                                                                if (pre) {
+                                                                    if (pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
+                                                                        return `Stock Inicial - ${pre.id_inventory}`;
+                                                                    } else if (pre.numero_pv) {
+                                                                        return `PV: ${pre.numero_pv}`;
+                                                                    }
+                                                                }
+                                                                return num;
+                                                            }).join(', ')}
                                                         </div>
                                                         <div className="text-xs text-blue-700 flex gap-2 mt-0.5">
                                                             <span>{count.sucursal_name || 'Sin Sucursal'}</span>
@@ -1473,10 +1483,24 @@ const RemitoForm = () => {
                                             onClick={async () => {
                                                 if (!remitoNumber) return;
                                                 try {
+                                                    // Determine the best sucursal_id to use if the user is an admin without one
+                                                    // We can try to look up the sucursal_id from the first selected pre-remito's 'sucursal' string
+                                                    let countSucursalId = user?.sucursal_id || null;
+
+                                                    if (!countSucursalId && selectedPreRemitos.length > 0) {
+                                                        const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
+                                                        if (firstPre && firstPre.sucursal) {
+                                                            const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
+                                                            if (matchedBranch) {
+                                                                countSucursalId = matchedBranch.id;
+                                                            }
+                                                        }
+                                                    }
+
                                                     // Create General Count with the Order ID(s) as name
                                                     const res = await api.post('/api/general-counts', {
                                                         name: remitoNumber,
-                                                        sucursal_id: user?.sucursal_id || null
+                                                        sucursal_id: countSucursalId
                                                     });
 
                                                     // Don't switch mode, just set the selected count to enable scanning
