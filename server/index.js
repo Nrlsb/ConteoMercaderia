@@ -1837,290 +1837,333 @@ app.delete('/api/general-counts/:id', verifyToken, verifyAdmin, async (req, res)
     }
 });
 
-// Get Remito Details with User Breakdown (Supports In-Progress counts)
-app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
-    const { id } = req.params;
-    try {
-        let remito = null;
-        let isFinalized = true;
+// Helper to resolve remito details and calculate live discrepancies
+async function getFullRemitoDetails(id) {
+    let remito = null;
+    let isFinalized = true;
 
-        // 1. Fetch Remito Base Info - Try Processed first
-        let { data: finalizedRemito, error: finalizedError } = await supabase
+    // 1. Fetch Remito Base Info - Try Processed first
+    let { data: finalizedRemito, error: finalizedError } = await supabase
+        .from('remitos')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+    if (finalizedRemito) {
+        remito = finalizedRemito;
+    } else {
+        // 1b. Fallback: Check if ID is actually the remito_number (General Count ID) which is common for General Counts
+        const { data: finalizedRemitoByNumber } = await supabase
             .from('remitos')
             .select('*')
-            .eq('id', id)
+            .eq('remito_number', id)
             .maybeSingle();
 
-        if (finalizedRemito) {
-            remito = finalizedRemito;
+        if (finalizedRemitoByNumber) {
+            remito = finalizedRemitoByNumber;
         } else {
-            // 1b. Fallback: Check if ID is actually the remito_number (General Count ID) which is common for General Counts
-            const { data: finalizedRemitoByNumber } = await supabase
-                .from('remitos')
-                .select('*')
-                .eq('remito_number', id)
+            // 2. Try Pre-Remitos (Pending)
+            const { data: preRemito } = await supabase
+                .from('pre_remitos')
+                .select('*, pedidos_ventas(numero_pv, sucursal)')
+                .eq('id', id)
                 .maybeSingle();
 
-            if (finalizedRemitoByNumber) {
-                remito = finalizedRemitoByNumber;
+            if (preRemito) {
+                let preRemitoItems = preRemito.items || [];
+
+                // If no items in pre_remito, fetch all products with stock as expected items
+                if (preRemitoItems.length === 0) {
+                    const { data: allProducts } = await supabase
+                        .from('products')
+                        .select('code, description, current_stock, brand, brand_code')
+                        .gt('current_stock', 0);
+
+                    preRemitoItems = (allProducts || []).map(p => ({
+                        code: p.code,
+                        name: p.description,
+                        description: p.description,
+                        quantity: p.current_stock,
+                        brand: p.brand,
+                        brand_code: p.brand_code
+                    }));
+                }
+
+                remito = {
+                    id: preRemito.id,
+                    remito_number: preRemito.order_number,
+                    items: preRemitoItems,
+                    date: preRemito.created_at,
+                    status: 'pending',
+                    numero_pv: preRemito.pedidos_ventas?.[0]?.numero_pv || '-',
+                    sucursal: preRemito.pedidos_ventas?.[0]?.sucursal || '-'
+                };
+                isFinalized = false;
             } else {
-                // 2. Try Pre-Remitos (Pending)
-                const { data: preRemito } = await supabase
-                    .from('pre_remitos')
-                    .select('*, pedidos_ventas(numero_pv, sucursal)')
+                // 3. Try General Counts (Open)
+                const { data: generalCount } = await supabase
+                    .from('general_counts')
+                    .select('*')
                     .eq('id', id)
                     .maybeSingle();
 
-                if (preRemito) {
-                    let preRemitoItems = preRemito.items || [];
+                if (generalCount) {
+                    // Fetch products with stock logic depending on sucursal
+                    // If sucursal_id is present, fetch from stock_sucursal
+                    // Else, fallback to products.current_stock (Global)
 
-                    // If no items in pre_remito, fetch all products with stock as expected items
-                    if (preRemitoItems.length === 0) {
+                    let items = [];
+
+                    if (generalCount.sucursal_id) {
+                        console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
+
+                        // Fetch stock specific to branch
+                        const { data: branchStock } = await supabase
+                            .from('stock_sucursal')
+                            .select('product_code, quantity, products(description, brand, brand_code)')
+                            .eq('sucursal_id', generalCount.sucursal_id);
+                        // Removed .gt('quantity', 0) to include 0 stock items
+
+                        if (branchStock && branchStock.length > 0) {
+                            items = branchStock.map(s => ({
+                                code: s.product_code,
+                                name: s.products?.description || 'Desconocido',
+                                description: s.products?.description || 'Desconocido',
+                                quantity: Number(s.quantity),
+                                brand: s.products?.brand,
+                                brand_code: s.products?.brand_code
+                            }));
+                        } else {
+                            // Fallback: If branch has NO data, load ALL products with 0 quantity
+                            // This ensures the user sees the master list to count against
+                            console.log('Branch has no stock data. Loading master product list...');
+                            const { data: allProducts } = await supabase
+                                .from('products')
+                                .select('code, description, current_stock, brand, brand_code');
+
+                            items = (allProducts || []).map(p => ({
+                                code: p.code,
+                                name: p.description,
+                                description: p.description,
+                                quantity: 0, // Assume 0 for blind/initial count
+                                brand: p.brand,
+                                brand_code: p.brand_code
+                            }));
+                        }
+                    } else {
+                        // Legacy / Global mode
+                        // Fetch all active products
                         const { data: allProducts } = await supabase
                             .from('products')
-                            .select('code, description, current_stock, brand, brand_code')
-                            .gt('current_stock', 0);
+                            .select('code, description, current_stock, brand, brand_code');
+                        // Removed .gt('current_stock', 0) to include everything
 
-                        preRemitoItems = (allProducts || []).map(p => ({
+                        items = (allProducts || []).map(p => ({
                             code: p.code,
                             name: p.description,
                             description: p.description,
-                            quantity: p.current_stock,
+                            quantity: p.current_stock || 0,
                             brand: p.brand,
                             brand_code: p.brand_code
                         }));
                     }
 
                     remito = {
-                        id: preRemito.id,
-                        remito_number: preRemito.order_number,
-                        items: preRemitoItems,
-                        date: preRemito.created_at,
+                        id: generalCount.id,
+                        remito_number: generalCount.id,
+                        count_name: generalCount.name,
+                        items: items,
+                        date: generalCount.created_at,
                         status: 'pending',
-                        numero_pv: preRemito.pedidos_ventas?.[0]?.numero_pv || '-',
-                        sucursal: preRemito.pedidos_ventas?.[0]?.sucursal || '-'
+                        numero_pv: '-',
+                        sucursal: generalCount.sucursal_id ? 'Sucursal Seleccionada' : '-', // We could fetch name, but ID is enough for logic
+                        sucursal_id: generalCount.sucursal_id
                     };
                     isFinalized = false;
-                } else {
-                    // 3. Try General Counts (Open)
-                    const { data: generalCount } = await supabase
-                        .from('general_counts')
-                        .select('*')
-                        .eq('id', id)
-                        .maybeSingle();
-
-                    if (generalCount) {
-                        // Fetch products with stock logic depending on sucursal
-                        // If sucursal_id is present, fetch from stock_sucursal
-                        // Else, fallback to products.current_stock (Global)
-
-                        let items = [];
-
-                        if (generalCount.sucursal_id) {
-                            console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
-
-                            // Fetch stock specific to branch
-                            const { data: branchStock } = await supabase
-                                .from('stock_sucursal')
-                                .select('product_code, quantity, products(description, brand, brand_code)')
-                                .eq('sucursal_id', generalCount.sucursal_id);
-                            // Removed .gt('quantity', 0) to include 0 stock items
-
-                            if (branchStock && branchStock.length > 0) {
-                                items = branchStock.map(s => ({
-                                    code: s.product_code,
-                                    name: s.products?.description || 'Desconocido',
-                                    description: s.products?.description || 'Desconocido',
-                                    quantity: Number(s.quantity),
-                                    brand: s.products?.brand,
-                                    brand_code: s.products?.brand_code
-                                }));
-                            } else {
-                                // Fallback: If branch has NO data, load ALL products with 0 quantity
-                                // This ensures the user sees the master list to count against
-                                console.log('Branch has no stock data. Loading master product list...');
-                                const { data: allProducts } = await supabase
-                                    .from('products')
-                                    .select('code, description, current_stock, brand, brand_code');
-
-                                items = (allProducts || []).map(p => ({
-                                    code: p.code,
-                                    name: p.description,
-                                    description: p.description,
-                                    quantity: 0, // Assume 0 for blind/initial count
-                                    brand: p.brand,
-                                    brand_code: p.brand_code
-                                }));
-                            }
-                        } else {
-                            // Legacy / Global mode
-                            // Fetch all active products
-                            const { data: allProducts } = await supabase
-                                .from('products')
-                                .select('code, description, current_stock, brand, brand_code');
-                            // Removed .gt('current_stock', 0) to include everything
-
-                            items = (allProducts || []).map(p => ({
-                                code: p.code,
-                                name: p.description,
-                                description: p.description,
-                                quantity: p.current_stock || 0,
-                                brand: p.brand,
-                                brand_code: p.brand_code
-                            }));
-                        }
-
-                        remito = {
-                            id: generalCount.id,
-                            remito_number: generalCount.id,
-                            count_name: generalCount.name,
-                            items: items,
-                            date: generalCount.created_at,
-                            status: 'pending',
-                            numero_pv: '-',
-                            sucursal: generalCount.sucursal_id ? 'Sucursal Seleccionada' : '-', // We could fetch name, but ID is enough for logic
-                            sucursal_id: generalCount.sucursal_id
-                        };
-                        isFinalized = false;
-                    }
                 }
             }
         }
+    }
 
-        if (!remito) {
-            return res.status(404).json({ message: 'Conteo no encontrado' });
-        }
+    if (!remito) {
+        return { error: 'Conteo no encontrado' };
+    }
 
-        // Fetch Count Name for finalized ones if not already set
-        if (isFinalized && remito.remito_number && !remito.count_name) {
-            const { data: countData } = await supabase
-                .from('general_counts')
-                .select('name')
-                .eq('id', remito.remito_number)
-                .maybeSingle();
-            if (countData) remito.count_name = countData.name;
-        }
+    // Fetch Count Name for finalized ones if not already set
+    if (isFinalized && remito.remito_number && !remito.count_name) {
+        const { data: countData } = await supabase
+            .from('general_counts')
+            .select('name')
+            .eq('id', remito.remito_number)
+            .maybeSingle();
+        if (countData) remito.count_name = countData.name;
+    }
 
-        // 3. Fetch Scans
-        // Use pagination helper to ensure we get ALL scans
-        const scans = await getAllScans(remito.remito_number);
-        console.log(`[DEBUG_DETAILS] Scans found in DB for order ${remito.remito_number}: ${scans ? scans.length : 0}`);
-        const scansError = null; // Helper throws on error
+    // 3. Fetch Scans
+    // Use pagination helper to ensure we get ALL scans
+    const scans = await getAllScans(remito.remito_number);
+    console.log(`[DEBUG_DETAILS] Scans found in DB for order ${remito.remito_number}: ${scans ? scans.length : 0}`);
 
-        // const { data: scans, error: scansError } = await supabase
-        //     .from('inventory_scans')
-        //     .select('user_id, code, quantity')
-        //     .eq('order_number', remito.remito_number);
+    let userCounts = [];
+    let totalScannedMap = {};
+    let enrichedScans = [];
 
-        let userCounts = [];
-        let totalScannedMap = {};
+    if (scans && scans.length > 0) {
+        const userIds = [...new Set(scans.map(s => s.user_id))];
+        const codes = [...new Set(scans.map(s => s.code))];
 
-        if (!scansError && scans && scans.length > 0) {
-            const userIds = [...new Set(scans.map(s => s.user_id))];
-            const codes = [...new Set(scans.map(s => s.code))];
+        const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+        const { data: products } = await supabase.from('products').select('code, description, brand, brand_code').in('code', codes);
 
-            const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-            const { data: products } = await supabase.from('products').select('code, description, brand, brand_code').in('code', codes);
+        const userMap = {};
+        const productMap = {};
+        if (users) users.forEach(u => userMap[u.id] = u.username);
+        // Store complete product info including brand
+        if (products) products.forEach(p => productMap[p.code] = {
+            description: p.description,
+            brand: p.brand,
+            brand_code: p.brand_code
+        });
 
-            const userMap = {};
-            const productMap = {};
-            if (users) users.forEach(u => userMap[u.id] = u.username);
-            // Store complete product info including brand
-            if (products) products.forEach(p => productMap[p.code] = {
-                description: p.description,
-                brand: p.brand,
-                brand_code: p.brand_code
+        const userCountsMap = {};
+        scans.forEach(scan => {
+            const username = userMap[scan.user_id] || 'Desconocido';
+            const qty = scan.quantity || 0;
+            const productInfo = productMap[scan.code] || { description: 'Sin descripción', brand: null, brand_code: null };
+
+            // Track totals for active discrepancy calculation
+            totalScannedMap[scan.code] = (totalScannedMap[scan.code] || 0) + qty;
+
+            if (!userCountsMap[username]) {
+                userCountsMap[username] = { username, items: [], totalItems: 0, totalUnits: 0 };
+            }
+            userCountsMap[username].items.push({
+                code: scan.code,
+                description: productInfo.description,
+                brand: productInfo.brand,
+                brand_code: productInfo.brand_code,
+                quantity: qty
             });
+            userCountsMap[username].totalItems += 1;
+            userCountsMap[username].totalUnits += qty;
 
-            const userCountsMap = {};
-            scans.forEach(scan => {
-                const username = userMap[scan.user_id] || 'Desconocido';
-                const qty = scan.quantity || 0;
-                const productInfo = productMap[scan.code] || { description: 'Sin descripción', brand: null, brand_code: null };
+            enrichedScans.push({
+                ...scan,
+                users: { username },
+                products: { description: productInfo.description }
+            });
+        });
+        userCounts = Object.values(userCountsMap);
+    } else if (isFinalized) {
+        // Fallback for finalized remitos with no granular scans
+        userCounts = [{
+            username: remito.created_by || 'Sistema',
+            items: remito.items || [],
+            totalItems: remito.items ? remito.items.length : 0,
+            totalUnits: remito.items ? remito.items.reduce((acc, i) => acc + (i.quantity || 0), 0) : 0
+        }];
+    }
 
-                // Track totals for active discrepancy calculation
-                totalScannedMap[scan.code] = (totalScannedMap[scan.code] || 0) + qty;
+    // 4. Discrepancies Calculation (Live if not finalized)
+    if (!isFinalized && remito.items && remito.items.length > 0) {
+        const discrepancies = { missing: [], extra: [] };
 
-                if (!userCountsMap[username]) {
-                    userCountsMap[username] = { username, items: [], totalItems: 0, totalUnits: 0 };
-                }
-                userCountsMap[username].items.push({
-                    code: scan.code,
-                    description: productInfo.description,
-                    brand: productInfo.brand,
-                    brand_code: productInfo.brand_code,
-                    quantity: qty
+        // Expected vs Scanned
+        remito.items.forEach(expected => {
+            const scannedQty = totalScannedMap[expected.code] || 0;
+            if (scannedQty < expected.quantity) {
+                discrepancies.missing.push({
+                    code: expected.code,
+                    description: expected.description || expected.name,
+                    expected: expected.quantity,
+                    scanned: scannedQty
                 });
-                userCountsMap[username].totalItems += 1;
-                userCountsMap[username].totalUnits += qty;
-            });
-            userCounts = Object.values(userCountsMap);
-        } else if (isFinalized) {
-            // Fallback for finalized remitos with no granular scans
-            userCounts = [{
-                username: remito.created_by || 'Sistema',
-                items: remito.items || [],
-                totalItems: remito.items ? remito.items.length : 0,
-                totalUnits: remito.items ? remito.items.reduce((acc, i) => acc + (i.quantity || 0), 0) : 0
-            }];
-        }
+            }
+        });
 
-        // 4. Discrepancies Calculation (Live if not finalized)
-        if (!isFinalized && remito.items && remito.items.length > 0) {
-            const discrepancies = { missing: [], extra: [] };
+        // Scanned vs Expected
+        Object.keys(totalScannedMap).forEach(code => {
+            const expected = remito.items.find(i => i.code === code);
+            const scannedQty = totalScannedMap[code];
 
-            // Expected vs Scanned
-            remito.items.forEach(expected => {
-                const scannedQty = totalScannedMap[expected.code] || 0;
-                if (scannedQty < expected.quantity) {
-                    discrepancies.missing.push({
-                        code: expected.code,
+            // Only add to extra if scanned quantity is > 0 and (not in expected OR scanned > expected)
+            if (scannedQty > 0) {
+                if (!expected) {
+                    discrepancies.extra.push({
+                        code,
+                        description: 'Desconocido', // Will try to enrich below
+                        expected: 0,
+                        scanned: scannedQty
+                    });
+                } else if (scannedQty > expected.quantity) {
+                    discrepancies.extra.push({
+                        code,
                         description: expected.description || expected.name,
                         expected: expected.quantity,
                         scanned: scannedQty
                     });
                 }
-            });
+            }
+        });
 
-            // Scanned vs Expected
-            Object.keys(totalScannedMap).forEach(code => {
-                const expected = remito.items.find(i => i.code === code);
-                const scannedQty = totalScannedMap[code];
+        // Enrich all descriptions (Expected and Extra)
+        const allCodes = [
+            ...remito.items.map(i => i.code),
+            ...discrepancies.extra.map(d => d.code),
+            ...discrepancies.missing.map(d => d.code)
+        ];
 
-                // Only add to extra if scanned quantity is > 0 and (not in expected OR scanned > expected)
-                if (scannedQty > 0) {
-                    if (!expected) {
-                        discrepancies.extra.push({
-                            code,
-                            description: 'Desconocido', // Will try to enrich below
-                            expected: 0,
-                            scanned: scannedQty
-                        });
-                    } else if (scannedQty > expected.quantity) {
-                        discrepancies.extra.push({
-                            code,
-                            description: expected.description || expected.name,
-                            expected: expected.quantity,
-                            scanned: scannedQty
-                        });
+        if (allCodes.length > 0) {
+            const { data: pData } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
+            if (pData) {
+                const pMap = {};
+                pData.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
+
+                // Update expected items
+                remito.items.forEach(item => {
+                    if (pMap[item.code]) {
+                        item.description = pMap[item.code].description;
+                        item.name = pMap[item.code].description;
+                        item.brand = pMap[item.code].brand;
                     }
-                }
-            });
+                });
 
-            // Enrich all descriptions (Expected and Extra)
-            const allCodes = [
-                ...remito.items.map(i => i.code),
-                ...discrepancies.extra.map(d => d.code),
-                ...discrepancies.missing.map(d => d.code)
-            ];
+                // Update missing items
+                discrepancies.missing.forEach(d => {
+                    if (pMap[d.code]) {
+                        d.description = pMap[d.code].description;
+                        d.name = pMap[d.code].description;
+                        d.brand = pMap[d.code].brand;
+                    }
+                });
 
-            if (allCodes.length > 0) {
-                const { data: pData } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
-                if (pData) {
-                    const pMap = {};
-                    pData.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
+                // Update extra items
+                discrepancies.extra.forEach(d => {
+                    if (pMap[d.code]) {
+                        d.description = pMap[d.code].description;
+                        d.name = pMap[d.code].description;
+                        d.brand = pMap[d.code].brand;
+                    }
+                });
+            }
+        }
+        remito.discrepancies = discrepancies;
+    } else if (isFinalized && remito.discrepancies) {
+        // Enrich descriptions for all items in finalized remitos
+        const allCodes = [
+            ...(remito.items || []).map(i => i.code),
+            ...(remito.discrepancies.missing || []).map(d => d.code),
+            ...(remito.discrepancies.extra || []).map(d => d.code)
+        ];
 
-                    // Update expected items
+        if (allCodes.length > 0) {
+            const { data: prods } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
+            if (prods) {
+                const pMap = {};
+                prods.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
+
+                // Refresh expected items description
+                if (remito.items) {
                     remito.items.forEach(item => {
                         if (pMap[item.code]) {
                             item.description = pMap[item.code].description;
@@ -2128,69 +2171,37 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
                             item.brand = pMap[item.code].brand;
                         }
                     });
-
-                    // Update missing items
-                    discrepancies.missing.forEach(d => {
-                        if (pMap[d.code]) {
-                            d.description = pMap[d.code].description;
-                            d.name = pMap[d.code].description;
-                            d.brand = pMap[d.code].brand;
-                        }
-                    });
-
-                    // Update extra items
-                    discrepancies.extra.forEach(d => {
-                        if (pMap[d.code]) {
-                            d.description = pMap[d.code].description;
-                            d.name = pMap[d.code].description;
-                            d.brand = pMap[d.code].brand;
-                        }
-                    });
                 }
-            }
-            remito.discrepancies = discrepancies;
-        } else if (isFinalized && remito.discrepancies) {
-            // Enrich descriptions for all items in finalized remitos
-            const allCodes = [
-                ...(remito.items || []).map(i => i.code),
-                ...(remito.discrepancies.missing || []).map(d => d.code),
-                ...(remito.discrepancies.extra || []).map(d => d.code)
-            ];
 
-            if (allCodes.length > 0) {
-                const { data: prods } = await supabase.from('products').select('code, description, brand').in('code', [...new Set(allCodes)]);
-                if (prods) {
-                    const pMap = {};
-                    prods.forEach(p => pMap[p.code] = { description: p.description, brand: p.brand });
-
-                    // Refresh expected items description
-                    if (remito.items) {
-                        remito.items.forEach(item => {
-                            if (pMap[item.code]) {
-                                item.description = pMap[item.code].description;
-                                item.name = pMap[item.code].description;
-                                item.brand = pMap[item.code].brand;
-                            }
-                        });
+                [...(remito.discrepancies.missing || []), ...(remito.discrepancies.extra || [])].forEach(item => {
+                    if (pMap[item.code]) {
+                        item.description = pMap[item.code].description;
+                        item.name = pMap[item.code].description;
+                        item.brand = pMap[item.code].brand;
                     }
-
-                    [...(remito.discrepancies.missing || []), ...(remito.discrepancies.extra || [])].forEach(item => {
-                        if (pMap[item.code]) {
-                            item.description = pMap[item.code].description;
-                            item.name = pMap[item.code].description;
-                            item.brand = pMap[item.code].brand;
-                        }
-                    });
-                }
+                });
             }
         }
+    }
 
-        // Final marking of finalized status
-        remito.is_finalized = isFinalized;
+    // Final marking of finalized status
+    remito.is_finalized = isFinalized;
 
-        console.log(`[DEBUG_DETAILS] Fetched details for ID ${id}. Finalized: ${isFinalized}. Found remito_number: ${remito.remito_number}`);
-        res.json({ remito, userCounts, is_finalized: isFinalized });
+    return { remito, userCounts, isFinalized, scans: enrichedScans };
+}
 
+// Get Remito Details with User Breakdown (Supports In-Progress counts)
+app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const details = await getFullRemitoDetails(id);
+
+        if (details.error) {
+            return res.status(404).json({ message: details.error });
+        }
+
+        console.log(`[DEBUG_DETAILS] Fetched details for ID ${id}. Finalized: ${details.isFinalized}. Found remito_number: ${details.remito.remito_number}`);
+        res.json({ remito: details.remito, userCounts: details.userCounts, is_finalized: details.isFinalized });
     } catch (error) {
         console.error('Error fetching remito details:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -2201,103 +2212,14 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
 app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        // 1. Fetch Remito Data (Reuse similar logic to details)
-        let { data: remito, error } = await supabase
-            .from('remitos')
-            .select('*')
-            .eq('id', id)
-            .single();
+        const details = await getFullRemitoDetails(id);
 
-        if (error) throw error;
-
-        // Fetch Count Name
-        let countName = remito.remito_number;
-        if (remito.remito_number) {
-            const { data: countData } = await supabase.from('general_counts').select('name').eq('id', remito.remito_number).maybeSingle();
-            if (countData) countName = countData.name;
+        if (details.error) {
+            return res.status(404).json({ message: details.error });
         }
 
-        // 2. Fetch User Scans (Paginated)
-        const scans = await getAllScans(remito.remito_number);
-
-        // const { data: scans } = await supabase
-        //     .from('inventory_scans')
-        //     .select('user_id, code, quantity, timestamp')
-        //     .eq('order_number', remito.remito_number);
-
-        // Enrich scans with user and product info if we have scans
-        if (scans && scans.length > 0) {
-            const userIds = [...new Set(scans.map(s => s.user_id))];
-            const codes = [...new Set(scans.map(s => s.code))];
-
-            // Fetch users
-            const { data: users } = await supabase
-                .from('users')
-                .select('id, username')
-                .in('id', userIds);
-
-            // Fetch products
-            const { data: products } = await supabase
-                .from('products')
-                .select('code, description')
-                .in('code', codes);
-
-            // Create lookup maps
-            const userMap = {};
-            const productMap = {};
-
-            if (users) {
-                users.forEach(u => userMap[u.id] = u.username);
-            }
-
-            if (products) {
-                products.forEach(p => productMap[p.code] = p.description);
-            }
-
-            // Enrich scans
-            scans.forEach(scan => {
-                scan.users = { username: userMap[scan.user_id] || 'Desconocido' };
-                scan.products = { description: productMap[scan.code] || 'Sin descripción' };
-            });
-        }
-
-        // Update discrepancy descriptions with current product data
-        if (remito.discrepancies && (remito.discrepancies.missing?.length > 0 || remito.discrepancies.extra?.length > 0)) {
-            const discrepancyCodes = [
-                ...(remito.discrepancies.missing || []).map(d => d.code),
-                ...(remito.discrepancies.extra || []).map(d => d.code)
-            ];
-
-            if (discrepancyCodes.length > 0) {
-                const { data: products } = await supabase
-                    .from('products')
-                    .select('code, description')
-                    .in('code', discrepancyCodes);
-
-                if (products && products.length > 0) {
-                    const productMap = {};
-                    products.forEach(p => productMap[p.code] = p.description);
-
-                    // Update missing items descriptions
-                    if (remito.discrepancies.missing) {
-                        remito.discrepancies.missing.forEach(item => {
-                            if (productMap[item.code]) {
-                                item.description = productMap[item.code];
-                            }
-                        });
-                    }
-
-                    // Update extra items descriptions
-                    if (remito.discrepancies.extra) {
-                        remito.discrepancies.extra.forEach(item => {
-                            if (productMap[item.code]) {
-                                item.description = productMap[item.code];
-                            }
-                        });
-                    }
-                }
-            }
-        }
+        const { remito, scans } = details;
+        const countName = remito.count_name || remito.remito_number;
 
         const xlsx = require('xlsx');
         const workbook = xlsx.utils.book_new();
