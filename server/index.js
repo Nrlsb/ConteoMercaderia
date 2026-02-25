@@ -2818,6 +2818,18 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
             finalSucursalId = req.user.sucursal_id;
         }
 
+        // Check for active count
+        const { data: activeCounts, error: activeError } = await supabase
+            .from('general_counts')
+            .select('id')
+            .eq('status', 'open');
+
+        if (activeError) throw activeError;
+
+        if (activeCounts && activeCounts.length > 0) {
+            return res.status(400).json({ message: 'Ya existe un conteo activo. Finalice el conteo actual antes de iniciar uno nuevo.' });
+        }
+
         const { data, error } = await supabase
             .from('general_counts')
             .insert([{
