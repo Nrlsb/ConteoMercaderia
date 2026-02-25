@@ -1876,6 +1876,15 @@ async function getFullRemitoDetails(id) {
 
     if (finalizedRemito) {
         remito = finalizedRemito;
+        // Also fetch id_inventory from pre_remitos if missing in remitos table
+        if (!remito.id_inventory && remito.remito_number) {
+            const { data: preRemitoData } = await supabase
+                .from('pre_remitos')
+                .select('id_inventory')
+                .eq('order_number', remito.remito_number)
+                .maybeSingle();
+            if (preRemitoData) remito.id_inventory = preRemitoData.id_inventory;
+        }
     } else {
         // 1b. Fallback: Check if ID is actually the remito_number (General Count ID) which is common for General Counts
         const { data: finalizedRemitoByNumber } = await supabase
@@ -1886,6 +1895,14 @@ async function getFullRemitoDetails(id) {
 
         if (finalizedRemitoByNumber) {
             remito = finalizedRemitoByNumber;
+            if (!remito.id_inventory && remito.remito_number) {
+                const { data: preRemitoData } = await supabase
+                    .from('pre_remitos')
+                    .select('id_inventory')
+                    .eq('order_number', remito.remito_number)
+                    .maybeSingle();
+                if (preRemitoData) remito.id_inventory = preRemitoData.id_inventory;
+            }
         } else {
             // 2. Try Pre-Remitos (Pending)
             const { data: preRemito } = await supabase
@@ -1917,6 +1934,7 @@ async function getFullRemitoDetails(id) {
                 remito = {
                     id: preRemito.id,
                     remito_number: preRemito.order_number,
+                    id_inventory: preRemito.id_inventory,
                     items: preRemitoItems,
                     date: preRemito.created_at,
                     status: 'pending',
@@ -2297,9 +2315,11 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         if (remito.discrepancies?.missing) {
             remito.discrepancies.missing.forEach(d => {
                 discrepanciesData.push({
+                    'ID Inventario': remito.id_inventory || '-',
                     Codigo: d.code,
                     Descripcion: d.description,
                     'Stock actual': d.expected,
+                    'Cantidad Escaneada': d.scanned,
                     Diferencia: d.scanned - d.expected,
                     'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
@@ -2308,9 +2328,11 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         if (remito.discrepancies?.extra) {
             remito.discrepancies.extra.forEach(d => {
                 discrepanciesData.push({
+                    'ID Inventario': remito.id_inventory || '-',
                     Codigo: d.code,
                     Descripcion: d.description,
                     'Stock actual': d.expected,
+                    'Cantidad Escaneada': d.scanned,
                     Diferencia: d.scanned - d.expected,
                     'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
