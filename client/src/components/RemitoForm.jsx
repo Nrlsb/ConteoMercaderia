@@ -46,17 +46,15 @@ const RemitoForm = () => {
     // Poll for active general counts
     useEffect(() => {
         let interval;
-        if (countMode === 'products') {
-            const fetchActiveCounts = async () => {
-                try {
-                    const res = await api.get('/api/general-counts/active');
-                    const counts = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
-                    setActiveCounts(counts);
+        const fetchActiveCounts = async () => {
+            try {
+                const res = await api.get('/api/general-counts/active');
+                const counts = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
+                setActiveCounts(counts);
 
+                if (countMode === 'products') {
                     if (user && user.role !== 'admin' && user.role !== 'superadmin') {
                         // Find count for user's branch
-                        // If user.sucursal_id is missing, maybe they differ to Global? 
-                        // For now assuming strict match or fallback to Global if sucursal_id is null in count
                         const myCount = counts.find(c => c.sucursal_id == user.sucursal_id);
 
                         if (myCount) {
@@ -75,17 +73,19 @@ const RemitoForm = () => {
                             }
                         }
                     }
-                } catch (error) {
-                    console.error('Error fetching active counts:', error);
                 }
-            };
+            } catch (error) {
+                console.error('Error fetching active counts:', error);
+            }
+        };
 
-            fetchActiveCounts();
-            interval = setInterval(fetchActiveCounts, 5000); // Poll every 5 seconds
-        } else {
-            setActiveCounts([]);
-            setSelectedCount(null);
+        fetchActiveCounts();
+        interval = setInterval(fetchActiveCounts, 5000); // Poll every 5 seconds
+
+        if (countMode !== 'products') {
+            setSelectedCount(null); // Ensure no count is selected when not in 'products' mode
         }
+
         return () => clearInterval(interval);
     }, [countMode, user]);
 
@@ -1244,35 +1244,52 @@ const RemitoForm = () => {
                                         {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
                                             preRemitoList.map((pre) => {
                                                 const isSelected = selectedPreRemitos.includes(pre.order_number);
+                                                const isActiveCount = activeCounts.some(c => c.name && c.name.includes(pre.order_number));
+
                                                 return (
                                                     <label
                                                         key={pre.id}
-                                                        className={`flex items-center p-3 rounded-lg border transition cursor-pointer hover:bg-blue-50 ${isSelected ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue' : 'border-gray-100 bg-gray-50/30'}`}
+                                                        className={`flex items-center p-3 rounded-lg border transition ${isActiveCount
+                                                                ? 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed'
+                                                                : isSelected
+                                                                    ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue cursor-pointer hover:bg-blue-50'
+                                                                    : 'border-gray-100 bg-gray-50/30 cursor-pointer hover:bg-blue-50'
+                                                            }`}
                                                     >
                                                         <input
                                                             type="checkbox"
                                                             checked={isSelected}
+                                                            disabled={isActiveCount}
                                                             onChange={() => {
+                                                                if (isActiveCount) return;
                                                                 if (isSelected) {
                                                                     setSelectedPreRemitos(selectedPreRemitos.filter(num => num !== pre.order_number));
                                                                 } else {
                                                                     setSelectedPreRemitos([...selectedPreRemitos, pre.order_number]);
                                                                 }
                                                             }}
-                                                            className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue"
+                                                            className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue disabled:opacity-50"
                                                         />
-                                                        <div className="ml-3 flex-1">
-                                                            <div className="text-sm font-bold text-gray-800">
-                                                                {
-                                                                    pre.order_number.startsWith('STOCK-')
-                                                                        ? (pre.id_inventory ? `Stock Inicial - ${pre.id_inventory} (${new Date(pre.created_at).toLocaleDateString()})` : `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`)
-                                                                        : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
-                                                                }
+                                                        <div className="ml-3 flex-1 flex justify-between items-center">
+                                                            <div>
+                                                                <div className="text-sm font-bold text-gray-800">
+                                                                    {
+                                                                        pre.order_number.startsWith('STOCK-')
+                                                                            ? (pre.id_inventory ? `Stock Inicial - ${pre.id_inventory} (${new Date(pre.created_at).toLocaleDateString()})` : `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`)
+                                                                            : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
+                                                                    }
+                                                                </div>
+                                                                <div className="text-xs text-brand-gray flex gap-2 mt-0.5">
+                                                                    <span>{pre.sucursal || 'Sin Sucursal'}</span>
+                                                                    <span>•</span>
+                                                                    <span>{new Date(pre.created_at).toLocaleDateString()}</span>
+                                                                </div>
                                                             </div>
-                                                            <div className="text-xs text-brand-gray flex justify-between mt-0.5">
-                                                                <span>{pre.sucursal || 'Sin Sucursal'}</span>
-                                                                <span>{new Date(pre.created_at).toLocaleDateString()}</span>
-                                                            </div>
+                                                            {isActiveCount && (
+                                                                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
+                                                                    En Curso
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </label>
                                                 );
