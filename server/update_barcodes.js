@@ -47,29 +47,52 @@ async function updateBarcodes() {
             const codeKey = findKey('Codigo');
             const barcodeKey = findKey('Cod. Barras');
 
-            const code = row[codeKey] ? String(row[codeKey]).trim() : null;
+            let code = row[codeKey] ? String(row[codeKey]).trim() : null;
             let barcode = row[barcodeKey] ? String(row[barcodeKey]).trim() : null;
 
             if (code && barcode && barcode !== 'NULL' && barcode !== 'null') {
                 excelDataMap.set(code, barcode);
+                if (!isNaN(code) && code.length < 6) {
+                    excelDataMap.set(code.padStart(6, '0'), barcode);
+                }
             }
         }
 
         console.log(`Mapped ${excelDataMap.size} unique code -> barcode pairs from Excel.`);
 
-        // Get products from DB that don't have a barcode
-        console.log('Fetching products with missing barcodes from DB...');
-        const { data: dbProducts, error: fetchError } = await supabase
-            .from('products')
-            .select('id, code, description')
-            .or('barcode.is.null,barcode.eq.""');
+        // Get all products from DB using pagination
+        console.log('Fetching all products from DB...');
+        let allProducts = [];
+        let hasMore = true;
+        let page = 0;
+        const pageSize = 1000;
 
-        if (fetchError) {
-            console.error('Error fetching products:', fetchError);
-            return;
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('products')
+                .select('id, code, description, barcode')
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+
+            if (error) {
+                console.error('Error fetching products:', error);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                allProducts = [...allProducts, ...data];
+                page++;
+            } else {
+                hasMore = false;
+            }
         }
+        console.log(`Successfully fetched ${allProducts.length} products total.`);
 
-        console.log(`Found ${dbProducts.length} products in DB without barcode.`);
+        const dbProducts = allProducts.filter(p =>
+            !p.barcode ||
+            p.barcode.trim() === '' ||
+            /^[-_]+$/.test(p.barcode.trim())
+        );
+        console.log(`Found ${dbProducts.length} products in DB with missing, dash-only, or underscore-only barcodes.`);
 
         const updates = [];
         for (const product of dbProducts) {
