@@ -1936,7 +1936,7 @@ const RemitoForm = () => {
                                         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-200 group-hover:bg-amber-500 transition-colors"></div>
 
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="font-bold text-gray-900 text-lg leading-tight mb-1 group-hover:text-amber-900 uppercase truncate">
+                                            <h4 className="font-bold text-gray-900 text-lg leading-tight mb-1 group-hover:text-amber-900 uppercase">
                                                 {product.name || product.description}
                                             </h4>
                                             <div className="flex flex-wrap gap-2 items-center">
