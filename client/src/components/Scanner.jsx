@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
-const Scanner = ({ onScan, isEnabled = true }) => {
+const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     // Shared state
     const [isNative] = useState(Capacitor.isNativePlatform());
     const [isScanning, setIsScanning] = useState(false);
@@ -85,6 +85,7 @@ const Scanner = ({ onScan, isEnabled = true }) => {
                 const request = await BarcodeScanner.requestPermissions();
                 if (request.camera !== 'granted') {
                     setError("Permiso de cámara denegado.");
+                    if (onCancel) onCancel();
                     return;
                 }
             }
@@ -119,6 +120,9 @@ const Scanner = ({ onScan, isEnabled = true }) => {
             if (result.barcodes && result.barcodes.length > 0) {
                 const code = result.barcodes[0].rawValue;
                 handleScanSuccess(code);
+            } else {
+                // No result (canceled or empty)
+                if (onCancel) onCancel();
             }
 
             setIsScanning(false);
@@ -130,6 +134,7 @@ const Scanner = ({ onScan, isEnabled = true }) => {
                 setError("Error en scanner nativo: " + err.message);
             }
             setIsScanning(false);
+            if (onCancel) onCancel();
         }
     };
 
