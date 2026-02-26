@@ -676,7 +676,7 @@ const RemitoForm = () => {
     // Handle barcode scan (from camera or physical scanner)
     const handleScan = React.useCallback((rawCode) => {
         const inputCode = rawCode.trim(); // Trim whitespace/newlines
-        setIsScanning(false); // Close the camera immediately
+        // setIsScanning(false); // REMOVED: Keep camera open after scan
 
         const currentItems = itemsRef.current;
         const currentExpectedItems = expectedItemsRef.current;
@@ -1770,7 +1770,7 @@ const RemitoForm = () => {
                                     </button>
                                 )}
 
-                                {isScanning && (
+                                {isScanning && !fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isDuplicateModalOpen && (
                                     <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
                                         <div className="relative h-[90%] w-full bg-transparent flex items-center justify-center overflow-hidden">
                                             <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan} />
