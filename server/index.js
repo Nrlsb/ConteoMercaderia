@@ -2108,6 +2108,39 @@ async function getFullRemitoDetails(id) {
     const scans = await getAllScans(remito.remito_number);
     console.log(`[DEBUG_DETAILS] Scans found in DB for order ${remito.remito_number}: ${scans ? scans.length : 0}`);
 
+    // Create a mapping of code to id_inventory from pre_remito items
+    const productInventoryMap = {};
+    if (remito.items && remito.items.length > 0) {
+        remito.items.forEach(item => {
+            if (item.code && item.id_inventory) {
+                productInventoryMap[item.code] = item.id_inventory;
+            }
+        });
+    }
+
+    // Special case: if it's a multi-order remito, fetch all related pre-remito items to get inventory IDs
+    if (remito.remito_number && remito.remito_number.includes(',')) {
+        const orderNumbers = remito.remito_number.split(',').map(n => n.trim());
+        const { data: multiplePreRemitos } = await supabase
+            .from('pre_remitos')
+            .select('items, id_inventory')
+            .in('order_number', orderNumbers);
+
+        if (multiplePreRemitos) {
+            multiplePreRemitos.forEach(pr => {
+                const invId = pr.id_inventory;
+                if (invId && pr.items) {
+                    pr.items.forEach(item => {
+                        const code = String(item.code).trim();
+                        if (code) {
+                            productInventoryMap[code] = invId;
+                        }
+                    });
+                }
+            });
+        }
+    }
+
     let userCounts = [];
     let totalScannedMap = {};
     const userMap = {};
@@ -2181,7 +2214,7 @@ async function getFullRemitoDetails(id) {
                     description: expected.description || expected.name,
                     expected: expected.quantity,
                     scanned: scannedQty,
-                    id_inventory: expected.id_inventory // Conservar el ID de inventario
+                    id_inventory: expected.id_inventory || productInventoryMap[expected.code] || null // Conservar el ID de inventario
                 });
             }
         });
@@ -2207,7 +2240,7 @@ async function getFullRemitoDetails(id) {
                         description: expected.description || expected.name,
                         expected: expected.quantity,
                         scanned: scannedQty,
-                        id_inventory: expected.id_inventory // Conservar el ID de inventario
+                        id_inventory: expected.id_inventory || productInventoryMap[code] || null // Conservar el ID de inventario
                     });
                 }
             }
@@ -2361,11 +2394,11 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         if (remito.discrepancies?.missing) {
             remito.discrepancies.missing.forEach(d => {
                 discrepanciesData.push({
-                    'ID Inventario': remito.id_inventory || '-',
+                    'ID Inventario': d.id_inventory || remito.id_inventory || '-',
                     Codigo: d.code,
                     Descripcion: d.description,
                     'Stock actual': d.expected,
-                    'Cantidad Escaneada': d.scanned,
+                    'Cantidad Esc': d.scanned,
                     Diferencia: d.scanned - d.expected,
                     'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
@@ -2374,11 +2407,11 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         if (remito.discrepancies?.extra) {
             remito.discrepancies.extra.forEach(d => {
                 discrepanciesData.push({
-                    'ID Inventario': remito.id_inventory || '-',
+                    'ID Inventario': d.id_inventory || remito.id_inventory || '-',
                     Codigo: d.code,
                     Descripcion: d.description,
                     'Stock actual': d.expected,
-                    'Cantidad Escaneada': d.scanned,
+                    'Cantidad Esc': d.scanned,
                     Diferencia: d.scanned - d.expected,
                     'Último Escaneo': lastScannerMap[d.code] || '-'
                 });
