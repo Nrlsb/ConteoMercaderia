@@ -90,7 +90,7 @@ const verifyToken = async (req, res, next) => {
         // Verify session is still valid in DB
         const { data: user, error } = await supabase
             .from('users')
-            .select('current_session_id, role, is_session_active, sucursal_id') // Select session status and branch
+            .select('current_session_id, role, is_session_active, sucursal_id, permissions') // Select session status, branch and permissions
             .eq('id', decoded.id)
             .single();
 
@@ -102,7 +102,7 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'Sesión iniciada en otro dispositivo o sesión expirada' });
         }
 
-        req.user = { ...decoded, role: user.role, sucursal_id: user.sucursal_id }; // Ensure role and branch are up to date
+        req.user = { ...decoded, role: user.role, sucursal_id: user.sucursal_id, permissions: user.permissions || [] }; // Ensure role, branch and permissions are up to date
         next();
     } catch (e) {
         console.error('Token verification error:', e.message);
@@ -126,6 +126,21 @@ const verifySuperAdmin = (req, res, next) => {
     } else {
         res.status(403).json({ message: 'Access denied: Superadmins only' });
     }
+};
+
+// Middleware to verify specific permission or admin/superadmin role
+const hasPermission = (permission) => {
+    return (req, res, next) => {
+        if (req.user && (
+            req.user.role === 'superadmin' ||
+            req.user.role === 'admin' ||
+            (req.user.permissions && req.user.permissions.includes(permission))
+        )) {
+            next();
+        } else {
+            res.status(403).json({ message: `Access denied: Missing permission '${permission}'` });
+        }
+    };
 };
 
 // App Version Endpoint Check
@@ -575,7 +590,7 @@ app.put('/api/receipts/:id/close', verifyToken, async (req, res) => {
 });
 
 // Reopen Receipt (Admin only)
-app.put('/api/receipts/:id/reopen', verifyToken, verifyAdmin, async (req, res) => {
+app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -593,7 +608,7 @@ app.put('/api/receipts/:id/reopen', verifyToken, verifyAdmin, async (req, res) =
 });
 
 // Delete Receipt (Admin only)
-app.delete('/api/receipts/:id', verifyToken, verifyAdmin, async (req, res) => {
+app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Delete history first
@@ -1110,7 +1125,7 @@ app.post('/api/barcode-history', verifyToken, async (req, res) => {
 });
 
 // Product Import Endpoint (Admin only)
-app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+app.post('/api/products/import', verifyToken, hasPermission('import_data'), multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
     }
@@ -1195,7 +1210,7 @@ app.post('/api/products/import', verifyToken, verifyAdmin, multer({ storage: mul
 });
 
 // Branch Stock Import Endpoint (Admin only)
-app.post('/api/stock/import', verifyToken, verifyAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+app.post('/api/stock/import', verifyToken, hasPermission('import_data'), multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
     }
@@ -1803,7 +1818,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 });
 
 // Delete Remito (Admin only)
-app.delete('/api/remitos/:id', verifyToken, verifyAdmin, async (req, res) => {
+app.delete('/api/remitos/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -1835,7 +1850,7 @@ app.delete('/api/remitos/:id', verifyToken, verifyAdmin, async (req, res) => {
 });
 
 // Delete Pre-Remito (Admin only)
-app.delete('/api/pre-remitos/:id', verifyToken, verifyAdmin, async (req, res) => {
+app.delete('/api/pre-remitos/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -1867,7 +1882,7 @@ app.delete('/api/pre-remitos/:id', verifyToken, verifyAdmin, async (req, res) =>
 });
 
 // Delete General Count (Admin only)
-app.delete('/api/general-counts/:id', verifyToken, verifyAdmin, async (req, res) => {
+app.delete('/api/general-counts/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -2882,7 +2897,7 @@ app.get('/api/settings', async (req, res) => {
     }
 });
 
-app.put('/api/settings', verifyToken, verifyAdmin, async (req, res) => {
+app.put('/api/settings', verifyToken, hasPermission('manage_settings'), async (req, res) => {
     const { countMode } = req.body;
 
     if (!['pre_remito', 'products'].includes(countMode)) {
@@ -3023,7 +3038,7 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
     }
 });
 
-app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, res) => {
+app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_counts'), async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -3793,7 +3808,7 @@ app.get('/api/users', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, sucursales(name)')
+            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, permissions, sucursales(name)')
             .order('username');
 
         if (error) throw error;
@@ -3813,7 +3828,7 @@ app.get('/api/users', verifyToken, verifyAdmin, async (req, res) => {
 
 // Create User (Superadmin)
 app.post('/api/users', verifyToken, verifySuperAdmin, async (req, res) => {
-    const { username, password, role, sucursal_id } = req.body;
+    const { username, password, role, sucursal_id, permissions } = req.body;
 
     if (!username || !password || !role) {
         return res.status(400).json({ message: 'Faltan datos requeridos (usuario, contraseña, rol)' });
@@ -3843,6 +3858,7 @@ app.post('/api/users', verifyToken, verifySuperAdmin, async (req, res) => {
             password: hashedPassword,
             role,
             sucursal_id: sucursal_id || null,
+            permissions: permissions || [],
             current_session_id: sessionId,
             is_session_active: false
         };
@@ -3866,7 +3882,7 @@ app.post('/api/users', verifyToken, verifySuperAdmin, async (req, res) => {
 // Update user (including sucursal and role)
 app.put('/api/users/:id', verifyToken, verifyAdmin, async (req, res) => {
     const { id } = req.params;
-    const { role, sucursal_id, password } = req.body;
+    const { role, sucursal_id, password, permissions } = req.body;
     const requesterRole = req.user.role;
 
     try {
@@ -3886,6 +3902,7 @@ app.put('/api/users/:id', verifyToken, verifyAdmin, async (req, res) => {
         const updates = {};
         if (role) updates.role = role;
         if (sucursal_id !== undefined) updates.sucursal_id = sucursal_id; // Allow null to clear
+        if (permissions !== undefined) updates.permissions = permissions; // Allow empty array
         if (password) {
             const salt = await bcrypt.genSalt(10);
             updates.password = await bcrypt.hash(password, salt);

@@ -9,7 +9,7 @@ const UsersManage = () => {
     const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '' });
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [] });
 
     // Get current user from storage or context (quick fix as we don't have context here)
     const [currentUser, setCurrentUser] = useState(null);
@@ -52,6 +52,7 @@ const UsersManage = () => {
             username: user.username,
             role: user.role,
             sucursal_id: user.sucursal_id || '',
+            permissions: user.permissions || [],
             password: '' // Reset password field
         });
     };
@@ -63,14 +64,15 @@ const UsersManage = () => {
             username: '',
             password: '',
             role: 'user',
-            sucursal_id: ''
+            sucursal_id: '',
+            permissions: []
         });
     }
 
     const handleCancel = () => {
         setEditingUser(null);
         setIsCreating(false);
-        setFormData({ username: '', password: '', role: '', sucursal_id: '' });
+        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [] });
     };
 
     const handleDelete = async (id) => {
@@ -96,14 +98,16 @@ const UsersManage = () => {
                     username: formData.username,
                     password: formData.password,
                     role: formData.role,
-                    sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id
+                    sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
+                    permissions: formData.permissions
                 };
                 await axios.post('/api/users', payload);
                 toast.success('Usuario creado exitosamente');
             } else {
                 const payload = {
                     role: formData.role,
-                    sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id
+                    sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
+                    permissions: formData.permissions
                 };
                 if (formData.password) {
                     payload.password = formData.password;
@@ -120,7 +124,25 @@ const UsersManage = () => {
         }
     };
 
-    if (loading) return <div className="p-4">Cargando usuarios...</div>;
+    const handlePermissionChange = (perm) => {
+        const newPermissions = formData.permissions.includes(perm)
+            ? formData.permissions.filter(p => p !== perm)
+            : [...formData.permissions, perm];
+        setFormData({ ...formData, permissions: newPermissions });
+    };
+
+    // Available permissions to manage
+    const availablePermissions = [
+        { id: 'delete_counts', name: 'Eliminar Conteos/Remitos' },
+        { id: 'export_data', name: 'Exportar a Excel' },
+        { id: 'import_data', name: 'Importar Excel/XML' },
+        { id: 'edit_products', name: 'Editar Productos/Barcodes' },
+        { id: 'manage_settings', name: 'Configuración Global' },
+        { id: 'close_counts', name: 'Cerrar/Reabrir Conteos' },
+        { id: 'view_history', name: 'Ver Historial Auditar' }
+    ];
+
+    if (loading) return <div className="p-4 text-center">Cargando usuarios...</div>;
 
     const isSuperAdmin = currentUser?.role === 'superadmin';
 
@@ -196,6 +218,26 @@ const UsersManage = () => {
                             />
                         </div>
                     </div>
+
+                    {isSuperAdmin && (
+                        <div className="mb-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Permisos Especiales</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-white p-3 border rounded">
+                                {availablePermissions.map(perm => (
+                                    <label key={perm.id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.permissions.includes(perm.id)}
+                                            onChange={() => handlePermissionChange(perm.id)}
+                                            className="form-checkbox h-4 w-4 text-blue-600 rounded"
+                                        />
+                                        <span>{perm.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex justify-end gap-2">
                         <button
                             type="button"
