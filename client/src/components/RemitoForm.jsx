@@ -914,21 +914,49 @@ const RemitoForm = () => {
             return;
         }
 
+        const queryNormalized = value.toLowerCase().trim();
+        const tokens = queryNormalized.split(/\s+/).filter(Boolean);
+
+        let localMatches = [];
         if (expectedItems) {
-            const matches = expectedItems.filter(item =>
-                (item.description && item.description.toLowerCase().includes(value.toLowerCase())) ||
-                (item.code && item.code.toLowerCase().includes(value.toLowerCase()))
-            );
-            setManualSuggestions(matches.slice(0, 5));
-            setShowSuggestions(matches.length > 0);
-        } else {
-            try {
-                const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
-                setManualSuggestions(res.data);
-                setShowSuggestions(res.data.length > 0);
-            } catch (error) {
-                console.error('Error searching products:', error);
-            }
+            // Token-based filtering for expected items
+            localMatches = expectedItems.filter(item => {
+                const desc = (item.description || '').toLowerCase();
+                const code = (item.code || '').toLowerCase();
+                const barcode = (item.barcode || '').toLowerCase();
+
+                // Matches all tokens in some field
+                return tokens.every(token =>
+                    desc.includes(token) ||
+                    code.includes(token) ||
+                    barcode.includes(token)
+                );
+            }).map(item => ({ ...item, isExpected: true }));
+        }
+
+        // Always try to fetch from API to supplement or if no local matches
+        try {
+            const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+            const apiResults = res.data.map(item => ({
+                ...item,
+                isExpected: expectedItems ? expectedItems.some(ei => ei.code === item.code) : false
+            }));
+
+            // Merge: Prefer localMatches but add API results that aren't already there
+            const combined = [...localMatches];
+            apiResults.forEach(apiItem => {
+                if (!combined.some(c => c.code === apiItem.code)) {
+                    combined.push(apiItem);
+                }
+            });
+
+            setManualSuggestions(combined.slice(0, 10)); // Show more suggestions if available
+            setShowSuggestions(combined.length > 0);
+        } catch (error) {
+            console.error('Error searching products:', error);
+            // Fallback to just local matches if API fails
+            setManualSuggestions(localMatches.slice(0, 10));
+            setShowSuggestions(localMatches.length > 0);
         }
     };
 
@@ -1637,10 +1665,15 @@ const RemitoForm = () => {
                                                 <li
                                                     key={idx}
                                                     onClick={() => handleSelectSuggestion(item)}
-                                                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center"
+                                                    className={`px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 flex justify-between items-center ${item.isExpected ? 'bg-green-50/30' : ''}`}
                                                 >
                                                     <div className="flex-1 min-w-0">
-                                                        <span className="block text-sm font-medium text-gray-800 whitespace-normal break-words">{item.description}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="block text-sm font-medium text-gray-800 whitespace-normal break-words">{item.description || item.name}</span>
+                                                            {item.isExpected && (
+                                                                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Esperado</span>
+                                                            )}
+                                                        </div>
                                                         <span className="block text-xs text-gray-500">{item.code}</span>
                                                     </div>
                                                 </li>
