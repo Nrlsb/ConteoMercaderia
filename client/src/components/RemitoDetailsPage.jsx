@@ -34,6 +34,17 @@ const RemitoDetailsPage = () => {
         };
 
         if (id) fetchDetails();
+
+        // Close dropdown when clicking outside
+        const handleOutsideClick = () => {
+            const menu = document.getElementById('export-menu');
+            if (menu && !menu.classList.contains('hidden')) {
+                menu.classList.add('hidden');
+            }
+        };
+
+        window.addEventListener('click', handleOutsideClick);
+        return () => window.removeEventListener('click', handleOutsideClick);
     }, [id]);
 
     const handleVoiceSearch = async () => {
@@ -180,36 +191,98 @@ const RemitoDetailsPage = () => {
                         </div>
 
                         {/* Top Actions */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 relative group" id="export-dropdown">
                             <button
-                                onClick={() => {
-                                    api.get(`/api/remitos/${id}/export`, { responseType: 'blob' })
-                                        .then((response) => {
-                                            // Try to extract filename from header or default
-                                            const contentDisposition = response.headers['content-disposition'];
-                                            let fileName = `Reporte_${remito.remito_number}.xlsx`;
-                                            if (contentDisposition) {
-                                                const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                                                if (fileNameMatch && fileNameMatch.length === 2)
-                                                    fileName = fileNameMatch[1];
-                                            }
-
-                                            downloadFile(new Blob([response.data]), fileName)
-                                                .catch(err => {
-                                                    console.error('Download error:', err);
-                                                    toast.error('Error al procesar descarga');
-                                                });
-                                        })
-                                        .catch((err) => {
-                                            console.error('Export failed', err);
-                                            toast.error('Error al exportar Excel');
-                                        });
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue transition-colors"
+                                onClick={(e) => {
+                                    const menu = document.getElementById('export-menu');
+                                    menu.classList.toggle('hidden');
+                                    e.stopPropagation();
                                 }}
-                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue"
                             >
                                 <svg className="h-4 w-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 Exportar Excel
+                                <svg className="ml-2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
+
+                            <div
+                                id="export-menu"
+                                className="hidden absolute right-0 mt-12 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 transition-all duration-200"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="py-1" role="menu" aria-orientation="vertical">
+                                    <button
+                                        onClick={() => {
+                                            const menu = document.getElementById('export-menu');
+                                            menu.classList.add('hidden');
+                                            api.get(`/api/remitos/${id}/export?type=discrepancies`, { responseType: 'blob' })
+                                                .then((response) => {
+                                                    const contentDisposition = response.headers['content-disposition'];
+                                                    let fileName = `Reporte_Diferencias_${remito.remito_number}.xlsx`;
+                                                    if (contentDisposition) {
+                                                        const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                                                        if (fileNameMatch && fileNameMatch.length === 2)
+                                                            fileName = fileNameMatch[1];
+                                                    }
+                                                    downloadFile(new Blob([response.data]), fileName)
+                                                        .catch(err => {
+                                                            console.error('Download error:', err);
+                                                            toast.error('Error al procesar descarga');
+                                                        });
+                                                })
+                                                .catch((err) => {
+                                                    console.error('Export failed', err);
+                                                    toast.error('Error al exportar Excel de diferencias');
+                                                });
+                                        }}
+                                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 border-b border-gray-100"
+                                        role="menuitem"
+                                    >
+                                        <div className="h-6 w-6 rounded bg-orange-100 flex items-center justify-center">
+                                            <svg className="h-3.5 w-3.5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                        </div>
+                                        <div>
+                                            <div className="font-bold">Reporte Diferencias</div>
+                                            <div className="text-[10px] text-gray-500">Solo productos con discrepancias</div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const menu = document.getElementById('export-menu');
+                                            menu.classList.add('hidden');
+                                            api.get(`/api/remitos/${id}/export?type=full`, { responseType: 'blob' })
+                                                .then((response) => {
+                                                    const contentDisposition = response.headers['content-disposition'];
+                                                    let fileName = `Reporte_Completo_${remito.remito_number}.xlsx`;
+                                                    if (contentDisposition) {
+                                                        const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                                                        if (fileNameMatch && fileNameMatch.length === 2)
+                                                            fileName = fileNameMatch[1];
+                                                    }
+                                                    downloadFile(new Blob([response.data]), fileName)
+                                                        .catch(err => {
+                                                            console.error('Download error:', err);
+                                                            toast.error('Error al procesar descarga');
+                                                        });
+                                                })
+                                                .catch((err) => {
+                                                    console.error('Export failed', err);
+                                                    toast.error('Error al exportar Excel completo');
+                                                });
+                                        }}
+                                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                        role="menuitem"
+                                    >
+                                        <div className="h-6 w-6 rounded bg-green-100 flex items-center justify-center">
+                                            <svg className="h-3.5 w-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        </div>
+                                        <div>
+                                            <div className="font-bold">Reporte Completo</div>
+                                            <div className="text-[10px] text-gray-500">Todos los productos del conteo</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -2363,6 +2363,8 @@ app.get('/api/remitos/:id/details', verifyToken, async (req, res) => {
 // Export Remito to Excel
 app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
     const { id } = req.params;
+    const { type } = req.query; // 'full' or 'discrepancies' (default)
+
     try {
         const details = await getFullRemitoDetails(id);
 
@@ -2370,69 +2372,117 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
             return res.status(404).json({ message: details.error });
         }
 
-        const { remito, scans } = details;
+        const { remito, scans, userCounts } = details;
         const countName = remito.count_name || remito.remito_number;
+        const isFullExport = type === 'full';
 
         const xlsx = require('xlsx');
         const workbook = xlsx.utils.book_new();
 
-        // --- Sheet 1: Diferencias (ONLY) ---
-        const discrepanciesData = [];
-
         // Map to find the last scanner for each product
         const lastScannerMap = {};
         if (scans && scans.length > 0) {
-            // Sort scans by timestamp descending to easily pick the first one (latest)
             const sortedScans = [...scans].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             sortedScans.forEach(s => {
-                if (!lastScannerMap[s.code]) {
-                    lastScannerMap[s.code] = s.users?.username || 'Desconocido';
+                const code = String(s.code).trim();
+                if (!lastScannerMap[code]) {
+                    lastScannerMap[code] = s.users?.username || 'Desconocido';
                 }
             });
         }
 
-        if (remito.discrepancies?.missing) {
-            remito.discrepancies.missing.forEach(d => {
-                discrepanciesData.push({
-                    'ID Inventario': d.id_inventory || remito.id_inventory || '-',
-                    Codigo: d.code,
-                    Descripcion: d.description,
-                    'Stock actual': d.expected,
-                    'Cantidad Esc': d.scanned,
-                    Diferencia: d.scanned - d.expected,
-                    'Último Escaneo': lastScannerMap[d.code] || '-'
-                });
-            });
-        }
-        if (remito.discrepancies?.extra) {
-            remito.discrepancies.extra.forEach(d => {
-                discrepanciesData.push({
-                    'ID Inventario': d.id_inventory || remito.id_inventory || '-',
-                    Codigo: d.code,
-                    Descripcion: d.description,
-                    'Stock actual': d.expected,
-                    'Cantidad Esc': d.scanned,
-                    Diferencia: d.scanned - d.expected,
-                    'Último Escaneo': lastScannerMap[d.code] || '-'
-                });
-            });
-        }
+        let exportData = [];
 
-        if (discrepanciesData.length > 0) {
-            const wsDisc = xlsx.utils.json_to_sheet(discrepanciesData);
-            xlsx.utils.book_append_sheet(workbook, wsDisc, "Diferencias");
+        if (isFullExport) {
+            // --- FULL REPORT LOGIC ---
+            // 1. Get all expected items
+            const expectedItems = remito.items || [];
+            const allCodes = new Set(expectedItems.map(i => String(i.code).trim()));
+
+            // 2. Add all scanned items (including extras)
+            const totalScannedMap = {};
+            if (userCounts) {
+                userCounts.forEach(u => {
+                    u.items.forEach(item => {
+                        const code = String(item.code).trim();
+                        totalScannedMap[code] = (totalScannedMap[code] || 0) + (item.quantity || 0);
+                        allCodes.add(code);
+                    });
+                });
+            }
+
+            // 3. Match them up
+            const codesArray = Array.from(allCodes).sort();
+
+            // Pre-fetch product info for descriptions of extra items if needed
+            const missingProductInfoCodes = codesArray.filter(c => !expectedItems.find(ei => String(ei.code).trim() === c));
+            let extraProductMap = {};
+            if (missingProductInfoCodes.length > 0) {
+                const { data: extras } = await supabase.from('products').select('code, description').in('code', missingProductInfoCodes);
+                if (extras) extras.forEach(p => extraProductMap[String(p.code).trim()] = p.description);
+            }
+
+            exportData = codesArray.map(code => {
+                const expectedItem = expectedItems.find(ei => String(ei.code).trim() === code);
+                const scannedQty = totalScannedMap[code] || 0;
+                const expectedQty = expectedItem ? (expectedItem.quantity || 0) : 0;
+                const description = expectedItem ? (expectedItem.description || expectedItem.name) : (extraProductMap[code] || 'Producto Extra / Desconocido');
+
+                return {
+                    'ID Inventario': expectedItem?.id_inventory || remito.id_inventory || '-',
+                    Codigo: code,
+                    Descripcion: description,
+                    'Stock actual': expectedQty,
+                    'Cantidad Esc': scannedQty,
+                    Diferencia: scannedQty - expectedQty,
+                    'Último Escaneo': lastScannerMap[code] || '-'
+                };
+            });
         } else {
-            // If no discrepancies, maybe add an empty sheet saying so or just the items
-            // But request was "only sheet differences", if empty we can just export empty or all items as differences 0?
-            // Safest is to just export an empty "Diferencias" sheet if truly empty to avoid corrupt file
-            const wsDisc = xlsx.utils.json_to_sheet([{ Info: "Sin discrepancias" }]);
-            xlsx.utils.book_append_sheet(workbook, wsDisc, "Diferencias");
+            // --- DISCREPANCIES ONLY LOGIC (DEFAULT) ---
+            if (remito.discrepancies?.missing) {
+                remito.discrepancies.missing.forEach(d => {
+                    const code = String(d.code).trim();
+                    exportData.push({
+                        'ID Inventario': d.id_inventory || remito.id_inventory || '-',
+                        Codigo: d.code,
+                        Descripcion: d.description,
+                        'Stock actual': d.expected,
+                        'Cantidad Esc': d.scanned,
+                        Diferencia: d.scanned - d.expected,
+                        'Último Escaneo': lastScannerMap[code] || '-'
+                    });
+                });
+            }
+            if (remito.discrepancies?.extra) {
+                remito.discrepancies.extra.forEach(d => {
+                    const code = String(d.code).trim();
+                    exportData.push({
+                        'ID Inventario': d.id_inventory || remito.id_inventory || '-',
+                        Codigo: d.code,
+                        Descripcion: d.description,
+                        'Stock actual': d.expected,
+                        'Cantidad Esc': d.scanned,
+                        Diferencia: d.scanned - d.expected,
+                        'Último Escaneo': lastScannerMap[code] || '-'
+                    });
+                });
+            }
         }
 
-        // Buffer
-        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const sheetName = isFullExport ? "Reporte Completo" : "Diferencias";
+        if (exportData.length > 0) {
+            const ws = xlsx.utils.json_to_sheet(exportData);
+            xlsx.utils.book_append_sheet(workbook, ws, sheetName);
+        } else {
+            const ws = xlsx.utils.json_to_sheet([{ Info: isFullExport ? "Sin items" : "Sin discrepancias" }]);
+            xlsx.utils.book_append_sheet(workbook, ws, sheetName);
+        }
 
-        res.setHeader('Content-Disposition', `attachment; filename="Reporte_${countName}.xlsx"`);
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = isFullExport ? `Reporte_Completo_${countName}.xlsx` : `Reporte_Diferencias_${countName}.xlsx`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.send(buf);
 
