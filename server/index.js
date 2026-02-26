@@ -2701,7 +2701,8 @@ app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.me
             }
         });
 
-        const orderNumber = `STOCK-${new Date().toISOString().split('T')[0]}-${Date.now().toString().slice(-4)}`;
+        const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+        const orderNumber = `STOCK-${new Date().toISOString().split('T')[0]}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
 
         // 1. Upsert Products (Ensure they exist in DB)
         // Extract unique products
