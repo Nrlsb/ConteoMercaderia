@@ -1373,14 +1373,13 @@ app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;
     try {
         // 1. Try exact match first
-        const { data, error } = await supabase
+        const { data: matches, error } = await supabase
             .from('products')
             .select('*')
-            .or(`code.eq.${barcode},barcode.eq.${barcode}`)
-            .maybeSingle(); // Changed single() to maybeSingle() to handle null without throwing immediately
+            .or(`code.eq.${barcode},barcode.eq.${barcode}`);
 
-        if (data) {
-            return res.json(data);
+        if (matches && matches.length > 0) {
+            return res.json(matches);
         }
 
         // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)

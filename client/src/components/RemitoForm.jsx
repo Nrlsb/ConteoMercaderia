@@ -37,11 +37,8 @@ const RemitoForm = () => {
     const [branches, setBranches] = useState([]);
     const [selectedBranch, setSelectedBranch] = useState('');
 
-    // Use ref to access current selectedCount in interval without triggering re-renders
-    const selectedCountRef = React.useRef(selectedCount);
-    useEffect(() => {
-        selectedCountRef.current = selectedCount;
-    }, [selectedCount]);
+    const [duplicateProducts, setDuplicateProducts] = useState([]);
+    const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
 
     // Poll for active general counts
     useEffect(() => {
@@ -685,25 +682,37 @@ const RemitoForm = () => {
         const currentExpectedItems = expectedItemsRef.current;
 
         // 1. Resolve Product Details (from Expected or API)
-        let resolvedProduct = null;
+        let resolvedProducts = [];
         let expectedQty = null;
 
         // Check in expected items first
         if (currentExpectedItems) {
             // Try to find by barcode OR code
-            const expectedItem = currentExpectedItems.find(item => item.barcode === inputCode || item.code === inputCode);
+            const matchedExpectedItems = currentExpectedItems.filter(item => item.barcode === inputCode || item.code === inputCode);
 
-            if (!expectedItem) {
+            if (matchedExpectedItems.length === 0) {
                 // STRICT MODE: Block unexpected items
                 triggerModal('Error', 'Este producto no pertenece al pedido cargado.', 'error');
                 return;
-            } else {
-                resolvedProduct = {
+            } else if (matchedExpectedItems.length === 1) {
+                const expectedItem = matchedExpectedItems[0];
+                resolvedProducts = [{
                     code: expectedItem.code,
                     name: expectedItem.description,
-                    barcode: expectedItem.barcode
-                };
+                    description: expectedItem.description,
+                    barcode: expectedItem.barcode,
+                    brand: expectedItem.brand
+                }];
                 expectedQty = expectedItem.quantity;
+            } else {
+                // Multiple local matches
+                resolvedProducts = matchedExpectedItems.map(ei => ({
+                    code: ei.code,
+                    name: ei.description,
+                    description: ei.description,
+                    barcode: ei.barcode,
+                    brand: ei.brand
+                }));
             }
         }
 
@@ -721,24 +730,55 @@ const RemitoForm = () => {
             });
         };
 
-        if (resolvedProduct) {
-            openFichajeModal(resolvedProduct, expectedQty);
+        if (resolvedProducts.length === 1) {
+            openFichajeModal(resolvedProducts[0], expectedQty);
+        } else if (resolvedProducts.length > 1) {
+            setDuplicateProducts(resolvedProducts);
+            setIsDuplicateModalOpen(true);
         } else {
             // Not in expected list (or no expected list). Fetch from API.
             setIsProcessingScan(true);
             api.get(`/api/products/${inputCode}`)
                 .then(response => {
-                    const productData = response.data;
-                    const product = {
-                        code: productData.code || inputCode,
-                        name: productData.description || 'Producto Desconocido',
-                        barcode: inputCode
-                    };
-                    openFichajeModal(product, null); // No expected qty for unexpected items
+                    const data = response.data;
+
+                    if (Array.isArray(data)) {
+                        if (data.length === 1) {
+                            const productData = data[0];
+                            const product = {
+                                code: productData.code || inputCode,
+                                name: productData.description || 'Producto Desconocido',
+                                description: productData.description,
+                                barcode: inputCode,
+                                brand: productData.brand
+                            };
+                            openFichajeModal(product, null);
+                        } else if (data.length > 1) {
+                            setDuplicateProducts(data.map(pd => ({
+                                code: pd.code || inputCode,
+                                name: pd.description || 'Producto Desconocido',
+                                description: pd.description,
+                                barcode: inputCode,
+                                brand: pd.brand
+                            })));
+                            setIsDuplicateModalOpen(true);
+                        } else {
+                            triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
+                        }
+                    } else if (data) {
+                        // Single object (legacy or unexpected)
+                        const product = {
+                            code: data.code || inputCode,
+                            name: data.description || 'Producto Desconocido',
+                            description: data.description,
+                            barcode: inputCode,
+                            brand: data.brand
+                        };
+                        openFichajeModal(product, null);
+                    }
                 })
                 .catch(error => {
                     console.error('Error fetching product:', error);
-                    // Modified: Show warning instead of allowing generic product entry
                     triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
                 })
                 .finally(() => {
@@ -1861,6 +1901,83 @@ const RemitoForm = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal for Duplicate Products Selection */}
+            {isDuplicateModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in shadow-2xl">
+                    <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl transition-all scale-100 border border-gray-100">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 flex items-center justify-between shadow-lg">
+                            <div className="flex items-center gap-4 text-white">
+                                <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner">
+                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black leading-tight uppercase tracking-wide">Detectamos Duplicados</h2>
+                                    <p className="text-amber-50 text-sm font-medium opacity-90">Selecciona el producto correcto para continuar</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* List Area */}
+                        <div className="p-6 max-h-[60vh] overflow-y-auto bg-gray-50/50 space-y-3">
+                            {duplicateProducts.map((product) => (
+                                <button
+                                    key={product.code}
+                                    onClick={() => {
+                                        setIsDuplicateModalOpen(false);
+                                        openFichajeModal(product, getExpectedQty(product.code));
+                                    }}
+                                    className="w-full text-left group transition-all duration-300 transform active:scale-[0.98]"
+                                >
+                                    <div className="bg-white border-2 border-transparent group-hover:border-amber-400 p-5 rounded-2xl shadow-sm group-hover:shadow-md group-hover:bg-amber-50/30 flex items-center gap-5 relative overflow-hidden">
+                                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-200 group-hover:bg-amber-500 transition-colors"></div>
+
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-gray-900 text-lg leading-tight mb-1 group-hover:text-amber-900 uppercase truncate">
+                                                {product.name || product.description}
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2 items-center">
+                                                <span className="inline-flex items-center bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono group-hover:bg-amber-100 group-hover:text-amber-700">
+                                                    INT: {product.code}
+                                                </span>
+                                                {product.barcode && (
+                                                    <span className="inline-flex items-center bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono">
+                                                        BAR: {product.barcode}
+                                                    </span>
+                                                )}
+                                                {product.brand && (
+                                                    <span className="text-xs text-gray-400 font-semibold italic group-hover:text-amber-600/70">
+                                                        • {product.brand}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-gray-100 p-2 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-gray-100 bg-white flex justify-end px-6 py-4">
+                            <button
+                                onClick={() => setIsDuplicateModalOpen(false)}
+                                className="px-5 py-2.5 text-gray-500 font-bold hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all active:scale-95"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
