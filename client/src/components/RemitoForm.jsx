@@ -264,6 +264,7 @@ const RemitoForm = () => {
     const [xmlSelectedBranch, setXmlSelectedBranch] = useState('');
 
     const [showConfirmCreate, setShowConfirmCreate] = useState(false);
+    const [isCargarConteoCollapsed, setIsCargarConteoCollapsed] = useState(false);
 
     // Clarification State
     const [showClarificationModal, setShowClarificationModal] = useState(false);
@@ -1337,275 +1338,295 @@ const RemitoForm = () => {
 
                 {/* Pre-Remito Section - Only Visible if countMode is 'pre_remito' */}
                 {countMode === 'pre_remito' && (
-                    <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                            <svg className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                            <h3 className="text-lg font-semibold text-brand-dark">Cargar Conteo</h3>
+                    <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm transition-all duration-300">
+                        <div
+                            className="flex items-center justify-between cursor-pointer group"
+                            onClick={() => setIsCargarConteoCollapsed(!isCargarConteoCollapsed)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <svg className="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                <h3 className="text-lg font-semibold text-brand-dark">Cargar Conteo</h3>
+                            </div>
+                            <div className="flex items-center gap-2 text-brand-gray group-hover:text-brand-blue transition-colors">
+                                <span className="text-xs font-medium uppercase tracking-wider">{isCargarConteoCollapsed ? 'Expandir' : 'Contraer'}</span>
+                                <svg
+                                    className={`w-5 h-5 transform transition-transform duration-300 ${isCargarConteoCollapsed ? '' : 'rotate-180'}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-6">
-                            {activeCounts.length > 0 && (
-                                <div>
-                                    <label className="block text-sm font-medium text-brand-gray mb-2">Conteos en Curso ({activeCounts.length})</label>
-                                    <div className="space-y-3">
-                                        {activeCounts.map(count => (
-                                            <div key={count.id} className="flex items-center p-3 rounded-lg border border-blue-200 bg-blue-50 shadow-sm">
-                                                <div className="flex-1 flex justify-between items-center">
-                                                    <div>
-                                                        <div className="text-sm font-bold text-blue-900">
-                                                            Conteo Activo: {count.name.split(',').map(n => n.trim()).map(num => {
-                                                                const pre = preRemitoList.find(p => p.order_number === num);
-                                                                if (pre) {
-                                                                    if (pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
-                                                                        return `Stock Inicial - ${pre.id_inventory}`;
-                                                                    } else if (pre.numero_pv) {
-                                                                        return `PV: ${pre.numero_pv}`;
-                                                                    }
-                                                                }
-                                                                return num;
-                                                            }).join(', ')}
-                                                        </div>
-                                                        <div className="text-xs text-blue-700 flex gap-2 mt-0.5">
-                                                            <span>{count.sucursal_name || 'Sin Sucursal'}</span>
-                                                            <span>•</span>
-                                                            <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                        {!isCargarConteoCollapsed && (
+                            <div className="mt-6 animate-fadeIn">
+                                <div className="grid grid-cols-1 gap-6">
+                                    {activeCounts.length > 0 && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-brand-gray mb-2">Conteos en Curso ({activeCounts.length})</label>
+                                            <div className="space-y-3">
+                                                {activeCounts.map(count => (
+                                                    <div key={count.id} className="flex items-center p-3 rounded-lg border border-blue-200 bg-blue-50 shadow-sm">
+                                                        <div className="flex-1 flex justify-between items-center">
+                                                            <div>
+                                                                <div className="text-sm font-bold text-blue-900">
+                                                                    Conteo Activo: {count.name.split(',').map(n => n.trim()).map(num => {
+                                                                        const pre = preRemitoList.find(p => p.order_number === num);
+                                                                        if (pre) {
+                                                                            if (pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
+                                                                                return `Stock Inicial - ${pre.id_inventory}`;
+                                                                            } else if (pre.numero_pv) {
+                                                                                return `PV: ${pre.numero_pv}`;
+                                                                            }
+                                                                        }
+                                                                        return num;
+                                                                    }).join(', ')}
+                                                                </div>
+                                                                <div className="text-xs text-blue-700 flex gap-2 mt-0.5">
+                                                                    <span>{count.sucursal_name || 'Sin Sucursal'}</span>
+                                                                    <span>•</span>
+                                                                    <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    const orderNumbers = count.name.split(',').map(n => n.trim());
+                                                                    handleResumeActiveCount(count, orderNumbers);
+                                                                }}
+                                                                className="text-sm bg-brand-blue hover:bg-blue-800 text-white px-4 py-2 rounded-lg shadow whitespace-nowrap font-medium transition"
+                                                            >
+                                                                Continuar
+                                                            </button>
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            const orderNumbers = count.name.split(',').map(n => n.trim());
-                                                            handleResumeActiveCount(count, orderNumbers);
-                                                        }}
-                                                        className="text-sm bg-brand-blue hover:bg-blue-800 text-white px-4 py-2 rounded-lg shadow whitespace-nowrap font-medium transition"
-                                                    >
-                                                        Continuar
-                                                    </button>
-                                                </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
-                                <div className="space-y-3">
-                                    <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white space-y-1 custom-scrollbar">
-                                        {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
-                                            preRemitoList.map((pre) => {
-                                                const isSelected = selectedPreRemitos.includes(pre.order_number);
-                                                const activeCountMatched = activeCounts.find(c => c.name && c.name.includes(pre.order_number));
-                                                const isActiveCount = !!activeCountMatched;
-
-                                                return (
-                                                    <label
-                                                        key={pre.id}
-                                                        className={`flex items-center p-3 rounded-lg border transition ${isActiveCount
-                                                            ? 'bg-gray-50 border-gray-200'
-                                                            : isSelected
-                                                                ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue cursor-pointer hover:bg-blue-50'
-                                                                : 'border-gray-100 bg-gray-50/30 cursor-pointer hover:bg-blue-50'
-                                                            }`}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            disabled={isActiveCount}
-                                                            onChange={() => {
-                                                                if (isActiveCount) return;
-                                                                if (isSelected) {
-                                                                    setSelectedPreRemitos(selectedPreRemitos.filter(num => num !== pre.order_number));
-                                                                } else {
-                                                                    setSelectedPreRemitos([...selectedPreRemitos, pre.order_number]);
-                                                                }
-                                                            }}
-                                                            className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue disabled:opacity-50"
-                                                        />
-                                                        <div className="ml-3 flex-1 flex justify-between items-center">
-                                                            <div>
-                                                                <div className="text-sm font-bold text-gray-800">
-                                                                    {
-                                                                        pre.order_number.startsWith('STOCK-')
-                                                                            ? (pre.id_inventory ? `Stock Inicial - ${pre.id_inventory} (${new Date(pre.created_at).toLocaleDateString()})` : `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`)
-                                                                            : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
-                                                                    }
-                                                                </div>
-                                                                <div className="text-xs text-brand-gray flex gap-2 mt-0.5">
-                                                                    <span>{pre.sucursal || 'Sin Sucursal'}</span>
-                                                                    <span>•</span>
-                                                                    <span>{new Date(pre.created_at).toLocaleDateString()}</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center">
-                                                                {isActiveCount && (
-                                                                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
-                                                                        En Curso
-                                                                    </span>
-                                                                )}
-                                                                {(user?.role === 'admin' || user?.role === 'superadmin') && !isActiveCount && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.preventDefault();
-                                                                            e.stopPropagation();
-                                                                            handleDeletePreRemito(pre.id, pre.order_number);
-                                                                        }}
-                                                                        className="ml-2 text-gray-400 hover:text-red-500 transition p-1.5 rounded-md hover:bg-red-50 focus:outline-none"
-                                                                        title="Eliminar Pedido"
-                                                                    >
-                                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </label>
-                                                );
-                                            })
-                                        ) : (
-                                            <div className="p-4 text-center text-gray-500 text-sm italic">
-                                                No hay pedidos pendientes disponibles
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <button
-                                        onClick={handleLoadPreRemito}
-                                        disabled={selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'}
-                                        className={`h-12 w-full rounded-lg transition font-medium shadow-sm flex items-center justify-center ${selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : 'bg-brand-blue text-white hover:bg-blue-800'
-                                            }`}
-                                    >
-                                        {preRemitoStatus === 'loading' ? (
-                                            <>
-                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                Cargando...
-                                            </>
-                                        ) : (
-                                            `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Pedidos` : 'Pedidos'}`
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="border-t border-gray-200 pt-6 mt-2">
-                                <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
-
-                                {/* Branch Selector for XML Upload */}
-                                <div className="mb-4">
-                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
-                                    <select
-                                        value={xmlSelectedBranch}
-                                        onChange={(e) => setXmlSelectedBranch(e.target.value)}
-                                        className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
-                                    >
-                                        <option value="">Seleccionar Sucursal (Opcional)</option>
-                                        <option value="Global">Deposito</option>
-                                        {branches.filter(b => b.name !== 'Deposito').map((b) => (
-                                            <option key={b.id} value={b.name}>{b.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
-                                        <input
-                                            type="file"
-                                            accept=".xml, .xlsx, .xls"
-                                            multiple
-                                            className="hidden"
-                                            onChange={handleXmlUpload}
-                                            disabled={isLoadingXml}
-                                        />
-                                        {isLoadingXml ? (
-                                            <div className="flex items-center text-gray-500">
-                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                Procesando XML...
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center text-green-700">
-                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                                <span className="font-medium text-sm">Subir DocConteo.xml</span>
-                                            </div>
-                                        )}
-                                    </label>
-                                </div>
-                                <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
-                            </div>
-                        </div>
-
-                        {preRemitoStatus === 'found' && (
-                            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
-                                <div className="flex items-center mb-2">
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                    <span className="font-bold text-lg">Pedidos cargados con éxito</span>
-                                    <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items consolidados</span>
-                                </div>
-                                {/* Show summary of IDs if multiple */}
-                                {selectedPreRemitos.length > 1 && (
-                                    <div className="ml-7 text-xs text-green-700 mt-1">
-                                        Consolidando: {selectedPreRemitos.map(num => {
-                                            const pre = preRemitoList.find(p => p.order_number === num);
-                                            if (pre && pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
-                                                return pre.id_inventory;
-                                            }
-                                            return `#${num.slice(-6)}`;
-                                        }).join(', ')}
-                                    </div>
-                                )}
-
-                                <div className="mt-4 flex justify-end">
-                                    {!selectedCount ? (
-                                        <button
-                                            onClick={async () => {
-                                                if (!remitoNumber) return;
-                                                try {
-                                                    // Determine the best sucursal_id to use if the user is an admin without one
-                                                    // We can try to look up the sucursal_id from the first selected pre-remito's 'sucursal' string
-                                                    let countSucursalId = user?.sucursal_id || null;
-
-                                                    if (!countSucursalId && selectedPreRemitos.length > 0) {
-                                                        const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
-                                                        if (firstPre && firstPre.sucursal) {
-                                                            const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
-                                                            if (matchedBranch) {
-                                                                countSucursalId = matchedBranch.id;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // Create General Count with the Order ID(s) as name
-                                                    const res = await api.post('/api/general-counts', {
-                                                        name: remitoNumber,
-                                                        sucursal_id: countSucursalId
-                                                    });
-
-                                                    // Don't switch mode, just set the selected count to enable scanning
-                                                    setSelectedCount(res.data);
-                                                    triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
-
-                                                    // We stay in 'pre_remito' mode, so validation against expectedItems continues.
-                                                    // The scan engine will now sync to the backend because selectedCount is set.
-
-                                                } catch (error) {
-                                                    console.error('Error creating count from pre-remito:', error);
-                                                    triggerModal('Error', error.response?.data?.message || 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
-                                                }
-                                            }}
-                                            className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
-                                        >
-                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                            Iniciar Conteo
-                                        </button>
-                                    ) : (
-                                        <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold shadow-sm flex items-center border border-blue-200">
-                                            <svg className="w-5 h-5 mr-2 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                            Conteo en Curso
                                         </div>
                                     )}
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
+                                        <div className="space-y-3">
+                                            <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white space-y-1 custom-scrollbar">
+                                                {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
+                                                    preRemitoList.map((pre) => {
+                                                        const isSelected = selectedPreRemitos.includes(pre.order_number);
+                                                        const activeCountMatched = activeCounts.find(c => c.name && c.name.includes(pre.order_number));
+                                                        const isActiveCount = !!activeCountMatched;
+
+                                                        return (
+                                                            <label
+                                                                key={pre.id}
+                                                                className={`flex items-center p-3 rounded-lg border transition ${isActiveCount
+                                                                    ? 'bg-gray-50 border-gray-200'
+                                                                    : isSelected
+                                                                        ? 'border-brand-blue bg-blue-50/50 ring-1 ring-brand-blue cursor-pointer hover:bg-blue-50'
+                                                                        : 'border-gray-100 bg-gray-50/30 cursor-pointer hover:bg-blue-50'
+                                                                    }`}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    disabled={isActiveCount}
+                                                                    onChange={() => {
+                                                                        if (isActiveCount) return;
+                                                                        if (isSelected) {
+                                                                            setSelectedPreRemitos(selectedPreRemitos.filter(num => num !== pre.order_number));
+                                                                        } else {
+                                                                            setSelectedPreRemitos([...selectedPreRemitos, pre.order_number]);
+                                                                        }
+                                                                    }}
+                                                                    className="w-5 h-5 text-brand-blue border-gray-300 rounded focus:ring-brand-blue disabled:opacity-50"
+                                                                />
+                                                                <div className="ml-3 flex-1 flex justify-between items-center">
+                                                                    <div>
+                                                                        <div className="text-sm font-bold text-gray-800">
+                                                                            {
+                                                                                pre.order_number.startsWith('STOCK-')
+                                                                                    ? (pre.id_inventory ? `Stock Inicial - ${pre.id_inventory} (${new Date(pre.created_at).toLocaleDateString()})` : `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`)
+                                                                                    : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
+                                                                            }
+                                                                        </div>
+                                                                        <div className="text-xs text-brand-gray flex gap-2 mt-0.5">
+                                                                            <span>{pre.sucursal || 'Sin Sucursal'}</span>
+                                                                            <span>•</span>
+                                                                            <span>{new Date(pre.created_at).toLocaleDateString()}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center">
+                                                                        {isActiveCount && (
+                                                                            <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
+                                                                                En Curso
+                                                                            </span>
+                                                                        )}
+                                                                        {(user?.role === 'admin' || user?.role === 'superadmin') && !isActiveCount && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    handleDeletePreRemito(pre.id, pre.order_number);
+                                                                                }}
+                                                                                className="ml-2 text-gray-400 hover:text-red-500 transition p-1.5 rounded-md hover:bg-red-50 focus:outline-none"
+                                                                                title="Eliminar Pedido"
+                                                                            >
+                                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </label>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <div className="p-4 text-center text-gray-500 text-sm italic">
+                                                        No hay pedidos pendientes disponibles
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                onClick={handleLoadPreRemito}
+                                                disabled={selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'}
+                                                className={`h-12 w-full rounded-lg transition font-medium shadow-sm flex items-center justify-center ${selectedPreRemitos.length === 0 || preRemitoStatus === 'loading'
+                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-brand-blue text-white hover:bg-blue-800'
+                                                    }`}
+                                            >
+                                                {preRemitoStatus === 'loading' ? (
+                                                    <>
+                                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                        Cargando...
+                                                    </>
+                                                ) : (
+                                                    `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Pedidos` : 'Pedidos'}`
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-gray-200 pt-6 mt-2">
+                                        <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
+
+                                        {/* Branch Selector for XML Upload */}
+                                        <div className="mb-4">
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
+                                            <select
+                                                value={xmlSelectedBranch}
+                                                onChange={(e) => setXmlSelectedBranch(e.target.value)}
+                                                className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
+                                            >
+                                                <option value="">Seleccionar Sucursal (Opcional)</option>
+                                                <option value="Global">Deposito</option>
+                                                {branches.filter(b => b.name !== 'Deposito').map((b) => (
+                                                    <option key={b.id} value={b.name}>{b.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
+                                                <input
+                                                    type="file"
+                                                    accept=".xml, .xlsx, .xls"
+                                                    multiple
+                                                    className="hidden"
+                                                    onChange={handleXmlUpload}
+                                                    disabled={isLoadingXml}
+                                                />
+                                                {isLoadingXml ? (
+                                                    <div className="flex items-center text-gray-500">
+                                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                        Procesando XML...
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center text-green-700">
+                                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                        <span className="font-medium text-sm">Subir DocConteo.xml</span>
+                                                    </div>
+                                                )}
+                                            </label>
+                                        </div>
+                                        <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
+                                    </div>
                                 </div>
+
+                                {preRemitoStatus === 'found' && (
+                                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+                                        <div className="flex items-center mb-2">
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                            <span className="font-bold text-lg">Pedidos cargados con éxito</span>
+                                            <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items consolidados</span>
+                                        </div>
+                                        {/* Show summary of IDs if multiple */}
+                                        {selectedPreRemitos.length > 1 && (
+                                            <div className="ml-7 text-xs text-green-700 mt-1">
+                                                Consolidando: {selectedPreRemitos.map(num => {
+                                                    const pre = preRemitoList.find(p => p.order_number === num);
+                                                    if (pre && pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
+                                                        return pre.id_inventory;
+                                                    }
+                                                    return `#${num.slice(-6)}`;
+                                                }).join(', ')}
+                                            </div>
+                                        )}
+
+                                        <div className="mt-4 flex justify-end">
+                                            {!selectedCount ? (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!remitoNumber) return;
+                                                        try {
+                                                            // Determine the best sucursal_id to use if the user is an admin without one
+                                                            // We can try to look up the sucursal_id from the first selected pre-remito's 'sucursal' string
+                                                            let countSucursalId = user?.sucursal_id || null;
+
+                                                            if (!countSucursalId && selectedPreRemitos.length > 0) {
+                                                                const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
+                                                                if (firstPre && firstPre.sucursal) {
+                                                                    const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
+                                                                    if (matchedBranch) {
+                                                                        countSucursalId = matchedBranch.id;
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            // Create General Count with the Order ID(s) as name
+                                                            const res = await api.post('/api/general-counts', {
+                                                                name: remitoNumber,
+                                                                sucursal_id: countSucursalId
+                                                            });
+
+                                                            // Don't switch mode, just set the selected count to enable scanning
+                                                            setSelectedCount(res.data);
+                                                            triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
+
+                                                            // We stay in 'pre_remito' mode, so validation against expectedItems continues.
+                                                            // The scan engine will now sync to the backend because selectedCount is set.
+
+                                                        } catch (error) {
+                                                            console.error('Error creating count from pre-remito:', error);
+                                                            triggerModal('Error', error.response?.data?.message || 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
+                                                        }
+                                                    }}
+                                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
+                                                >
+                                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    Iniciar Conteo
+                                                </button>
+                                            ) : (
+                                                <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold shadow-sm flex items-center border border-blue-200">
+                                                    <svg className="w-5 h-5 mr-2 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                                    Conteo en Curso
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1840,7 +1861,7 @@ const RemitoForm = () => {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 
