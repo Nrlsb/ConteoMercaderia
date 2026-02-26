@@ -60,10 +60,19 @@ const RemitoForm = () => {
                             // Reset if no active count for my branch found
                             setSelectedCount(null);
                         }
-                    } else {
                         // Admin logic: keep selection if valid
+                        const savedSelectedId = localStorage.getItem('selectedCountId');
                         const currentRef = selectedCountRef.current;
-                        if (currentRef) {
+
+                        if (savedSelectedId) {
+                            const saved = counts.find(c => String(c.id) === String(savedSelectedId));
+                            if (saved) {
+                                setSelectedCount(saved);
+                            } else {
+                                // If not found in active counts, clear from storage
+                                localStorage.removeItem('selectedCountId');
+                            }
+                        } else if (currentRef) {
                             const current = counts.find(c => c.id === currentRef.id);
                             if (current) {
                                 setSelectedCount(current);
@@ -86,15 +95,17 @@ const RemitoForm = () => {
         return () => clearInterval(interval);
     }, [countMode, user]);
 
-    // Sync RemitoNumber with SelectedCount
     useEffect(() => {
         if (countMode === 'products') {
             if (selectedCount) {
                 setRemitoNumber(selectedCount.id);
                 setExpectedItems(null);
                 setPreRemitoNumber('');
+                localStorage.setItem('selectedCountId', selectedCount.id);
             } else {
                 setRemitoNumber('');
+                // Only clear if we are in products mode and no count is selected
+                localStorage.removeItem('selectedCountId');
             }
         }
     }, [selectedCount, countMode]);
@@ -1039,6 +1050,11 @@ const RemitoForm = () => {
 
     const handleSelectCount = (count) => {
         setSelectedCount(count);
+        if (count) {
+            localStorage.setItem('selectedCountId', count.id);
+        } else {
+            localStorage.removeItem('selectedCountId');
+        }
         setItems([]); // Clear local items to prepare for restore
     };
 
@@ -1087,6 +1103,7 @@ const RemitoForm = () => {
             // Remove from active list
             setActiveCounts(prev => prev.filter(c => c.id !== selectedCount.id));
             setSelectedCount(null);
+            localStorage.removeItem('selectedCountId');
             setItems([]);
             setRemitoNumber('');
             triggerModal('Éxito', 'Conteo finalizado. Puede consultar el reporte en el Historial.', 'success');
