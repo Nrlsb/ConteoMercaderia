@@ -195,7 +195,7 @@ const ReceiptDetailsPage = () => {
             try {
                 setProcessing(true);
                 const response = await api.get(`/api/products/${code}`);
-                const product = response.data;
+                const product = Array.isArray(response.data) ? response.data[0] : response.data;
                 openModal({
                     code: product.code,
                     description: product.description,

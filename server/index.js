@@ -1379,7 +1379,7 @@ app.get('/api/products/:barcode', verifyToken, async (req, res) => {
             .or(`code.eq.${barcode},barcode.eq.${barcode}`);
 
         if (matches && matches.length > 0) {
-            return res.json(matches);
+            return res.json(matches[0]);
         }
 
         // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)
