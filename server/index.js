@@ -3112,6 +3112,15 @@ app.put('/api/general-counts/:id/close', verifyToken, verifyAdmin, async (req, r
 
         if (updateError) throw updateError;
 
+        // Update all linked pre-remitos to processed so they disappear from pending list
+        const linkedOrders = (currentCount.name || '').split(',').map(s => s.trim());
+        if (linkedOrders.length > 0) {
+            await supabase
+                .from('pre_remitos')
+                .update({ status: 'processed' })
+                .in('order_number', linkedOrders);
+        }
+
         res.json({ count: updatedCount, report });
     } catch (error) {
         console.error('Error closing count:', error);

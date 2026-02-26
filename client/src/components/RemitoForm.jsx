@@ -421,6 +421,27 @@ const RemitoForm = () => {
         }
     };
 
+    const handleDeletePreRemito = async (id, orderNumber) => {
+        if (!window.confirm(`¿Está seguro que desea eliminar permanentemente el pedido ${orderNumber}?`)) return;
+
+        try {
+            await api.delete(`/api/pre-remitos/${id}`);
+            triggerModal('Éxito', 'Pedido eliminado correctamente.', 'success');
+
+            // Remove from selected list if it's there
+            setSelectedPreRemitos(prev => prev.filter(num => num !== orderNumber));
+
+            // Refresh the list
+            const response = await api.get('/api/pre-remitos');
+            if (Array.isArray(response.data)) {
+                setPreRemitoList(response.data);
+            }
+        } catch (error) {
+            console.error('Error deleting pre-remito:', error);
+            triggerModal('Error', 'No se pudo eliminar el pedido. Verifique sus permisos.', 'error');
+        }
+    };
+
     const handleXmlUpload = async (e) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
@@ -1389,11 +1410,27 @@ const RemitoForm = () => {
                                                                     <span>{new Date(pre.created_at).toLocaleDateString()}</span>
                                                                 </div>
                                                             </div>
-                                                            {isActiveCount && (
-                                                                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
-                                                                    En Curso
-                                                                </span>
-                                                            )}
+                                                            <div className="flex items-center">
+                                                                {isActiveCount && (
+                                                                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap ml-2">
+                                                                        En Curso
+                                                                    </span>
+                                                                )}
+                                                                {(user?.role === 'admin' || user?.role === 'superadmin') && !isActiveCount && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            handleDeletePreRemito(pre.id, pre.order_number);
+                                                                        }}
+                                                                        className="ml-2 text-gray-400 hover:text-red-500 transition p-1.5 rounded-md hover:bg-red-50 focus:outline-none"
+                                                                        title="Eliminar Pedido"
+                                                                    >
+                                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </label>
                                                 );
