@@ -149,7 +149,8 @@ const UsersManage = () => {
         { id: 'tab_importar', name: 'Importar' },
         { id: 'tab_configuracion', name: 'Configuración' },
         { id: 'tab_ingresos', name: 'Ingresos' },
-        { id: 'tab_control_codigos', name: 'Control Códigos' }
+        { id: 'tab_control_codigos', name: 'Control Códigos' },
+        { id: 'tab_egresos', name: 'Egresos' }
     ];
 
     if (loading) return <div className="p-4 text-center">Cargando usuarios...</div>;
