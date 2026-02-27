@@ -95,7 +95,10 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
 
     if (!isOpen || !product) return null;
 
-
+    // Excess validation
+    const qty = parseInt(quantity, 10) || 0;
+    const wouldExceed = expectedQuantity > 0 && (existingQuantity + qty) > expectedQuantity;
+    const excessAmount = wouldExceed ? (existingQuantity + qty) - expectedQuantity : 0;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -194,11 +197,29 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                             value={quantity}
                             disabled={isSubmitting}
                             onChange={(e) => setQuantity(e.target.value)}
-                            className="w-full h-14 px-4 text-2xl font-bold text-center border-2 border-brand-blue rounded-lg focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition disabled:opacity-50"
+                            className={`w-full h-14 px-4 text-2xl font-bold text-center border-2 rounded-lg focus:ring-4 outline-none transition disabled:opacity-50 ${wouldExceed ? 'border-red-500 focus:ring-red-200 focus:border-red-500' : 'border-brand-blue focus:ring-brand-blue/20 focus:border-brand-blue'}`}
                             placeholder="0"
                             autoComplete="off"
                         />
                     </div>
+
+                    {/* Excess Warning */}
+                    {wouldExceed && (
+                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                            <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                            <div>
+                                <p className="text-sm font-bold text-red-700">¡Cantidad excedida!</p>
+                                <p className="text-xs text-red-600 mt-0.5">
+                                    Esperado: {expectedQuantity} | Ya controlado: {existingQuantity} | Intentando agregar: {qty}
+                                </p>
+                                <p className="text-xs text-red-800 font-bold mt-1">
+                                    Excedido por {excessAmount} {excessAmount === 1 ? 'unidad' : 'unidades'}
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
 
                 </form>
@@ -214,11 +235,11 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                         Cancelar
                     </button>
                     <button
-                        disabled={!quantity || parseInt(quantity, 10) < 1 || isSubmitting}
+                        disabled={!quantity || parseInt(quantity, 10) < 1 || isSubmitting || wouldExceed}
                         type="submit"
                         form="fichaje-form"
                         className={`px-6 py-3 font-bold rounded-lg shadow-md transition transform active:scale-95 flex items-center
-                            ${(!quantity || parseInt(quantity, 10) < 1 || isSubmitting)
+                            ${(!quantity || parseInt(quantity, 10) < 1 || isSubmitting || wouldExceed)
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
                                 : 'bg-brand-blue text-white hover:bg-blue-700 hover:shadow-lg'
                             }

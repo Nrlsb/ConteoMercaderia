@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
@@ -11,6 +11,10 @@ const EgresosList = () => {
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
     const fileInputRef = useRef(null);
+
+    // Access control: only Deposito branch, admin, superadmin
+    const canAccessEgresos = user?.role === 'superadmin' || user?.role === 'admin' || user?.sucursal_name === 'Deposito';
+    const canUploadPdf = user?.role !== 'user';
 
     useEffect(() => {
         fetchEgresos();
@@ -82,44 +86,47 @@ const EgresosList = () => {
     };
 
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
+    if (!canAccessEgresos) return <Navigate to="/" replace />;
 
     return (
         <div className="container mx-auto p-4 max-w-lg md:max-w-4xl">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Egreso de Mercadería</h1>
-                <div className="flex gap-2 w-full sm:w-auto">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        id="pdf-upload"
-                    />
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {uploading ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                {uploadProgress}
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                </svg>
-                                Cargar PDF
-                            </>
-                        )}
-                    </button>
-                </div>
+                {canUploadPdf && (
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".pdf"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            id="pdf-upload"
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {uploading ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    {uploadProgress}
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                    </svg>
+                                    Cargar PDF
+                                </>
+                            )}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Upload area visual indicator when no egresos exist */}
-            {egresos.length === 0 && !uploading && (
+            {canUploadPdf && egresos.length === 0 && !uploading && (
                 <div
                     onClick={() => fileInputRef.current?.click()}
                     className="mb-6 p-12 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:border-brand-blue hover:bg-blue-50/30 transition-all cursor-pointer text-center"

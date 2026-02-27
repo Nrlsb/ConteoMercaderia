@@ -4037,12 +4037,12 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, sucursal_id, permissions')
+            .select('id, username, role, sucursal_id, permissions, sucursales(name)')
             .eq('id', req.user.id)
             .single();
 
         if (error) throw error;
-        res.json(user);
+        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined });
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ message: 'Server error' });
@@ -4642,12 +4642,12 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, created_at, sucursal_id, permissions')
+            .select('id, username, role, created_at, sucursal_id, permissions, sucursales(name)')
             .eq('id', req.user.id)
             .single();
 
         if (error) throw error;
-        res.json(user);
+        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined });
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }

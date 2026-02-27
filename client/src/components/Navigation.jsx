@@ -53,7 +53,7 @@ const Navigation = () => {
     const showConfiguracion = canSeeTab('tab_configuracion', isAdminLike);
     const showIngresos = canSeeTab('tab_ingresos', true);
     const showControlCodigos = canSeeTab('tab_control_codigos', true);
-    const showEgresos = canSeeTab('tab_egresos', true);
+    const showEgresos = canSeeTab('tab_egresos', user?.role === 'admin' || user?.role === 'superadmin' || user?.sucursal_name === 'Deposito');
 
     const getRoleName = () => {
         switch (user?.role) {

@@ -585,124 +585,132 @@ const EgresoDetailsPage = () => {
                     </div>
                 ) : (
                     <div className="mb-6">
-                        {/* Desktop Table */}
-                        <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden border border-gray-100">
-                            <table className="min-w-full">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-widest">Producto</th>
-                                        <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Cód. Barras</th>
-                                        <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
-                                        <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Controlado</th>
-                                        <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100">
-                                    {items
-                                        .sort((a, b) => {
-                                            const diffA = a.expected_quantity - a.scanned_quantity;
-                                            const diffB = b.expected_quantity - b.scanned_quantity;
-                                            return diffB - diffA;
-                                        })
-                                        .slice(0, visibleItems)
-                                        .map((item) => {
-                                            const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
-                                            let statusColor = 'bg-gray-100 text-gray-800';
-                                            if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800';
-                                            else if (diff === 0) statusColor = 'bg-green-100 text-green-800';
-                                            else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800';
-                                            else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800';
-
-                                            return (
-                                                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-5 py-4">
-                                                        <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
-                                                        <div className="text-xs text-gray-400 font-medium mt-1">
-                                                            INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-5 py-4 text-center text-sm text-gray-600 font-mono">
-                                                        {item.products?.barcode || '-'}
-                                                    </td>
-                                                    <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
-                                                    <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
-                                                    <td className="px-5 py-4 text-center">
-                                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
-                                                            {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
-                                                        </span>
-                                                    </td>
+                        {/* Filter: only show items that have been scanned */}
+                        {(() => {
+                            const scannedItems = items.filter(item => Number(item.scanned_quantity) > 0);
+                            return (
+                                <>
+                                    {/* Desktop Table */}
+                                    <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden border border-gray-100">
+                                        <table className="min-w-full">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-widest">Producto</th>
+                                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Cód. Barras</th>
+                                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
+                                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Controlado</th>
+                                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Estado</th>
                                                 </tr>
-                                            );
-                                        })}
-                                </tbody>
-                            </table>
-                        </div>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-100">
+                                                {scannedItems
+                                                    .sort((a, b) => {
+                                                        const diffA = a.expected_quantity - a.scanned_quantity;
+                                                        const diffB = b.expected_quantity - b.scanned_quantity;
+                                                        return diffB - diffA;
+                                                    })
+                                                    .slice(0, visibleItems)
+                                                    .map((item) => {
+                                                        const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                                        let statusColor = 'bg-gray-100 text-gray-800';
+                                                        if (item.scanned_quantity === 0) statusColor = 'bg-red-100 text-red-800';
+                                                        else if (diff === 0) statusColor = 'bg-green-100 text-green-800';
+                                                        else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800';
+                                                        else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800';
 
-                        {/* Mobile Cards */}
-                        <div className="md:hidden space-y-3">
-                            {items
-                                .sort((a, b) => {
-                                    const diffA = a.expected_quantity - a.scanned_quantity;
-                                    const diffB = b.expected_quantity - b.scanned_quantity;
-                                    return diffB - diffA;
-                                })
-                                .slice(0, visibleItems)
-                                .map((item) => {
-                                    const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
-                                    let statusBadge = 'bg-gray-100 text-gray-600';
-                                    if (item.scanned_quantity === 0) statusBadge = 'bg-red-50 text-brand-alert';
-                                    else if (diff === 0) statusBadge = 'bg-green-50 text-brand-success';
-                                    else if (diff > 0) statusBadge = 'bg-yellow-50 text-yellow-700';
-                                    else if (diff < 0) statusBadge = 'bg-orange-50 text-orange-700';
+                                                        return (
+                                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                                <td className="px-5 py-4">
+                                                                    <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
+                                                                    <div className="text-xs text-gray-400 font-medium mt-1">
+                                                                        INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-5 py-4 text-center text-sm text-gray-600 font-mono">
+                                                                    {item.products?.barcode || '-'}
+                                                                </td>
+                                                                <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
+                                                                <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
+                                                                <td className="px-5 py-4 text-center">
+                                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
+                                                                        {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                            </tbody>
+                                        </table>
+                                    </div>
 
-                                    return (
-                                        <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
-                                            <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
-                                            <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">
-                                                INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
-                                            </p>
-                                            {item.products?.barcode && (
-                                                <p className="text-[10px] text-blue-500 font-mono mb-3">
-                                                    🔖 {item.products.barcode}
-                                                </p>
-                                            )}
+                                    {/* Mobile Cards */}
+                                    <div className="md:hidden space-y-3">
+                                        {scannedItems
+                                            .sort((a, b) => {
+                                                const diffA = a.expected_quantity - a.scanned_quantity;
+                                                const diffB = b.expected_quantity - b.scanned_quantity;
+                                                return diffB - diffA;
+                                            })
+                                            .slice(0, visibleItems)
+                                            .map((item) => {
+                                                const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                                let statusBadge = 'bg-gray-100 text-gray-600';
+                                                if (item.scanned_quantity === 0) statusBadge = 'bg-red-50 text-brand-alert';
+                                                else if (diff === 0) statusBadge = 'bg-green-50 text-brand-success';
+                                                else if (diff > 0) statusBadge = 'bg-yellow-50 text-yellow-700';
+                                                else if (diff < 0) statusBadge = 'bg-orange-50 text-orange-700';
 
-                                            <div className="flex justify-between items-center border-t border-gray-50 pt-3">
-                                                <div className="flex gap-4">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
-                                                        <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
+                                                return (
+                                                    <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
+                                                        <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
+                                                        <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">
+                                                            INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                                        </p>
+                                                        {item.products?.barcode && (
+                                                            <p className="text-[10px] text-blue-500 font-mono mb-3">
+                                                                🔖 {item.products.barcode}
+                                                            </p>
+                                                        )}
+
+                                                        <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+                                                            <div className="flex gap-4">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
+                                                                    <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Controlado</span>
+                                                                    <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase ${statusBadge}`}>
+                                                                {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-gray-400 uppercase">Controlado</span>
-                                                        <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
-                                                    </div>
-                                                </div>
-                                                <div className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase ${statusBadge}`}>
-                                                    {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
-                                                </div>
-                                            </div>
+                                                );
+                                            })}
+                                    </div>
+
+                                    {scannedItems.length === 0 && (
+                                        <div className="bg-white p-12 text-center rounded-xl border border-dashed border-gray-200 text-gray-400 font-medium">
+                                            No hay productos escaneados aún. Empezá a controlar escaneando productos.
                                         </div>
-                                    );
-                                })}
-                        </div>
+                                    )}
 
-                        {items.length === 0 && (
-                            <div className="bg-white p-12 text-center rounded-xl border border-dashed border-gray-200 text-gray-400 font-medium">
-                                No hay productos cargados aún.
-                            </div>
-                        )}
-
-                        {items.length > visibleItems && (
-                            <div className="mt-4 text-center">
-                                <button
-                                    onClick={() => setVisibleItems(prev => prev + 20)}
-                                    className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 px-8 rounded-xl text-sm transition-colors"
-                                >
-                                    Ver más ({items.length - visibleItems} productos)
-                                </button>
-                            </div>
-                        )}
+                                    {scannedItems.length > visibleItems && (
+                                        <div className="mt-4 text-center">
+                                            <button
+                                                onClick={() => setVisibleItems(prev => prev + 20)}
+                                                className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 px-8 rounded-xl text-sm transition-colors"
+                                            >
+                                                Ver más ({scannedItems.length - visibleItems} productos)
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 )}
 
