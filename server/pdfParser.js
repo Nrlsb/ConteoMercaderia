@@ -7,7 +7,7 @@ const pdf = require('pdf-parse');
  */
 async function parseRemitoPdf(dataBuffer) {
     try {
-        // Custom page render function to skip DUPLICADO/TRIPLICADO pages
+        // Custom page render function to handle columns by preserving X/Y structure
         function render_page(pageData) {
             let render_options = {
                 normalizeWhitespace: false,
@@ -16,20 +16,59 @@ async function parseRemitoPdf(dataBuffer) {
 
             return pageData.getTextContent(render_options)
                 .then(function (textContent) {
-                    let lastY, text = '';
+                    let lines = {};
                     for (let item of textContent.items) {
-                        if (lastY == item.transform[5] || !lastY) {
-                            text += item.str;
-                        }
-                        else {
-                            text += '\n' + item.str;
-                        }
-                        lastY = item.transform[5];
+                        let y = Math.round(item.transform[5]);
+                        let x = Math.round(item.transform[4]);
+                        if (!lines[y]) lines[y] = [];
+                        lines[y].push({ x, str: item.str, width: item.width || 0 });
                     }
 
-                    // Check for DUPLICADO / TRIPLICADO
-                    if (text.includes('DUPLICADO') || text.includes('TRIPLICADO')) {
-                        return ''; // Skip this page
+                    // Sort Y coordinates descending (top to bottom)
+                    let sortedY = Object.keys(lines).sort((a, b) => b - a);
+                    let text = '';
+
+                    // Group Y coordinates that are very close (same line)
+                    let groups = [];
+                    if (sortedY.length > 0) {
+                        let currentGroup = [sortedY[0]];
+                        for (let i = 1; i < sortedY.length; i++) {
+                            if (Math.abs(sortedY[i] - sortedY[i - 1]) < 5) {
+                                currentGroup.push(sortedY[i]);
+                            } else {
+                                groups.push(currentGroup);
+                                currentGroup = [sortedY[i]];
+                            }
+                        }
+                        groups.push(currentGroup);
+                    }
+
+                    for (let group of groups) {
+                        // Merge all items in the same Y group
+                        let groupItems = [];
+                        for (let y of group) {
+                            groupItems = groupItems.concat(lines[y]);
+                        }
+
+                        // Sort items by X coordinate
+                        groupItems.sort((a, b) => a.x - b.x);
+
+                        let lineText = '';
+                        let lastX = 0;
+                        for (let item of groupItems) {
+                            // Add spaces based on X gap to preserve columns
+                            // 5 units roughly = 1 character space
+                            let gap = Math.max(0, Math.floor((item.x - lastX) / 5.5));
+                            lineText += ' '.repeat(gap) + item.str;
+                            lastX = item.x + (item.width || (item.str.length * 5.5));
+                        }
+
+                        // Skip DUPLICADO / TRIPLICADO headers
+                        if (lineText.includes('DUPLICADO') || lineText.includes('TRIPLICADO')) {
+                            return '';
+                        }
+
+                        text += lineText + '\n';
                     }
 
                     return text;
@@ -45,97 +84,129 @@ async function parseRemitoPdf(dataBuffer) {
         const lines = text.split('\n');
         const items = [];
 
-        // Regex to match lines like: "000780LIJA RUBI FLEX DOBLE A N 120/150 F.4,00"
-        // Captures: Code (digits), Description (text), Quantity (number with comma)
-        // UPDATED: Require at least 4 digits for code to avoid matching quantity lines like "2,00..."
-        const itemRegex = /^(\d{4,})\s*(.+?)\s*(\d+,\d{2})$/;
+        // Regex for standard items (with at least 4 digits for code)
+        const itemRegex = /(\d{4,})\s+(.+?)\s+(\d+,\d{2})/g;
 
-        // State variables for multi-line parsing
-        let pendingQuantity = null;
-        let pendingDescription = [];
+        // Regex for multi-line items
+        const quantityRegex = /^(\d+,\d{2});?/g; // Quantities like "1,00"
+        const codeLineRegex = /(.*?)(\d{4,})\s+\/\s+\//g; // Ends with "/ /"
+
+        // Store multiple pending items for multi-column support
+        let pendingItems = [];
 
         for (const line of lines) {
             const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
+            if (!trimmedLine || trimmedLine.length < 3) continue;
 
-            let code, description, quantityStr;
+            // STRATEGY 1: Full item match (potentially multiple per line)
+            // Example: "001234 PRODUCT NAME 10,00"
+            let match;
+            let foundInLine = false;
 
-            // Strategy 1: Check for merged columns where description ends in 3 decimals (e.g. "X 17,400")
-            // and quantity follows immediately (e.g. "1,00") -> "17,4001,00"
-            const mergeMatch = trimmedLine.match(/^(\d+)\s*(.+?)(\d+,\d{3})(\d+,\d{2})$/);
+            // Avoid matching lines that are just numbers or dates
+            if (trimmedLine.match(/^\d+$/) || trimmedLine.includes('/202')) {
+                continue;
+            }
 
-            if (mergeMatch) {
-                code = mergeMatch[1];
-                description = (mergeMatch[2] + mergeMatch[3]).trim();
-                quantityStr = mergeMatch[4];
-                // Reset pending state if we found a full match
-                pendingQuantity = null;
-                pendingDescription = [];
-            } else {
-                // Strategy 2: Standard regex (single line)
-                // We use the stricter regex here
-                const match = trimmedLine.match(itemRegex);
-                if (match) {
-                    code = match[1];
-                    description = match[2].trim();
-                    quantityStr = match[3];
-                    // Reset pending state
-                    pendingQuantity = null;
-                    pendingDescription = [];
-                } else {
-                    // Strategy 3: Multi-line parsing
-                    // Check for Quantity line: "2,00UNUN2,00" or "2,00UN0,00"
-                    // The PDF debug shows lines like: "2,00UNUN2,00"
-                    // We look for the FIRST number which is the quantity (e.g. "2,00UNUN2,00" -> "2,00")
-                    const quantityLineMatch = trimmedLine.match(/^(\d+,\d{2})/);
+            while ((match = itemRegex.exec(line)) !== null) {
+                const code = match[1];
+                const description = match[2].trim();
+                const quantityStr = match[3];
 
-                    if (quantityLineMatch && !pendingQuantity) {
-                        // Potential start of a multi-line item
-                        // We assume a quantity line doesn't look like a code line (which we filtered with itemRegex)
-                        pendingQuantity = quantityLineMatch[1];
-                        pendingDescription = [];
-                        continue;
-                    }
-
-                    // Check for Code line: ends with "/  /" and starts with description + code
-                    // Debug output: "LATEX INTERIOR ALBALATEX MATE BASE P X  8,700001246  /  /"
-                    // OR just code: "001737  /  /"
-                    // Regex to capture Description and Code at the end
-                    const codeLineMatch = trimmedLine.match(/^(.*?)(\d{6})\s+\/\s+\/$/);
-
-                    if (codeLineMatch && pendingQuantity) {
-                        description = [...pendingDescription, codeLineMatch[1].trim()].join(' ');
-                        code = codeLineMatch[2];
-                        quantityStr = pendingQuantity;
-
-                        // Reset pending state
-                        pendingQuantity = null;
-                        pendingDescription = [];
-                    } else if (pendingQuantity) {
-                        // If we have a pending quantity, this might be a description line
-                        pendingDescription.push(trimmedLine);
-                        continue;
-                    }
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity)) {
+                    pushItem(items, code, description, quantity);
+                    foundInLine = true;
                 }
             }
 
-            if (code && quantityStr) {
-                // Replace comma with dot for parsing
-                const quantity = parseFloat(quantityStr.replace(',', '.'));
+            if (foundInLine) {
+                pendingItems = [];
+                continue;
+            }
 
-                if (!isNaN(quantity)) {
-                    // Aggregate items by code
-                    const existingItemIndex = items.findIndex(i => i.code === code);
-                    if (existingItemIndex !== -1) {
-                        items[existingItemIndex].quantity += quantity;
-                    } else {
-                        items.push({
-                            code,
-                            description,
-                            quantity
-                        });
-                    }
+            // STRATEGY 2: Multi-line / Interleaved columns
+
+            // A. Check for codes (e.g. "PRODUCT NAME 00123 / /")
+            // In these PDFs, Code line usually comes BEFORE Quantity line
+            let codeMatch;
+            let codesFoundInLine = [];
+            while ((codeMatch = codeLineRegex.exec(line)) !== null) {
+                const descPart = codeMatch[1].trim();
+                const code = matchCode(codeMatch[2]);
+                if (code) {
+                    codesFoundInLine.push({ code, descPart });
                 }
+            }
+
+            if (codesFoundInLine.length > 0) {
+                // If we found codes, these are the new pending items
+                // We overwrite pendingItems because a code line starts a new set of items
+                pendingItems = codesFoundInLine.map(c => ({
+                    code: c.code,
+                    descriptionParts: c.descPart ? [c.descPart] : [],
+                    quantityStr: null
+                }));
+                continue;
+            }
+
+            // B. Check for quantities (e.g. "1,00 UN UN 2,00")
+            // We only look for quantities if we have pending items waiting for them
+            if (pendingItems.length > 0 && pendingItems.every(i => !i.quantityStr)) {
+                const words = line.split(/\s+/).filter(w => w.length > 0);
+                const quantities = words.filter(w => /^(\d+,\d{2})/.test(w))
+                    .map(w => w.match(/^(\d+,\d{2})/)[1]);
+
+                if (quantities.length > 0) {
+                    // Match quantities to pending items in order
+                    for (let i = 0; i < Math.min(quantities.length, pendingItems.length); i++) {
+                        const qStr = quantities[i];
+                        const quantity = parseFloat(qStr.replace(',', '.'));
+                        if (!isNaN(quantity)) {
+                            pushItem(items, pendingItems[i].code, pendingItems[i].descriptionParts.join(' '), quantity);
+                            pendingItems[i].quantityStr = qStr; // Mark as done
+                        }
+                    }
+                    // If all pending items got their quantity, clear the list
+                    if (pendingItems.every(i => i.quantityStr)) {
+                        pendingItems = [];
+                    }
+                    continue;
+                }
+            }
+
+            // C. Accumulate description parts
+            if (pendingItems.length > 0 && !line.includes(' / /')) {
+                // Heuristic: if a line is short and doesn't have many numbers, it's likely a description part
+                // We add it to the first pending item's description (simplified for common cases)
+                if (trimmedLine.length > 5 && !trimmedLine.match(/^\d+$/)) {
+                    pendingItems[0].descriptionParts.push(trimmedLine);
+                }
+            }
+        }
+
+        // Helper to validate and clean codes
+        function matchCode(code) {
+            if (!code) return null;
+            // Clean common artifacts from PDF extraction
+            const clean = code.replace(/\D/g, '');
+            return clean.length >= 4 ? clean : null;
+        }
+
+        // Helper function to aggregate items
+        function pushItem(targetArray, code, description, quantity) {
+            // Clean description from common PDF patterns
+            let cleanDesc = description
+                .replace(/\/\s*\//g, '')
+                .replace(/\d{6,}/g, '') // Remove long numbers that might be leaked codes
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const existingIndex = targetArray.findIndex(i => i.code === code);
+            if (existingIndex !== -1) {
+                targetArray[existingIndex].quantity += quantity;
+            } else {
+                targetArray.push({ code, description: cleanDesc, quantity });
             }
         }
 
