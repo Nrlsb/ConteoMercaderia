@@ -335,6 +335,13 @@ const RemitoForm = () => {
             try {
                 const res = await api.get('/api/sucursales');
                 setBranches(res.data);
+                // Auto-assign branch for branch_admin users
+                if (user?.role === 'branch_admin' && user?.sucursal_id) {
+                    const myBranch = res.data.find(b => b.id === user.sucursal_id);
+                    if (myBranch) {
+                        setXmlSelectedBranch(myBranch.name);
+                    }
+                }
             } catch (error) {
                 console.error('Error fetching branches:', error);
             }
@@ -454,6 +461,12 @@ const RemitoForm = () => {
     const handleXmlUpload = async (e) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
+
+        if (!xmlSelectedBranch) {
+            triggerModal('Atención', 'Debe seleccionar una sucursal antes de importar el stock.', 'warning');
+            e.target.value = '';
+            return;
+        }
 
         setIsLoadingXml(true);
         let lastOrderNumber = null;
@@ -1575,9 +1588,10 @@ const RemitoForm = () => {
                                             <select
                                                 value={xmlSelectedBranch}
                                                 onChange={(e) => setXmlSelectedBranch(e.target.value)}
-                                                className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm"
+                                                disabled={user?.role === 'branch_admin'}
+                                                className={`w-full h-11 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm ${user?.role === 'branch_admin' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                                             >
-                                                <option value="">Seleccionar Sucursal (Opcional)</option>
+                                                <option value="">Seleccionar Sucursal</option>
                                                 <option value="Global">Deposito</option>
                                                 {branches.filter(b => b.name !== 'Deposito').map((b) => (
                                                     <option key={b.id} value={b.name}>{b.name}</option>
