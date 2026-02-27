@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { toast } from 'sonner';
 
-const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting, receiptId }) => {
+const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting, receiptId, isEgreso = false }) => {
     const [quantity, setQuantity] = useState('');
     const [isEditingBarcode, setIsEditingBarcode] = useState(false);
     const [barcodeInput, setBarcodeInput] = useState('');
@@ -229,14 +229,14 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                             value={quantity}
                             disabled={isSubmitting}
                             onChange={(e) => setQuantity(e.target.value)}
-                            className={`w-full h-14 px-4 text-2xl font-bold text-center border-2 rounded-lg focus:ring-4 outline-none transition disabled:opacity-50 ${wouldExceed ? 'border-red-500 focus:ring-red-200 focus:border-red-500' : 'border-brand-blue focus:ring-brand-blue/20 focus:border-brand-blue'}`}
+                            className={`w-full h-14 px-4 text-2xl font-bold text-center border-2 rounded-lg focus:ring-4 outline-none transition disabled:opacity-50 ${(isEgreso && wouldExceed) ? 'border-red-500 focus:ring-red-200 focus:border-red-500' : 'border-brand-blue focus:ring-brand-blue/20 focus:border-brand-blue'}`}
                             placeholder="0"
                             autoComplete="off"
                         />
                     </div>
 
                     {/* Excess Warning */}
-                    {wouldExceed && (
+                    {isEgreso && wouldExceed && (
                         <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                             <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
@@ -264,11 +264,11 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                         Cancelar
                     </button>
                     <button
-                        disabled={!quantity || parseInt(quantity, 10) < 1 || isSubmitting || wouldExceed}
+                        disabled={!quantity || parseInt(quantity, 10) < 1 || isSubmitting || (isEgreso && wouldExceed)}
                         type="submit"
                         form="fichaje-form"
                         className={`px-6 py-3 font-bold rounded-lg shadow-md transition transform active:scale-95 flex items-center
-                            ${(!quantity || parseInt(quantity, 10) < 1 || isSubmitting || wouldExceed)
+                            ${(!quantity || parseInt(quantity, 10) < 1 || isSubmitting || (isEgreso && wouldExceed))
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
                                 : 'bg-brand-blue text-white hover:bg-blue-700 hover:shadow-lg'
                             }
@@ -283,7 +283,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

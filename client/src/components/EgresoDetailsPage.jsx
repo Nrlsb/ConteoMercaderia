@@ -737,6 +737,7 @@ const EgresoDetailsPage = () => {
                 product={fichajeState.product}
                 existingQuantity={fichajeState.existingQuantity}
                 expectedQuantity={fichajeState.expectedQuantity}
+                isEgreso={true}
             />
         </div>
     );
