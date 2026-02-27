@@ -155,12 +155,26 @@ async function parseRemitoPdf(dataBuffer) {
                 continue;
             }
 
-            // B. Check for quantities (e.g. "1,00 UN UN 2,00")
+            // B. Check for quantities (e.g. "1,00 UN 0,00 2,00 UN 0,00")
             // We only look for quantities if we have pending items waiting for them
             if (pendingItems.length > 0 && pendingItems.every(i => !i.quantityStr)) {
                 const words = line.split(/\s+/).filter(w => w.length > 0);
-                const quantities = words.filter(w => /^(\d+,\d{2})/.test(w))
-                    .map(w => w.match(/^(\d+,\d{2})/)[1]);
+                const quantities = [];
+                const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS'];
+
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    const nextWord = (words[i + 1] || '').toUpperCase();
+
+                    if (/^(\d+,\d{2})/.test(word)) {
+                        const qStr = word.match(/^(\d+,\d{2})/)[1];
+                        // If it's a number followed by a UM (like "1,00 UN") 
+                        // or contains a UM (like "1,00UN"), it's our target "Cantidad" column.
+                        if (commonUMs.some(um => nextWord === um || word.toUpperCase().endsWith(um))) {
+                            quantities.push(qStr);
+                        }
+                    }
+                }
 
                 if (quantities.length > 0) {
                     // Match quantities to pending items in order
