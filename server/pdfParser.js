@@ -56,6 +56,11 @@ async function parseRemitoPdf(dataBuffer) {
                         let lineText = '';
                         let lastX = 0;
                         for (let item of groupItems) {
+                            // Skip items that explicitly contain DUPLICADO/TRIPLICADO early
+                            if (item.str.includes('DUPLICADO') || item.str.includes('TRIPLICADO')) {
+                                return ''; // Complete page skip
+                            }
+
                             // Add spaces based on X gap to preserve columns
                             // 5 units roughly = 1 character space
                             let gap = Math.max(0, Math.floor((item.x - lastX) / 5.5));
@@ -63,9 +68,9 @@ async function parseRemitoPdf(dataBuffer) {
                             lastX = item.x + (item.width || (item.str.length * 5.5));
                         }
 
-                        // Skip DUPLICADO / TRIPLICADO headers
+                        // Skip DUPLICADO / TRIPLICADO markers in line text
                         if (lineText.includes('DUPLICADO') || lineText.includes('TRIPLICADO')) {
-                            return '';
+                            return ''; // Complete page skip
                         }
 
                         text += lineText + '\n';
