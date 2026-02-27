@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Login = () => {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+    const [username, setUsername] = useState(() => localStorage.getItem('savedUsername') || '');
+    const [password, setPassword] = useState(() => localStorage.getItem('savedPassword') || '');
+    const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('rememberMe') === 'true');
     // const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -16,6 +17,15 @@ const Login = () => {
         const result = await login(username, password);
 
         if (result.success) {
+            if (rememberMe) {
+                localStorage.setItem('savedUsername', username);
+                localStorage.setItem('savedPassword', password);
+                localStorage.setItem('rememberMe', 'true');
+            } else {
+                localStorage.removeItem('savedUsername');
+                localStorage.removeItem('savedPassword');
+                localStorage.removeItem('rememberMe');
+            }
             toast.success('Bienvenido!');
             navigate('/');
         } else if (result.sessionActive) {
@@ -95,6 +105,19 @@ const Login = () => {
                                 required
                             />
                         </div>
+                    </div>
+
+                    <div className="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="rememberMe"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="h-4 w-4 text-brand-blue border-gray-300 rounded focus:ring-brand-blue cursor-pointer"
+                        />
+                        <label htmlFor="rememberMe" className="ml-2 block text-sm text-brand-gray cursor-pointer select-none">
+                            Recordar mis datos
+                        </label>
                     </div>
 
                     <button

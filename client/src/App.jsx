@@ -25,10 +25,19 @@ const BarcodeControl = lazy(() => import('./components/BarcodeControl'));
 const EgresosList = lazy(() => import('./components/EgresosList'));
 const EgresoDetailsPage = lazy(() => import('./components/EgresoDetailsPage'));
 
-const ProtectedRoute = ({ children, role }) => {
+const ProtectedRoute = ({ children, role, tabPermission }) => {
   const { isAuthenticated, loading, user } = useAuth();
   if (loading) return <div className="flex justify-center items-center h-screen">Cargando...</div>;
   if (!isAuthenticated) return <Navigate to="/login" />;
+
+  // Tab permission check (only if user has tab permissions assigned)
+  if (tabPermission && user?.role !== 'superadmin') {
+    const userPermissions = user?.permissions || [];
+    const hasTabPermissions = userPermissions.some(p => p.startsWith('tab_'));
+    if (hasTabPermissions && !userPermissions.includes(tabPermission)) {
+      return <Navigate to="/" replace />;
+    }
+  }
 
   if (role === 'admin' && (user?.role === 'superadmin' || user?.role === 'branch_admin')) {
     return children;
@@ -43,6 +52,29 @@ const RoleBasedHome = () => {
   if (user?.role === 'supervisor') {
     return <Navigate to="/list" replace />;
   }
+
+  // Check if user has tab permissions assigned
+  const userPermissions = user?.permissions || [];
+  const hasTabPermissions = userPermissions.some(p => p.startsWith('tab_'));
+
+  // If user has tab permissions but NOT tab_nuevo_conteo, redirect to first allowed tab
+  if (hasTabPermissions && !userPermissions.includes('tab_nuevo_conteo') && user?.role !== 'superadmin') {
+    const tabRouteMap = {
+      'tab_historial': '/list',
+      'tab_importar': '/admin',
+      'tab_configuracion': '/settings',
+      'tab_ingresos': '/receipts',
+      'tab_control_codigos': '/barcode-control',
+      'tab_egresos': '/egresos',
+    };
+    // Find the first allowed tab and redirect
+    for (const perm of userPermissions) {
+      if (tabRouteMap[perm]) {
+        return <Navigate to={tabRouteMap[perm]} replace />;
+      }
+    }
+  }
+
   return <RemitoForm />;
 };
 
@@ -106,12 +138,12 @@ const AppContent = () => {
                   </ProtectedRoute>
                 } />
                 <Route path="/list" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_historial">
                     <RemitoList />
                   </ProtectedRoute>
                 } />
                 <Route path="/remitos/:id" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_historial">
                     <RemitoDetailsPage />
                   </ProtectedRoute>
                 } />
@@ -131,27 +163,27 @@ const AppContent = () => {
                   </ProtectedRoute>
                 } />
                 <Route path="/receipts" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_ingresos">
                     <ReceiptsList />
                   </ProtectedRoute>
                 } />
                 <Route path="/receipts/:id" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_ingresos">
                     <ReceiptDetailsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/barcode-control" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_control_codigos">
                     <BarcodeControl />
                   </ProtectedRoute>
                 } />
                 <Route path="/egresos" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_egresos">
                     <EgresosList />
                   </ProtectedRoute>
                 } />
                 <Route path="/egresos/:id" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute tabPermission="tab_egresos">
                     <EgresoDetailsPage />
                   </ProtectedRoute>
                 } />

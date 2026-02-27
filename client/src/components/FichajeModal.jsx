@@ -8,9 +8,37 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const [barcodeInput, setBarcodeInput] = useState('');
     const [currentBarcode, setCurrentBarcode] = useState('');
     const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     const inputRef = useRef(null);
     const barcodeRef = useRef(null);
+    const overlayRef = useRef(null);
+
+    // Listen to visualViewport to detect keyboard open/close
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const viewport = window.visualViewport;
+        if (!viewport) return;
+
+        const handleResize = () => {
+            // When keyboard opens, visualViewport.height shrinks
+            const heightDiff = window.innerHeight - viewport.height;
+            setKeyboardHeight(heightDiff > 50 ? heightDiff : 0);
+        };
+
+        viewport.addEventListener('resize', handleResize);
+        viewport.addEventListener('scroll', handleResize);
+
+        // Initial check
+        handleResize();
+
+        return () => {
+            viewport.removeEventListener('resize', handleResize);
+            viewport.removeEventListener('scroll', handleResize);
+            setKeyboardHeight(0);
+        };
+    }, [isOpen]);
 
     // Reset quantity when modal opens or product changes
     useEffect(() => {
@@ -101,8 +129,12 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const excessAmount = wouldExceed ? (existingQuantity + qty) - expectedQuantity : 0;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+        <div
+            ref={overlayRef}
+            className={`fixed inset-0 z-50 flex ${keyboardHeight > 0 ? 'items-end' : 'items-center'} justify-center p-4 bg-black/60 backdrop-blur-sm`}
+            style={keyboardHeight > 0 ? { paddingBottom: `${keyboardHeight + 8}px` } : {}}
+        >
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto">
 
                 {/* Header */}
                 <div className="bg-brand-blue/10 px-6 py-4 border-b border-brand-blue/20 flex justify-between items-center">

@@ -1,5 +1,5 @@
 {
-    "version": "1.0.70",
+    "version": "1.0.71",
     "downloadUrl": "/apk/ConteoMercaderia.apk",
-    "releaseNotes": "Corrección de error en escaneo de ingresos y mejoras en la detección de productos."
+    "releaseNotes": "Correccion de errores y creacion de la pestaña de egresos. Ademas en el inicio de sesion se puede guardar los datos de el usuario"
 }
