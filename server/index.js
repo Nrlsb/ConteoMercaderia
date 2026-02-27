@@ -1594,6 +1594,9 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 if (userBranch) {
                     const branchName = userBranch.name.toLowerCase();
                     processedFormatted = processedFormatted.filter(item => {
+                        // Match by sucursal_id (for general counts)
+                        if (item.branch_sucursal_id && item.branch_sucursal_id === req.user.sucursal_id) return true;
+                        // Match by sucursal name (for remitos/PV)
                         if (!item.sucursal || item.sucursal === '-') return false;
                         return item.sucursal.toLowerCase().includes(branchName);
                     });
@@ -1768,6 +1771,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 date: count.created_at,
                 numero_pv: formatted.numero_pv,
                 sucursal: formatted.sucursal !== '-' ? formatted.sucursal : (count.sucursal_name || '-'),
+                branch_sucursal_id: count.sucursal_id || null,
                 id_inventory: linkedOrders.length > 0 ? preRemitoMap[linkedOrders[0]]?.id_inventory : null,
                 count_name: formatted.name,
                 progress: null, // General counts don't have progress bar usually
@@ -1819,6 +1823,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                     date: count.closed_at || count.created_at,
                     numero_pv: formatted.numero_pv,
                     sucursal: formatted.sucursal !== '-' ? formatted.sucursal : (count.sucursal_name || '-'),
+                    branch_sucursal_id: count.sucursal_id || null,
                     id_inventory: null,
                     count_name: formatted.name,
                     is_finalized: true,
@@ -1840,6 +1845,9 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             if (userBranch) {
                 const branchName = userBranch.name.toLowerCase();
                 combined = combined.filter(item => {
+                    // Match by sucursal_id (for general counts)
+                    if (item.branch_sucursal_id && item.branch_sucursal_id === req.user.sucursal_id) return true;
+                    // Match by sucursal name (for remitos/PV)
                     if (!item.sucursal || item.sucursal === '-') return false;
                     return item.sucursal.toLowerCase().includes(branchName);
                 });
