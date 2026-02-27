@@ -1571,7 +1571,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
 
         if (allRelevantIds.length === 0) {
             // If no pending items, just return processed
-            const processedFormatted = remitosData.map(remito => {
+            let processedFormatted = remitosData.map(remito => {
                 const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
                 return {
                     ...remito,
@@ -1582,6 +1582,24 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                     type: 'remito'
                 };
             });
+
+            // Filter by sucursal for branch_admin users
+            if (req.user.role === 'branch_admin' && req.user.sucursal_id) {
+                const { data: userBranch } = await supabase
+                    .from('sucursales')
+                    .select('name')
+                    .eq('id', req.user.sucursal_id)
+                    .single();
+
+                if (userBranch) {
+                    const branchName = userBranch.name.toLowerCase();
+                    processedFormatted = processedFormatted.filter(item => {
+                        if (!item.sucursal || item.sucursal === '-') return false;
+                        return item.sucursal.toLowerCase().includes(branchName);
+                    });
+                }
+            }
+
             return res.json(processedFormatted.sort((a, b) => new Date(b.date) - new Date(a.date)));
         }
 
@@ -1809,7 +1827,24 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             });
 
         // Combined and sorted by date
-        const combined = [...openCountsFormatted, ...closedCountsFormatted, ...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
+        let combined = [...openCountsFormatted, ...closedCountsFormatted, ...pendingFormatted, ...processedFormatted].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // Filter by sucursal for branch_admin users
+        if (req.user.role === 'branch_admin' && req.user.sucursal_id) {
+            const { data: userBranch } = await supabase
+                .from('sucursales')
+                .select('name')
+                .eq('id', req.user.sucursal_id)
+                .single();
+
+            if (userBranch) {
+                const branchName = userBranch.name.toLowerCase();
+                combined = combined.filter(item => {
+                    if (!item.sucursal || item.sucursal === '-') return false;
+                    return item.sucursal.toLowerCase().includes(branchName);
+                });
+            }
+        }
 
         res.json(combined);
     } catch (error) {
