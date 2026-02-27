@@ -49,7 +49,7 @@ const Navigation = () => {
 
     const showNuevoConteo = canSeeTab('tab_nuevo_conteo', user?.role !== 'supervisor');
     const showHistorial = canSeeTab('tab_historial', isAdminLike || user?.role === 'supervisor');
-    const showImportar = canSeeTab('tab_importar', isAdminLike);
+    const showImportar = false; // canSeeTab('tab_importar', isAdminLike);
     const showConfiguracion = canSeeTab('tab_configuracion', isAdminLike);
     const showIngresos = canSeeTab('tab_ingresos', true);
     const showControlCodigos = canSeeTab('tab_control_codigos', true);
