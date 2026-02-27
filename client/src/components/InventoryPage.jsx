@@ -455,7 +455,7 @@ const InventoryPage = () => {
             {isScanning && !fichajeState.isOpen && (
                 <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
                     <div className="relative h-[90%] w-full flex items-center justify-center overflow-hidden">
-                        <Scanner onScan={handleScan} isEnabled={!fichajeState.isOpen} />
+                        <Scanner onScan={handleScan} onCancel={() => setIsScanning(false)} isEnabled={!fichajeState.isOpen} />
                     </div>
                     <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
                         <button

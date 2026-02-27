@@ -21,7 +21,27 @@
   }
 }
 
-/* Explicitly keep the scanner UI buttons visible - removed empty rule */
+/* Cuando el escáner nativo está activo, hacer transparente el fondo
+   para que la cámara se vea detrás de la WebView.
+   El overlay del escáner se renderiza con createPortal en document.body,
+   así que ocultar #root no lo afecta. */
+body.barcode-scanner-active {
+  background: transparent !important;
+  --tw-bg-opacity: 0 !important;
+}
+
+/* Ocultar TODA la app (nav, main, etc.) para que no se superponga */
+body.barcode-scanner-active #root {
+  visibility: hidden !important;
+  background: transparent !important;
+}
+
+/* Asegurar que html también sea transparente */
+html.barcode-scanner-active,
+html.barcode-scanner-active body {
+  background: transparent !important;
+}
+
 
 /* Animation for the web scanner */
 @keyframes scan-line {

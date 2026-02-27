@@ -841,6 +841,7 @@ const BarcodeControl = () => {
                     <div className="flex-1 relative">
                         <Scanner
                             onScan={onScannerDecode}
+                            onCancel={() => setShowScanner(false)}
                             isEnabled={showScanner}
                         />
                         <div className="absolute bottom-10 left-0 right-0 flex justify-center pointer-events-none">
