@@ -89,12 +89,15 @@ async function parseRemitoPdf(dataBuffer) {
         const lines = text.split('\n');
         const items = [];
 
-        // Regex for standard items (with at least 4 digits for code)
-        const itemRegex = /(\d{4,})\s+(.+?)\s+(\d+,\d{2})/g;
+        const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL'];
+        const umPattern = `(?:${commonUMs.join('|')})`;
+
+        // Regex for standard items: Code, Description, then Quantity followed by UM
+        // This avoids picking up numbers in the description like "X 0,450"
+        const itemRegex = new RegExp(`(\\d{4,})\\s+(.+?)\\s+(\\d+,\\d{2})\\s+${umPattern}`, 'g');
 
         // Regex for multi-line items
-        const quantityRegex = /^(\d+,\d{2});?/g; // Quantities like "1,00"
-        const codeLineRegex = /(.*?)(\d{4,})\s+\/\s+\//g; // Ends with "/ /"
+        const codeLineRegex = /(.*?)(\d{4,})\s+\/\s+\//g;
 
         // Store multiple pending items for multi-column support
         let pendingItems = [];
@@ -104,15 +107,13 @@ async function parseRemitoPdf(dataBuffer) {
             if (!trimmedLine || trimmedLine.length < 3) continue;
 
             // STRATEGY 1: Full item match (potentially multiple per line)
-            // Example: "001234 PRODUCT NAME 10,00"
             let match;
             let foundInLine = false;
 
-            // Avoid matching lines that are just numbers or dates
-            if (trimmedLine.match(/^\d+$/) || trimmedLine.includes('/202')) {
-                continue;
-            }
+            // Skip headers/metadata
+            if (trimmedLine.includes('/202') || trimmedLine.match(/^\d+$/)) continue;
 
+            // Use the UM-anchored regex to find items
             while ((match = itemRegex.exec(line)) !== null) {
                 const code = match[1];
                 const description = match[2].trim();
@@ -133,7 +134,6 @@ async function parseRemitoPdf(dataBuffer) {
             // STRATEGY 2: Multi-line / Interleaved columns
 
             // A. Check for codes (e.g. "PRODUCT NAME 00123 / /")
-            // In these PDFs, Code line usually comes BEFORE Quantity line
             let codeMatch;
             let codesFoundInLine = [];
             while ((codeMatch = codeLineRegex.exec(line)) !== null) {
@@ -145,8 +145,6 @@ async function parseRemitoPdf(dataBuffer) {
             }
 
             if (codesFoundInLine.length > 0) {
-                // If we found codes, these are the new pending items
-                // We overwrite pendingItems because a code line starts a new set of items
                 pendingItems = codesFoundInLine.map(c => ({
                     code: c.code,
                     descriptionParts: c.descPart ? [c.descPart] : [],
@@ -155,12 +153,10 @@ async function parseRemitoPdf(dataBuffer) {
                 continue;
             }
 
-            // B. Check for quantities (e.g. "1,00 UN 0,00 2,00 UN 0,00")
-            // We only look for quantities if we have pending items waiting for them
+            // B. Check for quantities (anchored by UM)
             if (pendingItems.length > 0 && pendingItems.every(i => !i.quantityStr)) {
                 const words = line.split(/\s+/).filter(w => w.length > 0);
                 const quantities = [];
-                const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS'];
 
                 for (let i = 0; i < words.length; i++) {
                     const word = words[i];
@@ -168,8 +164,7 @@ async function parseRemitoPdf(dataBuffer) {
 
                     if (/^(\d+,\d{2})/.test(word)) {
                         const qStr = word.match(/^(\d+,\d{2})/)[1];
-                        // If it's a number followed by a UM (like "1,00 UN") 
-                        // or contains a UM (like "1,00UN"), it's our target "Cantidad" column.
+                        // Identify quantity column by mandatory UM following it
                         if (commonUMs.some(um => nextWord === um || word.toUpperCase().endsWith(um))) {
                             quantities.push(qStr);
                         }
@@ -177,16 +172,14 @@ async function parseRemitoPdf(dataBuffer) {
                 }
 
                 if (quantities.length > 0) {
-                    // Match quantities to pending items in order
                     for (let i = 0; i < Math.min(quantities.length, pendingItems.length); i++) {
                         const qStr = quantities[i];
                         const quantity = parseFloat(qStr.replace(',', '.'));
                         if (!isNaN(quantity)) {
                             pushItem(items, pendingItems[i].code, pendingItems[i].descriptionParts.join(' '), quantity);
-                            pendingItems[i].quantityStr = qStr; // Mark as done
+                            pendingItems[i].quantityStr = qStr;
                         }
                     }
-                    // If all pending items got their quantity, clear the list
                     if (pendingItems.every(i => i.quantityStr)) {
                         pendingItems = [];
                     }
