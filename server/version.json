@@ -1,5 +1,5 @@
 {
-    "version": "1.0.71",
+    "version": "1.0.72",
     "downloadUrl": "/apk/ConteoMercaderia.apk",
-    "releaseNotes": "Correccion de errores y creacion de la pestaña de egresos. Ademas en el inicio de sesion se puede guardar los datos de el usuario"
+    "releaseNotes": "Correccion de errores"
 }
