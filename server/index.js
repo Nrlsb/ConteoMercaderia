@@ -879,6 +879,417 @@ app.get('/api/receipts/:id/export-differences', verifyToken, async (req, res) =>
     }
 });
 
+// --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
+
+// Create Egreso via PDF Upload (auto-create)
+app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).single('pdf'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No se recibió ningún archivo PDF' });
+    }
+
+    try {
+        // 1. Parse PDF
+        const items = await parseRemitoPdf(req.file.buffer);
+        if (!items || items.length === 0) {
+            return res.status(400).json({ message: 'No se pudieron extraer productos del PDF' });
+        }
+
+        // 2. Create Egreso automatically with filename as reference
+        const referenceNumber = req.file.originalname.replace('.pdf', '').replace('.PDF', '');
+        const sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
+
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .insert([{
+                reference_number: referenceNumber,
+                pdf_filename: req.file.originalname,
+                created_by: req.user.username,
+                sucursal_id: sucursalId,
+                date: new Date()
+            }])
+            .select()
+            .single();
+
+        if (egresoError) throw egresoError;
+
+        // 3. For each parsed item, find product and insert egreso_item
+        const results = { success: [], failed: [] };
+
+        for (const item of items) {
+            try {
+                // Search by provider_code first, then internal code
+                let { data: product } = await supabase
+                    .from('products')
+                    .select('code, barcode, description, provider_code')
+                    .eq('provider_code', item.code)
+                    .maybeSingle();
+
+                if (!product) {
+                    const { data: productInternal } = await supabase
+                        .from('products')
+                        .select('code, barcode, description, provider_code')
+                        .eq('code', item.code)
+                        .maybeSingle();
+                    product = productInternal;
+                }
+
+                if (!product) {
+                    results.failed.push({
+                        code: item.code,
+                        description: item.description,
+                        quantity: item.quantity,
+                        error: 'Producto no encontrado en la base de datos'
+                    });
+                    continue;
+                }
+
+                // Check if item already exists (aggregate)
+                const { data: existingItem } = await supabase
+                    .from('egreso_items')
+                    .select('*')
+                    .eq('egreso_id', egreso.id)
+                    .eq('product_code', product.code)
+                    .maybeSingle();
+
+                const newQuantity = existingItem
+                    ? (Number(existingItem.expected_quantity) || 0) + Number(item.quantity)
+                    : Number(item.quantity);
+
+                const { error: saveError } = await supabase
+                    .from('egreso_items')
+                    .upsert({
+                        egreso_id: egreso.id,
+                        product_code: product.code,
+                        expected_quantity: newQuantity
+                    }, { onConflict: 'egreso_id, product_code' });
+
+                if (saveError) throw saveError;
+
+                results.success.push({
+                    code: product.code,
+                    barcode: product.barcode,
+                    description: product.description,
+                    quantity: item.quantity
+                });
+
+                // Log history
+                await supabase.from('egreso_items_history').insert({
+                    egreso_id: egreso.id,
+                    user_id: req.user.id,
+                    operation: 'PDF_IMPORT',
+                    product_code: product.code,
+                    old_data: { expected_quantity: existingItem ? Number(existingItem.expected_quantity) : 0 },
+                    new_data: { expected_quantity: newQuantity },
+                    changed_at: new Date().toISOString()
+                });
+
+            } catch (itemError) {
+                console.error(`Error processing egreso item ${item.code}:`, itemError);
+                results.failed.push({
+                    code: item.code,
+                    description: item.description,
+                    quantity: item.quantity,
+                    error: itemError.message
+                });
+            }
+        }
+
+        console.log(`[EGRESO PDF] Created egreso ${egreso.id}: ${results.success.length} items imported, ${results.failed.length} failed`);
+
+        res.status(201).json({
+            egreso,
+            results
+        });
+
+    } catch (error) {
+        console.error('Error creating egreso from PDF:', error);
+        res.status(500).json({ message: 'Error al procesar el PDF de egreso' });
+    }
+});
+
+// Get all Egresos
+app.get('/api/egresos', verifyToken, async (req, res) => {
+    try {
+        let query = supabase
+            .from('egresos')
+            .select('*')
+            .order('date', { ascending: false });
+
+        // Filter by branch for branch_admin
+        if (req.user.role === 'branch_admin' && req.user.sucursal_id) {
+            query = query.eq('sucursal_id', req.user.sucursal_id);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching egresos:', error);
+        res.status(500).json({ message: 'Error fetching egresos' });
+    }
+});
+
+// Get Egreso Details
+app.get('/api/egresos/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (egresoError) throw egresoError;
+
+        const { data: items, error: itemsError } = await supabase
+            .from('egreso_items')
+            .select(`
+                *,
+                products (
+                    description,
+                    brand,
+                    code,
+                    barcode,
+                    provider_code
+                )
+            `)
+            .eq('egreso_id', id);
+
+        if (itemsError) throw itemsError;
+
+        res.json({ ...egreso, items });
+    } catch (error) {
+        console.error('Error fetching egreso details:', error);
+        res.status(500).json({ message: 'Error fetching egreso details' });
+    }
+});
+
+// Scan/Control Egreso Item
+app.post('/api/egresos/:id/scan', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { code, quantity } = req.body;
+
+    if (!code) return res.status(400).json({ message: 'Missing code' });
+    const qtyToAdd = quantity || 1;
+
+    try {
+        let productCode = null;
+
+        // Try exact match on code (internal)
+        const { data: pCode } = await supabase.from('products').select('code').eq('code', code).maybeSingle();
+        if (pCode) productCode = pCode.code;
+
+        if (!productCode) {
+            // Try barcode
+            const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
+            if (pBar) productCode = pBar.code;
+        }
+
+        if (!productCode) {
+            // Try provider code
+            const { data: pProv } = await supabase.from('products').select('code').eq('provider_code', code).maybeSingle();
+            if (pProv) productCode = pProv.code;
+        }
+
+        if (!productCode) {
+            return res.status(404).json({ message: 'Producto no encontrado' });
+        }
+
+        const { data: existingItem } = await supabase
+            .from('egreso_items')
+            .select('*')
+            .eq('egreso_id', id)
+            .eq('product_code', productCode)
+            .maybeSingle();
+
+        let newScanned = qtyToAdd;
+        let currentExpected = 0;
+        let oldScanned = 0;
+
+        if (existingItem) {
+            oldScanned = (Number(existingItem.scanned_quantity) || 0);
+            newScanned = oldScanned + qtyToAdd;
+            currentExpected = existingItem.expected_quantity;
+        }
+
+        const { data: savedItem, error: saveError } = await supabase
+            .from('egreso_items')
+            .upsert({
+                egreso_id: id,
+                product_code: productCode,
+                scanned_quantity: newScanned,
+                expected_quantity: currentExpected
+            }, { onConflict: 'egreso_id, product_code' })
+            .select()
+            .single();
+
+        if (saveError) throw saveError;
+
+        // Log History
+        if (oldScanned !== newScanned) {
+            await supabase.from('egreso_items_history').insert({
+                egreso_id: id,
+                user_id: req.user.id,
+                operation: existingItem ? 'UPDATE_SCANNED' : 'INSERT_SCANNED',
+                product_code: productCode,
+                old_data: { scanned_quantity: oldScanned },
+                new_data: { scanned_quantity: newScanned },
+                changed_at: new Date().toISOString()
+            });
+        }
+
+        res.json(savedItem);
+
+    } catch (error) {
+        console.error('Error scanning egreso item:', error);
+        res.status(500).json({ message: 'Error scanning item' });
+    }
+});
+
+// Close Egreso
+app.put('/api/egresos/:id/close', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('egresos')
+            .update({ status: 'finalized' })
+            .eq('id', id)
+            .select();
+
+        if (error) throw error;
+        res.json(data[0]);
+    } catch (error) {
+        console.error('Error closing egreso:', error);
+        res.status(500).json({ message: 'Error closing egreso' });
+    }
+});
+
+// Reopen Egreso
+app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_counts'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('egresos')
+            .update({ status: 'open' })
+            .eq('id', id)
+            .select();
+
+        if (error) throw error;
+        res.json(data[0]);
+    } catch (error) {
+        console.error('Error reopening egreso:', error);
+        res.status(500).json({ message: 'Error reopening egreso' });
+    }
+});
+
+// Delete Egreso
+app.delete('/api/egresos/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        await supabase.from('egreso_items_history').delete().eq('egreso_id', id);
+        await supabase.from('egreso_items').delete().eq('egreso_id', id);
+        const { error } = await supabase.from('egresos').delete().eq('id', id);
+
+        if (error) throw error;
+        res.json({ message: 'Egreso deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting egreso:', error);
+        res.status(500).json({ message: 'Error deleting egreso' });
+    }
+});
+
+// Get Egreso History
+app.get('/api/egreso-history/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: history, error } = await supabase
+            .from('egreso_items_history')
+            .select('*')
+            .eq('egreso_id', id)
+            .order('changed_at', { ascending: false });
+
+        if (error) throw error;
+
+        const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
+        const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
+
+        const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+        const { data: products } = await supabase.from('products').select('code, description').in('code', productCodes);
+
+        const userMap = {};
+        if (users) users.forEach(u => userMap[u.id] = u.username);
+
+        const productMap = {};
+        if (products) products.forEach(p => productMap[p.code] = p.description);
+
+        const enrichedHistory = history.map(entry => ({
+            ...entry,
+            username: userMap[entry.user_id] || 'Desconocido',
+            description: productMap[entry.product_code] || 'Sin descripción'
+        }));
+
+        res.json(enrichedHistory);
+    } catch (error) {
+        console.error('Error fetching egreso history:', error);
+        res.status(500).json({ message: 'Error fetching history' });
+    }
+});
+
+// Export Egreso to Excel
+app.get('/api/egresos/:id/export', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (egresoError) throw egresoError;
+
+        const { data: items, error: itemsError } = await supabase
+            .from('egreso_items')
+            .select(`
+                *,
+                products (
+                    description,
+                    code,
+                    barcode,
+                    provider_code
+                )
+            `)
+            .eq('egreso_id', id);
+
+        if (itemsError) throw itemsError;
+
+        const xlsx = require('xlsx');
+        const workbook = xlsx.utils.book_new();
+
+        const data = items.map(item => ({
+            'Código Interno': item.product_code,
+            'Código Proveedor': item.products?.provider_code || '-',
+            'Código de Barras': item.products?.barcode || '-',
+            'Descripción': item.products?.description || 'Sin descripción',
+            'Cant. Esperada': Number(item.expected_quantity) || 0,
+            'Cant. Controlada': Number(item.scanned_quantity) || 0,
+            'Diferencia': (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0)
+        }));
+
+        const worksheet = xlsx.utils.json_to_sheet(data);
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Detalle Egreso');
+
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Egreso_${egreso.reference_number}.xlsx`);
+        res.send(buffer);
+
+    } catch (error) {
+        console.error('Error exporting egreso:', error);
+        res.status(500).json({ message: 'Error al exportar egreso' });
+    }
+});
+
 // API Routes
 
 // --- PRODUCT CONTROL ENDPOINTS ---

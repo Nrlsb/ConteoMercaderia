@@ -53,6 +53,7 @@ const Navigation = () => {
     const showConfiguracion = canSeeTab('tab_configuracion', isAdminLike);
     const showIngresos = canSeeTab('tab_ingresos', true);
     const showControlCodigos = canSeeTab('tab_control_codigos', true);
+    const showEgresos = canSeeTab('tab_egresos', true);
 
     const getRoleName = () => {
         switch (user?.role) {
@@ -91,6 +92,9 @@ const Navigation = () => {
                     )}
                     {showControlCodigos && (
                         <Link to="/barcode-control" className={getLinkClass('/barcode-control')}>Control Códigos</Link>
+                    )}
+                    {showEgresos && (
+                        <Link to="/egresos" className={getLinkClass('/egresos')}>Egresos</Link>
                     )}
                     <div className="flex items-center space-x-4 ml-6 pl-6 border-l border-blue-400/30">
                         <div className="flex flex-col items-end">
@@ -143,6 +147,9 @@ const Navigation = () => {
                         )}
                         {showControlCodigos && (
                             <Link to="/barcode-control" className={getMobileLinkClass('/barcode-control')} onClick={() => setIsOpen(false)}>Control Códigos</Link>
+                        )}
+                        {showEgresos && (
+                            <Link to="/egresos" className={getMobileLinkClass('/egresos')} onClick={() => setIsOpen(false)}>Egresos</Link>
                         )}
                     </div>
                     <div className="pt-4 pb-4 border-t border-blue-800">

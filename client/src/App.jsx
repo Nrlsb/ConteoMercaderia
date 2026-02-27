@@ -22,6 +22,8 @@ const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const ReceiptsList = lazy(() => import('./components/ReceiptsList'));
 const ReceiptDetailsPage = lazy(() => import('./components/ReceiptDetailsPage'));
 const BarcodeControl = lazy(() => import('./components/BarcodeControl'));
+const EgresosList = lazy(() => import('./components/EgresosList'));
+const EgresoDetailsPage = lazy(() => import('./components/EgresoDetailsPage'));
 
 const ProtectedRoute = ({ children, role }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -141,6 +143,16 @@ const AppContent = () => {
                 <Route path="/barcode-control" element={
                   <ProtectedRoute>
                     <BarcodeControl />
+                  </ProtectedRoute>
+                } />
+                <Route path="/egresos" element={
+                  <ProtectedRoute>
+                    <EgresosList />
+                  </ProtectedRoute>
+                } />
+                <Route path="/egresos/:id" element={
+                  <ProtectedRoute>
+                    <EgresoDetailsPage />
                   </ProtectedRoute>
                 } />
               </Routes>
