@@ -181,7 +181,7 @@ const EgresoDetailsPage = () => {
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
-        const existingItem = items.find(i => i.product_code === code || i.products?.provider_code === code || i.products?.barcode === code);
+        const existingItem = items.find(i => i.product_code === code || i.products?.barcode === code);
 
         const openModal = (product, expQty, currentScanned) => {
             setFichajeState({
@@ -623,7 +623,7 @@ const EgresoDetailsPage = () => {
                                                                 <td className="px-5 py-4">
                                                                     <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
                                                                     <div className="text-xs text-gray-400 font-medium mt-1">
-                                                                        INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                                                        INT: {item.product_code}
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-5 py-4 text-center text-sm text-gray-600 font-mono">
@@ -664,7 +664,7 @@ const EgresoDetailsPage = () => {
                                                     <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
                                                         <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
                                                         <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">
-                                                            INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                                            INT: {item.product_code}
                                                         </p>
                                                         {item.products?.barcode && (
                                                             <p className="text-[10px] text-blue-500 font-mono mb-3">

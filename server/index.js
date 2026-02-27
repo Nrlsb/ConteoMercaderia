@@ -917,21 +917,12 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
         for (const item of items) {
             try {
-                // Search by provider_code first, then internal code
-                let { data: product } = await supabase
+                // Search by internal code only for Egresos
+                const { data: product } = await supabase
                     .from('products')
-                    .select('code, barcode, description, provider_code')
-                    .eq('provider_code', item.code)
+                    .select('code, barcode, description')
+                    .eq('code', item.code)
                     .maybeSingle();
-
-                if (!product) {
-                    const { data: productInternal } = await supabase
-                        .from('products')
-                        .select('code, barcode, description, provider_code')
-                        .eq('code', item.code)
-                        .maybeSingle();
-                    product = productInternal;
-                }
 
                 if (!product) {
                     results.failed.push({
@@ -1267,7 +1258,6 @@ app.get('/api/egresos/:id/export', verifyToken, async (req, res) => {
 
         const data = items.map(item => ({
             'Código Interno': item.product_code,
-            'Código Proveedor': item.products?.provider_code || '-',
             'Código de Barras': item.products?.barcode || '-',
             'Descripción': item.products?.description || 'Sin descripción',
             'Cant. Esperada': Number(item.expected_quantity) || 0,
