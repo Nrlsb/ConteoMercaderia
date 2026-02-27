@@ -31,6 +31,39 @@ const Navigation = () => {
             : `${baseClass} text-blue-100 hover:bg-blue-700 hover:text-white`;
     };
 
+    const isAdminLike = user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin';
+
+    // Check if user has any tab permissions assigned
+    const userPermissions = user?.permissions || [];
+    const hasTabPermissions = userPermissions.some(p => p.startsWith('tab_'));
+
+    // Determine if a tab should be visible
+    const canSeeTab = (tabPermission, defaultRoleCheck) => {
+        // Superadmin always sees everything
+        if (user?.role === 'superadmin') return true;
+        // If user has tab permissions assigned, only show those tabs
+        if (hasTabPermissions) return userPermissions.includes(tabPermission);
+        // Otherwise, fall back to the default role-based check
+        return defaultRoleCheck;
+    };
+
+    const showNuevoConteo = canSeeTab('tab_nuevo_conteo', user?.role !== 'supervisor');
+    const showHistorial = canSeeTab('tab_historial', isAdminLike || user?.role === 'supervisor');
+    const showImportar = canSeeTab('tab_importar', isAdminLike);
+    const showConfiguracion = canSeeTab('tab_configuracion', isAdminLike);
+    const showIngresos = canSeeTab('tab_ingresos', true);
+    const showControlCodigos = canSeeTab('tab_control_codigos', true);
+
+    const getRoleName = () => {
+        switch (user?.role) {
+            case 'superadmin': return 'Superadmin';
+            case 'admin': return 'Administrador';
+            case 'branch_admin': return 'Admin Sucursal';
+            case 'supervisor': return 'Supervisor';
+            default: return 'Operador';
+        }
+    };
+
     return (
         <nav className="bg-brand-blue text-white shadow-lg" style={{ paddingTop: 'var(--safe-area-top)' }}>
             <div className="container mx-auto px-4 py-3 flex justify-between items-center">
@@ -41,28 +74,29 @@ const Navigation = () => {
 
                 {/* Desktop Menu */}
                 <div className="hidden md:flex items-center space-x-4">
-                    {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role !== 'supervisor') && (
+                    {showNuevoConteo && (
                         <Link to="/" className={getLinkClass('/')}>Nuevo Conteo</Link>
                     )}
-                    {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'supervisor') && (
+                    {showHistorial && (
                         <Link to="/list" className={getLinkClass('/list')}>Historial</Link>
                     )}
-                    {/* {user?.role === 'admin' && (
-                        <Link to="/discrepancies" className={getLinkClass('/discrepancies')}>Discrepancias</Link>
-                    )} */}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                    {showImportar && (
                         <Link to="/admin" className={getLinkClass('/admin')}>Importar</Link>
                     )}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                    {showConfiguracion && (
                         <Link to="/settings" className={getLinkClass('/settings')}>Configuración</Link>
                     )}
-                    <Link to="/receipts" className={getLinkClass('/receipts')}>Ingresos</Link>
-                    <Link to="/barcode-control" className={getLinkClass('/barcode-control')}>Control Códigos</Link>
+                    {showIngresos && (
+                        <Link to="/receipts" className={getLinkClass('/receipts')}>Ingresos</Link>
+                    )}
+                    {showControlCodigos && (
+                        <Link to="/barcode-control" className={getLinkClass('/barcode-control')}>Control Códigos</Link>
+                    )}
                     <div className="flex items-center space-x-4 ml-6 pl-6 border-l border-blue-400/30">
                         <div className="flex flex-col items-end">
                             <span className="text-sm font-medium leading-none">{user?.username}</span>
                             <span className="text-xs text-blue-200">
-                                {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Administrador' : user?.role === 'supervisor' ? 'Supervisor' : 'Operador'}
+                                {getRoleName()}
                             </span>
                         </div>
                         <button
@@ -92,30 +126,31 @@ const Navigation = () => {
             {isOpen && (
                 <div className="md:hidden bg-blue-900 border-t border-blue-800">
                     <div className="px-2 pt-2 pb-3 space-y-1">
-                        {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role !== 'supervisor') && (
+                        {showNuevoConteo && (
                             <Link to="/" className={getMobileLinkClass('/')} onClick={() => setIsOpen(false)}>Nuevo Conteo</Link>
                         )}
-                        {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'supervisor') && (
+                        {showHistorial && (
                             <Link to="/list" className={getMobileLinkClass('/list')} onClick={() => setIsOpen(false)}>Historial</Link>
                         )}
-                        {/* {user?.role === 'admin' && (
-                            <Link to="/discrepancies" className={getMobileLinkClass('/discrepancies')} onClick={() => setIsOpen(false)}>Discrepancias</Link>
-                        )} */}
-                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                        {showImportar && (
                             <Link to="/admin" className={getMobileLinkClass('/admin')} onClick={() => setIsOpen(false)}>Importar</Link>
                         )}
-                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                        {showConfiguracion && (
                             <Link to="/settings" className={getMobileLinkClass('/settings')} onClick={() => setIsOpen(false)}>Configuración</Link>
                         )}
-                        <Link to="/receipts" className={getMobileLinkClass('/receipts')} onClick={() => setIsOpen(false)}>Ingresos</Link>
-                        <Link to="/barcode-control" className={getMobileLinkClass('/barcode-control')} onClick={() => setIsOpen(false)}>Control Códigos</Link>
+                        {showIngresos && (
+                            <Link to="/receipts" className={getMobileLinkClass('/receipts')} onClick={() => setIsOpen(false)}>Ingresos</Link>
+                        )}
+                        {showControlCodigos && (
+                            <Link to="/barcode-control" className={getMobileLinkClass('/barcode-control')} onClick={() => setIsOpen(false)}>Control Códigos</Link>
+                        )}
                     </div>
                     <div className="pt-4 pb-4 border-t border-blue-800">
                         <div className="flex items-center px-5">
                             <div className="ml-3">
                                 <div className="text-base font-medium leading-none text-white">{user?.username}</div>
                                 <div className="text-sm font-medium leading-none text-blue-300 mt-1">
-                                    {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Administrador' : user?.role === 'supervisor' ? 'Supervisor' : 'Operador'}
+                                    {getRoleName()}
                                 </div>
                             </div>
                             <button

@@ -112,7 +112,7 @@ const verifyToken = async (req, res, next) => {
 
 // Middleware to verify admin role
 const verifyAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'branch_admin')) {
         next();
     } else {
         res.status(403).json({ message: 'Access denied: Admins only' });
@@ -134,6 +134,7 @@ const hasPermission = (permission) => {
         if (req.user && (
             req.user.role === 'superadmin' ||
             req.user.role === 'admin' ||
+            req.user.role === 'branch_admin' ||
             (req.user.permissions && req.user.permissions.includes(permission))
         )) {
             next();
@@ -3582,7 +3583,7 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, sucursal_id')
+            .select('id, username, role, sucursal_id, permissions')
             .eq('id', req.user.id)
             .single();
 
@@ -3717,7 +3718,7 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: '365d' }
         );
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sucursal_id: user.sucursal_id } });
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sucursal_id: user.sucursal_id, permissions: user.permissions || [] } });
     } catch (error) {
         console.error('Error logging in:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -4187,7 +4188,7 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, created_at')
+            .select('id, username, role, created_at, sucursal_id, permissions')
             .eq('id', req.user.id)
             .single();
 

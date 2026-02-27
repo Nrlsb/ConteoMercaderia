@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children, role }) => {
   if (loading) return <div className="flex justify-center items-center h-screen">Cargando...</div>;
   if (!isAuthenticated) return <Navigate to="/login" />;
 
-  if (role === 'admin' && user?.role === 'superadmin') {
+  if (role === 'admin' && (user?.role === 'superadmin' || user?.role === 'branch_admin')) {
     return children;
   }
 

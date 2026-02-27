@@ -142,6 +142,16 @@ const UsersManage = () => {
         { id: 'view_history', name: 'Ver Historial Auditar' }
     ];
 
+    // Tab visibility permissions
+    const tabPermissions = [
+        { id: 'tab_nuevo_conteo', name: 'Nuevo Conteo' },
+        { id: 'tab_historial', name: 'Historial' },
+        { id: 'tab_importar', name: 'Importar' },
+        { id: 'tab_configuracion', name: 'Configuración' },
+        { id: 'tab_ingresos', name: 'Ingresos' },
+        { id: 'tab_control_codigos', name: 'Control Códigos' }
+    ];
+
     if (loading) return <div className="p-4 text-center">Cargando usuarios...</div>;
 
     const isSuperAdmin = currentUser?.role === 'superadmin';
@@ -187,6 +197,7 @@ const UsersManage = () => {
                             >
                                 <option value="user">Usuario</option>
                                 <option value="admin">Administrador</option>
+                                <option value="branch_admin">Admin Sucursal</option>
                                 <option value="supervisor">Supervisor</option>
                                 {isSuperAdmin && <option value="superadmin">Superadmin</option>}
                             </select>
@@ -219,7 +230,7 @@ const UsersManage = () => {
                         </div>
                     </div>
 
-                    {isSuperAdmin && (
+                    {isSuperAdmin && (<>
                         <div className="mb-4">
                             <label className="block text-gray-700 text-sm font-bold mb-2">Permisos Especiales</label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-white p-3 border rounded">
@@ -236,7 +247,24 @@ const UsersManage = () => {
                                 ))}
                             </div>
                         </div>
-                    )}
+                        <div className="mb-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Pestañas Visibles</label>
+                            <p className="text-xs text-gray-500 mb-2">Si no se selecciona ninguna, el usuario verá las pestañas según su rol.</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 bg-white p-3 border rounded">
+                                {tabPermissions.map(perm => (
+                                    <label key={perm.id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.permissions.includes(perm.id)}
+                                            onChange={() => handlePermissionChange(perm.id)}
+                                            className="form-checkbox h-4 w-4 text-green-600 rounded"
+                                        />
+                                        <span>{perm.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </>)}
 
                     <div className="flex justify-end gap-2">
                         <button
