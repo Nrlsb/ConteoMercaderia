@@ -7,8 +7,12 @@ const pdf = require('pdf-parse');
  */
 async function parseRemitoPdf(dataBuffer) {
     try {
+        let stopProcessing = false;
+
         // Custom page render function to handle columns by preserving X/Y structure
         function render_page(pageData) {
+            if (stopProcessing) return Promise.resolve('');
+
             let render_options = {
                 normalizeWhitespace: false,
                 disableCombineTextItems: false
@@ -18,6 +22,12 @@ async function parseRemitoPdf(dataBuffer) {
                 .then(function (textContent) {
                     let lines = {};
                     for (let item of textContent.items) {
+                        // Check for duplicate marker early in the raw text content
+                        if (item.str.includes('DUPLICADO') || item.str.includes('TRIPLICADO')) {
+                            stopProcessing = true;
+                            return ''; // Complete page skip and signal stop
+                        }
+
                         let y = Math.round(item.transform[5]);
                         let x = Math.round(item.transform[4]);
                         if (!lines[y]) lines[y] = [];
@@ -56,11 +66,6 @@ async function parseRemitoPdf(dataBuffer) {
                         let lineText = '';
                         let lastX = 0;
                         for (let item of groupItems) {
-                            // Skip items that explicitly contain DUPLICADO/TRIPLICADO early
-                            if (item.str.includes('DUPLICADO') || item.str.includes('TRIPLICADO')) {
-                                return ''; // Complete page skip
-                            }
-
                             // Add spaces based on X gap to preserve columns
                             // 5 units roughly = 1 character space
                             let gap = Math.max(0, Math.floor((item.x - lastX) / 5.5));
@@ -68,8 +73,9 @@ async function parseRemitoPdf(dataBuffer) {
                             lastX = item.x + (item.width || (item.str.length * 5.5));
                         }
 
-                        // Skip DUPLICADO / TRIPLICADO markers in line text
+                        // Final check for markers in assembled line text (just in case)
                         if (lineText.includes('DUPLICADO') || lineText.includes('TRIPLICADO')) {
+                            stopProcessing = true;
                             return ''; // Complete page skip
                         }
 
