@@ -211,9 +211,6 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                             </svg>
                             <div>
                                 <p className="text-sm font-bold text-red-700">¡Cantidad excedida!</p>
-                                <p className="text-xs text-red-600 mt-0.5">
-                                    Esperado: {expectedQuantity} | Ya controlado: {existingQuantity} | Intentando agregar: {qty}
-                                </p>
                                 <p className="text-xs text-red-800 font-bold mt-1">
                                     Excedido por {excessAmount} {excessAmount === 1 ? 'unidad' : 'unidades'}
                                 </p>

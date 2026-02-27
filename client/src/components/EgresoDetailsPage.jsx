@@ -673,18 +673,9 @@ const EgresoDetailsPage = () => {
                                                         )}
 
                                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">
-                                                            <div className="flex gap-4">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
-                                                                    <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Controlado</span>
-                                                                    <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase ${statusBadge}`}>
-                                                                {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase">Cantidad escaneada</span>
+                                                                <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
                                                             </div>
                                                         </div>
                                                     </div>
