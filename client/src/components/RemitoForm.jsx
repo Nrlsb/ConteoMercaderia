@@ -50,7 +50,7 @@ const RemitoForm = () => {
                 setActiveCounts(counts);
 
                 if (countMode === 'products') {
-                    if (user && user.role !== 'admin' && user.role !== 'superadmin') {
+                    if (user && user.role !== 'admin' && user.role !== 'superadmin' && user.role !== 'branch_admin') {
                         // Find count for user's branch
                         const myCount = counts.find(c => c.sucursal_id == user.sucursal_id);
 
@@ -1392,7 +1392,7 @@ const RemitoForm = () => {
                                             Cambiar Conteo
                                         </button>
                                     )}
-                                    {user?.role === 'admin' && (
+                                    {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                         <button
                                             onClick={handleStopGeneralCount}
                                             className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 border border-red-200"
@@ -1533,7 +1533,7 @@ const RemitoForm = () => {
                                                                                 En Curso
                                                                             </span>
                                                                         )}
-                                                                        {(user?.role === 'admin' || user?.role === 'superadmin') && !isActiveCount && (
+                                                                        {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && !isActiveCount && (
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={(e) => {

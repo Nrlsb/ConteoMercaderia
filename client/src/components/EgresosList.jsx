@@ -202,7 +202,7 @@ const EgresosList = () => {
                                             <Link to={`/egresos/${egreso.id}`} className="text-blue-600 hover:text-blue-900 font-bold">
                                                 Ver Detalles
                                             </Link>
-                                            {user && (user.role === 'admin' || user.role === 'superadmin') && (
+                                            {user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'branch_admin') && (
                                                 <button
                                                     onClick={() => handleDelete(egreso.id)}
                                                     className="text-red-600 hover:text-red-900 font-bold"
@@ -244,7 +244,7 @@ const EgresosList = () => {
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-600">Por: <span className="font-medium">{egreso.created_by}</span></span>
                             <div className="flex gap-3 items-center">
-                                {user && (user.role === 'admin' || user.role === 'superadmin') && (
+                                {user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'branch_admin') && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); handleDelete(egreso.id); }}
                                         className="text-red-600 hover:text-red-900 font-bold"

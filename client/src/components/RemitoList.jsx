@@ -351,7 +351,7 @@ const RemitoList = () => {
                                             <div className="text-sm text-gray-500">
                                                 {remito.items ? remito.items.length : 0} items
                                             </div>
-                                            {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                            {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                                 <button
                                                     onClick={(e) => handleDelete(e, remito)}
                                                     className="p-1 text-gray-400 hover:text-red-500 transition-colors"
@@ -377,7 +377,7 @@ const RemitoList = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                                    {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                    {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                                     )}
                                 </tr>
@@ -393,14 +393,14 @@ const RemitoList = () => {
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-12"></div></td>
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                                             <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
-                                            {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                            {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right"><div className="h-4 bg-gray-200 rounded w-8 ml-auto"></div></td>
                                             )}
                                         </tr>
                                     ))
                                 ) : filteredRemitos.length === 0 ? (
                                     <tr>
-                                        <td colSpan={(user?.role === 'admin' || user?.role === 'superadmin') ? "6" : "5"} className="px-6 py-10 text-center text-gray-500">
+                                        <td colSpan={(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') ? "6" : "5"} className="px-6 py-10 text-center text-gray-500">
                                             No se encontraron remitos
                                         </td>
                                     </tr>
@@ -471,7 +471,7 @@ const RemitoList = () => {
                                                     )}
                                                 </div>
                                             </td>
-                                            {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                            {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex justify-end gap-2">
                                                         <button onClick={() => handleViewDetails(remito)} className="text-gray-400 hover:text-brand-blue transition" title="Ver detalles">
