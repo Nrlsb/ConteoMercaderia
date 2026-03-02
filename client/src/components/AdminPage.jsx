@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from '../api';
+import api from '../api';
 import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState('');
@@ -24,7 +24,7 @@ import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
         formData.append('file', file);
 
         try {
-            const response = await axios.post('/api/products/import', formData, {
+            const response = await api.post('/api/products/import', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }
@@ -111,7 +111,7 @@ import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
                                 formData.append('file', file);
 
                                 try {
-                                    const response = await axios.post('/api/pre-remitos/import-xml', formData, {
+                                    const response = await api.post('/api/pre-remitos/import-xml', formData, {
                                         headers: { 'Content-Type': 'multipart/form-data' }
                                     });
                                     setStatus(`Éxito: Stock importado correctamente. Pedido: ${response.data.orderNumber}`);
@@ -168,7 +168,7 @@ import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
                                     formData.append('file', file);
 
                                     try {
-                                        const response = await axios.post('/api/stock/import', formData, {
+                                        const response = await api.post('/api/stock/import', formData, {
                                             headers: { 'Content-Type': 'multipart/form-data' }
                                         });
                                         setStatus(`Éxito: ${response.data.message}. Procesados: ${response.data.totalRows}. Importados: ${response.data.imported}. Saltados: ${response.data.skipped}.`);

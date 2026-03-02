@@ -28,6 +28,10 @@ const BarcodeControl = () => {
     // Selected product to link
     const [selectedProductToLink, setSelectedProductToLink] = useState(null);
 
+    // Duplicate product selection state
+    const [duplicateProducts, setDuplicateProducts] = useState([]);
+    const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+
     // Scanner state
     const [showScanner, setShowScanner] = useState(false);
 
@@ -141,6 +145,16 @@ const BarcodeControl = () => {
         await lookupProduct(code);
     };
 
+    const selectProduct = (productData) => {
+        setProduct(productData);
+        setEditData({
+            description: productData.description || '',
+            code: productData.code || '',
+            barcode: productData.barcode || '',
+            provider_code: productData.provider_code || ''
+        });
+    };
+
     const lookupProduct = async (code) => {
         setLoading(true);
         setError(null);
@@ -149,24 +163,18 @@ const BarcodeControl = () => {
         setSearchQuery('');
         setSearchResults([]);
         setSelectedProductToLink(null);
+        setDuplicateProducts([]);
+        setIsDuplicateModalOpen(false);
 
         try {
             const response = await api.get(`/api/products/barcode/${code}`);
             const data = response.data;
 
-            // Handle multiple matches
-            const productData = Array.isArray(data) ? data[0] : data;
-
-            setProduct(productData);
-            setEditData({
-                description: productData.description || '',
-                code: productData.code || '',
-                barcode: productData.barcode || '',
-                provider_code: productData.provider_code || ''
-            });
-
             if (Array.isArray(data) && data.length > 1) {
-                toast.info(`Se encontraron ${data.length} productos con este código. Mostrando el primero.`);
+                setDuplicateProducts(data);
+                setIsDuplicateModalOpen(true);
+            } else {
+                selectProduct(Array.isArray(data) ? data[0] : data);
             }
         } catch (err) {
             console.error('Lookup error:', err);
@@ -359,6 +367,8 @@ const BarcodeControl = () => {
         setError(null);
         setScannedBarcode('');
         setInputBarcode('');
+        setDuplicateProducts([]);
+        setIsDuplicateModalOpen(false);
         setSearchQuery('');
         setSearchResults([]);
         setSelectedProductToLink(null);
@@ -833,6 +843,75 @@ const BarcodeControl = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modal for Duplicate Products Selection */}
+            {isDuplicateModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl border border-gray-100">
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 flex items-center gap-4 shadow-lg">
+                            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner">
+                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-white leading-tight uppercase tracking-wide">Detectamos Duplicados</h2>
+                                <p className="text-amber-50 text-sm font-medium opacity-90">Selecciona el producto correcto para continuar</p>
+                            </div>
+                        </div>
+                        <div className="p-6 max-h-[60vh] overflow-y-auto bg-gray-50/50 space-y-3">
+                            {duplicateProducts.map((prod) => (
+                                <button
+                                    key={prod.id || prod.code}
+                                    onClick={() => {
+                                        setIsDuplicateModalOpen(false);
+                                        setDuplicateProducts([]);
+                                        selectProduct(prod);
+                                    }}
+                                    className="w-full text-left group transition-all duration-300 transform active:scale-[0.98]"
+                                >
+                                    <div className="bg-white border-2 border-transparent group-hover:border-amber-400 p-5 rounded-2xl shadow-sm group-hover:shadow-md group-hover:bg-amber-50/30 flex items-center gap-5 relative overflow-hidden">
+                                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-200 group-hover:bg-amber-500 transition-colors"></div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-gray-900 text-lg leading-tight mb-1 group-hover:text-amber-900 uppercase">
+                                                {prod.description}
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2 items-center">
+                                                <span className="inline-flex items-center bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono group-hover:bg-amber-100 group-hover:text-amber-700">
+                                                    INT: {prod.code}
+                                                </span>
+                                                {prod.barcode && (
+                                                    <span className="inline-flex items-center bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono">
+                                                        BAR: {prod.barcode}
+                                                    </span>
+                                                )}
+                                                {prod.brand && (
+                                                    <span className="text-xs text-gray-400 font-semibold italic group-hover:text-amber-600/70">
+                                                        • {prod.brand}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="bg-gray-100 p-2 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t border-gray-100 bg-white flex justify-end px-6 py-4">
+                            <button
+                                onClick={() => { setIsDuplicateModalOpen(false); setDuplicateProducts([]); }}
+                                className="px-5 py-2.5 text-gray-500 font-bold hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all active:scale-95"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Scanner Modal overlay */}
             {showScanner && (

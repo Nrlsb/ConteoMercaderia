@@ -21,6 +21,7 @@ const RemitoForm = () => {
     const [isProcessingScan, setIsProcessingScan] = useState(false); // Scanner Pause State
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
+    const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
 
 
     // Report State
@@ -100,7 +101,6 @@ const RemitoForm = () => {
             if (selectedCount) {
                 setRemitoNumber(selectedCount.id);
                 setExpectedItems(null);
-                setPreRemitoNumber('');
                 localStorage.setItem('selectedCountId', selectedCount.id);
             } else {
                 setRemitoNumber('');
@@ -148,6 +148,11 @@ const RemitoForm = () => {
             console.error('Error restoring session:', error);
         }
     };
+
+    // Keep selectedCountRef in sync with selectedCount state
+    useEffect(() => {
+        selectedCountRef.current = selectedCount;
+    }, [selectedCount]);
 
     useEffect(() => {
         if (selectedCount?.id && selectedCount.id !== lastRestoredId) {

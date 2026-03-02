@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const rateLimit = require('express-rate-limit');
 
 dotenv.config();
 
@@ -234,7 +235,15 @@ app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
 
         // Extract JSON from response (handling potential markdown formatting)
         const jsonMatch = resultText.match(/\[[\s\S]*\]/);
-        const parsedItems = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+        let parsedItems = [];
+        if (jsonMatch) {
+            try {
+                parsedItems = JSON.parse(jsonMatch[0]);
+            } catch (parseError) {
+                console.error('[AI PARSER] Error al parsear JSON de Gemini:', parseError.message);
+                return res.status(500).json({ message: 'La IA devolvió una respuesta con formato inválido.' });
+            }
+        }
 
         console.log(`[AI PARSER] Sincronización exitosa: ${parsedItems.length} items encontrados`);
         res.json(parsedItems);
@@ -301,7 +310,15 @@ app.post('/api/ai/parse-image', verifyToken, multer({ storage: multer.memoryStor
 
         // Extract JSON from response
         const jsonMatch = resultText.match(/\[[\s\S]*\]/);
-        const parsedItems = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+        let parsedItems = [];
+        if (jsonMatch) {
+            try {
+                parsedItems = JSON.parse(jsonMatch[0]);
+            } catch (parseError) {
+                console.error('[AI IMAGE PARSER] Error al parsear JSON de Gemini:', parseError.message);
+                return res.status(500).json({ message: 'La IA devolvió una respuesta con formato inválido.' });
+            }
+        }
 
         console.log(`[AI IMAGE PARSER] Extracción exitosa: ${parsedItems.length} items encontrados`);
         res.json(parsedItems);
@@ -4058,8 +4075,17 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     }
 });
 
+// Rate limiter: max 10 intentos por 15 minutos en login/register
+const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Demasiados intentos. Intente nuevamente en 15 minutos.' }
+});
+
 // Register
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authRateLimiter, async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -4117,7 +4143,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     const { username, password, force } = req.body;
 
     if (!username || !password) {
@@ -4768,6 +4794,18 @@ async function getAllScansBatch(orderNumbers) {
 // The catch-all handler must be at the end, after all other routes
 app.get(/(.*)/, (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
+
+// Global error handler: catches multer errors and unhandled exceptions
+app.use((err, req, res, next) => {
+    if (err.name === 'MulterError') {
+        return res.status(400).json({ message: `Error al subir archivo: ${err.message}` });
+    }
+    console.error('[GLOBAL ERROR HANDLER]', err);
+    res.status(500).json({
+        message: err.message || 'Error interno del servidor',
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
 });
 
 app.listen(port, () => {

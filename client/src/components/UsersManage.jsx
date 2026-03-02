@@ -26,7 +26,7 @@ const UsersManage = () => {
         } catch (error) {
             console.error('Error fetching current user', error);
         }
-    }
+    };
 
     const fetchData = async () => {
         setLoading(true);

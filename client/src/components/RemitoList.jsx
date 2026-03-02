@@ -89,7 +89,7 @@ const RemitoList = () => {
         // User requested: "Si el conteo fue eliminado no lo muestres"
         if (remito.status === 'voided') return false;
 
-        const matchesSearch = remito.remito_number.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = (remito.remito_number || '').toLowerCase().includes(searchTerm.toLowerCase());
 
         let matchesDate = true;
         if (startDate || endDate) {

@@ -33,6 +33,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     const moduleCheckedRef = useRef(false);
     const nativeScanActiveRef = useRef(false);
 
+    // Ref to always have the latest onScan prop available inside stale callbacks
+    const onScanRef = useRef(onScan);
+    useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+
     // --- REF: Track enabled state for async callbacks ---
     const isEnabledRef = useRef(isEnabled);
     const restartTimerRef = useRef(null);
@@ -284,9 +288,9 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             console.log("Feedback error", e);
         }
 
-        // Call the parent callback
-        if (onScan) {
-            onScan(code);
+        // Call the parent callback using ref to avoid stale closures
+        if (onScanRef.current) {
+            onScanRef.current(code);
         }
     };
 

@@ -12,6 +12,13 @@ export const AuthProvider = ({ children }) => {
     const [sessionExpired, setSessionExpired] = useState(false);
     const lastLoginTime = useRef(0); // Track last login time to prevent race conditions
 
+    // Refs to read latest values inside intervals without causing re-runs
+    const isAuthenticatedRef = useRef(false);
+    const sessionExpiredRef = useRef(false);
+
+    useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
+    useEffect(() => { sessionExpiredRef.current = sessionExpired; }, [sessionExpired]);
+
     useEffect(() => {
         const checkLoggedIn = async () => {
             const token = localStorage.getItem('token');
@@ -37,7 +44,7 @@ export const AuthProvider = ({ children }) => {
         // Session Polling: Check if session is still valid every 30 seconds
         const pollingInterval = setInterval(async () => {
             const token = localStorage.getItem('token');
-            if (token && !sessionExpired) {
+            if (token && !sessionExpiredRef.current) {
                 try {
                     await api.get('/api/auth/user');
                 } catch (error) {
@@ -63,7 +70,7 @@ export const AuthProvider = ({ children }) => {
 
         // Heartbeat: Update last_seen every minute
         const heartbeatInterval = setInterval(() => {
-            if (isAuthenticated && !sessionExpired) {
+            if (isAuthenticatedRef.current && !sessionExpiredRef.current) {
                 api.post('/api/auth/heartbeat').catch(err => {
                     console.error('Heartbeat failed:', err.message);
                 });
@@ -75,7 +82,7 @@ export const AuthProvider = ({ children }) => {
             clearInterval(heartbeatInterval);
             window.removeEventListener('auth:session-expired', handleSessionExpired);
         };
-    }, [isAuthenticated, sessionExpired]);
+    }, []); // Run once on mount; intervals use refs for latest values
 
     const login = async (username, password, force = false) => {
         try {

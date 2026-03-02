@@ -9,7 +9,7 @@ import UsersManage from './UsersManage';
 
 const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState('general'); // 'general', 'branches', 'users'
-    const { user, token } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     const [versionData, setVersionData] = useState({ version: '', downloadUrl: '', releaseNotes: '' });

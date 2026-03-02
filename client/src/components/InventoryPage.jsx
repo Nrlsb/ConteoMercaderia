@@ -25,6 +25,7 @@ const InventoryPage = () => {
     const [manualCode, setManualCode] = useState('');
     const [lastSyncTime, setLastSyncTime] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
+    const isSyncingRef = useRef(false); // Ref to read isSyncing inside intervals without deps
     const [viewMode, setViewMode] = useState('list'); // 'list' | 'brands'
     const [expandedBrands, setExpandedBrands] = useState({}); // { brandName: boolean }
 
@@ -43,20 +44,23 @@ const InventoryPage = () => {
             .catch(err => console.error(err));
     }, []);
 
+    // Keep isSyncingRef in sync with isSyncing state
+    useEffect(() => { isSyncingRef.current = isSyncing; }, [isSyncing]);
+
     // Polling for updates (every 5 seconds)
     useEffect(() => {
         if (!selectedOrder) return;
 
         const fetchState = async () => {
             // Don't fetch if currently syncing to avoid race conditions visually
-            if (isSyncing) return;
+            if (isSyncingRef.current) return;
 
             try {
                 const res = await api.get(`/api/inventory/${selectedOrder}`);
                 setExpectedItems(res.data.expected);
                 setScannedItems(res.data.scanned); // Global total
                 setMyScans(res.data.myScans); // Hydrate local session state from server
-                // We assume server MyScans is correct for historical data, 
+                // We assume server MyScans is correct for historical data,
                 // but local changes will be added visually
             } catch (error) {
                 console.error("Error polling inventory:", error);
@@ -66,7 +70,7 @@ const InventoryPage = () => {
         fetchState(); // Initial fetch
         const interval = setInterval(fetchState, 5000); // 5s poll
         return () => clearInterval(interval);
-    }, [selectedOrder, isSyncing]);
+    }, [selectedOrder]); // isSyncing removed; interval uses ref to avoid restarting on sync changes
 
     const handleOrderSelect = (e) => {
         setSelectedOrder(e.target.value);
