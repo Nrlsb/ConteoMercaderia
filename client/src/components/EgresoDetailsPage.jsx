@@ -293,72 +293,28 @@ const EgresoDetailsPage = () => {
     };
 
     const handlePrintDifferences = () => {
-        const diffItems = items.filter(item => {
+        const hasDifferences = items.some(item => {
             const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
             return diff !== 0;
         });
 
-        if (diffItems.length === 0) {
-            toast.info('No hay diferencias para imprimir');
+        if (!hasDifferences) {
+            toast.info('No hay diferencias para exportar');
             return;
         }
 
-        const printWindow = window.open('', '_blank');
-        const html = `
-            <html>
-                <head>
-                    <title>Diferencias de Egreso - ${egreso.reference_number}</title>
-                    <style>
-                        body { font-family: sans-serif; padding: 20px; }
-                        h1 { color: #333; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-                        th { background-color: #f4f4f4; }
-                        .diff-falta { color: #d32f2f; font-weight: bold; }
-                        .diff-sobra { color: #388e3c; font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Diferencias de Egreso</h1>
-                    <p><strong>Referencia:</strong> ${egreso.reference_number}</p>
-                    <p><strong>Fecha:</strong> ${new Date(egreso.date).toLocaleString()}</p>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th>Código</th>
-                                <th>Cód. Barras</th>
-                                <th>Esperado</th>
-                                <th>Controlado</th>
-                                <th>Diferencia</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${diffItems.map(item => {
-            const diff = (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0);
-            const label = diff > 0 ? `Sobra ${diff}` : `Falta ${Math.abs(diff)}`;
-            const className = diff > 0 ? 'diff-sobra' : 'diff-falta';
-            return `
-                                    <tr>
-                                        <td>${item.products?.description || 'Sin descripción'}</td>
-                                        <td>${item.product_code}</td>
-                                        <td>${item.products?.barcode || '-'}</td>
-                                        <td>${item.expected_quantity}</td>
-                                        <td>${item.scanned_quantity}</td>
-                                        <td class="${className}">${label}</td>
-                                    </tr>
-                                `;
-        }).join('')}
-                        </tbody>
-                    </table>
-                    <script>
-                        window.onload = () => { window.print(); window.close(); };
-                    </script>
-                </body>
-            </html>
-        `;
-        printWindow.document.write(html);
-        printWindow.document.close();
+        api.get(`/api/egresos/${id}/export?onlyDifferences=true`, { responseType: 'blob' })
+            .then(response => {
+                downloadFile(new Blob([response.data]), `Diferencias_Egreso_${egreso?.reference_number}.xlsx`)
+                    .catch(err => {
+                        console.error('Download error:', err);
+                        toast.error('Error al procesar descarga');
+                    });
+            })
+            .catch(err => {
+                console.error('Export differences error:', err);
+                toast.error('Error al descargar Excel de diferencias');
+            });
     };
 
     if (loading) return <div className="p-4 text-center">Cargando...</div>;

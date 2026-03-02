@@ -1257,7 +1257,7 @@ app.get('/api/egresos/:id/export', verifyToken, async (req, res) => {
         const xlsx = require('xlsx');
         const workbook = xlsx.utils.book_new();
 
-        const data = items.map(item => ({
+        let data = items.map(item => ({
             'Código Interno': item.product_code,
             'Código de Barras': item.products?.barcode || '-',
             'Descripción': item.products?.description || 'Sin descripción',
@@ -1266,13 +1266,22 @@ app.get('/api/egresos/:id/export', verifyToken, async (req, res) => {
             'Diferencia': (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0)
         }));
 
+        const onlyDifferences = req.query.onlyDifferences === 'true';
+        if (onlyDifferences) {
+            data = data.filter(item => item.Diferencia !== 0);
+        }
+
         const worksheet = xlsx.utils.json_to_sheet(data);
-        xlsx.utils.book_append_sheet(workbook, worksheet, 'Detalle Egreso');
+        xlsx.utils.book_append_sheet(workbook, worksheet, onlyDifferences ? 'Diferencias' : 'Detalle Egreso');
 
         const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
+        const filename = onlyDifferences
+            ? `Diferencias_Egreso_${egreso.reference_number}.xlsx`
+            : `Egreso_${egreso.reference_number}.xlsx`;
+
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Egreso_${egreso.reference_number}.xlsx`);
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
         res.send(buffer);
 
     } catch (error) {
