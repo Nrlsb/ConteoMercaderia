@@ -21,6 +21,7 @@ create table if not exists egreso_items (
   product_code text references products(code) on delete cascade,
   expected_quantity numeric default 0,
   scanned_quantity numeric default 0,
+  last_scanned_at timestamp with time zone default now(),
   unique (egreso_id, product_code)
 );
 

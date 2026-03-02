@@ -1109,7 +1109,8 @@ app.post('/api/egresos/:id/scan', verifyToken, async (req, res) => {
                 egreso_id: id,
                 product_code: productCode,
                 scanned_quantity: newScanned,
-                expected_quantity: currentExpected
+                expected_quantity: currentExpected,
+                last_scanned_at: new Date().toISOString()
             }, { onConflict: 'egreso_id, product_code' })
             .select()
             .single();

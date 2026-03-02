@@ -620,9 +620,9 @@ const EgresoDetailsPage = () => {
                                             <tbody className="bg-white divide-y divide-gray-100">
                                                 {scannedItems
                                                     .sort((a, b) => {
-                                                        const diffA = a.expected_quantity - a.scanned_quantity;
-                                                        const diffB = b.expected_quantity - b.scanned_quantity;
-                                                        return diffB - diffA;
+                                                        const dateA = new Date(a.last_scanned_at || 0);
+                                                        const dateB = new Date(b.last_scanned_at || 0);
+                                                        return dateB - dateA;
                                                     })
                                                     .slice(0, visibleItems)
                                                     .map((item) => {
@@ -662,9 +662,9 @@ const EgresoDetailsPage = () => {
                                     <div className="md:hidden space-y-3">
                                         {scannedItems
                                             .sort((a, b) => {
-                                                const diffA = a.expected_quantity - a.scanned_quantity;
-                                                const diffB = b.expected_quantity - b.scanned_quantity;
-                                                return diffB - diffA;
+                                                const dateA = new Date(a.last_scanned_at || 0);
+                                                const dateB = new Date(b.last_scanned_at || 0);
+                                                return dateB - dateA;
                                             })
                                             .slice(0, visibleItems)
                                             .map((item) => {
