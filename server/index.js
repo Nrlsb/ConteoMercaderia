@@ -1326,22 +1326,25 @@ app.get('/api/products/barcode/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;
 
     try {
-        const { data, error } = await supabase
+        const { data: matches, error } = await supabase
             .from('products')
             .select('*')
-            .eq('barcode', barcode)
-            .maybeSingle();
+            .eq('barcode', barcode);
 
         if (error) throw error;
 
-        if (!data) {
+        if (!matches || matches.length === 0) {
             return res.status(404).json({ message: 'Producto no encontrado' });
         }
 
-        res.json(data);
+        if (matches.length > 1) {
+            return res.json(matches);
+        }
+
+        return res.json(matches[0]);
     } catch (error) {
         console.error('Error fetching product by barcode:', error);
-        res.status(500).json({ message: 'Error al buscar producto por código de barras' });
+        res.status(500).json({ message: 'Error interno del servidor' });
     }
 });
 
@@ -1796,28 +1799,34 @@ app.get('/api/products/:barcode', verifyToken, async (req, res) => {
             .or(`code.eq.${barcode},barcode.eq.${barcode}`);
 
         if (matches && matches.length > 0) {
+            // If there are multiple matches, return all of them
+            if (matches.length > 1) {
+                return res.json(matches);
+            }
+            // If only one, return the object (existing legacy behavior)
             return res.json(matches[0]);
         }
 
         // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)
-        // This handles cases where there might be whitespace differences or if the user scanned a code that exists as a substring in a weird way?
-        // But mainly for "invisible" chars or whitespace issues.
         console.log(`Product ${barcode} not found via exact match. Trying fallback search...`);
 
         const { data: searchResults, error: searchError } = await supabase
             .rpc('search_products', { search_term: barcode });
 
         if (!searchError && searchResults && searchResults.length > 0) {
-            // Try to find a "good enough" match from search results
-            // We look for exact string match on code or barcode, ignoring whitespace
-            const match = searchResults.find(p =>
+            // Filter results to find exact matches ignoring whitespace
+            const filteredMatches = searchResults.filter(p =>
                 (p.code && p.code.trim() === barcode.trim()) ||
                 (p.barcode && p.barcode.trim() === barcode.trim())
             );
 
-            if (match) {
-                console.log(`Fallback search found match for ${barcode}:`, match.code);
-                return res.json(match);
+            if (filteredMatches.length > 0) {
+                if (filteredMatches.length > 1) {
+                    console.log(`Fallback search found multiple matches for ${barcode}`);
+                    return res.json(filteredMatches);
+                }
+                console.log(`Fallback search found match for ${barcode}:`, filteredMatches[0].code);
+                return res.json(filteredMatches[0]);
             }
         }
 

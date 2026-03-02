@@ -153,13 +153,21 @@ const BarcodeControl = () => {
         try {
             const response = await api.get(`/api/products/barcode/${code}`);
             const data = response.data;
-            setProduct(data);
+
+            // Handle multiple matches
+            const productData = Array.isArray(data) ? data[0] : data;
+
+            setProduct(productData);
             setEditData({
-                description: data.description || '',
-                code: data.code || '',
-                barcode: data.barcode || '',
-                provider_code: data.provider_code || ''
+                description: productData.description || '',
+                code: productData.code || '',
+                barcode: productData.barcode || '',
+                provider_code: productData.provider_code || ''
             });
+
+            if (Array.isArray(data) && data.length > 1) {
+                toast.info(`Se encontraron ${data.length} productos con este código. Mostrando el primero.`);
+            }
         } catch (err) {
             console.error('Lookup error:', err);
             if (err.response && err.response.status === 404) {

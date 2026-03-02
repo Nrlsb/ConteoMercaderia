@@ -36,9 +36,12 @@ const EgresoDetailsPage = () => {
         expectedQuantity: null
     });
 
-    // History state
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+
+    // Multiple Matches State
+    const [multipleMatches, setMultipleMatches] = useState([]);
+    const [showMatchModal, setShowMatchModal] = useState(false);
 
     const inputRef = useRef(null);
 
@@ -176,22 +179,18 @@ const EgresoDetailsPage = () => {
         recognition.start();
     };
 
-    const handleScan = async (e, overrideCode = null) => {
-        if (e) e.preventDefault();
-        const code = (overrideCode || scanInput).trim();
-        if (!code) return;
+    const openModal = (product, expQty, currentScanned) => {
+        setFichajeState({
+            isOpen: true,
+            product: product,
+            existingQuantity: currentScanned,
+            expectedQuantity: expQty
+        });
+        setShowSuggestions(false);
+    };
 
-        const existingItem = items.find(i => i.product_code === code || i.products?.barcode === code);
-
-        const openModal = (product, expQty, currentScanned) => {
-            setFichajeState({
-                isOpen: true,
-                product: product,
-                existingQuantity: currentScanned,
-                expectedQuantity: expQty
-            });
-            setShowSuggestions(false);
-        };
+    const processProductSelection = (product) => {
+        const existingItem = items.find(i => i.product_code === product.code);
 
         if (existingItem) {
             openModal({
@@ -200,21 +199,37 @@ const EgresoDetailsPage = () => {
                 barcode: existingItem.products?.barcode || existingItem.barcode || ''
             }, existingItem.expected_quantity, existingItem.scanned_quantity);
         } else {
-            try {
-                setProcessing(true);
-                const response = await api.get(`/api/products/${code}`);
-                const product = Array.isArray(response.data) ? response.data[0] : response.data;
-                openModal({
-                    code: product.code,
-                    description: product.description,
-                    barcode: product.barcode || ''
-                }, null, 0);
-            } catch (error) {
-                console.error('Error fetching product:', error);
-                toast.error('Producto no encontrado');
-            } finally {
-                setProcessing(false);
+            openModal({
+                code: product.code,
+                description: product.description,
+                barcode: product.barcode || ''
+            }, null, 0);
+        }
+    };
+
+    const handleScan = async (e, overrideCode = null) => {
+        if (e) e.preventDefault();
+        const code = (overrideCode || scanInput).trim();
+        if (!code) return;
+
+        try {
+            setProcessing(true);
+            const response = await api.get(`/api/products/${code}`);
+            const data = response.data;
+
+            if (Array.isArray(data) && data.length > 1) {
+                setMultipleMatches(data);
+                setShowMatchModal(true);
+                setShowSuggestions(false);
+            } else {
+                const product = Array.isArray(data) ? data[0] : data;
+                processProductSelection(product);
             }
+        } catch (error) {
+            console.error('Error fetching product:', error);
+            toast.error('Producto no encontrado');
+        } finally {
+            setProcessing(false);
         }
     };
 
@@ -739,6 +754,54 @@ const EgresoDetailsPage = () => {
                 expectedQuantity={fichajeState.expectedQuantity}
                 isEgreso={true}
             />
+
+            {/* Multiple Matches Modal */}
+            {showMatchModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-brand-blue text-white">
+                            <h3 className="font-bold text-lg">Múltiples productos encontrados</h3>
+                            <button
+                                onClick={() => setShowMatchModal(false)}
+                                className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <p className="text-sm text-gray-500 mb-4">
+                                Se encontraron varios productos con el código <span className="font-bold text-gray-900">{scanInput}</span>. Por favor, seleccioná el correcto:
+                            </p>
+                            <div className="space-y-3">
+                                {multipleMatches.map((match) => (
+                                    <button
+                                        key={match.id}
+                                        onClick={() => {
+                                            setShowMatchModal(false);
+                                            processProductSelection(match);
+                                        }}
+                                        className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-brand-blue hover:bg-blue-50 transition-all flex flex-col gap-1 group"
+                                    >
+                                        <div className="font-bold text-gray-900 group-hover:text-brand-blue transition-colors">{match.description}</div>
+                                        <div className="flex justify-between text-xs text-gray-500">
+                                            <span>COD: {match.code}</span>
+                                            {match.barcode && <span>BAR: {match.barcode}</span>}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 border-t border-gray-100">
+                            <button
+                                onClick={() => setShowMatchModal(false)}
+                                className="w-full py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
