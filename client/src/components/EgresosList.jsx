@@ -25,9 +25,16 @@ const EgresosList = () => {
             const response = await api.get('/api/egresos');
             setEgresos(response.data);
             setLoading(false);
+            localStorage.setItem('egresos_list_cache', JSON.stringify(response.data));
         } catch (error) {
             console.error('Error fetching egresos:', error);
-            toast.error('Error al cargar los egresos');
+            const cache = localStorage.getItem('egresos_list_cache');
+            if (cache) {
+                setEgresos(JSON.parse(cache));
+                toast.info('Mostrando datos offline');
+            } else {
+                toast.error('Error al cargar los egresos');
+            }
             setLoading(false);
         }
     };

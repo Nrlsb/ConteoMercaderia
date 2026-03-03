@@ -84,13 +84,13 @@ const ReceiptsList = () => {
                             autoFocus
                         />
                         <div className="flex gap-2">
-                            <button type="submit" className="flex-1 sm:flex-none bg-green-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-green-700 transition-colors">
+                            <button type="submit" className="flex-1 sm:flex-none bg-brand-success text-white px-6 py-2.5 rounded-lg font-bold hover:bg-brand-success/80 transition-colors">
                                 Crear
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsCreating(false)}
-                                className="flex-1 sm:flex-none bg-gray-400 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-gray-500 transition-colors"
+                                className="flex-1 sm:flex-none bg-brand-gray text-white px-4 py-2.5 rounded-lg font-bold hover:bg-brand-gray/80 transition-colors"
                             >
                                 Cancelar
                             </button>

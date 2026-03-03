@@ -437,7 +437,7 @@ const BarcodeControl = () => {
                                 <button
                                     type="submit"
                                     disabled={loading || !inputBarcode.trim()}
-                                    className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 font-medium text-base sm:text-base flex-shrink-0 h-auto sm:h-[60px]"
+                                    className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-brand-blue text-white rounded-lg hover:bg-brand-blue/80 transition disabled:opacity-50 font-medium text-base sm:text-base flex-shrink-0 h-auto sm:h-[60px]"
                                 >
                                     Buscar
                                 </button>
@@ -446,7 +446,7 @@ const BarcodeControl = () => {
                                 <button
                                     type="button"
                                     onClick={() => setShowScanner(true)}
-                                    className="btn bg-gray-800 text-white hover:bg-gray-700 flex items-center gap-2"
+                                    className="btn bg-brand-dark text-white hover:bg-brand-dark/80 flex items-center gap-2"
                                 >
                                     <Camera className="w-4 h-4" /> Usar Cámara / Escáner Nativo
                                 </button>

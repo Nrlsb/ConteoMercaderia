@@ -7,7 +7,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100">
                 {/* Header */}
-                <div className="px-6 py-4 border-b bg-blue-600 text-white">
+                <div className="px-6 py-4 border-b bg-brand-blue text-white">
                     <h3 className="text-lg font-bold">{title}</h3>
                 </div>
 
@@ -28,7 +28,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="px-4 py-2 bg-brand-blue text-white font-semibold rounded-lg shadow-md hover:bg-brand-blue/80 transition duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
                     >
                         Si
                     </button>

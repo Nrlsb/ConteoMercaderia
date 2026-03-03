@@ -11,7 +11,7 @@ const Modal = ({ isOpen, onClose, title, message, type = 'info', confirmText, on
     };
 
     const buttonStyles = {
-        info: 'bg-blue-600 hover:bg-blue-700',
+        info: 'bg-brand-blue hover:bg-blue-800',
         success: 'bg-green-600 hover:bg-green-700',
         warning: 'bg-yellow-600 hover:bg-yellow-700',
         error: 'bg-red-600 hover:bg-red-700'

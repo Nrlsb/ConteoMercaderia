@@ -22,6 +22,7 @@ const EgresoDetailsPage = () => {
     const [isListening, setIsListening] = useState(false);
     const [visibleItems, setVisibleItems] = useState(20);
     const [activeTab, setActiveTab] = useState('control');
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
     // Intelligent Search State
     const [suggestions, setSuggestions] = useState([]);
@@ -47,7 +48,43 @@ const EgresoDetailsPage = () => {
 
     useEffect(() => {
         fetchEgresoDetails();
+        checkPendingSync();
+        window.addEventListener('online', syncOfflineData);
+        return () => window.removeEventListener('online', syncOfflineData);
     }, [id]);
+
+    const checkPendingSync = () => {
+        const queueKey = `pending_egreso_scans_${id}`;
+        try {
+            const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+            setPendingSyncCount(queue.length);
+        } catch (e) { }
+    };
+
+    const syncOfflineData = async () => {
+        const queueKey = `pending_egreso_scans_${id}`;
+        let queue = [];
+        try {
+            queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+        } catch (e) { }
+
+        if (queue.length === 0) return;
+
+        toast.info(`Sincronizando ${queue.length} registros offline...`, { id: 'sync' });
+
+        try {
+            for (const scan of queue) {
+                await api.post(`/api/egresos/${id}/scan`, { code: scan.code, quantity: scan.quantity });
+            }
+            localStorage.removeItem(queueKey);
+            checkPendingSync();
+            toast.success('Sincronización completada exitosamente', { id: 'sync' });
+            fetchEgresoDetails();
+        } catch (error) {
+            console.error('Error syncing:', error);
+            toast.error('Error al sincronizar. Se reintentará cuando haya red.', { id: 'sync' });
+        }
+    };
 
     useEffect(() => {
         if (!processing && inputRef.current && activeTab === 'control') {
@@ -67,10 +104,22 @@ const EgresoDetailsPage = () => {
             setEgreso(response.data);
             setItems(response.data.items || []);
             setLoading(false);
+            // Guardar respaldo local
+            localStorage.setItem(`egreso_cache_${id}`, JSON.stringify(response.data));
         } catch (error) {
             console.error('Error fetching egreso details:', error);
-            toast.error('Error al cargar los detalles');
-            setLoading(false);
+            // Intentar recuperar de caché local
+            const cache = localStorage.getItem(`egreso_cache_${id}`);
+            if (cache) {
+                const data = JSON.parse(cache);
+                setEgreso(data);
+                setItems(data.items || []);
+                setLoading(false);
+                toast.info('Cargado desde respaldo offline local');
+            } else {
+                toast.error('Error al cargar los detalles');
+                setLoading(false);
+            }
         }
     };
 
@@ -86,20 +135,30 @@ const EgresoDetailsPage = () => {
         }
     };
 
-    const executeSearch = async (value) => {
+    const executeSearch = (value) => {
         if (!value || value.length < 2) {
             setShowSuggestions(false);
             setSuggestions([]);
             return;
         }
 
-        try {
-            const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
-            setSuggestions(res.data);
-            setShowSuggestions(res.data.length > 0);
-        } catch (error) {
-            console.error('Error searching products:', error);
-        }
+        const lowerValue = value.toLowerCase();
+        const localSuggestions = items.filter(i => {
+            const desc = (i.products?.description || '').toLowerCase();
+            const code = (i.product_code || '').toLowerCase();
+            const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
+            return desc.includes(lowerValue) || code.includes(lowerValue) || barcode.includes(lowerValue);
+        }).map(i => ({
+            code: i.product_code,
+            description: i.products?.description || 'Producto',
+            barcode: i.products?.barcode || i.barcode || ''
+        }));
+
+        const unique = Array.from(new Set(localSuggestions.map(a => a.code)))
+            .map(code => localSuggestions.find(a => a.code === code));
+
+        setSuggestions(unique);
+        setShowSuggestions(unique.length > 0);
     };
 
     const handleInputChange = (e) => {
@@ -212,25 +271,27 @@ const EgresoDetailsPage = () => {
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
-        try {
-            setProcessing(true);
-            const response = await api.get(`/api/products/${code}`);
-            const data = response.data;
+        setProcessing(true);
+        const lowerCode = code.toLowerCase();
 
-            if (Array.isArray(data) && data.length > 1) {
-                setMultipleMatches(data);
-                setShowMatchModal(true);
-                setShowSuggestions(false);
-            } else {
-                const product = Array.isArray(data) ? data[0] : data;
-                processProductSelection(product);
-            }
-        } catch (error) {
-            console.error('Error fetching product:', error);
-            toast.error('Producto no encontrado');
-        } finally {
-            setProcessing(false);
+        const existingItem = items.find(i =>
+            (i.product_code || '').toLowerCase() === lowerCode ||
+            (i.products && (i.products.barcode || '').toLowerCase() === lowerCode) ||
+            (i.barcode || '').toLowerCase() === lowerCode
+        );
+
+        if (existingItem) {
+            setScanInput('');
+            processProductSelection({
+                code: existingItem.product_code,
+                description: existingItem.products?.description || 'Producto',
+                barcode: existingItem.products?.barcode || existingItem.barcode || ''
+            });
+        } else {
+            toast.error(`El producto "${code}" no está listado en el documento de Egreso de Mercadería precargado.`, { duration: 4000 });
+            setScanInput('');
         }
+        setProcessing(false);
     };
 
     const handleFichajeConfirm = async (quantityToAdd) => {
@@ -240,6 +301,26 @@ const EgresoDetailsPage = () => {
         setProcessing(true);
         const code = product.code;
         const qty = parseFloat(quantityToAdd) || 1;
+
+        if (!navigator.onLine) {
+            const queueKey = `pending_egreso_scans_${id}`;
+            const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+            queue.push({ code, quantity: qty, timestamp: Date.now() });
+            localStorage.setItem(queueKey, JSON.stringify(queue));
+
+            setItems(prevItems => prevItems.map(item => {
+                if (item.product_code === code) {
+                    return { ...item, scanned_quantity: Number(item.scanned_quantity) + qty };
+                }
+                return item;
+            }));
+
+            toast.success(`Controlado offline: cantidad ${qty} (Se sincronizará al conectar)`, { duration: 4000 });
+            setFichajeState(prev => ({ ...prev, isOpen: false }));
+            checkPendingSync();
+            setProcessing(false);
+            return;
+        }
 
         try {
             await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
@@ -356,6 +437,15 @@ const EgresoDetailsPage = () => {
                         )}
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        {pendingSyncCount > 0 && (
+                            <button
+                                onClick={syncOfflineData}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-100 border border-yellow-300 rounded-lg text-sm font-bold text-yellow-800 shadow-sm transition-all animate-pulse"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                {pendingSyncCount} <span className="hidden sm:inline">pendientes</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => {
                                 api.get(`/api/egresos/${id}/export`, { responseType: 'blob' })
@@ -685,7 +775,7 @@ const EgresoDetailsPage = () => {
                         <Scanner
                             onScan={handleBarcodeScan}
                             onCancel={() => setIsBarcodeReaderActive(false)}
-                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !processing}
+                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !processing && !showMatchModal}
                         />
                     </div>
                     <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
