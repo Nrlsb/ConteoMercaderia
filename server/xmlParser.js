@@ -125,6 +125,9 @@ const parseLegacyXml = async (buffer) => {
         const items = [];
         let inventoryId = null;
 
+        let idIdx = 1, codeIdx = 2, descIdx = 3, qtyIdx = 6;
+        let headersFound = false;
+
         // Iterate rows
         for (let i = 0; i < rowArray.length; i++) {
             const row = rowArray[i];
@@ -153,22 +156,33 @@ const parseLegacyXml = async (buffer) => {
                 currentIndex++;
             });
 
-            // Mapping based on "2-Inventario" structure:
-            // Col 1: Id Inventario
-            // Col 2: Codigo (Internal)
-            // ...
+            // Check if this row is the header row
+            if (!headersFound) {
+                let isHeader = false;
+                columns.forEach((col, idx) => {
+                    if (typeof col === 'string') {
+                        const colLower = col.toLowerCase();
+                        if (colLower.includes('codigo')) { codeIdx = idx; isHeader = true; }
+                        else if (colLower.includes('descripcion')) { descIdx = idx; }
+                        else if (colLower.includes('saldo') || colLower.includes('stock')) { qtyIdx = idx; }
+                        else if (colLower.includes('id') && colLower.includes('inventario')) { idIdx = idx; }
+                    }
+                });
+                if (isHeader) {
+                    headersFound = true;
+                    continue; // Skip the header row itself
+                }
+            }
 
-            // Extraction
-            const currentInventoryId = columns[1];
-            const code = columns[2];
-            let description = columns[3];
-            // In the user image, Saldo Stock is in col 4 (D). 
-            // In previous versions it was mentioned as col 6.
-            const rawQuantity = columns[4] || columns[6];
-            const barcode = null; // Do not attempt to extract barcode from legacy XML as it does not contain it
+            // Extraction using dynamic indices
+            const currentInventoryId = columns[idIdx];
+            const code = columns[codeIdx];
+            let description = columns[descIdx];
+            const rawQuantity = columns[qtyIdx];
+            const barcode = null;
 
-            // Skip Header (Detect if "Codigo" is in col 2 or "Descripcion" in col 3)
-            if (code === 'Codigo' || description === 'Descripcion' || rawQuantity === 'Saldo Stock') {
+            // Skip title row or common header texts in case header logic missed them
+            if (code === 'Codigo' || description === 'Descripcion' || columns[1] === 'Inventario') {
                 continue;
             }
 
@@ -191,7 +205,7 @@ const parseLegacyXml = async (buffer) => {
                 code: String(code).trim(),
                 description,
                 quantity,
-                barcode: (barcode && !/^[_\-]+$/.test(String(barcode).trim())) ? String(barcode).trim() : null
+                barcode: null
             });
         }
 
