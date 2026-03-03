@@ -43,7 +43,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     // Reset quantity when modal opens or product changes
     useEffect(() => {
         if (isOpen) {
-            setQuantity('');
+            setQuantity(isEgreso ? '1' : '');
             setIsEditingBarcode(false);
             setBarcodeInput(product?.barcode || '');
             setCurrentBarcode(product?.barcode || '');
