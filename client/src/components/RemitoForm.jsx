@@ -55,31 +55,31 @@ const RemitoForm = () => {
                     if (user && user.role !== 'admin' && user.role !== 'superadmin' && user.role !== 'branch_admin') {
                         // Find count for user's branch
                         const myCount = counts.find(c => c.sucursal_id == user.sucursal_id);
-
                         if (myCount) {
                             setSelectedCount(myCount);
                         } else {
-                            // Reset if no active count for my branch found
                             setSelectedCount(null);
                         }
-                        // Admin logic: keep selection if valid
-                        const savedSelectedId = localStorage.getItem('selectedCountId');
-                        const currentRef = selectedCountRef.current;
+                    }
+                }
 
-                        if (savedSelectedId) {
-                            const saved = counts.find(c => String(c.id) === String(savedSelectedId));
-                            if (saved) {
-                                setSelectedCount(saved);
-                            } else {
-                                // If not found in active counts, clear from storage
-                                localStorage.removeItem('selectedCountId');
-                            }
-                        } else if (currentRef) {
-                            const current = counts.find(c => c.id === currentRef.id);
-                            if (current) {
-                                setSelectedCount(current);
-                            }
-                        }
+                // Restore selected count from localStorage regardless of mode
+                const savedSelectedId = localStorage.getItem('selectedCountId');
+                const currentRef = selectedCountRef.current;
+
+                if (savedSelectedId) {
+                    const saved = counts.find(c => String(c.id) === String(savedSelectedId));
+                    if (saved) {
+                        setSelectedCount(saved);
+                    } else {
+                        // Count no longer active (was closed), clear storage
+                        localStorage.removeItem('selectedCountId');
+                        setSelectedCount(null);
+                    }
+                } else if (currentRef) {
+                    const current = counts.find(c => c.id === currentRef.id);
+                    if (current) {
+                        setSelectedCount(current);
                     }
                 }
             } catch (error) {
@@ -89,10 +89,6 @@ const RemitoForm = () => {
 
         fetchActiveCounts();
         interval = setInterval(fetchActiveCounts, 5000); // Poll every 5 seconds
-
-        if (countMode !== 'products') {
-            setSelectedCount(null); // Ensure no count is selected when not in 'products' mode
-        }
 
         return () => clearInterval(interval);
     }, [countMode, user]);
@@ -1190,6 +1186,7 @@ const RemitoForm = () => {
             const newCount = res.data;
             setActiveCounts(prev => [newCount, ...prev]);
             setSelectedCount(newCount);
+            localStorage.setItem('selectedCountId', newCount.id);
 
             setNewCountName('');
             setSelectedBranch('');
