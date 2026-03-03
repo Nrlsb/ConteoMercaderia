@@ -27,6 +27,7 @@ const ReceiptDetailsPage = () => {
     const [isListening, setIsListening] = useState(false); // For Voice Search
     const [isBarcodeReaderActive, setIsBarcodeReaderActive] = useState(false); // For Barcode Scanner
     const [visibleItems, setVisibleItems] = useState(20);
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
     // Bulk Import State (OCR)
     const [isBulkImporting, setIsBulkImporting] = useState(false);
@@ -64,16 +65,81 @@ const ReceiptDetailsPage = () => {
         }
     }, [processing, activeTab, items]);
 
+    const checkPendingSync = () => {
+        const pendingKey = `pending_receipt_scans_${id}`;
+        const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+        setPendingSyncCount(queue.length);
+    };
+
+    const syncOfflineData = async () => {
+        const pendingKey = `pending_receipt_scans_${id}`;
+        const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+        if (queue.length === 0) return;
+
+        try {
+            toast.info('Sincronizando datos offline...', { duration: 2000 });
+            // Sync each item
+            for (const scan of queue) {
+                if (scan.type === 'load') {
+                    await api.post(`/api/receipts/${id}/items`, { code: scan.code, quantity: scan.quantity });
+                } else {
+                    await api.post(`/api/receipts/${id}/scan`, { code: scan.code, quantity: scan.quantity });
+                }
+            }
+            // Clear queue on success
+            localStorage.removeItem(pendingKey);
+            checkPendingSync();
+            toast.success('Sincronización completada');
+            await fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error sincronizando scans:', error);
+            toast.error('Error al sincronizar. Se reintentará luego.');
+        }
+    };
+
+    useEffect(() => {
+        checkPendingSync();
+        const handleOnline = () => {
+            toast.success('Conexión restaurada. Sincronizando...', { duration: 3000 });
+            syncOfflineData();
+        };
+        const handleOffline = () => {
+            toast.error('Sin conexión a internet. Modo Offline activado.', { duration: 5000 });
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        if (navigator.onLine && pendingSyncCount > 0) {
+            syncOfflineData();
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [id, pendingSyncCount]);
+
     const fetchReceiptDetails = async () => {
         try {
             const response = await api.get(`/api/receipts/${id}`);
             setReceipt(response.data);
             setItems(response.data.items || []);
             setLoading(false);
+            localStorage.setItem(`receipt_cache_${id}`, JSON.stringify(response.data));
         } catch (error) {
             console.error('Error fetching receipt details:', error);
-            toast.error('Error al cargar los detalles');
-            setLoading(false);
+            const cache = localStorage.getItem(`receipt_cache_${id}`);
+            if (cache) {
+                const data = JSON.parse(cache);
+                setReceipt(data);
+                setItems(data.items || []);
+                setLoading(false);
+                toast.info('Cargado desde respaldo offline local');
+            } else {
+                toast.error('Error al cargar los detalles');
+                setLoading(false);
+            }
         }
     };
 
@@ -248,6 +314,49 @@ const ReceiptDetailsPage = () => {
         const code = product.code;
         const qty = parseFloat(quantityToAdd) || 1;
 
+        if (!navigator.onLine) {
+            // Guardar en cola offline
+            const pendingKey = `pending_receipt_scans_${id}`;
+            const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+            currentQueue.push({ code, quantity: qty, timestamp: new Date().toISOString(), type: activeTab });
+            localStorage.setItem(pendingKey, JSON.stringify(currentQueue));
+
+            // Actualización optimista local
+            setItems(prevItems => {
+                const newItems = [...prevItems];
+                const itemIndex = newItems.findIndex(i => i.product_code === code || i.products?.provider_code === code);
+
+                if (itemIndex > -1) {
+                    if (activeTab === 'load') {
+                        newItems[itemIndex] = {
+                            ...newItems[itemIndex],
+                            expected_quantity: Number(newItems[itemIndex].expected_quantity || 0) + Number(qty)
+                        };
+                    } else {
+                        newItems[itemIndex] = {
+                            ...newItems[itemIndex],
+                            scanned_quantity: Number(newItems[itemIndex].scanned_quantity || 0) + Number(qty)
+                        };
+                    }
+                } else if (activeTab === 'load') {
+                    // Si se está cargando uno nuevo offline (simplificado para UI, backend lo resuelve real tras sync)
+                    newItems.push({
+                        expected_quantity: qty, scanned_quantity: 0,
+                        product_code: code,
+                        products: { description: product.description, provider_code: product.provider_code || '' }
+                    });
+                }
+                return newItems;
+            });
+            checkPendingSync();
+            toast.success('Guardado localmente (Offline)');
+            setScanInput('');
+            setQuantityInput(1);
+            setFichajeState(prev => ({ ...prev, isOpen: false }));
+            setProcessing(false);
+            return;
+        }
+
         try {
             if (activeTab === 'load') {
                 await api.post(`/api/receipts/${id}/items`,
@@ -258,6 +367,8 @@ const ReceiptDetailsPage = () => {
                 await api.post(`/api/receipts/${id}/scan`,
                     { code, quantity: qty }
                 );
+                const sound = new Audio('/success-beep.mp3');
+                sound.play().catch(e => console.log('Audio error:', e));
             }
 
             setScanInput('');
@@ -427,6 +538,12 @@ const ReceiptDetailsPage = () => {
 
     return (
         <div className="relative w-full h-full">
+            {pendingSyncCount > 0 && (
+                <div className="bg-yellow-100 p-2 text-center text-yellow-800 font-bold text-sm w-full sticky top-0 z-50 flex justify-between items-center animate-pulse">
+                    <span>⚠️ Offline: {pendingSyncCount} escaneos pendientes.</span>
+                    <button onClick={syncOfflineData} className="bg-yellow-500 text-white px-3 py-1 rounded text-xs">Sincronizar</button>
+                </div>
+            )}
             <div className={`container mx-auto p-4 max-w-lg md:max-w-5xl ${isBarcodeReaderActive || showScanner ? 'hidden' : 'block'}`}>
                 {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

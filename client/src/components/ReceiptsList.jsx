@@ -19,10 +19,17 @@ const ReceiptsList = () => {
         try {
             const response = await api.get('/api/receipts');
             setReceipts(response.data);
+            localStorage.setItem('receipts_list_cache', JSON.stringify(response.data));
             setLoading(false);
         } catch (error) {
             console.error('Error fetching receipts:', error);
-            toast.error('Error al cargar los ingresos');
+            const cache = localStorage.getItem('receipts_list_cache');
+            if (cache) {
+                setReceipts(JSON.parse(cache));
+                toast.info('Mostrando datos offline');
+            } else {
+                toast.error('Error al cargar los ingresos');
+            }
             setLoading(false);
         }
     };

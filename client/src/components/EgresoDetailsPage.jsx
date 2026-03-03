@@ -274,19 +274,28 @@ const EgresoDetailsPage = () => {
         setProcessing(true);
         const lowerCode = code.toLowerCase();
 
-        const existingItem = items.find(i =>
+        const matchingItems = items.filter(i =>
             (i.product_code || '').toLowerCase() === lowerCode ||
             (i.products && (i.products.barcode || '').toLowerCase() === lowerCode) ||
             (i.barcode || '').toLowerCase() === lowerCode
         );
 
-        if (existingItem) {
+        if (matchingItems.length === 1) {
             setScanInput('');
             processProductSelection({
-                code: existingItem.product_code,
-                description: existingItem.products?.description || 'Producto',
-                barcode: existingItem.products?.barcode || existingItem.barcode || ''
+                code: matchingItems[0].product_code,
+                description: matchingItems[0].products?.description || 'Producto',
+                barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || ''
             });
+        } else if (matchingItems.length > 1) {
+            setScanInput('');
+            setMultipleMatches(matchingItems.map(i => ({
+                id: i.id || i.product_code,
+                code: i.product_code,
+                description: i.products?.description || 'Producto',
+                barcode: i.products?.barcode || i.barcode || ''
+            })));
+            setShowMatchModal(true);
         } else {
             toast.error(`El producto "${code}" no está listado en el documento de Egreso de Mercadería precargado.`, { duration: 4000 });
             setScanInput('');

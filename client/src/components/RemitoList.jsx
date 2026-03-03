@@ -28,8 +28,14 @@ const RemitoList = () => {
         try {
             const response = await api.get('/api/remitos');
             setRemitos(response.data);
+            localStorage.setItem('remitos_list_cache', JSON.stringify(response.data));
         } catch (error) {
             console.error('Error fetching remitos:', error);
+            const cache = localStorage.getItem('remitos_list_cache');
+            if (cache) {
+                setRemitos(JSON.parse(cache));
+                toast.info('Mostrando datos offline');
+            }
         } finally {
             setLoading(false);
         }

@@ -19,15 +19,23 @@ const RemitoDetailsPage = () => {
     const [searchTerm, setSearchTerm] = useState(''); // State for search input
     const [isListening, setIsListening] = useState(false); // State for voice search
     const [visibleCount, setVisibleCount] = useState(20); // State for pagination
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
     useEffect(() => {
         const fetchDetails = async () => {
             try {
                 const response = await api.get(`/api/remitos/${id}/details`);
                 setData(response.data);
+                localStorage.setItem(`remito_detail_cache_${id}`, JSON.stringify(response.data));
             } catch (err) {
                 console.error('Error fetching details:', err);
-                setError('No se pudo cargar el detalle del remito.');
+                const cache = localStorage.getItem(`remito_detail_cache_${id}`);
+                if (cache) {
+                    setData(JSON.parse(cache));
+                    toast.info('Cargado desde respaldo offline local');
+                } else {
+                    setError('No se pudo cargar el detalle del remito.');
+                }
             } finally {
                 setLoading(false);
             }
@@ -157,6 +165,11 @@ const RemitoDetailsPage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-12">
+            {pendingSyncCount > 0 && (
+                <div className="bg-yellow-100 p-2 text-center text-yellow-800 font-bold text-sm w-full sticky top-0 flex justify-between items-center z-50 animate-pulse">
+                    <span>⚠️ Offline: {pendingSyncCount} escaneos en cola. (App Remitos app-side)</span>
+                </div>
+            )}
             {/* Header */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

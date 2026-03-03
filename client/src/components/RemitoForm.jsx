@@ -20,6 +20,7 @@ const RemitoForm = () => {
     const [isListening, setIsListening] = useState(false); // Voice Search State
     const [isProcessingScan, setIsProcessingScan] = useState(false); // Scanner Pause State
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
+    const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
 
@@ -95,6 +96,81 @@ const RemitoForm = () => {
 
         return () => clearInterval(interval);
     }, [countMode, user]);
+
+    // --- OFFLINE SUPPORT ---
+    const checkPendingSync = () => {
+        if (!selectedCount) {
+            setPendingSyncCount(0);
+            return;
+        }
+        const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
+        const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+        setPendingSyncCount(queue.length);
+    };
+
+    useEffect(() => {
+        checkPendingSync();
+    }, [selectedCount]);
+
+    const syncOfflineData = async () => {
+        if (!selectedCount) return;
+        const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
+        const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+        if (queue.length === 0) return;
+
+        try {
+            toast.info('Sincronizando conteos offline...', { duration: 2000 });
+            // Separar incrementales de totales
+            const incrementals = queue.filter(q => q.type === 'incremental').map(q => ({ code: q.code, quantity: q.quantity }));
+            const totals = queue.filter(q => q.type === 'total').map(q => ({ code: q.code, quantity: q.quantity }));
+
+            if (incrementals.length > 0) {
+                await api.post('/api/inventory/scan-incremental', {
+                    orderNumber: selectedCount.id,
+                    items: incrementals
+                });
+            }
+
+            if (totals.length > 0) {
+                // Para totales, backend suele esperar 1 solo item por request por diseño del body (aunque envía un array)
+                // O se puede enviar todos si el backend lo soporta, asumo que sí.
+                await api.post('/api/inventory/scan', {
+                    orderNumber: selectedCount.id,
+                    items: totals
+                });
+            }
+
+            localStorage.removeItem(pendingKey);
+            checkPendingSync();
+            toast.success('Sincronización offline completada');
+        } catch (error) {
+            console.error('Error sincronizando scans offline:', error);
+            toast.error('Error al sincronizar. Se reintentará luego.');
+        }
+    };
+
+    useEffect(() => {
+        const handleOnline = () => {
+            toast.success('Conexión restaurada. Sincronizando...', { duration: 3000 });
+            syncOfflineData();
+        };
+        const handleOffline = () => {
+            toast.error('Sin conexión a internet. Modo Offline activado.', { duration: 5000 });
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        if (navigator.onLine && pendingSyncCount > 0) {
+            syncOfflineData();
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [selectedCount, pendingSyncCount]);
+    // ----------------------
 
     useEffect(() => {
         if (countMode === 'products') {
@@ -864,6 +940,18 @@ const RemitoForm = () => {
     const syncTotalToInventory = async (code, totalQuantity) => {
         if (!selectedCount) return;
 
+        if (!navigator.onLine) {
+            const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
+            const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+            // Filter previous total updates for the same code to keep only the newest
+            const filteredQueue = queue.filter(q => !(q.type === 'total' && q.code === code));
+            filteredQueue.push({ type: 'total', code, quantity: totalQuantity });
+            localStorage.setItem(pendingKey, JSON.stringify(filteredQueue));
+            checkPendingSync();
+            // Optional visually friendly toast, though totals might be silent in current UX
+            return;
+        }
+
         try {
             console.log('Sincronizando cantidad absoluta:', {
                 orderNumber: selectedCount.id,
@@ -890,6 +978,16 @@ const RemitoForm = () => {
     // Sync to inventory_scans for general count mode (incremental)
     const syncToInventoryScans = async (code, quantityToAdd) => {
         if (!selectedCount) return;
+
+        if (!navigator.onLine) {
+            const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
+            const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+            queue.push({ type: 'incremental', code, quantity: quantityToAdd });
+            localStorage.setItem(pendingKey, JSON.stringify(queue));
+            checkPendingSync();
+            toast.success('Guardado localmente (Offline)');
+            return;
+        }
 
         try {
             console.log('Intentando sincronizar (incremental):', {
@@ -1305,6 +1403,12 @@ const RemitoForm = () => {
                 {/* General Count Manager - Visible when counts are active or in products mode */}
                 {(countMode === 'products' || selectedCount) && (
                     <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                        {pendingSyncCount > 0 && selectedCount && (
+                            <div className="bg-yellow-100 p-3 rounded-lg text-yellow-800 font-bold text-sm w-full mb-4 flex justify-between items-center animate-pulse border border-yellow-300">
+                                <span>⚠️ {pendingSyncCount} escaneos pausados sin internet.</span>
+                                <button onClick={syncOfflineData} className="bg-yellow-500 text-white px-4 py-2 rounded-lg text-xs hover:bg-yellow-600 transition-colors">Intentar Sincronizar</button>
+                            </div>
+                        )}
                         {!selectedCount ? (
                             /* Selection Mode: List of Open Counts */
                             user?.role !== 'admin' ? (
