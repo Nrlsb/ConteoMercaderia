@@ -283,15 +283,34 @@ const BarcodeControl = () => {
 
                 SpeechRecognition.start({
                     language: 'es-ES',
-                    maxResults: 1,
+                    maxResults: 5,
                     prompt: 'Diga el nombre del producto a buscar',
                     partialResults: false,
                     popup: true
-                }).then(result => {
+                }).then(async result => {
                     if (result && result.matches && result.matches.length > 0) {
-                        const transcript = result.matches[0];
-                        setSearchQuery(transcript);
-                        executeSearch(transcript);
+                        // Expandir candidatos: también probar versión sin espacios (ej: "ter suave" → "tersuave")
+                        const candidates = [];
+                        for (const match of result.matches) {
+                            candidates.push(match);
+                            const compressed = match.replace(/\s+/g, '');
+                            if (compressed !== match) candidates.push(compressed);
+                        }
+                        for (const match of candidates) {
+                            if (!match || !match.trim()) continue;
+                            try {
+                                const res = await api.get(`/api/products/search?q=${encodeURIComponent(match)}`);
+                                if (res.data && res.data.length > 0) {
+                                    setSearchQuery(match);
+                                    setSearchResults(res.data);
+                                    return;
+                                }
+                            } catch (e) { /* probar siguiente alternativa */ }
+                        }
+                        // Ninguna alternativa encontró resultados, usar la primera
+                        const first = result.matches[0];
+                        setSearchQuery(first);
+                        executeSearch(first);
                     }
                 }).catch(error => {
                     console.error('Speech error:', error);

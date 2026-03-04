@@ -77,12 +77,33 @@ const RemitoDetailsPage = () => {
 
                 SpeechRecognition.start({
                     language: 'es-ES',
-                    maxResults: 1,
+                    maxResults: 5,
                     prompt: 'Busque un producto...',
                     partialResults: false,
                     popup: true
                 }).then(result => {
                     if (result && result.matches && result.matches.length > 0) {
+                        // Expandir candidatos: también probar versión sin espacios (ej: "ter suave" → "tersuave")
+                        const candidates = [];
+                        for (const match of result.matches) {
+                            candidates.push(match);
+                            const compressed = match.replace(/\s+/g, '');
+                            if (compressed !== match) candidates.push(compressed);
+                        }
+                        if (data?.remito?.items?.length > 0) {
+                            for (const match of candidates) {
+                                if (!match || match.trim().length < 2) continue;
+                                const term = match.toLowerCase();
+                                const found = data.remito.items.some(item =>
+                                    (item.description || '').toLowerCase().includes(term) ||
+                                    (item.code || '').toLowerCase().includes(term)
+                                );
+                                if (found) {
+                                    setSearchTerm(match);
+                                    return;
+                                }
+                            }
+                        }
                         setSearchTerm(result.matches[0]);
                     }
                 }).catch(error => {

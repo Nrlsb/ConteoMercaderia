@@ -197,15 +197,37 @@ const EgresoDetailsPage = () => {
 
                 SpeechRecognition.start({
                     language: 'es-ES',
-                    maxResults: 1,
+                    maxResults: 5,
                     prompt: 'Diga el código o nombre del producto',
                     partialResults: false,
                     popup: true
                 }).then(result => {
                     if (result && result.matches && result.matches.length > 0) {
-                        const transcript = result.matches[0];
-                        setScanInput(transcript);
-                        executeSearch(transcript);
+                        // Expandir candidatos: también probar versión sin espacios (ej: "ter suave" → "tersuave")
+                        const candidates = [];
+                        for (const match of result.matches) {
+                            candidates.push(match);
+                            const compressed = match.replace(/\s+/g, '');
+                            if (compressed !== match) candidates.push(compressed);
+                        }
+                        for (const match of candidates) {
+                            if (!match || match.trim().length < 2) continue;
+                            const term = match.toLowerCase();
+                            const found = items.some(i =>
+                                (i.products?.description || '').toLowerCase().includes(term) ||
+                                (i.product_code || '').toLowerCase().includes(term) ||
+                                (i.products?.barcode || i.barcode || '').toLowerCase().includes(term)
+                            );
+                            if (found) {
+                                setScanInput(match);
+                                executeSearch(match);
+                                return;
+                            }
+                        }
+                        // Ninguna alternativa encontró resultados, usar la primera
+                        const first = result.matches[0];
+                        setScanInput(first);
+                        executeSearch(first);
                     }
                 }).catch(error => {
                     console.error('Speech error:', error);
