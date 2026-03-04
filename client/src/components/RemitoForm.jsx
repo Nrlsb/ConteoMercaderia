@@ -181,10 +181,8 @@ const RemitoForm = () => {
                 setRemitoNumber(selectedCount.id);
                 setExpectedItems(null);
                 localStorage.setItem('selectedCountId', selectedCount.id);
-            } else {
+            } else if (countMode === 'products') {
                 setRemitoNumber('');
-                // Only clear if we are in products mode and no count is selected
-                localStorage.removeItem('selectedCountId');
             }
         }
     }, [selectedCount, countMode]);
@@ -470,6 +468,15 @@ const RemitoForm = () => {
 
             // Set the selected count to trigger the display of the active count
             setSelectedCount(count);
+            localStorage.setItem('selectedCountId', count.id);
+
+            // Sync to backend for cross-device persistence
+            try {
+                await api.put('/api/auth/active-count', { countId: count.id });
+            } catch (e) {
+                console.error('Error syncing resumed count to backend:', e);
+            }
+
             setPreRemitoStatus('found');
         } catch (error) {
             console.error('Error resuming active count:', error);
@@ -1526,7 +1533,15 @@ const RemitoForm = () => {
                                 <div className="flex items-center gap-2">
                                     {user?.role === 'admin' && (
                                         <button
-                                            onClick={() => setSelectedCount(null)}
+                                            onClick={async () => {
+                                                setSelectedCount(null);
+                                                localStorage.removeItem('selectedCountId');
+                                                try {
+                                                    await api.put('/api/auth/active-count', { countId: null });
+                                                } catch (e) {
+                                                    console.error('Error clearing count from backend on change:', e);
+                                                }
+                                            }}
                                             className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition"
                                         >
                                             Cambiar Conteo
@@ -1814,6 +1829,15 @@ const RemitoForm = () => {
 
                                                             // Don't switch mode, just set the selected count to enable scanning
                                                             setSelectedCount(res.data);
+                                                            localStorage.setItem('selectedCountId', res.data.id);
+
+                                                            // Sync to backend for cross-device persistence
+                                                            try {
+                                                                await api.put('/api/auth/active-count', { countId: res.data.id });
+                                                            } catch (e) {
+                                                                console.error('Error syncing pre-remito count to backend:', e);
+                                                            }
+
                                                             triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
 
                                                             // We stay in 'pre_remito' mode, so validation against expectedItems continues.

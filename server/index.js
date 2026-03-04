@@ -4689,21 +4689,6 @@ app.post('/api/auth/logout', verifyToken, async (req, res) => {
     }
 });
 
-// Example protected route
-app.get('/api/auth/user', verifyToken, async (req, res) => {
-    try {
-        const { data: user, error } = await supabase
-            .from('users')
-            .select('id, username, role, created_at, sucursal_id, permissions, active_count_id, sucursales(name)')
-            .eq('id', req.user.id)
-            .single();
-
-        if (error) throw error;
-        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined });
-    } catch (error) {
-        res.status(500).json({ message: 'Server Error' });
-    }
-});
 
 // Heartbeat to keep session alive
 app.post('/api/auth/heartbeat', verifyToken, async (req, res) => {
