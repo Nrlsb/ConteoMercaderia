@@ -76,6 +76,13 @@ const RemitoForm = () => {
                         localStorage.removeItem('selectedCountId');
                         setSelectedCount(null);
                     }
+                } else if (user?.active_count_id) {
+                    // Fallback to backend persistence if local is empty
+                    const saved = counts.find(c => String(c.id) === String(user.active_count_id));
+                    if (saved) {
+                        setSelectedCount(saved);
+                        localStorage.setItem('selectedCountId', saved.id);
+                    }
                 } else if (currentRef) {
                     const current = counts.find(c => c.id === currentRef.id);
                     if (current) {
@@ -1160,12 +1167,24 @@ const RemitoForm = () => {
         }
     };
 
-    const handleSelectCount = (count) => {
+    const handleSelectCount = async (count) => {
         setSelectedCount(count);
         if (count) {
             localStorage.setItem('selectedCountId', count.id);
+            // Sync to backend for cross-device persistence
+            try {
+                await api.put('/api/auth/active-count', { countId: count.id });
+            } catch (e) {
+                console.error('Error syncing count to backend:', e);
+            }
         } else {
             localStorage.removeItem('selectedCountId');
+            // Sync to backend to clear
+            try {
+                await api.put('/api/auth/active-count', { countId: null });
+            } catch (e) {
+                console.error('Error clearing count from backend:', e);
+            }
         }
         setItems([]); // Clear local items to prepare for restore
     };
@@ -1187,6 +1206,13 @@ const RemitoForm = () => {
             setActiveCounts(prev => [newCount, ...prev]);
             setSelectedCount(newCount);
             localStorage.setItem('selectedCountId', newCount.id);
+
+            // Sync to backend for cross-device persistence
+            try {
+                await api.put('/api/auth/active-count', { countId: newCount.id });
+            } catch (e) {
+                console.error('Error syncing new count to backend:', e);
+            }
 
             setNewCountName('');
             setSelectedBranch('');
@@ -1217,6 +1243,14 @@ const RemitoForm = () => {
             setActiveCounts(prev => prev.filter(c => c.id !== selectedCount.id));
             setSelectedCount(null);
             localStorage.removeItem('selectedCountId');
+
+            // Clear from backend
+            try {
+                await api.put('/api/auth/active-count', { countId: null });
+            } catch (e) {
+                console.error('Error clearing count from backend on close:', e);
+            }
+
             setItems([]);
             setRemitoNumber('');
             triggerModal('Éxito', 'Conteo finalizado. Puede consultar el reporte en el Historial.', 'success');

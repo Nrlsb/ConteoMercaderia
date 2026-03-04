@@ -4063,7 +4063,7 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, sucursal_id, permissions, sucursales(name)')
+            .select('id, username, role, sucursal_id, permissions, active_count_id, sucursales(name)')
             .eq('id', req.user.id)
             .single();
 
@@ -4072,6 +4072,23 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Update Active Count (Persistence)
+app.put('/api/auth/active-count', verifyToken, async (req, res) => {
+    const { countId } = req.body;
+    try {
+        const { error } = await supabase
+            .from('users')
+            .update({ active_count_id: countId })
+            .eq('id', req.user.id);
+
+        if (error) throw error;
+        res.json({ success: true, active_count_id: countId });
+    } catch (error) {
+        console.error('Error updating active count:', error);
+        res.status(500).json({ message: 'Error al actualizar el conteo activo' });
     }
 });
 
@@ -4677,7 +4694,7 @@ app.get('/api/auth/user', verifyToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, created_at, sucursal_id, permissions, sucursales(name)')
+            .select('id, username, role, created_at, sucursal_id, permissions, active_count_id, sucursales(name)')
             .eq('id', req.user.id)
             .single();
 
