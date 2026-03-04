@@ -11,6 +11,9 @@ const ReceiptsList = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [newRemitoNumber, setNewRemitoNumber] = useState('');
 
+    const canCreate = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos');
+    const canDelete = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('delete_ingresos');
+
     useEffect(() => {
         fetchReceipts();
     }, []);
@@ -70,12 +73,14 @@ const ReceiptsList = () => {
         <div className="container mx-auto p-4 max-w-lg md:max-w-4xl">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Ingreso de Mercadería</h1>
-                <button
-                    onClick={() => setIsCreating(true)}
-                    className="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors"
-                >
-                    Nuevo Ingreso
-                </button>
+                {canCreate && (
+                    <button
+                        onClick={() => setIsCreating(true)}
+                        className="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors"
+                    >
+                        Nuevo Ingreso
+                    </button>
+                )}
             </div>
 
             {isCreating && (
@@ -153,7 +158,7 @@ const ReceiptsList = () => {
                                         <Link to={`/receipts/${receipt.id}`} className="text-blue-600 hover:text-blue-900 font-bold">
                                             Ver Detalles
                                         </Link>
-                                        {user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'branch_admin') && (
+                                        {canDelete && (
                                             <button
                                                 onClick={() => handleDelete(receipt.id)}
                                                 className="text-red-600 hover:text-red-900 font-bold"
@@ -191,7 +196,7 @@ const ReceiptsList = () => {
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-600">Por: <span className="font-medium">{receipt.created_by}</span></span>
                             <div className="flex gap-3 items-center">
-                                {user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'branch_admin') && (
+                                {canDelete && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); handleDelete(receipt.id); }}
                                         className="text-red-600 hover:text-red-900 font-bold"

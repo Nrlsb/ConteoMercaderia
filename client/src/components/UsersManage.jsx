@@ -131,26 +131,64 @@ const UsersManage = () => {
         setFormData({ ...formData, permissions: newPermissions });
     };
 
-    // Available permissions to manage
-    const availablePermissions = [
-        { id: 'delete_counts', name: 'Eliminar Conteos/Remitos' },
-        { id: 'export_data', name: 'Exportar a Excel' },
-        { id: 'import_data', name: 'Importar Excel/XML' },
-        { id: 'edit_products', name: 'Editar Productos/Barcodes' },
-        { id: 'manage_settings', name: 'Configuración Global' },
-        { id: 'close_counts', name: 'Cerrar/Reabrir Conteos' },
-        { id: 'view_history', name: 'Ver Historial Auditar' }
-    ];
-
-    // Tab visibility permissions
-    const tabPermissions = [
-        { id: 'tab_nuevo_conteo', name: 'Nuevo Conteo' },
-        { id: 'tab_historial', name: 'Historial' },
-        { id: 'tab_importar', name: 'Importar' },
-        { id: 'tab_configuracion', name: 'Configuración' },
-        { id: 'tab_ingresos', name: 'Ingresos' },
-        { id: 'tab_control_codigos', name: 'Control Códigos' },
-        { id: 'tab_egresos', name: 'Egresos' }
+    const tabPermissionsConfig = [
+        {
+            id: 'tab_nuevo_conteo',
+            name: 'Nuevo Conteo',
+            specialPermissions: [
+                { id: 'close_counts', name: 'Cerrar/Reabrir Conteos' }
+            ]
+        },
+        {
+            id: 'tab_historial',
+            name: 'Historial',
+            specialPermissions: [
+                { id: 'view_history', name: 'Ver Historial Auditar' },
+                { id: 'export_data', name: 'Exportar a Excel' },
+                { id: 'delete_counts', name: 'Eliminar Conteos/Remitos' }
+            ]
+        },
+        {
+            id: 'tab_importar',
+            name: 'Importar',
+            specialPermissions: [
+                { id: 'import_data', name: 'Importar Excel/XML' }
+            ]
+        },
+        {
+            id: 'tab_configuracion',
+            name: 'Configuración',
+            specialPermissions: [
+                { id: 'manage_settings', name: 'Configuración Global' }
+            ]
+        },
+        {
+            id: 'tab_ingresos',
+            name: 'Ingresos',
+            specialPermissions: [
+                { id: 'use_scanner_ingresos', name: 'Utilizar Cámara/Escáner' },
+                { id: 'upload_ingresos', name: 'Cargar Documento PDF/XML' },
+                { id: 'close_ingresos', name: 'Finalizar/Reabrir Ingresos' },
+                { id: 'delete_ingresos', name: 'Eliminar Ingresos' }
+            ]
+        },
+        {
+            id: 'tab_control_codigos',
+            name: 'Control Códigos',
+            specialPermissions: [
+                { id: 'edit_products', name: 'Editar Productos/Barcodes' }
+            ]
+        },
+        {
+            id: 'tab_egresos',
+            name: 'Egresos',
+            specialPermissions: [
+                { id: 'use_scanner_egresos', name: 'Utilizar Cámara/Escáner' },
+                { id: 'upload_egresos', name: 'Cargar Documento PDF/XML' },
+                { id: 'close_egresos', name: 'Finalizar/Reabrir Egresos' },
+                { id: 'delete_egresos', name: 'Eliminar Egresos' }
+            ]
+        }
     ];
 
     if (loading) return <div className="p-4 text-center">Cargando usuarios...</div>;
@@ -231,43 +269,50 @@ const UsersManage = () => {
                         </div>
                     </div>
 
-                    {isSuperAdmin && (<>
+                    {isSuperAdmin && (
                         <div className="mb-4">
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Permisos Especiales</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-white p-3 border rounded">
-                                {availablePermissions.map(perm => (
-                                    <label key={perm.id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.permissions.includes(perm.id)}
-                                            onChange={() => handlePermissionChange(perm.id)}
-                                            className="form-checkbox h-4 w-4 text-blue-600 rounded"
-                                        />
-                                        <span>{perm.name}</span>
-                                    </label>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Permisos por Pestaña</label>
+                            <p className="text-xs text-gray-500 mb-2">Selecciona qué pestañas puede ver el usuario y qué acciones específicas puede realizar en cada una. Si no se selecciona ninguna pestaña, el usuario las verá según su rol.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {tabPermissionsConfig.map(tab => (
+                                    <div key={tab.id} className="border border-gray-200 rounded-lg p-3 bg-white shadow-sm flex flex-col">
+                                        <div className="flex items-center justify-between pb-2 border-b border-gray-100 mb-2">
+                                            <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.permissions.includes(tab.id)}
+                                                    onChange={() => handlePermissionChange(tab.id)}
+                                                    className="form-checkbox h-4 w-4 text-green-600 rounded transition duration-150 ease-in-out"
+                                                />
+                                                <span>{tab.name}</span>
+                                            </label>
+                                        </div>
+                                        <div className="flex-1 flex flex-col justify-start">
+                                            {tab.specialPermissions.length > 0 ? (
+                                                <div className="flex flex-col space-y-2">
+                                                    {tab.specialPermissions.map(perm => (
+                                                        <label key={perm.id} className={`flex items-start space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1.5 rounded transition duration-150 ease-in-out ${!formData.permissions.includes(tab.id) ? 'opacity-60' : ''}`}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={formData.permissions.includes(perm.id)}
+                                                                onChange={() => handlePermissionChange(perm.id)}
+                                                                className="form-checkbox h-4 w-4 text-blue-600 rounded mt-0.5"
+                                                            />
+                                                            <span className="text-gray-700 leading-snug">{perm.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-xs text-gray-400 italic py-1">Sin permisos especiales</div>
+                                            )}
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         </div>
-                        <div className="mb-4">
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Pestañas Visibles</label>
-                            <p className="text-xs text-gray-500 mb-2">Si no se selecciona ninguna, el usuario verá las pestañas según su rol.</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 bg-white p-3 border rounded">
-                                {tabPermissions.map(perm => (
-                                    <label key={perm.id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.permissions.includes(perm.id)}
-                                            onChange={() => handlePermissionChange(perm.id)}
-                                            className="form-checkbox h-4 w-4 text-green-600 rounded"
-                                        />
-                                        <span>{perm.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    </>)}
+                    )}
 
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 mt-6">
                         <button
                             type="button"
                             onClick={handleCancel}
