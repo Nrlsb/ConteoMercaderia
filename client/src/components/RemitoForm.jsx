@@ -793,6 +793,11 @@ const RemitoForm = () => {
         const inputCode = rawCode.trim(); // Trim whitespace/newlines
         // setIsScanning(false); // REMOVED: Keep camera open after scan
 
+        if (!selectedCountRef.current) {
+            triggerModal('Atención', 'Debe seleccionar o iniciar un conteo antes de escanear productos.', 'warning');
+            return;
+        }
+
         const currentItems = itemsRef.current;
         const currentExpectedItems = expectedItemsRef.current;
 
