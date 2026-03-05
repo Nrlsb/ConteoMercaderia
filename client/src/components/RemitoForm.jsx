@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import Scanner from './Scanner';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+const Scanner = lazy(() => import('./Scanner'));
+const ReportModal = lazy(() => import('./ReportModal'));
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import FichajeModal from './FichajeModal';
-import ReportModal from './ReportModal';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -24,6 +24,7 @@ const RemitoForm = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
+    const productCacheRef = React.useRef(new Map()); // Client-side product cache to avoid repeated API calls
 
 
     // Report State
@@ -96,7 +97,7 @@ const RemitoForm = () => {
         };
 
         fetchActiveCounts();
-        interval = setInterval(fetchActiveCounts, 5000); // Poll every 5 seconds
+        interval = setInterval(fetchActiveCounts, 10000); // Poll every 10 seconds
 
         return () => clearInterval(interval);
     }, [countMode, user]);
@@ -810,6 +811,21 @@ const RemitoForm = () => {
         }
     };
 
+    // Open the fichaje modal for a given product (component-level so JSX can call it)
+    const openFichajeModal = (product, expQty) => {
+        const existingItem = itemsRef.current.find(i => i.code === product.code);
+        const currentQty = existingItem ? existingItem.quantity : 0;
+
+        playBeep();
+
+        setFichajeState({
+            isOpen: true,
+            product: product,
+            existingQuantity: currentQty,
+            expectedQuantity: expQty
+        });
+    };
+
     // Handle barcode scan (from camera or physical scanner)
     const handleScan = React.useCallback((rawCode) => {
         const inputCode = rawCode.trim(); // Trim whitespace/newlines
@@ -858,27 +874,24 @@ const RemitoForm = () => {
             }
         }
 
-        const openFichajeModal = (product, expQty) => {
-            const existingItem = currentItems.find(i => i.code === product.code);
-            const currentQty = existingItem ? existingItem.quantity : 0;
-
-            playBeep();
-
-            setFichajeState({
-                isOpen: true,
-                product: product,
-                existingQuantity: currentQty,
-                expectedQuantity: expQty
-            });
-        };
-
         if (resolvedProducts.length === 1) {
             openFichajeModal(resolvedProducts[0], expectedQty);
         } else if (resolvedProducts.length > 1) {
             setDuplicateProducts(resolvedProducts);
             setIsDuplicateModalOpen(true);
         } else {
-            // Not in expected list (or no expected list). Fetch from API.
+            // Not in expected list (or no expected list). Check client cache first, then fetch from API.
+            const cached = productCacheRef.current.get(inputCode);
+            if (cached) {
+                if (Array.isArray(cached)) {
+                    setDuplicateProducts(cached);
+                    setIsDuplicateModalOpen(true);
+                } else {
+                    openFichajeModal(cached, null);
+                }
+                return;
+            }
+
             setIsProcessingScan(true);
             api.get(`/api/products/${inputCode}`)
                 .then(response => {
@@ -894,15 +907,18 @@ const RemitoForm = () => {
                                 barcode: inputCode,
                                 brand: productData.brand
                             };
+                            productCacheRef.current.set(inputCode, product);
                             openFichajeModal(product, null);
                         } else if (data.length > 1) {
-                            setDuplicateProducts(data.map(pd => ({
+                            const duplicates = data.map(pd => ({
                                 code: pd.code || inputCode,
                                 name: pd.description || 'Producto Desconocido',
                                 description: pd.description,
                                 barcode: inputCode,
                                 brand: pd.brand
-                            })));
+                            }));
+                            productCacheRef.current.set(inputCode, duplicates);
+                            setDuplicateProducts(duplicates);
                             setIsDuplicateModalOpen(true);
                         } else {
                             triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
@@ -916,6 +932,7 @@ const RemitoForm = () => {
                             barcode: inputCode,
                             brand: data.brand
                         };
+                        productCacheRef.current.set(inputCode, product);
                         openFichajeModal(product, null);
                     }
                 })
@@ -929,46 +946,40 @@ const RemitoForm = () => {
         }
     }, []); // Empty dependency array as we use refs/setters
 
-    const handleFichajeConfirm = async (quantityToAdd) => {
-        const { product, expectedQuantity } = fichajeState;
+    const handleFichajeConfirm = (quantityToAdd) => {
+        const { product } = fichajeState;
         if (!product || isSubmittingFichaje || lockingRef.current) return;
 
         lockingRef.current = true;
         setIsSubmittingFichaje(true);
 
-        try {
-            setItems(prevItems => {
-                const existingItem = prevItems.find(i => i.code === product.code);
-                let validationMessage = null;
-                const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
+        setItems(prevItems => {
+            const existingItem = prevItems.find(i => i.code === product.code);
+            const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
 
-                if (existingItem) {
-                    const updatedItem = { ...existingItem, quantity: newTotal, validationError: validationMessage };
-                    return [...prevItems.filter(i => i.code !== product.code), updatedItem];
-                } else {
-                    return [...prevItems, {
-                        code: product.code,
-                        name: product.name,
-                        quantity: quantityToAdd,
-                        validationError: validationMessage
-                    }];
-                }
-            });
-
-            // Auto-sync to inventory_scans if selectedCount is present (regardless of mode)
-            if (selectedCount) {
-                await syncToInventoryScans(product.code, quantityToAdd);
+            if (existingItem) {
+                const updatedItem = { ...existingItem, quantity: newTotal, validationError: null };
+                return [...prevItems.filter(i => i.code !== product.code), updatedItem];
+            } else {
+                return [...prevItems, {
+                    code: product.code,
+                    name: product.name,
+                    quantity: quantityToAdd,
+                    validationError: null
+                }];
             }
+        });
 
-            // Close modal only after successful sync
-            setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
+        // Close modal immediately so the user can scan the next product right away
+        setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
+        setIsSubmittingFichaje(false);
+        lockingRef.current = false;
 
-
-        } catch (error) {
-            console.error('[ERROR] handleFichajeConfirm failed:', error);
-        } finally {
-            setIsSubmittingFichaje(false);
-            lockingRef.current = false;
+        // Sync to backend in background (fire-and-forget)
+        if (selectedCount) {
+            syncToInventoryScans(product.code, quantityToAdd).catch(error => {
+                console.error('[ERROR] Background sync failed:', error);
+            });
         }
     };
 
@@ -1045,15 +1056,16 @@ const RemitoForm = () => {
             console.log(`✅ Sincronizado a inventory_scans: ${code} +${quantityToAdd}`);
         } catch (error) {
             console.error('[DEBUG_FRONTEND] Error syncing to inventory_scans:', error);
-            console.error('[DEBUG_FRONTEND] Detalles del error:', {
-                message: error.message,
-                response: error.response?.data,
-                status: error.response?.status
-            });
-            triggerModal('Error de Sincronización', 'No se pudo guardar el escaneo en la base de datos. Verifique su conexión.', 'error');
-
-            if (error.response?.status !== 401) {
-                triggerModal('Advertencia', 'Error al sincronizar. Los datos se guardarán localmente.', 'warning');
+            if (error.response?.status === 401) {
+                triggerModal('Error de Sincronización', 'No se pudo guardar el escaneo. Sesión expirada.', 'error');
+            } else {
+                // API failed (network/server error) — queue for later sync, keep optimistic state
+                const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
+                const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                queue.push({ type: 'incremental', code, quantity: quantityToAdd });
+                localStorage.setItem(pendingKey, JSON.stringify(queue));
+                checkPendingSync();
+                toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
             }
         }
     };
@@ -1332,12 +1344,14 @@ const RemitoForm = () => {
             />
 
 
-            <ReportModal
-                isOpen={reportConfig.isOpen}
-                onClose={() => setReportConfig(prev => ({ ...prev, isOpen: false }))}
-                title={reportConfig.title}
-                reportData={reportConfig.data}
-            />
+            <Suspense fallback={null}>
+                <ReportModal
+                    isOpen={reportConfig.isOpen}
+                    onClose={() => setReportConfig(prev => ({ ...prev, isOpen: false }))}
+                    title={reportConfig.title}
+                    reportData={reportConfig.data}
+                />
+            </Suspense>
 
             {/* Clarification Modal */}
             {showClarificationModal && (
@@ -1998,11 +2012,13 @@ const RemitoForm = () => {
                                 {isScanning && !fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isDuplicateModalOpen && (
                                     <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
                                         <div className="relative h-[90%] w-full bg-transparent flex items-center justify-center overflow-hidden">
+                                            <Suspense fallback={null}>
                                             <Scanner
                                                 onScan={handleScan}
                                                 onCancel={() => setIsScanning(false)}
                                                 isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan}
                                             />
+                                            </Suspense>
                                         </div>
                                         <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
                                             <button

@@ -356,23 +356,39 @@ const EgresoDetailsPage = () => {
             return;
         }
 
-        try {
-            await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
-            toast.success(`Producto controlado (Cant: ${qty})`);
-
-            setScanInput('');
-            setFichajeState(prev => ({ ...prev, isOpen: false }));
-            await fetchEgresoDetails();
-        } catch (error) {
-            console.error('Scan error:', error);
-            if (error.response?.status === 404) {
-                toast.error(`Producto no encontrado: ${code}`);
-            } else {
-                toast.error('Error al procesar código');
+        // Optimistic local update
+        setItems(prevItems => prevItems.map(item => {
+            if (item.product_code === code) {
+                return { ...item, scanned_quantity: Number(item.scanned_quantity) + qty };
             }
-        } finally {
-            setProcessing(false);
-        }
+            return item;
+        }));
+
+        // Close modal immediately
+        setScanInput('');
+        setFichajeState(prev => ({ ...prev, isOpen: false }));
+        setProcessing(false);
+
+        // API call + refresh in background
+        api.post(`/api/egresos/${id}/scan`, { code, quantity: qty })
+            .then(() => {
+                fetchEgresoDetails();
+            })
+            .catch(error => {
+                console.error('Scan error:', error);
+                if (error.response?.status === 404) {
+                    toast.error(`Producto no encontrado: ${code}`);
+                    fetchEgresoDetails(); // Revert: product doesn't exist on server
+                } else {
+                    // API failed (network/server error) — queue for later sync, keep optimistic state
+                    const queueKey = `pending_egreso_scans_${id}`;
+                    const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+                    queue.push({ code, quantity: qty, timestamp: Date.now() });
+                    localStorage.setItem(queueKey, JSON.stringify(queue));
+                    checkPendingSync();
+                    toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+                }
+            });
     };
 
     const handleBarcodeScan = (code) => {

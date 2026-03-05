@@ -42,6 +42,7 @@ const ReceiptDetailsPage = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeoutRef = useRef(null);
+    const productCacheRef = useRef(new Map()); // Client-side product cache
 
     // Fichaje Modal State
     const [fichajeState, setFichajeState] = useState({
@@ -297,29 +298,45 @@ const ReceiptDetailsPage = () => {
             setIsDuplicateModalOpen(true);
             setScanInput('');
         } else {
-            // Fetch from API
+            // Check client cache first, then fetch from API
+            const cached = productCacheRef.current.get(code);
+            if (cached) {
+                if (Array.isArray(cached)) {
+                    setDuplicateProducts(cached);
+                    setIsDuplicateModalOpen(true);
+                    setScanInput('');
+                } else {
+                    openModal(cached, null, 0);
+                }
+                return;
+            }
+
             try {
                 setProcessing(true);
                 const response = await api.get(`/api/products/${code}`);
                 const data = response.data;
                 if (Array.isArray(data) && data.length > 1) {
-                    setDuplicateProducts(data.map(p => ({
+                    const duplicates = data.map(p => ({
                         code: p.code,
                         description: p.description,
                         barcode: p.barcode || '',
                         brand: p.brand || '',
                         expected_quantity: null,
                         scanned_quantity: 0
-                    })));
+                    }));
+                    productCacheRef.current.set(code, duplicates);
+                    setDuplicateProducts(duplicates);
                     setIsDuplicateModalOpen(true);
                     setScanInput('');
                 } else {
                     const product = Array.isArray(data) ? data[0] : data;
-                    openModal({
+                    const productObj = {
                         code: product.code,
                         description: product.description,
                         barcode: product.barcode || ''
-                    }, null, 0);
+                    };
+                    productCacheRef.current.set(code, productObj);
+                    openModal(productObj, null, 0);
                 }
             } catch (error) {
                 console.error('Error fetching product:', error);
@@ -381,34 +398,54 @@ const ReceiptDetailsPage = () => {
             return;
         }
 
-        try {
-            if (activeTab === 'load') {
-                await api.post(`/api/receipts/${id}/items`,
-                    { code, quantity: qty }
-                );
-                toast.success(`Producto agregado (Cant: ${qty})`);
-            } else {
-                await api.post(`/api/receipts/${id}/scan`,
-                    { code, quantity: qty }
-                );
-                const sound = new Audio('/success-beep.mp3');
-                sound.play().catch(e => console.log('Audio error:', e));
+        // Optimistic local update
+        setItems(prevItems => {
+            const newItems = [...prevItems];
+            const itemIndex = newItems.findIndex(i => i.product_code === code || i.products?.provider_code === code);
+            if (itemIndex > -1) {
+                const field = activeTab === 'load' ? 'expected_quantity' : 'scanned_quantity';
+                newItems[itemIndex] = {
+                    ...newItems[itemIndex],
+                    [field]: Number(newItems[itemIndex][field] || 0) + Number(qty)
+                };
             }
+            return newItems;
+        });
 
-            setScanInput('');
-            setQuantityInput(1);
-            setFichajeState(prev => ({ ...prev, isOpen: false }));
-            await fetchReceiptDetails();
-        } catch (error) {
-            console.error('Scan error:', error);
-            if (error.response?.status === 404) {
-                toast.error(`Producto no encontrado: ${code}`);
-            } else {
-                toast.error('Error al procesar código');
-            }
-        } finally {
-            setProcessing(false);
-        }
+        // Close modal immediately
+        setScanInput('');
+        setQuantityInput(1);
+        setFichajeState(prev => ({ ...prev, isOpen: false }));
+        setProcessing(false);
+
+        // API call + refresh in background
+        const endpoint = activeTab === 'load'
+            ? api.post(`/api/receipts/${id}/items`, { code, quantity: qty })
+            : api.post(`/api/receipts/${id}/scan`, { code, quantity: qty });
+
+        endpoint
+            .then(() => {
+                if (activeTab !== 'load') {
+                    const sound = new Audio('/success-beep.mp3');
+                    sound.play().catch(e => console.log('Audio error:', e));
+                }
+                fetchReceiptDetails();
+            })
+            .catch(error => {
+                console.error('Scan error:', error);
+                if (error.response?.status === 404) {
+                    toast.error(`Producto no encontrado: ${code}`);
+                    fetchReceiptDetails(); // Revert: product doesn't exist on server
+                } else {
+                    // API failed (network/server error) — queue for later sync, keep optimistic state
+                    const pendingKey = `pending_receipt_scans_${id}`;
+                    const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                    currentQueue.push({ code, quantity: qty, timestamp: new Date().toISOString(), type: activeTab });
+                    localStorage.setItem(pendingKey, JSON.stringify(currentQueue));
+                    checkPendingSync();
+                    toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+                }
+            });
     };
 
     const handleBarcodeScan = (code) => {

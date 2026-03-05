@@ -1,5 +1,5 @@
 {
-    "version": "1.0.84",
+    "version": "1.0.85",
     "downloadUrl": "/apk/ConteoMercaderia.apk",
-    "releaseNotes": "Implementacion de el escaner automatico y que se pueda elegir entre manual o automatico"
+    "releaseNotes": "Mejora en la velocidad de el escaner"
 }
