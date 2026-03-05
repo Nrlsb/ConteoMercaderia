@@ -145,6 +145,66 @@ const hasPermission = (permission) => {
     };
 };
 
+/**
+ * Middleware para aislar el acceso por sucursal.
+ * Solo permite el acceso si:
+ * 1. El usuario es superadmin o admin global.
+ * 2. El recurso pertenece a la sucursal del usuario.
+ */
+const verifyBranchAccess = (table) => {
+    return async (req, res, next) => {
+        const { id } = req.params;
+        const { role, sucursal_id } = req.user;
+
+        // Superadmins y Admins globales tienen acceso a todo
+        if (role === 'superadmin' || role === 'admin') {
+            return next();
+        }
+
+        try {
+            const { data, error } = await supabase
+                .from(table)
+                .select('sucursal_id')
+                .eq('id', id)
+                .single();
+
+            if (error || !data) {
+                return res.status(404).json({ message: 'Recurso no encontrado' });
+            }
+
+            // Si el recurso tiene sucursal_id y no coincide con la del usuario (y el usuario no es admin global)
+            if (data.sucursal_id && data.sucursal_id !== sucursal_id) {
+                const logData = {
+                    actor_id: req.user.id,
+                    action: 'UNAUTHORIZED_BRANCH_ACCESS',
+                    details: {
+                        table,
+                        resource_id: id,
+                        resource_branch_id: data.sucursal_id,
+                        user_branch_id: sucursal_id,
+                        url: req.originalUrl
+                    },
+                    ip_address: req.ip,
+                    user_agent: req.get('user-agent')
+                };
+
+                console.warn(`[SECURITY VIOLATION] Usuario ${req.user.username} intentó acceder a recurso de otra sucursal.`, logData);
+
+                // Intentar loguear en DB de forma asíncrona (no bloqueante)
+                supabase.from('security_logs').insert(logData).then(({ error }) => {
+                    if (error) console.error('[AUDIT ERROR] No se pudo guardar log de seguridad:', error.message);
+                });
+
+                return res.status(403).json({ message: 'Acceso denegado: El recurso pertenece a otra sucursal' });
+            }
+            next();
+        } catch (error) {
+            console.error('Error verifying branch access:', error);
+            res.status(500).json({ message: 'Error interno de seguridad' });
+        }
+    };
+};
+
 // App Version Endpoint Check
 app.get('/api/app-version', (req, res) => {
     try {
@@ -375,7 +435,7 @@ app.get('/api/receipts', verifyToken, async (req, res) => {
 });
 
 // Get Receipt Details
-app.get('/api/receipts/:id', verifyToken, async (req, res) => {
+app.get('/api/receipts/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: receipt, error: receiptError } = await supabase
@@ -411,7 +471,7 @@ app.get('/api/receipts/:id', verifyToken, async (req, res) => {
 
 // Add/Update Expected Item (by Provider Code or Internal Code)
 // mode: 'provider' (default) or 'internal'
-app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
+app.post('/api/receipts/:id/items', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     const { code, quantity } = req.body;
 
@@ -498,7 +558,7 @@ app.post('/api/receipts/:id/items', verifyToken, async (req, res) => {
 });
 
 // Increment Scanned Quantity (Control)
-app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
+app.post('/api/receipts/:id/scan', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     const { code, quantity } = req.body;
 
@@ -590,7 +650,7 @@ app.post('/api/receipts/:id/scan', verifyToken, async (req, res) => {
 });
 
 // Close Receipt
-app.put('/api/receipts/:id/close', verifyToken, async (req, res) => {
+app.put('/api/receipts/:id/close', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -608,7 +668,7 @@ app.put('/api/receipts/:id/close', verifyToken, async (req, res) => {
 });
 
 // Reopen Receipt (Admin only)
-app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), async (req, res) => {
+app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -626,7 +686,7 @@ app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), 
 });
 
 // Delete Receipt (Admin only)
-app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
+app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_counts'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Delete history first
@@ -645,7 +705,7 @@ app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_counts'), asy
 });
 
 // Update Receipt Item (Manual override)
-app.put('/api/receipts/:id/items/:itemId', verifyToken, async (req, res) => {
+app.put('/api/receipts/:id/items/:itemId', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id, itemId } = req.params;
     const { expected_quantity, scanned_quantity } = req.body;
 
@@ -739,7 +799,7 @@ app.post('/api/receipt-items-history/barcode', verifyToken, async (req, res) => 
 });
 
 // Get Receipt History
-app.get('/api/receipt-history/:id', verifyToken, async (req, res) => {
+app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: history, error } = await supabase
@@ -777,7 +837,7 @@ app.get('/api/receipt-history/:id', verifyToken, async (req, res) => {
 });
 
 // Export Receipt to Excel
-app.get('/api/receipts/:id/export', verifyToken, async (req, res) => {
+app.get('/api/receipts/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: receipt, error: receiptError } = await supabase
@@ -830,7 +890,7 @@ app.get('/api/receipts/:id/export', verifyToken, async (req, res) => {
 });
 
 // Export Receipt Differences to Excel
-app.get('/api/receipts/:id/export-differences', verifyToken, async (req, res) => {
+app.get('/api/receipts/:id/export-differences', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: receipt, error: receiptError } = await supabase
@@ -1038,7 +1098,7 @@ app.get('/api/egresos', verifyToken, async (req, res) => {
 });
 
 // Get Egreso Details
-app.get('/api/egresos/:id', verifyToken, async (req, res) => {
+app.get('/api/egresos/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: egreso, error: egresoError } = await supabase
@@ -1073,7 +1133,7 @@ app.get('/api/egresos/:id', verifyToken, async (req, res) => {
 });
 
 // Scan/Control Egreso Item
-app.post('/api/egresos/:id/scan', verifyToken, async (req, res) => {
+app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     const { code, quantity } = req.body;
 
@@ -1156,7 +1216,7 @@ app.post('/api/egresos/:id/scan', verifyToken, async (req, res) => {
 });
 
 // Close Egreso
-app.put('/api/egresos/:id/close', verifyToken, async (req, res) => {
+app.put('/api/egresos/:id/close', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -1174,7 +1234,7 @@ app.put('/api/egresos/:id/close', verifyToken, async (req, res) => {
 });
 
 // Reopen Egreso
-app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_counts'), async (req, res) => {
+app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_counts'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -1192,7 +1252,7 @@ app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_counts'), a
 });
 
 // Delete Egreso
-app.delete('/api/egresos/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
+app.delete('/api/egresos/:id', verifyToken, hasPermission('delete_counts'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         await supabase.from('egreso_items_history').delete().eq('egreso_id', id);
@@ -1208,7 +1268,7 @@ app.delete('/api/egresos/:id', verifyToken, hasPermission('delete_counts'), asyn
 });
 
 // Get Egreso History
-app.get('/api/egreso-history/:id', verifyToken, async (req, res) => {
+app.get('/api/egreso-history/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: history, error } = await supabase
@@ -1245,7 +1305,7 @@ app.get('/api/egreso-history/:id', verifyToken, async (req, res) => {
 });
 
 // Export Egreso to Excel
-app.get('/api/egresos/:id/export', verifyToken, async (req, res) => {
+app.get('/api/egresos/:id/export', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: egreso, error: egresoError } = await supabase
@@ -4431,6 +4491,25 @@ app.put('/api/users/:id', verifyToken, verifyAdmin, async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Log security action
+        const logData = {
+            actor_id: req.user.id,
+            target_user_id: id,
+            action: 'USER_UPDATE',
+            details: {
+                changed_fields: Object.keys(updates),
+                new_role: updates.role || undefined,
+                new_sucursal: updates.sucursal_id || undefined,
+                permissions_changed: updates.permissions !== undefined
+            },
+            ip_address: req.ip,
+            user_agent: req.get('user-agent')
+        };
+        supabase.from('security_logs').insert(logData).then(({ error }) => {
+            if (error) console.error('[AUDIT ERROR] No se pudo guardar log de actualización de usuario:', error.message);
+        });
+
         res.json({ message: 'User updated', user: { id: data.id, username: data.username, role: data.role, sucursal_id: data.sucursal_id } });
     } catch (error) {
         console.error('Error updating user:', error);

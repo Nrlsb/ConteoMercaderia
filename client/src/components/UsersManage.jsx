@@ -191,6 +191,38 @@ const UsersManage = () => {
         }
     ];
 
+    const profilesConfig = {
+        'operario_conteo': {
+            name: 'Operario Conteo',
+            permissions: ['tab_nuevo_conteo']
+        },
+        'operario_ingresos': {
+            name: 'Operario Ingresos',
+            permissions: ['tab_ingresos', 'use_scanner_ingresos', 'upload_ingresos']
+        },
+        'operario_egresos': {
+            name: 'Operario Egresos',
+            permissions: ['tab_egresos', 'use_scanner_egresos', 'upload_egresos']
+        },
+        'auditor': {
+            name: 'Auditor',
+            permissions: ['tab_historial', 'view_history', 'export_data']
+        },
+        'gestor_stock': {
+            name: 'Gestor Stock',
+            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data']
+        }
+    };
+
+    const applyProfile = (profileKey) => {
+        if (!profileKey) return;
+        const profile = profilesConfig[profileKey];
+        if (profile) {
+            setFormData({ ...formData, permissions: profile.permissions });
+            toast.info(`Perfil '${profile.name}' aplicado`);
+        }
+    };
+
     if (loading) return <div className="p-4 text-center">Cargando usuarios...</div>;
 
     const isSuperAdmin = currentUser?.role === 'superadmin';
@@ -271,8 +303,20 @@ const UsersManage = () => {
 
                     {isSuperAdmin && (
                         <div className="mb-4">
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Permisos por Pestaña</label>
-                            <p className="text-xs text-gray-500 mb-2">Selecciona qué pestañas puede ver el usuario y qué acciones específicas puede realizar en cada una. Si no se selecciona ninguna pestaña, el usuario las verá según su rol.</p>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-gray-700 text-sm font-bold">Permisos por Pestaña</label>
+                                <select
+                                    className="text-xs border rounded p-1"
+                                    onChange={(e) => applyProfile(e.target.value)}
+                                    defaultValue=""
+                                >
+                                    <option value="" disabled>Aplicar Perfil Predefinido...</option>
+                                    {Object.entries(profilesConfig).map(([key, p]) => (
+                                        <option key={key} value={key}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-2">Selecciona qué pestañas puede ver el usuario y qué acciones específicas puede realizar en cada una.</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {tabPermissionsConfig.map(tab => (
                                     <div key={tab.id} className="border border-gray-200 rounded-lg p-3 bg-white shadow-sm flex flex-col">
