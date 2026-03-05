@@ -225,7 +225,7 @@ const BarcodeControl = () => {
             if (product.provider_code !== updated.provider_code) changes.push(`Cód Proveedor a "${updated.provider_code}"`);
             if (product.barcode !== updated.barcode) changes.push(`Cód Barras a: ${updated.barcode}`);
 
-            const detailsStr = changes.join(', ') || 'Modificación general';
+            const detailsStr = changes.join(', ') || `Modificación general (Cód Barras: ${updated.barcode || 'Ninguno'})`;
 
             // Log to database
             await logHistoryEvent('edit', updated, detailsStr);
@@ -842,8 +842,13 @@ const BarcodeControl = () => {
                                     {actionHistory.map(item => (
                                         <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow transition-shadow">
                                             <div>
-                                                <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex flex-wrap items-center gap-2 mb-1">
                                                     <p className="font-semibold text-gray-800 text-base">{item.product_description}</p>
+                                                    {item.products?.barcode && (
+                                                        <span className="text-xs bg-primary-50 text-primary-700 border border-primary-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                                                            <Barcode className="w-3 h-3" /> {item.products.barcode}
+                                                        </span>
+                                                    )}
                                                     {item.users?.username && (
                                                         <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                                                             <User className="w-3 h-3" /> {item.users.username}

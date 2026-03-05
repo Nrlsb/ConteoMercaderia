@@ -1487,7 +1487,8 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
                 details,
                 created_by,
                 created_at,
-                users:created_by (username)
+                users:created_by (username),
+                products:product_id (barcode)
             `)
             .order('created_at', { ascending: false });
 
