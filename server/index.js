@@ -168,7 +168,19 @@ const verifyBranchAccess = (table) => {
                 .eq('id', id)
                 .single();
 
-            if (error || !data) {
+            if (error) {
+                // Distinguir entre error de consulta (columna inexistente, etc.) y recurso no encontrado
+                const errorMsg = error.message || '';
+                if (errorMsg.includes('column') || error.code === '42703') {
+                    // La tabla no tiene columna sucursal_id, permitir acceso (no hay aislamiento por sucursal en esta tabla)
+                    console.warn(`[BRANCH ACCESS] Tabla '${table}' no tiene columna sucursal_id. Permitiendo acceso.`);
+                    return next();
+                }
+                console.error(`[BRANCH ACCESS] Error consultando tabla '${table}':`, error.message);
+                return res.status(404).json({ message: 'Recurso no encontrado' });
+            }
+
+            if (!data) {
                 return res.status(404).json({ message: 'Recurso no encontrado' });
             }
 
@@ -405,6 +417,7 @@ app.post('/api/receipts', verifyToken, async (req, res) => {
             .insert([{
                 remito_number: remitoNumber,
                 created_by: req.user.username,
+                sucursal_id: req.user.sucursal_id || null,
                 date: new Date()
             }])
             .select()
