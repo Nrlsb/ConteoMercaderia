@@ -78,34 +78,44 @@ const BarcodeControl = () => {
 
     const handleExportExcel = async () => {
         try {
+            if (!startDate || !endDate) {
+                toast.error('Debe seleccionar Fecha Desde y Fecha Hasta para exportar.');
+                return;
+            }
+
             let url = '/api/barcode-history/export';
             const params = new URLSearchParams();
-            if (startDate) params.append('startDate', startDate);
-            if (endDate) params.append('endDate', endDate);
+            params.append('startDate', startDate);
+            params.append('endDate', endDate);
 
             if (params.toString()) {
                 url += `?${params.toString()}`;
             }
 
-            const response = await api.get(url, { responseType: 'blob' });
+            const response = await api.get(url);
 
-            // Create a blob from the response data
-            const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const downloadUrl = window.URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = `Historial_Codigos_Barras_${new Date().toISOString().split('T')[0]}.xlsx`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(downloadUrl);
-
-            toast.success('Historial exportado correctamente');
+            if (response.data && response.data.files) {
+                response.data.files.forEach((file, index) => {
+                    setTimeout(() => {
+                        const blob = new Blob([file.content], { type: 'text/csv;charset=utf-8;' });
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = file.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(downloadUrl);
+                    }, index * 500); // Slight delay for multiple downloads
+                });
+                toast.success(`Exportación generada: ${response.data.files.length} archivo(s) CSV`);
+            }
         } catch (err) {
             console.error('Error exporting history:', err);
-            if (err.response && err.response.status === 404) {
-                toast.error('No hay datos para exportar en el rango seleccionado');
+            if (err.response && err.response.status === 400) {
+                toast.error(err.response.data.message || 'Debe seleccionar fechas para exportar');
+            } else if (err.response && err.response.status === 404) {
+                toast.error(err.response.data.message || 'No hay datos para exportar en el rango seleccionado');
             } else {
                 toast.error('Error al exportar el historial');
             }

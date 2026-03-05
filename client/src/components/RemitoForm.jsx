@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { toast } from 'sonner';
 const Scanner = lazy(() => import('./Scanner'));
 const ReportModal = lazy(() => import('./ReportModal'));
 import Modal from './Modal';
@@ -811,6 +812,22 @@ const RemitoForm = () => {
         }
     };
 
+    // Persistent product cache (localStorage) — allows offline lookup of previously scanned products
+    const LS_PRODUCT_CACHE_KEY = 'conteo_product_barcode_cache';
+    const saveProductToLocalStorage = (code, productData) => {
+        try {
+            const cache = JSON.parse(localStorage.getItem(LS_PRODUCT_CACHE_KEY) || '{}');
+            cache[code] = productData;
+            localStorage.setItem(LS_PRODUCT_CACHE_KEY, JSON.stringify(cache));
+        } catch (e) {}
+    };
+    const getProductFromLocalStorage = (code) => {
+        try {
+            const cache = JSON.parse(localStorage.getItem(LS_PRODUCT_CACHE_KEY) || '{}');
+            return cache[code] || null;
+        } catch (e) { return null; }
+    };
+
     // Open the fichaje modal for a given product (component-level so JSX can call it)
     const openFichajeModal = (product, expQty) => {
         const existingItem = itemsRef.current.find(i => i.code === product.code);
@@ -880,7 +897,7 @@ const RemitoForm = () => {
             setDuplicateProducts(resolvedProducts);
             setIsDuplicateModalOpen(true);
         } else {
-            // Not in expected list (or no expected list). Check client cache first, then fetch from API.
+            // Not in expected list (or no expected list). Check in-memory cache first, then fetch from API.
             const cached = productCacheRef.current.get(inputCode);
             if (cached) {
                 if (Array.isArray(cached)) {
@@ -888,6 +905,23 @@ const RemitoForm = () => {
                     setIsDuplicateModalOpen(true);
                 } else {
                     openFichajeModal(cached, null);
+                }
+                return;
+            }
+
+            // Offline: check persistent localStorage cache before failing
+            if (!navigator.onLine) {
+                const localCached = getProductFromLocalStorage(inputCode);
+                if (localCached) {
+                    productCacheRef.current.set(inputCode, localCached); // warm in-memory cache too
+                    if (Array.isArray(localCached)) {
+                        setDuplicateProducts(localCached);
+                        setIsDuplicateModalOpen(true);
+                    } else {
+                        openFichajeModal(localCached, null);
+                    }
+                } else {
+                    triggerModal('Sin conexión', 'Este producto no fue escaneado previamente. Conectate a internet para buscarlo.', 'warning');
                 }
                 return;
             }
@@ -908,6 +942,7 @@ const RemitoForm = () => {
                                 brand: productData.brand
                             };
                             productCacheRef.current.set(inputCode, product);
+                            saveProductToLocalStorage(inputCode, product);
                             openFichajeModal(product, null);
                         } else if (data.length > 1) {
                             const duplicates = data.map(pd => ({
@@ -918,6 +953,7 @@ const RemitoForm = () => {
                                 brand: pd.brand
                             }));
                             productCacheRef.current.set(inputCode, duplicates);
+                            saveProductToLocalStorage(inputCode, duplicates);
                             setDuplicateProducts(duplicates);
                             setIsDuplicateModalOpen(true);
                         } else {
@@ -933,6 +969,7 @@ const RemitoForm = () => {
                             brand: data.brand
                         };
                         productCacheRef.current.set(inputCode, product);
+                        saveProductToLocalStorage(inputCode, product);
                         openFichajeModal(product, null);
                     }
                 })
