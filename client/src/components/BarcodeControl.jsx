@@ -13,6 +13,7 @@ const BarcodeControl = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const inputRef = useRef(null);
+    const productCacheRef = useRef({});
 
     // Edit state
     const [editMode, setEditMode] = useState(false);
@@ -167,8 +168,14 @@ const BarcodeControl = () => {
         setIsDuplicateModalOpen(false);
 
         try {
-            const response = await api.get(`/api/products/barcode/${code}`);
-            const data = response.data;
+            let data;
+            if (productCacheRef.current[code]) {
+                data = productCacheRef.current[code];
+            } else {
+                const response = await api.get(`/api/products/barcode/${code}`);
+                data = response.data;
+                productCacheRef.current[code] = data; // Guardar en caché
+            }
 
             if (Array.isArray(data) && data.length > 1) {
                 setDuplicateProducts(data);
@@ -212,6 +219,8 @@ const BarcodeControl = () => {
 
             // Log to database
             await logHistoryEvent('edit', updated, detailsStr);
+
+            productCacheRef.current = {}; // Limpiar caché tras editar
 
             toast.success('Producto actualizado correctamente');
         } catch (err) {

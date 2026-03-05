@@ -1156,20 +1156,15 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
     try {
         let productCode = null;
 
-        // Try exact match on code (internal)
-        const { data: pCode } = await supabase.from('products').select('code').eq('code', code).maybeSingle();
-        if (pCode) productCode = pCode.code;
+        const safeCode = String(code).replace(/"/g, '');
+        const { data: products } = await supabase
+            .from('products')
+            .select('code')
+            .or(`code.eq."${safeCode}",barcode.eq."${safeCode}",provider_code.eq."${safeCode}"`)
+            .limit(1);
 
-        if (!productCode) {
-            // Try barcode
-            const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
-            if (pBar) productCode = pBar.code;
-        }
-
-        if (!productCode) {
-            // Try provider code
-            const { data: pProv } = await supabase.from('products').select('code').eq('provider_code', code).maybeSingle();
-            if (pProv) productCode = pProv.code;
+        if (products && products.length > 0) {
+            productCode = products[0].code;
         }
 
         if (!productCode) {

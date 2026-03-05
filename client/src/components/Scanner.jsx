@@ -13,6 +13,18 @@ const cleanupScannerCSS = () => {
 
 const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     // Shared state
+    const [isAutoConfirm, setIsAutoConfirm] = useState(() => {
+        return localStorage.getItem('scanner_auto_confirm') === 'true';
+    });
+
+    const toggleAutoConfirm = () => {
+        setIsAutoConfirm(prev => {
+            const next = !prev;
+            localStorage.setItem('scanner_auto_confirm', next.toString());
+            return next;
+        });
+    };
+    // Shared state
     const [isNative] = useState(Capacitor.isNativePlatform());
     const [isScanning, setIsScanning] = useState(false);
     const [error, setError] = useState(null);
@@ -27,6 +39,8 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     // Web-specific refs
     const scannerRef = useRef(null);
     const lastScannedCodeRef = useRef(null);
+    // Reusable AudioContext for beep feedback
+    const audioCtxRef = useRef(null);
     const lastScannedTimeRef = useRef(0);
 
     // native references
@@ -147,11 +161,23 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             document.documentElement.classList.add('barcode-scanner-active');
 
             // 4. Agregar listener para códigos detectados
-            await BarcodeScanner.addListener('barcodeScanned', (result) => {
+            await BarcodeScanner.addListener('barcodeScanned', async (result) => {
                 if (result.barcode && result.barcode.rawValue) {
                     const code = result.barcode.rawValue;
-                    detectedCodeRef.current = code;
-                    setDetectedCode(code);
+                    if (isAutoConfirm) {
+                        // Auto-confirmar: detener y procesar inmediatamente
+                        try {
+                            await BarcodeScanner.removeAllListeners();
+                            await BarcodeScanner.stopScan();
+                        } catch (e) { /* ignore */ }
+                        nativeScanActiveRef.current = false;
+                        setIsScanning(false);
+                        cleanupScannerCSS();
+                        handleScanSuccess(code);
+                    } else {
+                        detectedCodeRef.current = code;
+                        setDetectedCode(code);
+                    }
                 }
             });
 
@@ -231,7 +257,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             await scannerRef.current.start(
                 { facingMode: "environment" },
                 {
-                    fps: 15,
+                    fps: 25,
                     qrbox: { width: 300, height: 150 },
                     videoConstraints: {
                         facingMode: "environment",
@@ -253,10 +279,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     };
 
     // --- SHARED: Handle Success ---
-    const handleScanSuccess = (code) => {
+    const handleScanSuccess = async (code) => {
         const now = Date.now();
         // Debounce
-        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 2000) {
+        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 800) {
             return;
         }
         lastScannedCodeRef.current = code;
@@ -268,8 +294,14 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             if (isNative) {
                 Haptics.impact({ style: ImpactStyle.Heavy });
             }
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // Reutilizar AudioContext para evitar latencia
+            if (!audioCtxRef.current) {
+                audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            const audioCtx = audioCtxRef.current;
             if (audioCtx) {
+                // Resumir si fue suspendido por el navegador
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
 
@@ -319,7 +351,17 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                             </svg>
                         </button>
 
-                        <p className="text-white text-sm font-medium tracking-wide drop-shadow-lg">Enfocá el código</p>
+                        {/* Selector Auto/Manual en el centro del Header */}
+                        <div className="flex bg-black/40 backdrop-blur-sm rounded-full p-1 border border-white/20" style={{ width: '130px' }}>
+                            <button
+                                onClick={() => { if (isAutoConfirm) toggleAutoConfirm(); }}
+                                className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${!isAutoConfirm ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}
+                            >Manual</button>
+                            <button
+                                onClick={() => { if (!isAutoConfirm) toggleAutoConfirm(); }}
+                                className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${isAutoConfirm ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}
+                            >Auto</button>
+                        </div>
 
                         {/* Botón de Flash funcional */}
                         <button

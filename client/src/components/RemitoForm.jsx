@@ -16,6 +16,7 @@ const RemitoForm = () => {
     const [items, setItems] = useState([]);
     const [manualCode, setManualCode] = useState('');
     const [remitoNumber, setRemitoNumber] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [isListening, setIsListening] = useState(false); // Voice Search State
     const [isProcessingScan, setIsProcessingScan] = useState(false); // Scanner Pause State
