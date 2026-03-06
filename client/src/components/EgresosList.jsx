@@ -1,8 +1,43 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+
+// IndexedDB helpers for persisting directory handle across page reloads
+const openFolderDB = () => new Promise((resolve, reject) => {
+    const req = indexedDB.open('egreso_folder_db', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+});
+const saveFolderHandle = async (handle) => {
+    const db = await openFolderDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put(handle, 'egreso_folder');
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+    });
+};
+const loadFolderHandle = async () => {
+    const db = await openFolderDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('handles', 'readonly');
+        const req = tx.objectStore('handles').get('egreso_folder');
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
+};
+const clearFolderHandle = async () => {
+    const db = await openFolderDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').delete('egreso_folder');
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+    });
+};
 
 const EgresosList = () => {
     const { user } = useAuth();
@@ -13,16 +48,23 @@ const EgresosList = () => {
     const [search, setSearch] = useState('');
     const fileInputRef = useRef(null);
 
+    // Folder watcher state
+    const [folderName, setFolderName] = useState(null);
+    const [watching, setWatching] = useState(false);
+    const [watcherUploading, setWatcherUploading] = useState(false);
+    const [needsPermission, setNeedsPermission] = useState(false);
+    const dirHandleRef = useRef(null);
+    const watchIntervalRef = useRef(null);
+    const processedFilesRef = useRef(new Set(
+        JSON.parse(localStorage.getItem('egreso_processed_files') || '[]')
+    ));
+
     // Access control
     const canAccessEgresos = user?.role === 'superadmin' || user?.role === 'admin' || user?.sucursal_name === 'Deposito' || user?.permissions?.includes('tab_egresos');
     const canUploadPdf = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_egresos');
     const canDelete = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('delete_egresos');
 
-    useEffect(() => {
-        fetchEgresos();
-    }, []);
-
-    const fetchEgresos = async () => {
+    const fetchEgresos = useCallback(async () => {
         try {
             const response = await api.get('/api/egresos');
             setEgresos(response.data);
@@ -39,7 +81,154 @@ const EgresosList = () => {
             }
             setLoading(false);
         }
+    }, []);
+
+    useEffect(() => {
+        fetchEgresos();
+    }, [fetchEgresos]);
+
+    // --- Folder Watcher Logic ---
+
+    const checkFolder = useCallback(async () => {
+        if (!dirHandleRef.current) return;
+        try {
+            const permission = await dirHandleRef.current.queryPermission({ mode: 'read' });
+            if (permission !== 'granted') {
+                setNeedsPermission(true);
+                setWatching(false);
+                if (watchIntervalRef.current) clearInterval(watchIntervalRef.current);
+                return;
+            }
+
+            const newFiles = [];
+            for await (const [name, handle] of dirHandleRef.current.entries()) {
+                if (handle.kind !== 'file') continue;
+                if (!name.toLowerCase().endsWith('.pdf')) continue;
+                const file = await handle.getFile();
+                const fileKey = `${name}_${file.size}_${file.lastModified}`;
+                if (processedFilesRef.current.has(fileKey)) continue;
+                newFiles.push({ name, file, fileKey });
+            }
+
+            for (const { name, file, fileKey } of newFiles) {
+                setWatcherUploading(true);
+                try {
+                    const formData = new FormData();
+                    formData.append('pdf', file);
+                    const response = await api.post('/api/egresos/upload-pdf', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    const { results } = response.data;
+                    processedFilesRef.current.add(fileKey);
+                    // Keep processed list bounded to last 1000 entries
+                    const allKeys = [...processedFilesRef.current];
+                    if (allKeys.length > 1000) {
+                        processedFilesRef.current = new Set(allKeys.slice(-1000));
+                    }
+                    localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
+                    toast.success(`Carpeta: "${name}" → ${results.success.length} productos cargados`);
+                    if (results.failed.length > 0) {
+                        toast.warning(`"${name}": ${results.failed.length} productos no encontrados`);
+                    }
+                    fetchEgresos();
+                } catch (error) {
+                    const msg = error.response?.data?.message || 'Error al procesar';
+                    toast.error(`Error en "${name}": ${msg}`);
+                    // Don't mark as processed so it can be retried next poll
+                } finally {
+                    setWatcherUploading(false);
+                }
+            }
+        } catch (err) {
+            console.error('Error checking folder:', err);
+            if (err.name === 'NotAllowedError') {
+                setNeedsPermission(true);
+                setWatching(false);
+                if (watchIntervalRef.current) clearInterval(watchIntervalRef.current);
+            }
+        }
+    }, [fetchEgresos]);
+
+    const startWatcher = useCallback((handle) => {
+        dirHandleRef.current = handle;
+        if (watchIntervalRef.current) clearInterval(watchIntervalRef.current);
+        watchIntervalRef.current = setInterval(() => {
+            checkFolder();
+        }, 30000);
+        setWatching(true);
+        setNeedsPermission(false);
+    }, [checkFolder]);
+
+    const connectFolder = async () => {
+        if (!('showDirectoryPicker' in window)) {
+            toast.error('Tu navegador no soporta esta función. Usá Chrome o Edge.');
+            return;
+        }
+        try {
+            const handle = await window.showDirectoryPicker({ mode: 'read' });
+            await saveFolderHandle(handle);
+            startWatcher(handle);
+            setFolderName(handle.name);
+            toast.success(`Carpeta "${handle.name}" conectada. Revisando cada 30 segundos.`);
+            checkFolder(); // Check immediately
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                toast.error('No se pudo conectar la carpeta');
+            }
+        }
     };
+
+    const requestPermissionAgain = async () => {
+        if (!dirHandleRef.current) return;
+        try {
+            const result = await dirHandleRef.current.requestPermission({ mode: 'read' });
+            if (result === 'granted') {
+                startWatcher(dirHandleRef.current);
+                toast.success('Permiso restaurado. Carpeta activa.');
+                checkFolder();
+            } else {
+                toast.error('No se otorgó permiso a la carpeta');
+            }
+        } catch (err) {
+            toast.error('Error al solicitar permiso');
+        }
+    };
+
+    const disconnectFolder = async () => {
+        if (watchIntervalRef.current) clearInterval(watchIntervalRef.current);
+        watchIntervalRef.current = null;
+        dirHandleRef.current = null;
+        setFolderName(null);
+        setWatching(false);
+        setNeedsPermission(false);
+        await clearFolderHandle();
+        toast.info('Carpeta desconectada');
+    };
+
+    // Restore folder handle from IndexedDB on mount
+    useEffect(() => {
+        const restoreFolder = async () => {
+            try {
+                const handle = await loadFolderHandle();
+                if (!handle) return;
+                dirHandleRef.current = handle;
+                setFolderName(handle.name);
+                const permission = await handle.queryPermission({ mode: 'read' });
+                if (permission === 'granted') {
+                    startWatcher(handle);
+                } else {
+                    // Permission must be re-requested on user gesture — show a prompt button
+                    setNeedsPermission(true);
+                }
+            } catch (err) {
+                console.error('Error restoring folder handle:', err);
+            }
+        };
+        restoreFolder();
+        return () => {
+            if (watchIntervalRef.current) clearInterval(watchIntervalRef.current);
+        };
+    }, [startWatcher]);
 
     const handleFileSelect = async (e) => {
         const file = e.target.files[0];
@@ -115,7 +304,7 @@ const EgresosList = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Egreso de Mercadería</h1>
                 {canUploadPdf && (
-                    <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -127,7 +316,7 @@ const EgresosList = () => {
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploading}
-                            className="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {uploading ? (
                                 <>
@@ -143,9 +332,73 @@ const EgresosList = () => {
                                 </>
                             )}
                         </button>
+                        {!folderName ? (
+                            <button
+                                onClick={connectFolder}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
+                                title="Conectar una carpeta local y subir PDFs automáticamente"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                </svg>
+                                Carpeta Auto
+                            </button>
+                        ) : (
+                            <button
+                                onClick={disconnectFolder}
+                                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
+                                title="Desconectar carpeta"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6" />
+                                </svg>
+                                Desconectar
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
+
+            {/* Folder watcher status banner */}
+            {folderName && (
+                <div className={`mb-4 p-3 rounded-xl border flex flex-wrap items-center gap-3 text-sm ${
+                    needsPermission
+                        ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+                        : watching
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                        : 'bg-gray-50 border-gray-200 text-gray-600'
+                }`}>
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                        <span className="font-semibold">Carpeta:</span> <span className="font-mono truncate">{folderName}</span>
+                        {watching && !needsPermission && (
+                            <span className="ml-2 text-xs">
+                                {watcherUploading ? '— Subiendo PDF...' : '— Revisando cada 30 seg'}
+                            </span>
+                        )}
+                        {needsPermission && (
+                            <span className="ml-2">— Se requiere re-autorizar el acceso</span>
+                        )}
+                    </div>
+                    {needsPermission && (
+                        <button
+                            onClick={requestPermissionAgain}
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            Autorizar
+                        </button>
+                    )}
+                    {watching && !needsPermission && (
+                        <span className="flex items-center gap-1.5 text-xs font-medium">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Activa
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* Intelligent Search */}
             {egresos.length > 0 && (
