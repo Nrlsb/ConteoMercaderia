@@ -53,6 +53,7 @@ const EgresosList = () => {
     const [watching, setWatching] = useState(false);
     const [watcherProgress, setWatcherProgress] = useState(null); // { fileName, percent, current, total }
     const [needsPermission, setNeedsPermission] = useState(false);
+    const [showFolderGuide, setShowFolderGuide] = useState(false);
     const dirHandleRef = useRef(null);
     const watchIntervalRef = useRef(null);
     const checkingRef = useRef(false); // Lock to prevent concurrent checkFolder runs
@@ -340,32 +341,131 @@ const EgresosList = () => {
                             )}
                         </button>
                         {!folderName ? (
-                            <button
-                                onClick={connectFolder}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
-                                title="Conectar una carpeta local y subir PDFs automáticamente"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                                </svg>
-                                Carpeta Auto
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={connectFolder}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
+                                    title="Conectar una carpeta local y subir PDFs automáticamente"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                    </svg>
+                                    Carpeta Auto
+                                </button>
+                                <button
+                                    onClick={() => setShowFolderGuide(true)}
+                                    className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold text-sm flex items-center justify-center transition-colors border border-emerald-300"
+                                    title="Ver guía de uso"
+                                >
+                                    !
+                                </button>
+                            </div>
                         ) : (
-                            <button
-                                onClick={disconnectFolder}
-                                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
-                                title="Desconectar carpeta"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6" />
-                                </svg>
-                                Desconectar
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={disconnectFolder}
+                                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
+                                    title="Desconectar carpeta"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6" />
+                                    </svg>
+                                    Desconectar
+                                </button>
+                                <button
+                                    onClick={() => setShowFolderGuide(true)}
+                                    className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-colors border border-gray-300"
+                                    title="Ver guía de uso"
+                                >
+                                    !
+                                </button>
+                            </div>
                         )}
                     </div>
                 )}
             </div>
+
+            {/* Folder guide modal */}
+            {showFolderGuide && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowFolderGuide(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg flex items-center justify-center border border-emerald-300">!</div>
+                                <h2 className="text-lg font-bold text-gray-800">Guía: Carpeta Auto</h2>
+                            </div>
+                            <button onClick={() => setShowFolderGuide(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-5 text-sm text-gray-700">
+                            <p className="text-gray-500">Conectá una carpeta de tu PC y cada PDF que copies ahí se convierte en un pedido de egreso automáticamente.</p>
+
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-800 text-xs">
+                                Requiere <strong>Google Chrome</strong> o <strong>Microsoft Edge</strong>. Firefox y Safari no son compatibles.
+                            </div>
+
+                            <div>
+                                <p className="font-semibold text-gray-800 mb-2">Pasos para empezar</p>
+                                <ol className="space-y-3">
+                                    <li className="flex gap-3">
+                                        <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                                        <span>Hacé clic en el botón verde <strong>Carpeta Auto</strong>.</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                                        <span>Seleccioná la carpeta de tu PC donde vas a depositar los PDFs y hacé clic en <strong>Seleccionar carpeta</strong>.</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+                                        <span>El navegador te pedirá confirmación de acceso — hacé clic en <strong>Permitir</strong>.</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">4</span>
+                                        <span>Copiá o mové cualquier PDF de remito a esa carpeta. En máximo <strong>30 segundos</strong> el sistema lo detecta y crea el egreso automáticamente.</span>
+                                    </li>
+                                </ol>
+                            </div>
+
+                            <div>
+                                <p className="font-semibold text-gray-800 mb-2">Estados del indicador</p>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                        <span><strong>Verde — Activa:</strong> revisando la carpeta cada 30 segundos.</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0"></span>
+                                        <span><strong>Amarillo — Re-autorizar:</strong> el permiso venció al recargar la página. Hacé clic en el botón <strong>Autorizar</strong> que aparece en el banner.</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0"></span>
+                                        <span><strong>Gris:</strong> carpeta registrada pero sin monitoreo activo.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p className="font-semibold text-gray-800 mb-2">A tener en cuenta</p>
+                                <ul className="space-y-1.5 text-gray-600 list-disc list-inside">
+                                    <li>Un mismo PDF <strong>nunca se sube dos veces</strong>, aunque quede permanentemente en la carpeta.</li>
+                                    <li>Solo se procesan archivos <strong>.pdf</strong> — otros tipos se ignoran.</li>
+                                    <li>Si un archivo falla, se reintenta en el próximo ciclo de 30 segundos.</li>
+                                    <li>Al recargar la página, el nombre de la carpeta se recuerda pero hay que volver a <strong>Autorizar</strong> el acceso.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t flex justify-end">
+                            <button onClick={() => setShowFolderGuide(false)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg transition-colors text-sm">
+                                Entendido
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Folder watcher status banner */}
             {folderName && (
