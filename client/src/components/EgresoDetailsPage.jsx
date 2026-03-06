@@ -145,12 +145,14 @@ const EgresoDetailsPage = () => {
             return;
         }
 
-        const lowerValue = value.toLowerCase();
+        const searchTerms = value.toLowerCase().trim().split(/\\s+/);
         const localSuggestions = items.filter(i => {
             const desc = (i.products?.description || '').toLowerCase();
             const code = (i.product_code || '').toLowerCase();
             const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
-            return desc.includes(lowerValue) || code.includes(lowerValue) || barcode.includes(lowerValue);
+            return searchTerms.every(term =>
+                desc.includes(term) || code.includes(term) || barcode.includes(term)
+            );
         }).map(i => ({
             code: i.product_code,
             description: i.products?.description || 'Producto',
@@ -213,11 +215,13 @@ const EgresoDetailsPage = () => {
                         for (const match of candidates) {
                             if (!match || match.trim().length < 2) continue;
                             const term = match.toLowerCase();
-                            const found = items.some(i =>
-                                (i.products?.description || '').toLowerCase().includes(term) ||
-                                (i.product_code || '').toLowerCase().includes(term) ||
-                                (i.products?.barcode || i.barcode || '').toLowerCase().includes(term)
-                            );
+                            const found = items.some(i => {
+                                const desc = (i.products?.description || '').toLowerCase();
+                                const code = (i.product_code || '').toLowerCase();
+                                const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
+                                const searchTerms = term.toLowerCase().trim().split(/\\s+/);
+                                return searchTerms.every(t => desc.includes(t) || code.includes(t) || barcode.includes(t));
+                            });
                             if (found) {
                                 setScanInput(match);
                                 executeSearch(match);
@@ -299,11 +303,25 @@ const EgresoDetailsPage = () => {
         setProcessing(true);
         const lowerCode = code.toLowerCase();
 
-        const matchingItems = items.filter(i =>
+        // 1. Exact match first (Barcode or Internal Code)
+        let matchingItems = items.filter(i =>
             (i.product_code || '').toLowerCase() === lowerCode ||
             (i.products && (i.products.barcode || '').toLowerCase() === lowerCode) ||
             (i.barcode || '').toLowerCase() === lowerCode
         );
+
+        // 2. Intelligent Search (If no exact match, search by terms)
+        if (matchingItems.length === 0) {
+            const searchTerms = lowerCode.split(/\\s+/);
+            matchingItems = items.filter(i => {
+                const desc = (i.products?.description || '').toLowerCase();
+                const icode = (i.product_code || '').toLowerCase();
+                const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
+                return searchTerms.every(term =>
+                    desc.includes(term) || icode.includes(term) || barcode.includes(term)
+                );
+            });
+        }
 
         if (matchingItems.length === 1) {
             setScanInput('');
