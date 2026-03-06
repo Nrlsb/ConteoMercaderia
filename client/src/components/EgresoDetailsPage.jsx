@@ -148,7 +148,7 @@ const EgresoDetailsPage = () => {
             return;
         }
 
-        const searchTerms = value.toLowerCase().trim().split(/\\s+/);
+        const searchTerms = value.toLowerCase().trim().split(/\s+/);
         const localSuggestions = items.filter(i => {
             const desc = (i.products?.description || '').toLowerCase();
             const code = (i.product_code || '').toLowerCase();
