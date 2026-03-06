@@ -51,10 +51,11 @@ const EgresosList = () => {
     // Folder watcher state
     const [folderName, setFolderName] = useState(null);
     const [watching, setWatching] = useState(false);
-    const [watcherUploading, setWatcherUploading] = useState(false);
+    const [watcherProgress, setWatcherProgress] = useState(null); // { fileName, percent, current, total }
     const [needsPermission, setNeedsPermission] = useState(false);
     const dirHandleRef = useRef(null);
     const watchIntervalRef = useRef(null);
+    const checkingRef = useRef(false); // Lock to prevent concurrent checkFolder runs
     const processedFilesRef = useRef(new Set(
         JSON.parse(localStorage.getItem('egreso_processed_files') || '[]')
     ));
@@ -91,6 +92,9 @@ const EgresosList = () => {
 
     const checkFolder = useCallback(async () => {
         if (!dirHandleRef.current) return;
+        // Lock: prevent concurrent runs (avoids double-upload race condition)
+        if (checkingRef.current) return;
+        checkingRef.current = true;
         try {
             const permission = await dirHandleRef.current.queryPermission({ mode: 'read' });
             if (permission !== 'granted') {
@@ -110,33 +114,33 @@ const EgresosList = () => {
                 newFiles.push({ name, file, fileKey });
             }
 
-            for (const { name, file, fileKey } of newFiles) {
-                setWatcherUploading(true);
+            for (let i = 0; i < newFiles.length; i++) {
+                const { name, file, fileKey } = newFiles[i];
+                setWatcherProgress({ fileName: name, percent: 0, current: i + 1, total: newFiles.length });
                 try {
                     const formData = new FormData();
                     formData.append('pdf', file);
                     const response = await api.post('/api/egresos/upload-pdf', formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
+                        headers: { 'Content-Type': 'multipart/form-data' },
+                        onUploadProgress: (evt) => {
+                            const percent = evt.total ? Math.round((evt.loaded * 100) / evt.total) : 50;
+                            setWatcherProgress(prev => prev ? { ...prev, percent } : null);
+                        }
                     });
                     const { results } = response.data;
+                    // Mark as processed BEFORE any state updates to prevent race
                     processedFilesRef.current.add(fileKey);
-                    // Keep processed list bounded to last 1000 entries
                     const allKeys = [...processedFilesRef.current];
                     if (allKeys.length > 1000) {
                         processedFilesRef.current = new Set(allKeys.slice(-1000));
                     }
                     localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
-                    toast.success(`Carpeta: "${name}" → ${results.success.length} productos cargados`);
-                    if (results.failed.length > 0) {
-                        toast.warning(`"${name}": ${results.failed.length} productos no encontrados`);
-                    }
+                    toast.success(`"${name}" → ${results.success.length} productos cargados${results.failed.length > 0 ? `, ${results.failed.length} no encontrados` : ''}`);
                     fetchEgresos();
                 } catch (error) {
                     const msg = error.response?.data?.message || 'Error al procesar';
                     toast.error(`Error en "${name}": ${msg}`);
-                    // Don't mark as processed so it can be retried next poll
-                } finally {
-                    setWatcherUploading(false);
+                    // Don't mark as processed so it retries next cycle
                 }
             }
         } catch (err) {
@@ -146,6 +150,9 @@ const EgresosList = () => {
                 setWatching(false);
                 if (watchIntervalRef.current) clearInterval(watchIntervalRef.current);
             }
+        } finally {
+            checkingRef.current = false;
+            setWatcherProgress(null);
         }
     }, [fetchEgresos]);
 
@@ -362,40 +369,63 @@ const EgresosList = () => {
 
             {/* Folder watcher status banner */}
             {folderName && (
-                <div className={`mb-4 p-3 rounded-xl border flex flex-wrap items-center gap-3 text-sm ${
+                <div className={`mb-4 rounded-xl border text-sm overflow-hidden ${
                     needsPermission
                         ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
                         : watching
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
                         : 'bg-gray-50 border-gray-200 text-gray-600'
                 }`}>
-                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                    </svg>
-                    <div className="flex-1 min-w-0">
-                        <span className="font-semibold">Carpeta:</span> <span className="font-mono truncate">{folderName}</span>
-                        {watching && !needsPermission && (
-                            <span className="ml-2 text-xs">
-                                {watcherUploading ? '— Subiendo PDF...' : '— Revisando cada 30 seg'}
+                    <div className="flex flex-wrap items-center gap-3 p-3">
+                        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                            <span className="font-semibold">Carpeta:</span> <span className="font-mono truncate">{folderName}</span>
+                            {watching && !needsPermission && !watcherProgress && (
+                                <span className="ml-2 text-xs">— Revisando cada 30 seg</span>
+                            )}
+                            {watcherProgress && (
+                                <span className="ml-2 text-xs font-medium">
+                                    — Subiendo {watcherProgress.total > 1 ? `${watcherProgress.current}/${watcherProgress.total}: ` : ''}&ldquo;{watcherProgress.fileName}&rdquo;
+                                </span>
+                            )}
+                            {needsPermission && (
+                                <span className="ml-2">— Se requiere re-autorizar el acceso</span>
+                            )}
+                        </div>
+                        {needsPermission && (
+                            <button
+                                onClick={requestPermissionAgain}
+                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                                Autorizar
+                            </button>
+                        )}
+                        {watching && !needsPermission && !watcherProgress && (
+                            <span className="flex items-center gap-1.5 text-xs font-medium">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Activa
                             </span>
                         )}
-                        {needsPermission && (
-                            <span className="ml-2">— Se requiere re-autorizar el acceso</span>
+                        {watcherProgress && (
+                            <span className="text-xs font-bold">{watcherProgress.percent}%</span>
                         )}
                     </div>
-                    {needsPermission && (
-                        <button
-                            onClick={requestPermissionAgain}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                            Autorizar
-                        </button>
-                    )}
-                    {watching && !needsPermission && (
-                        <span className="flex items-center gap-1.5 text-xs font-medium">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Activa
-                        </span>
+
+                    {/* Upload progress bar */}
+                    {watcherProgress && (
+                        <div className="px-3 pb-3">
+                            <div className="w-full bg-emerald-200 rounded-full h-2 overflow-hidden">
+                                <div
+                                    className="bg-emerald-600 h-2 rounded-full transition-all duration-200"
+                                    style={{ width: `${watcherProgress.percent}%` }}
+                                />
+                            </div>
+                            <p className="text-xs text-emerald-700 mt-1">
+                                Procesando PDF — extrayendo productos y verificando códigos...
+                            </p>
+                        </div>
                     )}
                 </div>
             )}
