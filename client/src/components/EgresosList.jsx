@@ -10,6 +10,7 @@ const EgresosList = () => {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
+    const [search, setSearch] = useState('');
     const fileInputRef = useRef(null);
 
     // Access control
@@ -96,6 +97,19 @@ const EgresosList = () => {
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
     if (!canAccessEgresos) return <Navigate to="/" replace />;
 
+    const searchTerms = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const filteredEgresos = searchTerms.length > 0
+        ? egresos.filter(e => {
+            const ref = (e.reference_number || '').toLowerCase();
+            const pdf = (e.pdf_filename || '').toLowerCase();
+            const createdBy = (e.created_by || '').toLowerCase();
+            const status = e.status === 'finalized' ? 'finalizado' : 'abierto';
+            return searchTerms.every(term =>
+                ref.includes(term) || pdf.includes(term) || createdBy.includes(term) || status.includes(term)
+            );
+        })
+        : egresos;
+
     return (
         <div className="container mx-auto p-4 max-w-lg md:max-w-4xl">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -133,6 +147,20 @@ const EgresosList = () => {
                 )}
             </div>
 
+            {/* Intelligent Search */}
+            {egresos.length > 0 && (
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full text-base p-3 border rounded-xl focus:ring-2 focus:ring-brand-blue outline-none bg-white shadow-sm"
+                        placeholder="Buscar por referencia, PDF, usuario o estado..."
+                        autoComplete="off"
+                    />
+                </div>
+            )}
+
             {/* Upload area visual indicator when no egresos exist */}
             {canUploadPdf && egresos.length === 0 && !uploading && (
                 <div
@@ -157,7 +185,7 @@ const EgresosList = () => {
             )}
 
             {/* Vista de Escritorio (Tabla) */}
-            {egresos.length > 0 && (
+            {filteredEgresos.length > 0 && (
                 <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden">
                     <table className="min-w-full leading-normal">
                         <thead>
@@ -183,7 +211,7 @@ const EgresosList = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {egresos.map(egreso => (
+                            {filteredEgresos.map(egreso => (
                                 <tr key={egreso.id}>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                         <p className="text-gray-900 whitespace-no-wrap font-bold">{egreso.reference_number}</p>
@@ -229,7 +257,7 @@ const EgresosList = () => {
 
             {/* Vista Mobile (Tarjetas) */}
             <div className="md:hidden space-y-4">
-                {egresos.map(egreso => (
+                {filteredEgresos.map(egreso => (
                     <Link
                         to={`/egresos/${egreso.id}`}
                         key={egreso.id}
@@ -270,6 +298,11 @@ const EgresosList = () => {
             {egresos.length === 0 && !uploading && (
                 <div className="bg-white p-8 text-center rounded-lg shadow-inner text-gray-500 italic mt-4">
                     No hay egresos registrados. Subí un PDF para crear uno.
+                </div>
+            )}
+            {egresos.length > 0 && filteredEgresos.length === 0 && (
+                <div className="bg-white p-8 text-center rounded-lg shadow-inner text-gray-400 italic mt-4">
+                    No se encontraron egresos con esa búsqueda.
                 </div>
             )}
         </div>
