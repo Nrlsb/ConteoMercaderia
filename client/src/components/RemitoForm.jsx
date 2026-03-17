@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { toast } from 'sonner';
 const Scanner = lazy(() => import('./Scanner'));
 const ReportModal = lazy(() => import('./ReportModal'));
+const BranchCountList = lazy(() => import('./BranchCountList'));
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import FichajeModal from './FichajeModal';
@@ -44,6 +45,9 @@ const RemitoForm = () => {
 
     const [duplicateProducts, setDuplicateProducts] = useState([]);
     const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+
+    // Branch count list tab: 'scan' | 'list'
+    const [countTab, setCountTab] = useState('scan');
 
     // Poll for active general counts
     useEffect(() => {
@@ -232,6 +236,8 @@ const RemitoForm = () => {
     // Keep selectedCountRef in sync with selectedCount state
     useEffect(() => {
         selectedCountRef.current = selectedCount;
+        // Reset tab when count changes
+        if (!selectedCount?.sucursal_id) setCountTab('scan');
     }, [selectedCount]);
 
     useEffect(() => {
@@ -1949,7 +1955,55 @@ const RemitoForm = () => {
                     </div>
                 )}
 
-                <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8 mt-8">
+                {/* Tab switcher: only shown when a branch count (sucursal_id) is active */}
+                {selectedCount?.sucursal_id && (
+                    <div className="flex border-b border-gray-200 mb-0 mt-4">
+                        <button
+                            onClick={() => setCountTab('scan')}
+                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${countTab === 'scan'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <span className="flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16a1 1 0 01-1 1h-1M4 16v-.5M4 19.5V20a1 1 0 001 1h1m0-5H5a1 1 0 00-1 1v.5" />
+                                </svg>
+                                Escanear
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setCountTab('list')}
+                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${countTab === 'list'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <span className="flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                </svg>
+                                Lista de Conteo
+                            </span>
+                        </button>
+                    </div>
+                )}
+
+                {/* Branch count list tab content */}
+                {selectedCount?.sucursal_id && countTab === 'list' && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-0" style={{ minHeight: '600px' }}>
+                        <Suspense fallback={
+                            <div className="flex items-center justify-center py-16 text-gray-400">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3"></div>
+                                Cargando...
+                            </div>
+                        }>
+                            <BranchCountList countId={selectedCount.id} countName={selectedCount.name} />
+                        </Suspense>
+                    </div>
+                )}
+
+                <div className={`flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8 mt-8 ${selectedCount?.sucursal_id && countTab === 'list' ? 'hidden' : ''}`}>
                     {/* Left Column: Inputs */}
                     <div className="lg:col-span-1 space-y-6">
                         {/* Remito Number Input Removed - Auto-assigned from Order */}

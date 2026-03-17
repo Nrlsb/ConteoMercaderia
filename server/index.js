@@ -1675,7 +1675,8 @@ app.post('/api/products/import', verifyToken, hasPermission('import_data'), mult
                 description: description,
                 brand: brand,
                 barcode: barcode,
-                current_stock: isNaN(stock) ? 0 : stock
+                current_stock: isNaN(stock) ? 0 : stock,
+                excel_order: products.length
             });
         }
 
@@ -2428,6 +2429,52 @@ app.delete('/api/pre-remitos/:id', verifyToken, hasPermission('delete_counts'), 
 });
 
 // Delete General Count (Admin only)
+// Branch Count List: returns all products (in excel_order) with scanned quantities for the requesting user
+app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    try {
+        // Verify count exists and is open
+        const { data: count, error: countError } = await supabase
+            .from('general_counts')
+            .select('id, status, sucursal_id')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (countError) throw countError;
+        if (!count) return res.status(404).json({ message: 'Conteo no encontrado' });
+        if (count.status !== 'open') return res.status(400).json({ message: 'El conteo ya fue cerrado' });
+
+        // Fetch all products in excel_order
+        const allProducts = await getAllProducts();
+
+        // Fetch this user's scans for this count
+        const { data: scans, error: scanError } = await supabase
+            .from('inventory_scans')
+            .select('code, quantity')
+            .eq('order_number', id)
+            .eq('user_id', userId);
+
+        if (scanError) throw scanError;
+
+        const scannedMap = {};
+        (scans || []).forEach(s => { scannedMap[s.code] = s.quantity; });
+
+        const productList = allProducts.map(p => ({
+            code: p.code,
+            description: p.description,
+            excel_order: p.excel_order,
+            quantity: scannedMap[p.code] !== undefined ? scannedMap[p.code] : null
+        }));
+
+        res.json({ products: productList, total: productList.length });
+    } catch (error) {
+        console.error('Error fetching branch count product list:', error);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
 app.delete('/api/general-counts/:id', verifyToken, hasPermission('delete_counts'), async (req, res) => {
     const { id } = req.params;
 
@@ -4806,7 +4853,8 @@ async function getAllProducts() {
     while (hasMore) {
         const { data, error } = await supabase
             .from('products')
-            .select('code, description, barcode, current_stock')
+            .select('code, description, barcode, current_stock, excel_order')
+            .order('excel_order', { ascending: true, nullsFirst: false })
             .range(from, from + step - 1);
 
         if (error) {
