@@ -2429,10 +2429,13 @@ app.delete('/api/pre-remitos/:id', verifyToken, hasPermission('delete_counts'), 
 });
 
 // Delete General Count (Admin only)
-// Branch Count List: returns all products (in excel_order) with scanned quantities for the requesting user
+// Branch Count List: paginated product list with scanned quantities for the requesting user
 app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(10, parseInt(req.query.pageSize) || 50));
+    const search = (req.query.search || '').trim();
 
     try {
         // Verify count exists and is open
@@ -2446,29 +2449,59 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
         if (!count) return res.status(404).json({ message: 'Conteo no encontrado' });
         if (count.status !== 'open') return res.status(400).json({ message: 'El conteo ya fue cerrado' });
 
-        // Fetch all products in excel_order
-        const allProducts = await getAllProducts();
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
 
-        // Fetch this user's scans for this count
-        const { data: scans, error: scanError } = await supabase
+        // Build paginated product query
+        let query = supabase
+            .from('products')
+            .select('code, description, excel_order', { count: 'exact' })
+            .order('excel_order', { ascending: true, nullsFirst: false })
+            .range(from, to);
+
+        if (search) {
+            query = query.or(`description.ilike.%${search}%,code.ilike.%${search}%`);
+        }
+
+        const { data: products, error: prodError, count: total } = await query;
+        if (prodError) throw prodError;
+
+        // Fetch scans only for the current page's product codes
+        const codes = (products || []).map(p => p.code);
+        let scannedMap = {};
+        if (codes.length > 0) {
+            const { data: scans, error: scanError } = await supabase
+                .from('inventory_scans')
+                .select('code, quantity')
+                .eq('order_number', id)
+                .eq('user_id', userId)
+                .in('code', codes);
+            if (scanError) throw scanError;
+            (scans || []).forEach(s => { scannedMap[s.code] = s.quantity; });
+        }
+
+        // Count total scanned products (for progress bar)
+        const { count: countedTotal } = await supabase
             .from('inventory_scans')
-            .select('code, quantity')
+            .select('code', { count: 'exact', head: true })
             .eq('order_number', id)
             .eq('user_id', userId);
 
-        if (scanError) throw scanError;
-
-        const scannedMap = {};
-        (scans || []).forEach(s => { scannedMap[s.code] = s.quantity; });
-
-        const productList = allProducts.map(p => ({
+        const productList = (products || []).map(p => ({
             code: p.code,
             description: p.description,
             excel_order: p.excel_order,
             quantity: scannedMap[p.code] !== undefined ? scannedMap[p.code] : null
         }));
 
-        res.json({ products: productList, total: productList.length });
+        res.json({
+            products: productList,
+            total: total || 0,
+            page,
+            pageSize,
+            totalPages: Math.ceil((total || 0) / pageSize),
+            countedTotal: countedTotal || 0
+        });
     } catch (error) {
         console.error('Error fetching branch count product list:', error);
         res.status(500).json({ message: 'Error interno del servidor' });

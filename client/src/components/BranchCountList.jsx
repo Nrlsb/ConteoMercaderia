@@ -2,36 +2,69 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api';
 import { toast } from 'sonner';
 
+const PAGE_SIZE = 50;
+
 const BranchCountList = ({ countId, countName }) => {
     const [products, setProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [localQty, setLocalQty] = useState({});
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [countedTotal, setCountedTotal] = useState(0);
+
+    // Search (server-side, debounced)
     const [search, setSearch] = useState('');
-    const [localQty, setLocalQty] = useState({}); // { code: string } - raw input values
+    const [searchInput, setSearchInput] = useState('');
+    const searchTimer = useRef(null);
+
     const debounceTimers = useRef({});
     const inputRefs = useRef({});
+    const listTopRef = useRef(null);
 
-    // Load product list with already-scanned quantities
-    useEffect(() => {
+    const fetchPage = useCallback(async (p, q) => {
         if (!countId) return;
-        const load = async () => {
-            setIsLoading(true);
-            try {
-                const res = await api.get(`/api/general-counts/${countId}/product-list`);
-                setProducts(res.data.products);
-                const initial = {};
-                res.data.products.forEach(p => {
-                    initial[p.code] = p.quantity !== null ? String(p.quantity) : '';
-                });
-                setLocalQty(initial);
-            } catch (err) {
-                toast.error('Error al cargar la lista de productos');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        load();
+        setIsLoading(true);
+        try {
+            const params = new URLSearchParams({ page: p, pageSize: PAGE_SIZE });
+            if (q) params.set('search', q);
+            const res = await api.get(`/api/general-counts/${countId}/product-list?${params}`);
+            const data = res.data;
+            setProducts(data.products);
+            setPage(data.page);
+            setTotalPages(data.totalPages);
+            setTotal(data.total);
+            setCountedTotal(data.countedTotal);
+
+            const initial = {};
+            data.products.forEach(p => {
+                initial[p.code] = p.quantity !== null ? String(p.quantity) : '';
+            });
+            setLocalQty(initial);
+        } catch (err) {
+            toast.error('Error al cargar la lista de productos');
+        } finally {
+            setIsLoading(false);
+        }
     }, [countId]);
+
+    // Initial load
+    useEffect(() => {
+        fetchPage(1, '');
+    }, [fetchPage]);
+
+    // Debounce search input → server query
+    const handleSearchChange = (value) => {
+        setSearchInput(value);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => {
+            setSearch(value);
+            fetchPage(1, value);
+        }, 400);
+    };
 
     const saveQuantity = useCallback(async (code, value) => {
         const qty = parseFloat(value);
@@ -43,16 +76,20 @@ const BranchCountList = ({ countId, countName }) => {
                 items: [{ code, quantity: qty }]
             });
             setProducts(prev => prev.map(p => p.code === code ? { ...p, quantity: qty } : p));
+            setCountedTotal(prev => {
+                // Only increment if this product wasn't already counted
+                const wasEmpty = localQty[code] === '' || localQty[code] === undefined;
+                return wasEmpty ? prev + 1 : prev;
+            });
         } catch (err) {
             toast.error(`Error al guardar ${code}`);
         } finally {
             setIsSaving(false);
         }
-    }, [countId]);
+    }, [countId, localQty]);
 
     const handleChange = (code, value) => {
         setLocalQty(prev => ({ ...prev, [code]: value }));
-        // Debounce save
         clearTimeout(debounceTimers.current[code]);
         debounceTimers.current[code] = setTimeout(() => {
             if (value !== '' && !isNaN(parseFloat(value))) {
@@ -71,38 +108,27 @@ const BranchCountList = ({ countId, countName }) => {
     const handleKeyDown = (e, code, index) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            // Move to next product input
-            const codes = filtered.map(p => p.code);
-            const next = codes[index + 1];
-            if (next && inputRefs.current[next]) {
-                inputRefs.current[next].focus();
-                inputRefs.current[next].select();
+            const next = products[index + 1];
+            if (next && inputRefs.current[next.code]) {
+                inputRefs.current[next.code].focus();
+                inputRefs.current[next.code].select();
+            } else if (index === products.length - 1 && page < totalPages) {
+                // Last row on page → go to next page
+                goToPage(page + 1);
             }
         }
     };
 
-    const filtered = products.filter(p => {
-        if (!search) return true;
-        const q = search.toLowerCase();
-        return (
-            p.description?.toLowerCase().includes(q) ||
-            p.code?.toLowerCase().includes(q)
-        );
-    });
+    const goToPage = (p) => {
+        if (p < 1 || p > totalPages) return;
+        fetchPage(p, search);
+        listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
-    const countedCount = products.filter(p => p.quantity !== null && p.quantity >= 0).length;
-
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                <p>Cargando lista de productos...</p>
-            </div>
-        );
-    }
+    const progressPct = total > 0 ? (countedTotal / total) * 100 : 0;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" ref={listTopRef}>
             {/* Header */}
             <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <div>
@@ -113,15 +139,15 @@ const BranchCountList = ({ countId, countName }) => {
                         Lista de Conteo
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        {countedCount} / {products.length} productos cargados
+                        {countedTotal} / {total} productos cargados
                         {isSaving && <span className="ml-2 text-blue-500 animate-pulse">· Guardando...</span>}
                     </p>
                 </div>
                 <input
                     type="text"
                     placeholder="Buscar producto o código..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    value={searchInput}
+                    onChange={e => handleSearchChange(e.target.value)}
                     className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
             </div>
@@ -130,13 +156,18 @@ const BranchCountList = ({ countId, countName }) => {
             <div className="w-full bg-gray-200 h-1.5">
                 <div
                     className="bg-blue-500 h-1.5 transition-all duration-300"
-                    style={{ width: products.length > 0 ? `${(countedCount / products.length) * 100}%` : '0%' }}
+                    style={{ width: `${progressPct}%` }}
                 />
             </div>
 
             {/* Product list */}
             <div className="flex-1 overflow-y-auto">
-                {filtered.length === 0 ? (
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
+                        <p>Cargando productos...</p>
+                    </div>
+                ) : products.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                         <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -154,9 +185,10 @@ const BranchCountList = ({ countId, countName }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {filtered.map((product, index) => {
+                            {products.map((product, index) => {
                                 const rawVal = localQty[product.code] ?? '';
                                 const hasValue = rawVal !== '' && !isNaN(parseFloat(rawVal));
+                                const globalIndex = (page - 1) * PAGE_SIZE + index;
 
                                 return (
                                     <tr
@@ -164,7 +196,7 @@ const BranchCountList = ({ countId, countName }) => {
                                         className={`transition-colors ${hasValue ? 'bg-green-50 hover:bg-green-100' : 'bg-white hover:bg-gray-50'}`}
                                     >
                                         <td className="px-4 py-2 text-gray-400 text-xs font-mono">
-                                            {product.excel_order !== null ? product.excel_order + 1 : index + 1}
+                                            {product.excel_order !== null ? product.excel_order + 1 : globalIndex + 1}
                                         </td>
                                         <td className="px-4 py-2 font-medium text-gray-800">
                                             {product.description || '—'}
@@ -198,6 +230,67 @@ const BranchCountList = ({ countId, countName }) => {
                     </table>
                 )}
             </div>
+
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+                    <span className="text-xs text-gray-500">
+                        Página {page} de {totalPages} · {total} productos
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => goToPage(1)}
+                            disabled={page === 1 || isLoading}
+                            className="px-2 py-1 text-xs rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-100"
+                        >
+                            «
+                        </button>
+                        <button
+                            onClick={() => goToPage(page - 1)}
+                            disabled={page === 1 || isLoading}
+                            className="px-3 py-1 text-xs rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-100"
+                        >
+                            Anterior
+                        </button>
+
+                        {/* Page number buttons (show up to 5 pages around current) */}
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                            const p = start + i;
+                            if (p > totalPages) return null;
+                            return (
+                                <button
+                                    key={p}
+                                    onClick={() => goToPage(p)}
+                                    disabled={isLoading}
+                                    className={`px-3 py-1 text-xs rounded border transition ${
+                                        p === page
+                                            ? 'border-blue-500 bg-blue-500 text-white'
+                                            : 'border-gray-300 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    {p}
+                                </button>
+                            );
+                        })}
+
+                        <button
+                            onClick={() => goToPage(page + 1)}
+                            disabled={page === totalPages || isLoading}
+                            className="px-3 py-1 text-xs rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-100"
+                        >
+                            Siguiente
+                        </button>
+                        <button
+                            onClick={() => goToPage(totalPages)}
+                            disabled={page === totalPages || isLoading}
+                            className="px-2 py-1 text-xs rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-100"
+                        >
+                            »
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
