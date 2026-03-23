@@ -26,6 +26,7 @@ const RemitoForm = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
+    const selectionClearedRef = React.useRef(false); // Tracks if user explicitly cleared selection (prevents poll restore)
     const productCacheRef = React.useRef(new Map()); // Client-side product cache to avoid repeated API calls
 
 
@@ -77,20 +78,28 @@ const RemitoForm = () => {
                 if (savedSelectedId) {
                     const saved = counts.find(c => String(c.id) === String(savedSelectedId));
                     if (saved) {
+                        selectionClearedRef.current = false;
                         setSelectedCount(saved);
+                    } else if (currentRef?.id && String(currentRef.id) === String(savedSelectedId)) {
+                        // Count was just created/selected and may not appear in this poll yet — keep it
+                        // Preserve it in activeCounts so it stays visible
+                        setActiveCounts(prev => {
+                            if (prev.find(c => String(c.id) === String(currentRef.id))) return prev;
+                            return [currentRef, ...counts];
+                        });
                     } else {
                         // Count no longer active (was closed), clear storage
                         localStorage.removeItem('selectedCountId');
                         setSelectedCount(null);
                     }
-                } else if (user?.active_count_id) {
-                    // Fallback to backend persistence if local is empty
+                } else if (!selectionClearedRef.current && user?.active_count_id) {
+                    // Fallback to backend persistence only if user did NOT explicitly clear selection
                     const saved = counts.find(c => String(c.id) === String(user.active_count_id));
                     if (saved) {
                         setSelectedCount(saved);
                         localStorage.setItem('selectedCountId', saved.id);
                     }
-                } else if (currentRef) {
+                } else if (!selectionClearedRef.current && currentRef) {
                     const current = counts.find(c => c.id === currentRef.id);
                     if (current) {
                         setSelectedCount(current);
@@ -497,6 +506,7 @@ const RemitoForm = () => {
             setExpectedItems(mergedItems);
 
             // Set the selected count to trigger the display of the active count
+            selectionClearedRef.current = false;
             setSelectedCount(count);
             localStorage.setItem('selectedCountId', count.id);
 
@@ -1277,6 +1287,7 @@ const RemitoForm = () => {
     };
 
     const handleSelectCount = async (count) => {
+        selectionClearedRef.current = !count;
         setSelectedCount(count);
         if (count) {
             localStorage.setItem('selectedCountId', count.id);
@@ -1312,6 +1323,7 @@ const RemitoForm = () => {
             });
             // Update actives and select it
             const newCount = res.data;
+            selectionClearedRef.current = false;
             setActiveCounts(prev => [newCount, ...prev]);
             setSelectedCount(newCount);
             localStorage.setItem('selectedCountId', newCount.id);
@@ -1638,6 +1650,7 @@ const RemitoForm = () => {
                                     {user?.role === 'admin' && (
                                         <button
                                             onClick={async () => {
+                                                selectionClearedRef.current = true;
                                                 setSelectedCount(null);
                                                 localStorage.removeItem('selectedCountId');
                                                 try {
