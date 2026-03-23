@@ -4,7 +4,11 @@
       "Bash(xargs grep:*)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(find \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" -type f \\\\\\( -name \"*diff*\" -o -name \"*Diff*\" \\\\\\) 2>/dev/null | head -20)"
+      "Bash(find \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" -type f \\\\\\( -name \"*diff*\" -o -name \"*Diff*\" \\\\\\) 2>/dev/null | head -20)",
+      "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" && npx cap sync android 2>&1 | tail -10)",
+      "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" && npx --no cap sync android 2>&1 | tail -10)",
+      "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" && node_modules/.bin/cap sync android 2>&1 | tail -10)",
+      "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\\\\client\" && node_modules/.bin/cap sync android 2>&1 | tail -10)"
     ]
   }
 }

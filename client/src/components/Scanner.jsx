@@ -173,15 +173,19 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                 }
             }
 
-            // 3. Hacer el fondo transparente para que se vea la cámara
+            // 3. Mostrar el overlay UI ANTES de hacer el fondo transparente
+            //    para que el usuario vea el botón de cancelar desde el inicio
+            setIsScanning(true);
+
+            // 4. Hacer el fondo transparente para que se vea la cámara
             document.body.classList.add('barcode-scanner-active');
             document.documentElement.classList.add('barcode-scanner-active');
 
-            // 4. Agregar listener para códigos detectados
+            // 5. Agregar listener para códigos detectados
             await BarcodeScanner.addListener('barcodeScanned', async (result) => {
                 if (result.barcode && result.barcode.rawValue) {
                     const code = result.barcode.rawValue;
-                    if (isAutoConfirm) {
+                    if (isAutoConfirmRef.current) {
                         // Auto-confirmar: detener y procesar inmediatamente
                         try {
                             await BarcodeScanner.removeAllListeners();
@@ -198,7 +202,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                 }
             });
 
-            // 5. Iniciar escaneo continuo (la cámara se ve detrás de la WebView)
+            // 6. Iniciar escaneo continuo (la cámara se ve detrás de la WebView)
             await BarcodeScanner.startScan({
                 formats: [
                     'QR_CODE', 'EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E'
@@ -206,7 +210,6 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             });
 
             nativeScanActiveRef.current = true;
-            setIsScanning(true);
 
         } catch (err) {
             console.error("Native scan error:", err);
