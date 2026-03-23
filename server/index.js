@@ -3915,18 +3915,25 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
             // Fetch brands from products table
             const { data: products } = await supabase
                 .from('products')
-                .select('code, brand')
+                .select('code, brand, primary_unit, secondary_unit, conversion_factor, conversion_type')
                 .in('code', codes);
 
             if (products) {
-                const brandMap = {};
-                products.forEach(p => brandMap[p.code] = p.brand);
+                const productMap = {};
+                products.forEach(p => productMap[p.code] = p);
 
-                // Update expected items with brand
-                expectedItems = expectedItems.map(item => ({
-                    ...item,
-                    brand: item.brand || brandMap[item.code] || 'Sin Marca'
-                }));
+                // Update expected items with brand and units
+                expectedItems = expectedItems.map(item => {
+                    const match = productMap[item.code];
+                    return {
+                        ...item,
+                        brand: item.brand || (match ? match.brand : 'Sin Marca'),
+                        primary_unit: match ? match.primary_unit : null,
+                        secondary_unit: match ? match.secondary_unit : null,
+                        conversion_factor: match ? match.conversion_factor : null,
+                        conversion_type: match ? match.conversion_type : null
+                    };
+                });
             }
         }
 

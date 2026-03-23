@@ -825,7 +825,7 @@ const RemitoForm = () => {
             const cache = JSON.parse(localStorage.getItem(LS_PRODUCT_CACHE_KEY) || '{}');
             cache[code] = productData;
             localStorage.setItem(LS_PRODUCT_CACHE_KEY, JSON.stringify(cache));
-        } catch (e) {}
+        } catch (e) { }
     };
     const getProductFromLocalStorage = (code) => {
         try {
@@ -882,7 +882,11 @@ const RemitoForm = () => {
                     name: expectedItem.description,
                     description: expectedItem.description,
                     barcode: expectedItem.barcode,
-                    brand: expectedItem.brand
+                    brand: expectedItem.brand,
+                    primary_unit: expectedItem.primary_unit,
+                    secondary_unit: expectedItem.secondary_unit,
+                    conversion_factor: expectedItem.conversion_factor,
+                    conversion_type: expectedItem.conversion_type
                 }];
                 expectedQty = expectedItem.quantity;
             } else {
@@ -892,7 +896,11 @@ const RemitoForm = () => {
                     name: ei.description,
                     description: ei.description,
                     barcode: ei.barcode,
-                    brand: ei.brand
+                    brand: ei.brand,
+                    primary_unit: ei.primary_unit,
+                    secondary_unit: ei.secondary_unit,
+                    conversion_factor: ei.conversion_factor,
+                    conversion_type: ei.conversion_type
                 }));
             }
         }
@@ -945,7 +953,11 @@ const RemitoForm = () => {
                                 name: productData.description || 'Producto Desconocido',
                                 description: productData.description,
                                 barcode: inputCode,
-                                brand: productData.brand
+                                brand: productData.brand,
+                                primary_unit: productData.primary_unit,
+                                secondary_unit: productData.secondary_unit,
+                                conversion_factor: productData.conversion_factor,
+                                conversion_type: productData.conversion_type
                             };
                             productCacheRef.current.set(inputCode, product);
                             saveProductToLocalStorage(inputCode, product);
@@ -956,7 +968,11 @@ const RemitoForm = () => {
                                 name: pd.description || 'Producto Desconocido',
                                 description: pd.description,
                                 barcode: inputCode,
-                                brand: pd.brand
+                                brand: pd.brand,
+                                primary_unit: pd.primary_unit,
+                                secondary_unit: pd.secondary_unit,
+                                conversion_factor: pd.conversion_factor,
+                                conversion_type: pd.conversion_type
                             }));
                             productCacheRef.current.set(inputCode, duplicates);
                             saveProductToLocalStorage(inputCode, duplicates);
@@ -972,7 +988,11 @@ const RemitoForm = () => {
                             name: data.description || 'Producto Desconocido',
                             description: data.description,
                             barcode: inputCode,
-                            brand: data.brand
+                            brand: data.brand,
+                            primary_unit: data.primary_unit,
+                            secondary_unit: data.secondary_unit,
+                            conversion_factor: data.conversion_factor,
+                            conversion_type: data.conversion_type
                         };
                         productCacheRef.current.set(inputCode, product);
                         saveProductToLocalStorage(inputCode, product);
@@ -1963,7 +1983,7 @@ const RemitoForm = () => {
                             className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${countTab === 'scan'
                                 ? 'border-blue-500 text-blue-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
+                                }`}
                         >
                             <span className="flex items-center gap-1.5">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1977,7 +1997,7 @@ const RemitoForm = () => {
                             className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${countTab === 'list'
                                 ? 'border-blue-500 text-blue-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
+                                }`}
                         >
                             <span className="flex items-center gap-1.5">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2104,11 +2124,11 @@ const RemitoForm = () => {
                                     <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
                                         <div className="relative h-[90%] w-full bg-transparent flex items-center justify-center overflow-hidden">
                                             <Suspense fallback={null}>
-                                            <Scanner
-                                                onScan={handleScan}
-                                                onCancel={() => setIsScanning(false)}
-                                                isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan}
-                                            />
+                                                <Scanner
+                                                    onScan={handleScan}
+                                                    onCancel={() => setIsScanning(false)}
+                                                    isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan}
+                                                />
                                             </Suspense>
                                         </div>
                                         <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
