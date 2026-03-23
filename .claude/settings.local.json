@@ -3,7 +3,8 @@
     "allow": [
       "Bash(xargs grep:*)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(find \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" -type f \\\\\\( -name \"*diff*\" -o -name \"*Diff*\" \\\\\\) 2>/dev/null | head -20)"
     ]
   }
 }
