@@ -1514,7 +1514,7 @@ const RemitoForm = () => {
                 </div>
             )}
 
-            <div className={`max-w-5xl mx-auto bg-white md:p-8 p-4 rounded-xl shadow-none md:shadow-xl my-0 md:my-8 border-none md:border border-gray-200 relative min-h-screen md:min-h-0 ${isScanning && !fichajeState.isOpen && !isDuplicateModalOpen && !reportConfig.isOpen && !showClarificationModal ? 'hidden' : 'block'}`}>
+            <div className="max-w-5xl mx-auto bg-white md:p-8 p-4 rounded-xl shadow-none md:shadow-xl my-0 md:my-8 border-none md:border border-gray-200 relative min-h-screen md:min-h-0">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 border-b border-gray-100 pb-4 gap-2">
                     <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
                     <div className="text-sm text-brand-gray">
