@@ -175,59 +175,77 @@ const BranchCountList = ({ countId, countName }) => {
                         <p>No se encontraron productos</p>
                     </div>
                 ) : (
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-100 sticky top-0 z-10">
-                            <tr>
-                                <th className="text-left px-4 py-2 font-medium text-gray-600 w-8 text-xs">#</th>
-                                <th className="text-left px-4 py-2 font-medium text-gray-600">Descripción</th>
-                                <th className="text-left px-4 py-2 font-medium text-gray-600 w-28">Código</th>
-                                <th className="text-right px-4 py-2 font-medium text-gray-600 w-32">Cantidad</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
+                    <div className="w-full text-sm">
+                        {/* Desktop Header */}
+                        <div className="hidden sm:flex bg-gray-100 sticky top-0 z-10 border-b border-gray-200">
+                            <div className="px-4 py-2 font-medium text-gray-600 w-12 text-xs">#</div>
+                            <div className="flex-1 px-4 py-2 font-medium text-gray-600">Descripción</div>
+                            <div className="w-32 px-4 py-2 font-medium text-gray-600 text-center">Código</div>
+                            <div className="w-36 px-4 py-2 font-medium text-gray-600 text-right">Cantidad</div>
+                        </div>
+
+                        <div className="divide-y divide-gray-100">
                             {products.map((product, index) => {
                                 const rawVal = localQty[product.code] ?? '';
                                 const hasValue = rawVal !== '' && !isNaN(parseFloat(rawVal));
                                 const globalIndex = (page - 1) * PAGE_SIZE + index;
 
                                 return (
-                                    <tr
+                                    <div
                                         key={product.code}
-                                        className={`transition-colors ${hasValue ? 'bg-green-50 hover:bg-green-100' : 'bg-white hover:bg-gray-50'}`}
+                                        className={`flex flex-col sm:flex-row sm:items-center transition-colors py-3 sm:py-0 ${hasValue ? 'bg-green-50 hover:bg-green-100' : 'bg-white hover:bg-gray-50'
+                                            }`}
                                     >
-                                        <td className="px-4 py-2 text-gray-400 text-xs font-mono">
+                                        {/* Desktop # */}
+                                        <div className="hidden sm:flex items-center px-4 py-2 text-gray-400 text-xs font-mono w-12">
                                             {product.excel_order !== null ? product.excel_order + 1 : globalIndex + 1}
-                                        </td>
-                                        <td className="px-4 py-2 font-medium text-gray-800">
-                                            {product.description || '—'}
-                                        </td>
-                                        <td className="px-4 py-2 text-gray-500 font-mono text-xs">
-                                            {product.code}
-                                        </td>
-                                        <td className="px-4 py-2 text-right">
-                                            <input
-                                                ref={el => inputRefs.current[product.code] = el}
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                value={rawVal}
-                                                onChange={e => handleChange(product.code, e.target.value)}
-                                                onBlur={e => handleBlur(product.code, e.target.value)}
-                                                onFocus={e => e.target.select()}
-                                                onKeyDown={e => handleKeyDown(e, product.code, index)}
-                                                placeholder="—"
-                                                className={`w-24 px-2 py-1.5 border rounded-lg text-right font-bold text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition
-                                                    ${hasValue
-                                                        ? 'border-green-400 bg-white text-green-700'
-                                                        : 'border-gray-300 bg-white text-gray-700'
-                                                    }`}
-                                            />
-                                        </td>
-                                    </tr>
+                                        </div>
+
+                                        {/* Description */}
+                                        <div className="flex-1 px-4 py-1 sm:py-2">
+                                            <div className="font-semibold sm:font-medium text-gray-900 sm:text-gray-800 text-sm sm:text-sm">
+                                                {product.description || '—'}
+                                            </div>
+                                            {/* Mobile Order # (optional) */}
+                                            <div className="sm:hidden text-[10px] text-gray-400 mt-0.5">
+                                                Producto #{product.excel_order !== null ? product.excel_order + 1 : globalIndex + 1}
+                                            </div>
+                                        </div>
+
+                                        {/* Mobile / Desktop Footer (Code + Qty) */}
+                                        <div className="flex items-center justify-between sm:justify-end px-4 py-1 sm:py-0 border-t border-gray-50 sm:border-0 mt-2 sm:mt-0">
+                                            {/* Code - shown as badge on mobile, mono on desktop */}
+                                            <div className="text-gray-500 font-mono text-[11px] sm:text-xs sm:w-32 sm:text-center sm:px-4 sm:py-2">
+                                                <span className="sm:hidden text-gray-400 mr-1">Cód:</span>
+                                                {product.code}
+                                            </div>
+
+                                            {/* Quantity Input */}
+                                            <div className="sm:w-36 sm:px-4 sm:py-2 text-right">
+                                                <input
+                                                    ref={el => inputRefs.current[product.code] = el}
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    value={rawVal}
+                                                    onChange={e => handleChange(product.code, e.target.value)}
+                                                    onBlur={e => handleBlur(product.code, e.target.value)}
+                                                    onFocus={e => e.target.select()}
+                                                    onKeyDown={e => handleKeyDown(e, product.code, index)}
+                                                    placeholder="—"
+                                                    className={`w-24 px-2 py-1.5 border rounded-lg text-right font-bold text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition
+                                                        ${hasValue
+                                                            ? 'border-green-400 bg-white text-green-700 shadow-sm'
+                                                            : 'border-gray-300 bg-white text-gray-700'
+                                                        }`}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 );
                             })}
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
                 )}
             </div>
 
@@ -263,11 +281,10 @@ const BranchCountList = ({ countId, countName }) => {
                                     key={p}
                                     onClick={() => goToPage(p)}
                                     disabled={isLoading}
-                                    className={`px-3 py-1 text-xs rounded border transition ${
-                                        p === page
+                                    className={`px-3 py-1 text-xs rounded border transition ${p === page
                                             ? 'border-blue-500 bg-blue-500 text-white'
                                             : 'border-gray-300 hover:bg-gray-100'
-                                    }`}
+                                        }`}
                                 >
                                     {p}
                                 </button>
