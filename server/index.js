@@ -1096,8 +1096,8 @@ app.get('/api/egresos', verifyToken, async (req, res) => {
             .select('*')
             .order('date', { ascending: false });
 
-        // Filter by branch for branch_admin
-        if (req.user.role === 'branch_admin' && req.user.sucursal_id) {
+        // Filter by branch for non-admin roles
+        if (!['superadmin', 'admin'].includes(req.user.role) && req.user.sucursal_id) {
             query = query.eq('sucursal_id', req.user.sucursal_id);
         }
 
