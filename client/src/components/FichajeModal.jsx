@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting, receiptId, isEgreso = false }) => {
     const [quantity, setQuantity] = useState('');
+    const [selectedUnit, setSelectedUnit] = useState('primary');
     const [isEditingBarcode, setIsEditingBarcode] = useState(false);
     const [barcodeInput, setBarcodeInput] = useState('');
     const [currentBarcode, setCurrentBarcode] = useState('');
@@ -55,6 +56,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setCalcDisplay('0');
             setCalcExpression('');
             setCalcJustEvaluated(false);
+            setSelectedUnit('primary');
             // Focus input after a short delay to ensure modal is rendered
             setTimeout(() => {
                 inputRef.current?.focus();
@@ -184,15 +186,35 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
         if (isSubmitting) return; // Guard
         const qty = parseInt(quantity, 10);
         if (!qty || qty < 1) return;
-        onConfirm(qty);
+
+        let finalQty = qty;
+        if (selectedUnit === 'secondary' && product?.conversion_factor) {
+            const factor = Number(product.conversion_factor);
+            if (product.conversion_type === 'Divisor') {
+                finalQty = qty / factor;
+            } else {
+                finalQty = qty * factor;
+            }
+        }
+
+        onConfirm(finalQty);
     };
 
     if (!isOpen || !product) return null;
 
+    // Converted quantity for display
+    const parsedQty = parseInt(quantity, 10) || 0;
+    let convertedQtyText = '';
+    if (selectedUnit === 'secondary' && parsedQty > 0 && product?.conversion_factor) {
+        const factor = Number(product.conversion_factor);
+        const finalVal = product.conversion_type === 'Divisor' ? parsedQty / factor : parsedQty * factor;
+        convertedQtyText = `Equivale a ${finalVal} ${product.primary_unit || 'UN'}`;
+    }
+
     // Excess validation
-    const qty = parseInt(quantity, 10) || 0;
-    const wouldExceed = expectedQuantity > 0 && (existingQuantity + qty) > expectedQuantity;
-    const excessAmount = wouldExceed ? (existingQuantity + qty) - expectedQuantity : 0;
+    const actualQtyToAdd = selectedUnit === 'secondary' && product?.conversion_factor ? (product.conversion_type === 'Divisor' ? parsedQty / Number(product.conversion_factor) : parsedQty * Number(product.conversion_factor)) : parsedQty;
+    const wouldExceed = expectedQuantity > 0 && (existingQuantity + actualQtyToAdd) > expectedQuantity;
+    const excessAmount = wouldExceed ? (existingQuantity + actualQtyToAdd) - expectedQuantity : 0;
 
     return (
         <div
@@ -282,7 +304,33 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                         </div>
                     </div>
 
-
+                    {/* Unit Selection Toggle */}
+                    {product?.secondary_unit && (
+                        <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Unidad de Medida</label>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedUnit('primary')}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-colors ${selectedUnit === 'primary' ? 'bg-brand-blue text-white shadow-md' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-10'}`}
+                                >
+                                    {product.primary_unit || 'Unidad Base'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedUnit('secondary')}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-colors ${selectedUnit === 'secondary' ? 'bg-brand-blue text-white shadow-md' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-10'}`}
+                                >
+                                    {product.secondary_unit}
+                                </button>
+                            </div>
+                            {selectedUnit === 'secondary' && product.conversion_factor && (
+                                <p className="text-xs text-brand-blue mt-2 font-medium">
+                                    Factor: 1 {product.secondary_unit} = {product.conversion_type === 'Divisor' ? `1/${product.conversion_factor}` : product.conversion_factor} {product.primary_unit || 'UN'}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="mb-2">
                         <div className="flex items-center justify-between mb-2">
@@ -312,6 +360,12 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                             placeholder="0"
                             autoComplete="off"
                         />
+
+                        {convertedQtyText && (
+                            <p className="text-sm text-green-600 font-bold mt-2 text-center bg-green-50 py-1 rounded-md border border-green-100">
+                                {convertedQtyText}
+                            </p>
+                        )}
 
                         {/* Inline Calculator */}
                         {showCalc && (
@@ -345,11 +399,11 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                                 onClick={() => handleCalcInput(btn)}
                                                 className={`h-11 rounded-lg text-base font-bold transition-colors active:scale-95
                                                     ${isConfirm ? 'bg-brand-blue text-white hover:bg-blue-700 col-span-1'
-                                                    : isEquals ? 'bg-brand-blue/80 text-white hover:bg-brand-blue'
-                                                    : isOperator ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                                    : isClear ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                                    : isBack ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                                    : 'bg-white text-gray-800 hover:bg-gray-100 border border-gray-200'}`}
+                                                        : isEquals ? 'bg-brand-blue/80 text-white hover:bg-brand-blue'
+                                                            : isOperator ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                                                : isClear ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                                                    : isBack ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                                        : 'bg-white text-gray-800 hover:bg-gray-100 border border-gray-200'}`}
                                             >
                                                 {btn}
                                             </button>
