@@ -2466,18 +2466,26 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
         const { data: products, error: prodError, count: total } = await query;
         if (prodError) throw prodError;
 
-        // Fetch scans only for the current page's product codes
+        // Fetch scans for the current page's product codes to see my qty and if others scanned
         const codes = (products || []).map(p => p.code);
-        let scannedMap = {};
+        let myScannedMap = {};
+        let othersScannedMap = {};
         if (codes.length > 0) {
-            const { data: scans, error: scanError } = await supabase
+            const { data: allScans, error: scanError } = await supabase
                 .from('inventory_scans')
-                .select('code, quantity')
+                .select('code, quantity, user_id')
                 .eq('order_number', id)
-                .eq('user_id', userId)
                 .in('code', codes);
+
             if (scanError) throw scanError;
-            (scans || []).forEach(s => { scannedMap[s.code] = s.quantity; });
+
+            (allScans || []).forEach(s => {
+                if (s.user_id === userId) {
+                    myScannedMap[s.code] = s.quantity;
+                } else {
+                    othersScannedMap[s.code] = true;
+                }
+            });
         }
 
         // Count total scanned products (for progress bar)
@@ -2491,7 +2499,8 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
             code: p.code,
             description: p.description,
             excel_order: p.excel_order,
-            quantity: scannedMap[p.code] !== undefined ? scannedMap[p.code] : null
+            quantity: myScannedMap[p.code] !== undefined ? myScannedMap[p.code] : null,
+            has_other_scans: !!othersScannedMap[p.code]
         }));
 
         res.json({
