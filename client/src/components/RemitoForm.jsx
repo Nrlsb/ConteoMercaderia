@@ -1922,64 +1922,56 @@ const RemitoForm = () => {
                                             </div>
                                         )}
 
-                                        <div className="mt-4 flex justify-end">
-                                            {!selectedCount ? (
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!remitoNumber) return;
-                                                        try {
-                                                            // Determine the best sucursal_id to use if the user is an admin without one
-                                                            // We can try to look up the sucursal_id from the first selected pre-remito's 'sucursal' string
-                                                            let countSucursalId = user?.sucursal_id || null;
-
-                                                            if (!countSucursalId && selectedPreRemitos.length > 0) {
-                                                                const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
-                                                                if (firstPre && firstPre.sucursal) {
-                                                                    const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
-                                                                    if (matchedBranch) {
-                                                                        countSucursalId = matchedBranch.id;
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            // Create General Count with the Order ID(s) as name
-                                                            const res = await api.post('/api/general-counts', {
-                                                                name: remitoNumber,
-                                                                sucursal_id: countSucursalId
-                                                            });
-
-                                                            // Don't switch mode, just set the selected count to enable scanning
-                                                            setSelectedCount(res.data);
-                                                            localStorage.setItem('selectedCountId', res.data.id);
-
-                                                            // Sync to backend for cross-device persistence
-                                                            try {
-                                                                await api.put('/api/auth/active-count', { countId: res.data.id });
-                                                            } catch (e) {
-                                                                console.error('Error syncing pre-remito count to backend:', e);
-                                                            }
-
-                                                            triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
-
-                                                            // We stay in 'pre_remito' mode, so validation against expectedItems continues.
-                                                            // The scan engine will now sync to the backend because selectedCount is set.
-
-                                                        } catch (error) {
-                                                            console.error('Error creating count from pre-remito:', error);
-                                                            triggerModal('Error', error.response?.data?.message || 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
-                                                        }
-                                                    }}
-                                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
-                                                >
-                                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                    Iniciar Conteo
-                                                </button>
-                                            ) : (
-                                                <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold shadow-sm flex items-center border border-blue-200">
-                                                    <svg className="w-5 h-5 mr-2 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                                    Conteo en Curso
+                                        <div className="mt-4 flex flex-col sm:flex-row items-end justify-end gap-3">
+                                            {selectedCount && (
+                                                <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold shadow-sm flex items-center border border-blue-200 text-sm">
+                                                    <svg className="w-4 h-4 mr-2 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                                    Conteo en Curso: {selectedCount.name}
                                                 </div>
                                             )}
+                                            <button
+                                                onClick={async () => {
+                                                    if (!remitoNumber) return;
+                                                    try {
+                                                        let countSucursalId = user?.sucursal_id || null;
+
+                                                        if (!countSucursalId && selectedPreRemitos.length > 0) {
+                                                            const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
+                                                            if (firstPre && firstPre.sucursal) {
+                                                                const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
+                                                                if (matchedBranch) {
+                                                                    countSucursalId = matchedBranch.id;
+                                                                }
+                                                            }
+                                                        }
+
+                                                        const res = await api.post('/api/general-counts', {
+                                                            name: remitoNumber,
+                                                            sucursal_id: countSucursalId
+                                                        });
+
+                                                        selectionClearedRef.current = false;
+                                                        setActiveCounts(prev => [res.data, ...prev]);
+                                                        setSelectedCount(res.data);
+                                                        localStorage.setItem('selectedCountId', res.data.id);
+
+                                                        try {
+                                                            await api.put('/api/auth/active-count', { countId: res.data.id });
+                                                        } catch (e) {
+                                                            console.error('Error syncing pre-remito count to backend:', e);
+                                                        }
+
+                                                        triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
+                                                    } catch (error) {
+                                                        console.error('Error creating count from pre-remito:', error);
+                                                        triggerModal('Error', error.response?.data?.message || 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
+                                                    }
+                                                }}
+                                                className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
+                                            >
+                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                {selectedCount ? 'Iniciar Nuevo Conteo' : 'Iniciar Conteo'}
+                                            </button>
                                         </div>
                                     </div>
                                 )}
