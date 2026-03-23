@@ -1945,9 +1945,14 @@ const RemitoForm = () => {
                                                             }
                                                         }
 
+                                                        const productCodes = Array.isArray(expectedItems)
+                                                            ? expectedItems.map(i => i.code).filter(Boolean)
+                                                            : [];
+
                                                         const res = await api.post('/api/general-counts', {
                                                             name: remitoNumber,
-                                                            sucursal_id: countSucursalId
+                                                            sucursal_id: countSucursalId,
+                                                            product_codes: productCodes.length > 0 ? productCodes : undefined
                                                         });
 
                                                         selectionClearedRef.current = false;

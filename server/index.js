@@ -2441,7 +2441,7 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
         // Verify count exists and is open
         const { data: count, error: countError } = await supabase
             .from('general_counts')
-            .select('id, status, sucursal_id')
+            .select('id, status, sucursal_id, product_codes')
             .eq('id', id)
             .maybeSingle();
 
@@ -2458,6 +2458,11 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
             .select('code, description, excel_order', { count: 'exact' })
             .order('excel_order', { ascending: true, nullsFirst: false })
             .range(from, to);
+
+        // If the count has specific product_codes (from XML/pre-remito), filter to only those
+        if (Array.isArray(count.product_codes) && count.product_codes.length > 0) {
+            query = query.in('code', count.product_codes);
+        }
 
         if (search) {
             query = query.or(`description.ilike.%${search}%,code.ilike.%${search}%`);
@@ -3603,7 +3608,7 @@ app.get('/api/general-counts/active', verifyToken, async (req, res) => {
 });
 
 app.post('/api/general-counts', verifyToken, async (req, res) => {
-    const { name, sucursal_id } = req.body;
+    const { name, sucursal_id, product_codes } = req.body;
     if (!name) return res.status(400).json({ message: 'Name is required' });
 
     try {
@@ -3638,14 +3643,19 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
             return res.status(400).json({ message: 'Ya existe un conteo activo en esta sucursal. Finalice el conteo actual antes de iniciar uno nuevo.' });
         }
 
+        const insertPayload = {
+            name,
+            status: 'open',
+            sucursal_id: finalSucursalId,
+            created_by: createdBy
+        };
+        if (Array.isArray(product_codes) && product_codes.length > 0) {
+            insertPayload.product_codes = product_codes;
+        }
+
         const { data, error } = await supabase
             .from('general_counts')
-            .insert([{
-                name,
-                status: 'open',
-                sucursal_id: finalSucursalId,
-                created_by: createdBy
-            }])
+            .insert([insertPayload])
             .select()
             .single();
 
@@ -3655,12 +3665,7 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
                 console.warn(`FK Violation on created_by (${createdBy}). Retrying with NULL.`);
                 const { data: retryData, error: retryError } = await supabase
                     .from('general_counts')
-                    .insert([{
-                        name,
-                        status: 'open',
-                        sucursal_id: finalSucursalId,
-                        created_by: null
-                    }])
+                    .insert([{ ...insertPayload, created_by: null }])
                     .select()
                     .single();
 
