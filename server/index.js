@@ -2449,27 +2449,60 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
         if (!count) return res.status(404).json({ message: 'Conteo no encontrado' });
         if (count.status !== 'open') return res.status(400).json({ message: 'El conteo ya fue cerrado' });
 
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize - 1;
+        let products = [];
+        let total = 0;
 
-        // Build paginated product query
-        let query = supabase
-            .from('products')
-            .select('code, description, excel_order', { count: 'exact' })
-            .order('excel_order', { ascending: true, nullsFirst: false })
-            .range(from, to);
-
-        // If the count has specific product_codes (from XML/pre-remito), filter to only those
+        // If the count has specific product_codes (from XML/pre-remito),
+        // we fetch all of them and paginate/filter in memory to respect the original order.
         if (Array.isArray(count.product_codes) && count.product_codes.length > 0) {
-            query = query.in('code', count.product_codes);
-        }
+            const { data: allProductsInCount, error: prodError } = await supabase
+                .from('products')
+                .select('code, description, excel_order')
+                .in('code', count.product_codes);
 
-        if (search) {
-            query = query.or(`description.ilike.%${search}%,code.ilike.%${search}%`);
-        }
+            if (prodError) throw prodError;
 
-        const { data: products, error: prodError, count: total } = await query;
-        if (prodError) throw prodError;
+            const productMap = new Map(allProductsInCount.map(p => [p.code, p]));
+
+            // Reorder products based on count.product_codes
+            let orderedProducts = count.product_codes
+                .map(code => productMap.get(code))
+                .filter(p => p !== undefined); // Filter out any codes not found in products table
+
+            // Apply search filter in memory
+            if (search) {
+                const lowerCaseSearch = search.toLowerCase();
+                orderedProducts = orderedProducts.filter(p =>
+                    p.description.toLowerCase().includes(lowerCaseSearch) ||
+                    p.code.toLowerCase().includes(lowerCaseSearch)
+                );
+            }
+
+            total = orderedProducts.length;
+            const from = (page - 1) * pageSize;
+            const to = from + pageSize; // 'to' is exclusive for slice
+            products = orderedProducts.slice(from, to);
+
+        } else {
+            // Original logic: query directly from DB for all products, ordered by excel_order
+            const from = (page - 1) * pageSize;
+            const to = from + pageSize - 1;
+
+            let query = supabase
+                .from('products')
+                .select('code, description, excel_order', { count: 'exact' })
+                .order('excel_order', { ascending: true, nullsFirst: false })
+                .range(from, to);
+
+            if (search) {
+                query = query.or(`description.ilike.%${search}%,code.ilike.%${search}%`);
+            }
+
+            const { data: dbProducts, error: prodError, count: dbTotal } = await query;
+            if (prodError) throw prodError;
+            products = dbProducts;
+            total = dbTotal;
+        }
 
         // Fetch scans for the current page's product codes to see my qty and if others scanned
         const codes = (products || []).map(p => p.code);
