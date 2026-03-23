@@ -36,6 +36,15 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     // Flash state
     const [torchOn, setTorchOn] = useState(false);
 
+    // Web-specific state
+    const [webTorchOn, setWebTorchOn] = useState(false);
+    const [webZoom, setWebZoom] = useState(2.0);
+    const [webZoomSupported, setWebZoomSupported] = useState(false);
+    const [webTorchSupported, setWebTorchSupported] = useState(false);
+    const [webDetectedCode, setWebDetectedCode] = useState(null);
+    const webDetectedCodeRef = useRef(null);
+    const webPausedRef = useRef(false);
+
     // Web-specific refs
     const scannerRef = useRef(null);
     const lastScannedCodeRef = useRef(null);
@@ -50,6 +59,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
     // Ref to always have the latest onScan prop available inside stale callbacks
     const onScanRef = useRef(onScan);
     useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+
+    // Ref for isAutoConfirm to avoid stale closures in scan callbacks
+    const isAutoConfirmRef = useRef(isAutoConfirm);
+    useEffect(() => { isAutoConfirmRef.current = isAutoConfirm; }, [isAutoConfirm]);
 
     // --- REF: Track enabled state for async callbacks ---
     const isEnabledRef = useRef(isEnabled);
@@ -98,6 +111,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
         setDetectedCode(null);
         detectedCodeRef.current = null;
         setTorchOn(false);
+        setWebDetectedCode(null);
+        webDetectedCodeRef.current = null;
+        webPausedRef.current = false;
+        setWebTorchOn(false);
 
         if (restartTimerRef.current) {
             clearTimeout(restartTimerRef.current);
@@ -253,29 +270,112 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             });
         }
 
-        try {
+        const tryStart = async (constraints) => {
             await scannerRef.current.start(
                 { facingMode: "environment" },
                 {
-                    fps: 25,
-                    qrbox: { width: 300, height: 150 },
-                    videoConstraints: {
-                        facingMode: "environment",
-                        width: { min: 1280, ideal: 3840, max: 4096 },
-                        height: { min: 720, ideal: 2160, max: 4096 },
-                        focusMode: "continuous",
-                        advanced: [{ zoom: 2.0 }]
+                    fps: 30,
+                    qrbox: { width: 280, height: 140 },
+                    videoConstraints: constraints
+                },
+                (decodedText) => {
+                    if (webPausedRef.current) return;
+                    if (isAutoConfirmRef.current) {
+                        handleScanSuccess(decodedText);
+                    } else {
+                        // Manual mode: show code, wait for user confirmation
+                        if (decodedText !== webDetectedCodeRef.current) {
+                            webDetectedCodeRef.current = decodedText;
+                            setWebDetectedCode(decodedText);
+                        }
                     }
                 },
-                (decodedText) => handleScanSuccess(decodedText),
                 () => { } // Ignore frame errors
             );
+        };
+
+        try {
+            await tryStart({
+                facingMode: "environment",
+                width: { min: 1280, ideal: 1920, max: 3840 },
+                height: { min: 720, ideal: 1080, max: 2160 },
+                focusMode: "continuous",
+            });
             setIsScanning(true);
+
+            // After start, detect capabilities and apply zoom
+            try {
+                const capabilities = scannerRef.current.getRunningTrackCapabilities();
+                if (capabilities?.zoom) {
+                    setWebZoomSupported(true);
+                    const minZoom = capabilities.zoom.min ?? 1;
+                    const maxZoom = capabilities.zoom.max ?? 8;
+                    const targetZoom = Math.min(2.0, maxZoom);
+                    const clampedZoom = Math.max(minZoom, targetZoom);
+                    await scannerRef.current.applyVideoConstraints({
+                        advanced: [{ zoom: clampedZoom }]
+                    });
+                    setWebZoom(clampedZoom);
+                }
+                if (capabilities?.torch) {
+                    setWebTorchSupported(true);
+                }
+            } catch (capErr) {
+                console.warn("No se pudieron leer capabilities:", capErr);
+            }
         } catch (err) {
-            console.error("Web scan error", err);
-            setError("No se pudo acceder a la cámara Web.");
-            setIsScanning(false);
+            // Fallback: try with lower resolution
+            try {
+                if (scannerRef.current?.isScanning) await scannerRef.current.stop();
+                await tryStart({ facingMode: "environment", focusMode: "continuous" });
+                setIsScanning(true);
+            } catch (fallbackErr) {
+                console.error("Web scan error", fallbackErr);
+                setError("No se pudo acceder a la cámara Web.");
+                setIsScanning(false);
+            }
         }
+    };
+
+    // --- WEB: Toggle Torch ---
+    const handleWebToggleTorch = async () => {
+        try {
+            const next = !webTorchOn;
+            await scannerRef.current.applyVideoConstraints({
+                advanced: [{ torch: next }]
+            });
+            setWebTorchOn(next);
+        } catch (e) {
+            console.warn('Linterna no soportada en web:', e);
+        }
+    };
+
+    // --- WEB: Adjust Zoom ---
+    const handleWebZoom = async (delta) => {
+        try {
+            const capabilities = scannerRef.current.getRunningTrackCapabilities();
+            const minZoom = capabilities?.zoom?.min ?? 1;
+            const maxZoom = capabilities?.zoom?.max ?? 8;
+            const newZoom = Math.max(minZoom, Math.min(maxZoom, webZoom + delta));
+            await scannerRef.current.applyVideoConstraints({
+                advanced: [{ zoom: newZoom }]
+            });
+            setWebZoom(newZoom);
+        } catch (e) {
+            console.warn('Zoom no soportado:', e);
+        }
+    };
+
+    // --- WEB: Confirm manual capture ---
+    const handleWebCapture = () => {
+        const code = webDetectedCodeRef.current;
+        if (!code) return;
+        webPausedRef.current = true;
+        webDetectedCodeRef.current = null;
+        setWebDetectedCode(null);
+        handleScanSuccess(code);
+        // Reset pause after brief delay to allow re-scan
+        setTimeout(() => { webPausedRef.current = false; }, 1500);
     };
 
     // --- SHARED: Handle Success ---
@@ -470,16 +570,120 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                 document.body
             )}
 
-            {/* Custom Overlay (Only for Web) */}
+            {/* Web Scanner Overlay */}
             {!isNative && isScanning && (
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-[80%] h-[30%] max-w-sm border-2 border-red-500 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-scan-line"></div>
-                        <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-red-500 -mt-1 -ml-1"></div>
-                        <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-red-500 -mt-1 -mr-1"></div>
-                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-red-500 -mb-1 -ml-1"></div>
-                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-red-500 -mb-1 -mr-1"></div>
+                <div className="absolute inset-0 flex flex-col pointer-events-none">
+
+                    {/* Top bar: Auto/Manual + Torch + Zoom */}
+                    <div className="pointer-events-auto flex items-center justify-between px-3 pt-2 pb-1 bg-gradient-to-b from-black/60 to-transparent">
+                        {/* Auto/Manual toggle */}
+                        <div className="flex bg-black/50 backdrop-blur-sm rounded-full p-0.5 border border-white/20" style={{ width: '120px' }}>
+                            <button
+                                onClick={() => { if (isAutoConfirm) toggleAutoConfirm(); }}
+                                className={`flex-1 text-[11px] font-bold py-1 rounded-full transition ${!isAutoConfirm ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}
+                            >Manual</button>
+                            <button
+                                onClick={() => { if (!isAutoConfirm) toggleAutoConfirm(); }}
+                                className={`flex-1 text-[11px] font-bold py-1 rounded-full transition ${isAutoConfirm ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}
+                            >Auto</button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {/* Zoom controls */}
+                            {webZoomSupported && (
+                                <div className="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-full px-2 py-1 border border-white/20">
+                                    <button onClick={() => handleWebZoom(-0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">−</button>
+                                    <span className="text-white text-[10px] font-mono min-w-[28px] text-center">{webZoom.toFixed(1)}x</span>
+                                    <button onClick={() => handleWebZoom(+0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">+</button>
+                                </div>
+                            )}
+
+                            {/* Torch button */}
+                            {webTorchSupported && (
+                                <button
+                                    onClick={handleWebToggleTorch}
+                                    className={`w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-sm text-white active:scale-90 transition-all ${webTorchOn ? 'bg-yellow-500/80' : 'bg-black/50 border border-white/20'}`}
+                                    aria-label="Toggle linterna"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={webTorchOn ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Center: viewfinder */}
+                    <div className="flex-1 flex items-center justify-center relative">
+                        {/* Dark overlay around scanner box */}
+                        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 40% at center, transparent 0%, rgba(0,0,0,0.5) 100%)' }}></div>
+
+                        <div className="relative w-[80%] max-w-sm" style={{ aspectRatio: '2/1' }}>
+                            {/* Corner markers */}
+                            <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-white rounded-tl-md"></div>
+                            <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-white rounded-tr-md"></div>
+                            <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-white rounded-bl-md"></div>
+                            <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-white rounded-br-md"></div>
+
+                            {/* Scan line */}
+                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${webDetectedCode ? 'via-green-400' : 'via-white'} to-transparent opacity-70 animate-scan-line`}></div>
+
+                            {/* Detected badge */}
+                            {webDetectedCode && (
+                                <div className="absolute -bottom-9 left-0 right-0 flex justify-center">
+                                    <div className="bg-green-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[11px] font-bold shadow-lg flex items-center gap-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                        Código detectado
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Bottom bar: manual capture button */}
+                    {!isAutoConfirm && (
+                        <div className="pointer-events-auto pb-4 px-4 flex flex-col items-center gap-2 bg-gradient-to-t from-black/60 to-transparent pt-8">
+                            {webDetectedCode && (
+                                <div className="bg-black/60 backdrop-blur-md rounded-xl px-4 py-2 max-w-full">
+                                    <p className="text-white/60 text-[9px] uppercase tracking-widest text-center mb-0.5">Código leído</p>
+                                    <p className="text-white text-base font-mono font-bold text-center tracking-wider break-all">{webDetectedCode}</p>
+                                </div>
+                            )}
+                            <button
+                                onClick={handleWebCapture}
+                                disabled={!webDetectedCode}
+                                className={`
+                                    w-16 h-16 rounded-full flex items-center justify-center
+                                    transition-all duration-200 active:scale-90 shadow-2xl
+                                    ${webDetectedCode
+                                        ? 'bg-white ring-4 ring-white/30'
+                                        : 'bg-white/20 ring-4 ring-white/10'
+                                    }
+                                `}
+                                aria-label="Confirmar código"
+                            >
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${webDetectedCode ? 'bg-green-500 text-white' : 'bg-white/20 text-white/40'}`}>
+                                    {webDetectedCode ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="3" y="3" width="7" height="7"></rect>
+                                            <rect x="14" y="3" width="7" height="7"></rect>
+                                            <rect x="14" y="14" width="7" height="7"></rect>
+                                            <rect x="3" y="14" width="7" height="7"></rect>
+                                        </svg>
+                                    )}
+                                </div>
+                            </button>
+                            <p className="text-white/70 text-[11px] text-center">
+                                {webDetectedCode ? 'Presioná para confirmar' : 'Apuntá al código de barras'}
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
 
