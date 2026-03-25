@@ -1418,16 +1418,44 @@ app.get('/api/products/search', verifyToken, async (req, res) => {
 // Sync products for local DB (IndexedDB)
 app.get('/api/products/sync', verifyToken, async (req, res) => {
     try {
-        // Fetch essential fields for all products to keep it light
-        const { data, error } = await supabase
-            .from('products')
-            .select('id, code, barcode, description, brand, secondary_unit, conversion_factor, conversion_type');
+        let allData = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
 
-        if (error) throw error;
-        res.json(data);
+        console.log(`[SYNC] Iniciando sincronización completa de productos para usuario: ${req.user.username}`);
+
+        while (hasMore) {
+            // Fetch essential fields for all products to keep it light
+            // Using .range() to overcome the 1000 rows default limit
+            const { data, error, count } = await supabase
+                .from('products')
+                .select('id, code, barcode, description, brand, secondary_unit, conversion_factor, conversion_type', { count: 'exact' })
+                .order('code', { ascending: true })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                allData = allData.concat(data);
+                // Optional: log progress for debugging
+                // console.log(`[SYNC] Bloque cargado: ${from} a ${from + data.length - 1}. Total acumulado: ${allData.length}`);
+
+                if (data.length < step) {
+                    hasMore = false;
+                } else {
+                    from += step;
+                }
+            } else {
+                hasMore = false;
+            }
+        }
+
+        console.log(`[SYNC] Sincronización finalizada exitosamente. Total: ${allData.length} productos.`);
+        res.json(allData);
     } catch (error) {
         console.error('Error syncing products:', error);
-        res.status(500).json({ message: 'Error syncing products' });
+        res.status(500).json({ message: 'Error syncing products', details: error.message });
     }
 });
 
