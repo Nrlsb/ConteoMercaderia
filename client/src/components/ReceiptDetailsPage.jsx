@@ -660,7 +660,7 @@ const ReceiptDetailsPage = () => {
         if (!file) return;
 
         const formData = new FormData();
-        formData.append('pdf', file);
+        formData.append('file', file);
 
         try {
             setIsBulkImporting(true);
