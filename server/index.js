@@ -1177,8 +1177,8 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
             .eq('product_code', productCode)
             .maybeSingle();
 
-        if (!existingItem) {
-            return res.status(400).json({ message: 'El producto no forma parte de este remito de egreso.' });
+        if (!existingItem || !(Number(existingItem.expected_quantity) > 0)) {
+            return res.status(400).json({ message: 'El producto no forma parte de este remito de egreso o no tiene cantidad esperada.' });
         }
 
         let oldScanned = (Number(existingItem.scanned_quantity) || 0);

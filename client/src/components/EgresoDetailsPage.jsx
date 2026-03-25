@@ -161,6 +161,8 @@ const EgresoDetailsPage = () => {
 
         // 1. Local document search (first priority)
         const localSuggestions = items.filter(i => {
+            if (!(Number(i.expected_quantity) > 0)) return false;
+
             const desc = (i.products?.description || '').toLowerCase();
             const code = (i.product_code || '').toLowerCase();
             const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
@@ -295,7 +297,7 @@ const EgresoDetailsPage = () => {
     const processProductSelection = (product) => {
         const existingItem = items.find(i => i.product_code === product.code);
 
-        if (existingItem) {
+        if (existingItem && Number(existingItem.expected_quantity) > 0) {
             openModal({
                 code: existingItem.product_code,
                 description: existingItem.products?.description || 'Producto',
@@ -306,15 +308,7 @@ const EgresoDetailsPage = () => {
                 conversion_type: existingItem.products?.conversion_type || null,
             }, existingItem.expected_quantity, existingItem.scanned_quantity);
         } else {
-            openModal({
-                code: product.code,
-                description: product.description,
-                barcode: product.barcode || '',
-                secondary_unit: product.secondary_unit || null,
-                primary_unit: product.primary_unit || null,
-                conversion_factor: product.conversion_factor || null,
-                conversion_type: product.conversion_type || null,
-            }, null, 0);
+            toast.error(`El producto "${product.code}" no forma parte de este remito de egreso.`);
         }
     };
 
@@ -328,15 +322,19 @@ const EgresoDetailsPage = () => {
 
         // 1. Exact match first (Barcode or Internal Code)
         let matchingItems = items.filter(i =>
-            (i.product_code || '').toLowerCase() === lowerCode ||
-            (i.products && (i.products.barcode || '').toLowerCase() === lowerCode) ||
-            (i.barcode || '').toLowerCase() === lowerCode
+            Number(i.expected_quantity) > 0 && (
+                (i.product_code || '').toLowerCase() === lowerCode ||
+                (i.products && (i.products.barcode || '').toLowerCase() === lowerCode) ||
+                (i.barcode || '').toLowerCase() === lowerCode
+            )
         );
 
         // 2. Intelligent Search (If no exact match, search by terms)
         if (matchingItems.length === 0) {
-            const searchTerms = lowerCode.split(/\\s+/);
+            const searchTerms = lowerCode.split(/\s+/);
             matchingItems = items.filter(i => {
+                if (!(Number(i.expected_quantity) > 0)) return false;
+
                 const desc = (i.products?.description || '').toLowerCase();
                 const icode = (i.product_code || '').toLowerCase();
                 const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
