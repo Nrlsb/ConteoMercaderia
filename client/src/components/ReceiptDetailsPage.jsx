@@ -677,7 +677,15 @@ const ReceiptDetailsPage = () => {
 
         setProcessing(true);
         try {
-            // Re-import the item with the correct internal code
+            // 1. Update the product's provider_code in the backend
+            if (linkingItem.code) {
+                await api.put(`/api/products/${product.id}`, {
+                    provider_code: linkingItem.code
+                });
+                toast.info(`Código de proveedor actualizado para: ${product.description}`, { duration: 2000 });
+            }
+
+            // 2. Re-import the item with the correct internal code
             await api.post(`/api/receipts/${id}/items`, {
                 code: product.code,
                 quantity: linkingItem.quantity
