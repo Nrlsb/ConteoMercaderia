@@ -26,6 +26,16 @@ const RemitoForm = () => {
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
 
+    // Pre-remito state
+    const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
+    const [preRemitoList, setPreRemitoList] = useState([]);
+    const [expectedItems, setExpectedItems] = useState(null); // null = no pre-remito loaded
+    const [preRemitoStatus, setPreRemitoStatus] = useState(''); // 'loading', 'found', 'not_found', 'error'
+
+    // Manual Autocomplete State
+    const [manualSuggestions, setManualSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
@@ -44,6 +54,99 @@ const RemitoForm = () => {
         data: null,
         title: ''
     });
+
+    // --- HELPER FUNCTIONS (Defined early to avoid TDZ) ---
+    const fetchItemsByOrders = async (orderNumbers) => {
+        const results = await Promise.all(
+            orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
+        );
+
+        const mergedItemsMap = {};
+        results.forEach(res => {
+            const { items } = res.data;
+            if (items && Array.isArray(items)) {
+                items.forEach(item => {
+                    const code = item.code;
+                    if (mergedItemsMap[code]) {
+                        mergedItemsMap[code].quantity += Number(item.quantity) || 0;
+                    } else {
+                        mergedItemsMap[code] = {
+                            ...item,
+                            quantity: Number(item.quantity) || 0
+                        };
+                    }
+                });
+            }
+        });
+        return Object.values(mergedItemsMap);
+    };
+
+    // Unified Search Logic
+    const executeSearch = async (value) => {
+        if (!value || value.length < 2) {
+            setShowSuggestions(false);
+            setManualSuggestions([]);
+            return;
+        }
+
+        const queryNormalized = value.toLowerCase().trim();
+        const tokens = queryNormalized.split(/\s+/).filter(Boolean);
+
+        let localMatches = [];
+        if (expectedItems) {
+            // Token-based filtering for expected items
+            localMatches = expectedItems.filter(item => {
+                const desc = (item.description || '').toLowerCase();
+                const code = (item.code || '').toLowerCase();
+                const barcode = (item.barcode || '').toLowerCase();
+
+                // Matches all tokens in some field
+                return tokens.every(token =>
+                    desc.includes(token) ||
+                    code.includes(token) ||
+                    barcode.includes(token)
+                );
+            }).map(item => ({ ...item, isExpected: true }));
+        }
+
+        // Try with local DB first
+        try {
+            const localResults = await searchProductsLocally(value);
+            const apiResults = [];
+
+            // Supplement with API if online and local results are few
+            if (navigator.onLine && localResults.length < 5) {
+                try {
+                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                    apiResults.push(...res.data);
+                } catch (e) { console.error("API Search fallback failed", e); }
+            }
+
+            // Merge results
+            const combined = [...localResults.map(p => ({
+                ...p,
+                inDocument: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false,
+                isExpected: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false
+            }))];
+
+            apiResults.forEach(apiItem => {
+                if (!combined.some(c => c.code === apiItem.code)) {
+                    combined.push({
+                        ...apiItem,
+                        inDocument: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false,
+                        isExpected: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false
+                    });
+                }
+            });
+
+            setManualSuggestions(combined.slice(0, 15));
+            setShowSuggestions(combined.length > 0);
+        } catch (error) {
+            console.error('Error searching products:', error);
+            setManualSuggestions(localMatches.slice(0, 10));
+            setShowSuggestions(localMatches.length > 0);
+        }
+    };
 
     // General Count State
     const [activeCounts, setActiveCounts] = useState([]);
@@ -416,15 +519,6 @@ const RemitoForm = () => {
         recognition.start();
     };
 
-    // Pre-remito state
-    const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
-    const [preRemitoList, setPreRemitoList] = useState([]);
-    const [expectedItems, setExpectedItems] = useState(null); // null = no pre-remito loaded
-    const [preRemitoStatus, setPreRemitoStatus] = useState(''); // 'loading', 'found', 'not_found', 'error'
-
-    // Manual Autocomplete State
-    const [manualSuggestions, setManualSuggestions] = useState([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
 
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
@@ -516,30 +610,6 @@ const RemitoForm = () => {
         fetchBranches();
     }, []);
 
-    const fetchItemsByOrders = async (orderNumbers) => {
-        const results = await Promise.all(
-            orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
-        );
-
-        const mergedItemsMap = {};
-        results.forEach(res => {
-            const { items } = res.data;
-            if (items && Array.isArray(items)) {
-                items.forEach(item => {
-                    const code = item.code;
-                    if (mergedItemsMap[code]) {
-                        mergedItemsMap[code].quantity += Number(item.quantity) || 0;
-                    } else {
-                        mergedItemsMap[code] = {
-                            ...item,
-                            quantity: Number(item.quantity) || 0
-                        };
-                    }
-                });
-            }
-        });
-        return Object.values(mergedItemsMap);
-    };
 
     const handleResumeActiveCount = async (count, orderNumbers) => {
         try {
@@ -1239,72 +1309,6 @@ const RemitoForm = () => {
     // Ref for debounce
     const searchTimeoutRef = React.useRef(null);
 
-    // Unified Search Logic
-    const executeSearch = async (value) => {
-        if (!value || value.length < 2) {
-            setShowSuggestions(false);
-            setManualSuggestions([]);
-            return;
-        }
-
-        const queryNormalized = value.toLowerCase().trim();
-        const tokens = queryNormalized.split(/\s+/).filter(Boolean);
-
-        let localMatches = [];
-        if (expectedItems) {
-            // Token-based filtering for expected items
-            localMatches = expectedItems.filter(item => {
-                const desc = (item.description || '').toLowerCase();
-                const code = (item.code || '').toLowerCase();
-                const barcode = (item.barcode || '').toLowerCase();
-
-                // Matches all tokens in some field
-                return tokens.every(token =>
-                    desc.includes(token) ||
-                    code.includes(token) ||
-                    barcode.includes(token)
-                );
-            }).map(item => ({ ...item, isExpected: true }));
-        }
-
-        // Try with local DB first
-        try {
-            const localResults = await searchProductsLocally(value);
-            const apiResults = [];
-
-            // Supplement with API if online and local results are few
-            if (navigator.onLine && localResults.length < 5) {
-                try {
-                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
-                    apiResults.push(...res.data);
-                } catch (e) { console.error("API Search fallback failed", e); }
-            }
-
-            // Merge results
-            const combined = [...localResults.map(p => ({
-                ...p,
-                inDocument: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false,
-                isExpected: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false
-            }))];
-
-            apiResults.forEach(apiItem => {
-                if (!combined.some(c => c.code === apiItem.code)) {
-                    combined.push({
-                        ...apiItem,
-                        inDocument: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false,
-                        isExpected: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false
-                    });
-                }
-            });
-
-            setManualSuggestions(combined.slice(0, 15));
-            setShowSuggestions(combined.length > 0);
-        } catch (error) {
-            console.error('Error searching products:', error);
-            setManualSuggestions(localMatches.slice(0, 10));
-            setShowSuggestions(localMatches.length > 0);
-        }
-    };
 
     const handleManualChangeDebounced = (e) => {
         const value = e.target.value;
