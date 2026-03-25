@@ -26,7 +26,7 @@ const EgresoDetailsPage = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
     // Local DB Sync
-    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing } = useProductSync();
+    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_egresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_egresos');
