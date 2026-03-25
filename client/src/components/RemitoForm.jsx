@@ -703,7 +703,6 @@ const RemitoForm = () => {
 
             setExpectedItems(mappedItems);
             setPreRemitoStatus('found');
-            setRemitoNumber(file.name.replace('.pdf', '').replace('.PDF', ''));
         } catch (error) {
             console.error('Error uploading PDF:', error);
             triggerModal('Error', 'Error al procesar el PDF', 'error');
@@ -1913,79 +1912,49 @@ const RemitoForm = () => {
                                             </div>
 
                                             <div className="border-t border-gray-200 pt-6 mt-2">
-                                                <div className="flex flex-col sm:flex-row gap-4">
-                                                    <div className="flex-1">
-                                                        <label className="block text-sm font-medium text-brand-gray mb-2">Importar Stock (XML)</label>
+                                                <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
 
-                                                        <div className="mb-4">
-                                                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal</label>
-                                                            <select
-                                                                value={xmlSelectedBranch}
-                                                                onChange={(e) => setXmlSelectedBranch(e.target.value)}
-                                                                disabled={user?.role === 'branch_admin'}
-                                                                className={`w-full h-11 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm ${user?.role === 'branch_admin' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
-                                                            >
-                                                                <option value="">Seleccionar Sucursal</option>
-                                                                <option value="Global">Deposito</option>
-                                                                {branches.filter(b => b.name !== 'Deposito').map((b) => (
-                                                                    <option key={b.id} value={b.name}>{b.name}</option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-3">
-                                                            <label className={`w-full flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
-                                                                <input
-                                                                    type="file"
-                                                                    accept=".xml, .xlsx, .xls"
-                                                                    multiple
-                                                                    className="hidden"
-                                                                    onChange={handleXmlUpload}
-                                                                    disabled={isLoadingXml}
-                                                                />
-                                                                {isLoadingXml ? (
-                                                                    <div className="flex items-center text-gray-500">
-                                                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                                        <span className="text-xs">Procesando...</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex items-center text-green-700">
-                                                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                                                        <span className="font-medium text-xs">Subir XML</span>
-                                                                    </div>
-                                                                )}
-                                                            </label>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex-1">
-                                                        <label className="block text-sm font-medium text-brand-gray mb-2">Importar Remito (PDF)</label>
-                                                        <div className="mb-4 hidden sm:block h-11"></div> {/* Spacer to align with branch selector */}
-                                                        <div className="flex items-center gap-3">
-                                                            <label className={`w-full flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${preRemitoStatus === 'loading' ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-blue-300 hover:border-blue-500 bg-blue-50/30'}`}>
-                                                                <input
-                                                                    type="file"
-                                                                    accept=".pdf"
-                                                                    className="hidden"
-                                                                    onChange={handleFileUpload}
-                                                                    disabled={preRemitoStatus === 'loading'}
-                                                                />
-                                                                {preRemitoStatus === 'loading' ? (
-                                                                    <div className="flex items-center text-gray-500">
-                                                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                                        <span className="text-xs">Cargando PDF...</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex items-center text-blue-700">
-                                                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                                                                        <span className="font-medium text-xs">Subir PDF</span>
-                                                                    </div>
-                                                                )}
-                                                            </label>
-                                                        </div>
-                                                    </div>
+                                                {/* Branch Selector for XML Upload */}
+                                                <div className="mb-4">
+                                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
+                                                    <select
+                                                        value={xmlSelectedBranch}
+                                                        onChange={(e) => setXmlSelectedBranch(e.target.value)}
+                                                        disabled={user?.role === 'branch_admin'}
+                                                        className={`w-full h-11 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm ${user?.role === 'branch_admin' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                                    >
+                                                        <option value="">Seleccionar Sucursal</option>
+                                                        <option value="Global">Deposito</option>
+                                                        {branches.filter(b => b.name !== 'Deposito').map((b) => (
+                                                            <option key={b.id} value={b.name}>{b.name}</option>
+                                                        ))}
+                                                    </select>
                                                 </div>
-                                                <p className="mt-4 text-[10px] text-gray-400">Sube archivos XML del ERP o PDFs de remitos para preparar la lista de conteo.</p>
+
+                                                <div className="flex items-center gap-3">
+                                                    <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
+                                                        <input
+                                                            type="file"
+                                                            accept=".xml, .xlsx, .xls"
+                                                            multiple
+                                                            className="hidden"
+                                                            onChange={handleXmlUpload}
+                                                            disabled={isLoadingXml}
+                                                        />
+                                                        {isLoadingXml ? (
+                                                            <div className="flex items-center text-gray-500">
+                                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                                Procesando XML...
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center text-green-700">
+                                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                                <span className="font-medium text-sm">Subir DocConteo.xml</span>
+                                                            </div>
+                                                        )}
+                                                    </label>
+                                                </div>
+                                                <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
                                             </div>
                                         </>
                                     )}

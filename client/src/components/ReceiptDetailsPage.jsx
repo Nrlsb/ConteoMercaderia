@@ -655,6 +655,33 @@ const ReceiptDetailsPage = () => {
         setIsBulkImporting(false);
     };
 
+    const handlePdfUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('pdf', file);
+
+        try {
+            setIsBulkImporting(true);
+            const response = await api.post('/api/remitos/upload-pdf', formData);
+            const extractedItems = response.data;
+
+            if (extractedItems && extractedItems.length > 0) {
+                await handleScanComplete(extractedItems);
+            } else {
+                toast.info('No se encontraron productos en el PDF');
+                setIsBulkImporting(false);
+            }
+        } catch (error) {
+            console.error('Error uploading pdf:', error);
+            toast.error('Error al procesar el PDF');
+            setIsBulkImporting(false);
+        } finally {
+            e.target.value = null;
+        }
+    };
+
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
     if (!receipt) return <div className="p-4 text-center">No encontrado</div>;
 
@@ -824,12 +851,27 @@ const ReceiptDetailsPage = () => {
                         </button>
                     </div>
                     {activeTab === 'load' && receipt.status !== 'finalized' && canUpload && (
-                        <button
-                            onClick={() => setShowScanner(true)}
-                            className="w-full sm:w-auto px-4 py-2.5 bg-brand-blue text-white rounded-lg hover:bg-blue-700 text-sm font-bold flex items-center justify-center gap-2 shadow-sm"
-                        >
-                            <span>📷</span> OCR
-                        </button>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <input
+                                type="file"
+                                accept=".pdf"
+                                className="hidden"
+                                id="pdf-upload-input"
+                                onChange={handlePdfUpload}
+                            />
+                            <button
+                                onClick={() => document.getElementById('pdf-upload-input').click()}
+                                className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-blue-200 text-brand-blue rounded-lg hover:bg-blue-50 text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                            >
+                                <span>📄</span> Subir PDF
+                            </button>
+                            <button
+                                onClick={() => setShowScanner(true)}
+                                className="flex-1 sm:flex-none px-4 py-2.5 bg-brand-blue text-white rounded-lg hover:bg-blue-700 text-sm font-bold flex items-center justify-center gap-2 shadow-sm"
+                            >
+                                <span>📷</span> OCR
+                            </button>
+                        </div>
                     )}
                 </div>
 
