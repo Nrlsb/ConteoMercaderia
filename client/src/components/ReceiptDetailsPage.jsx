@@ -665,7 +665,7 @@ const ReceiptDetailsPage = () => {
         try {
             setIsBulkImporting(true);
             const response = await api.post('/api/remitos/upload-pdf', formData);
-            const extractedItems = response.data;
+            const extractedItems = response.data.items; // Backend returns { items: [...] }
 
             if (extractedItems && extractedItems.length > 0) {
                 await handleScanComplete(extractedItems);

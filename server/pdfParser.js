@@ -3,15 +3,16 @@ const pdf = require('pdf-parse');
 /**
  * Parses a Remito PDF buffer and extracts items.
  * @param {Buffer} dataBuffer - The PDF file buffer.
+ * @param {boolean} stopOnCopies - Whether to stop processing when DUPLICADO/TRIPLICADO is found.
  * @returns {Promise<Array<{code: string, description: string, quantity: number}>>}
  */
-async function parseRemitoPdf(dataBuffer) {
+async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
     try {
         let stopProcessing = false;
 
         // Custom page render function to handle columns by preserving X/Y structure
         function render_page(pageData) {
-            if (stopProcessing) return Promise.resolve('');
+            if (stopProcessing && stopOnCopies) return Promise.resolve('');
 
             let render_options = {
                 normalizeWhitespace: false,
@@ -23,7 +24,7 @@ async function parseRemitoPdf(dataBuffer) {
                     let lines = {};
                     for (let item of textContent.items) {
                         // Check for duplicate marker early in the raw text content
-                        if (item.str.includes('DUPLICADO') || item.str.includes('TRIPLICADO')) {
+                        if (stopOnCopies && (item.str.includes('DUPLICADO') || item.str.includes('TRIPLICADO'))) {
                             stopProcessing = true;
                             return ''; // Complete page skip and signal stop
                         }
@@ -74,7 +75,7 @@ async function parseRemitoPdf(dataBuffer) {
                         }
 
                         // Final check for markers in assembled line text (just in case)
-                        if (lineText.includes('DUPLICADO') || lineText.includes('TRIPLICADO')) {
+                        if (stopOnCopies && (lineText.includes('DUPLICADO') || lineText.includes('TRIPLICADO'))) {
                             stopProcessing = true;
                             return ''; // Complete page skip
                         }

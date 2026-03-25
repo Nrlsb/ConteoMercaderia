@@ -4269,7 +4269,7 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         console.log(`Received PDF upload. Size: ${req.file.size} bytes`);
-        let extractedItems = await parseRemitoPdf(req.file.buffer);
+        let extractedItems = await parseRemitoPdf(req.file.buffer, false); // stopOnCopies = false for Ingresos
 
         // FALLBACK TO GEMINI if no items found (likely a scanned PDF)
         if (extractedItems.length === 0 && process.env.GEMINI_API_KEY) {
@@ -4285,17 +4285,18 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
             const prompt = `
                 Eres un experto en extracción de datos de remitos de logística.
-                Analiza el PDF adjunto y extrae todos los productos listados en la tabla del remito.
+                Analiza el PDF adjunto y extrae TODOS los productos listados en la tabla del remito.
                 
                 REGLAS CRÍTICAS:
                 1. Devuelve SOLO un array JSON válido de objetos.
                 2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
-                3. El "code" es el código del producto (suele estar en la primera columna).
+                3. El "code" es el código del producto (suele estar en la primera o segunda columna).
                 4. La "quantity" es la cantidad pedida/enviada.
                 5. La "description" es el nombre del producto.
-                6. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
-                7. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada.
-                8. Sé extremadamente preciso con los códigos numéricos.
+                6. Extrae TODOS los productos. No te detengas hasta haber procesado toda la tabla.
+                7. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
+                8. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada.
+                9. Sé extremadamente preciso con los códigos numéricos.
                 
                 Formato esperado:
                 [
@@ -4304,7 +4305,9 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 ]
             `;
 
-            const result = await model.generateContent([prompt, ...pdfParts]);
+            // Usar gemini-1.5-flash para mayor estabilidad y capacidad de visión en PDF
+            const model15 = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const result = await model15.generateContent([prompt, ...pdfParts]);
             const response = await result.response;
             const resultText = response.text();
 
