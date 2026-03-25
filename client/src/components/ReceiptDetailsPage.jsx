@@ -39,6 +39,9 @@ const ReceiptDetailsPage = () => {
     const [isBulkImporting, setIsBulkImporting] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
     const [importFailedItems, setImportFailedItems] = useState([]);
+    const [linkingItem, setLinkingItem] = useState(null); // Item from importFailedItems being linked
+    const [linkingSuggestions, setLinkingSuggestions] = useState([]);
+    const [isLinkingSearching, setIsLinkingSearching] = useState(false);
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_ingresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_ingresos');
@@ -662,6 +665,55 @@ const ReceiptDetailsPage = () => {
 
         await fetchReceiptDetails();
         setIsBulkImporting(false);
+    };
+
+    const handleStartLinking = (item) => {
+        setLinkingItem(item);
+        setLinkingSuggestions([]);
+    };
+
+    const handleLinkProduct = async (product) => {
+        if (!linkingItem || processing) return;
+
+        setProcessing(true);
+        try {
+            // Re-import the item with the correct internal code
+            await api.post(`/api/receipts/${id}/items`, {
+                code: product.code,
+                quantity: linkingItem.quantity
+            });
+
+            toast.success(`Vinculado con éxito: ${product.description}`);
+
+            // Remove from failed items
+            setImportFailedItems(prev => prev.filter(i => i !== linkingItem));
+            setLinkingItem(null);
+
+            await fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error linking product:', error);
+            toast.error(error.response?.data?.message || 'Error al vincular el producto');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleLinkingSearch = async (e) => {
+        const value = e.target.value;
+        if (!value || value.length < 2) {
+            setLinkingSuggestions([]);
+            return;
+        }
+
+        setIsLinkingSearching(true);
+        try {
+            const matches = await searchProductsLocally(value);
+            setLinkingSuggestions(matches);
+        } catch (error) {
+            console.error('Error searching products for linking:', error);
+        } finally {
+            setIsLinkingSearching(false);
+        }
     };
 
     const handlePdfUpload = async (e) => {
@@ -1344,9 +1396,52 @@ const ReceiptDetailsPage = () => {
                                         <div className="text-xs font-mono text-gray-500 mb-2 mt-1">
                                             Código: <span className="font-bold text-gray-700">{item.code || '-'}</span>
                                         </div>
-                                        <div className="text-xs text-red-600 bg-red-50 py-1.5 px-2 rounded font-medium border border-red-100">
+                                        <div className="text-xs text-red-600 bg-red-50 py-1.5 px-2 rounded font-medium border border-red-100 mb-2">
                                             Error: {item.error}
                                         </div>
+
+                                        {linkingItem === item ? (
+                                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                                <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Buscar Producto en Catálogo</label>
+                                                <input
+                                                    type="text"
+                                                    autoFocus
+                                                    placeholder="Escribe nombre o código..."
+                                                    onChange={handleLinkingSearch}
+                                                    className="w-full text-sm p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-brand-blue outline-none"
+                                                />
+                                                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                                                    {isLinkingSearching && <div className="text-center py-2 text-xs text-blue-400">Buscando...</div>}
+                                                    {linkingSuggestions.map((s, sIdx) => (
+                                                        <button
+                                                            key={sIdx}
+                                                            onClick={() => handleLinkProduct(s)}
+                                                            className="w-full text-left p-2 hover:bg-white rounded border border-transparent hover:border-blue-200 transition-all"
+                                                        >
+                                                            <div className="font-bold text-xs text-gray-900">{s.description}</div>
+                                                            <div className="text-[10px] text-gray-500 font-mono">INT: {s.code} {s.barcode ? `| BAR: ${s.barcode}` : ''}</div>
+                                                        </button>
+                                                    ))}
+                                                    {!isLinkingSearching && linkingSuggestions.length === 0 && (
+                                                        <div className="text-center py-2 text-[10px] text-gray-400">Ingresa 2 o más caracteres para buscar</div>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => setLinkingItem(null)}
+                                                    className="w-full mt-2 py-1.5 text-xs text-gray-500 font-bold hover:text-gray-700"
+                                                >
+                                                    Cancelar Búsqueda
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleStartLinking(item)}
+                                                className="w-full mt-1 bg-brand-blue text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                                Vincular a producto
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>
