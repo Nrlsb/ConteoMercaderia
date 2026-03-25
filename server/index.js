@@ -1415,6 +1415,22 @@ app.get('/api/products/search', verifyToken, async (req, res) => {
     }
 });
 
+// Sync products for local DB (IndexedDB)
+app.get('/api/products/sync', verifyToken, async (req, res) => {
+    try {
+        // Fetch essential fields for all products to keep it light
+        const { data, error } = await supabase
+            .from('products')
+            .select('id, code, barcode, description, brand, secondary_unit, conversion_factor, conversion_type');
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error syncing products:', error);
+        res.status(500).json({ message: 'Error syncing products' });
+    }
+});
+
 // Get product by exact barcode
 app.get('/api/products/barcode/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;

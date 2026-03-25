@@ -7,6 +7,7 @@ import Scanner from './Scanner';
 import { downloadFile } from '../utils/downloadUtils';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
+import { useProductSync } from '../hooks/useProductSync'; // Add this line
 import { toast } from 'sonner';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
@@ -29,6 +30,9 @@ const ReceiptDetailsPage = () => {
     const [visibleItems, setVisibleItems] = useState(20);
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [diffSearch, setDiffSearch] = useState('');
+
+    // Local DB Sync
+    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
 
     // Bulk Import State (OCR)
     const [isBulkImporting, setIsBulkImporting] = useState(false);
@@ -62,6 +66,7 @@ const ReceiptDetailsPage = () => {
 
     useEffect(() => {
         fetchReceiptDetails();
+        syncProducts(); // Sync catalog on mount
     }, [id]);
 
     useEffect(() => {
@@ -156,12 +161,44 @@ const ReceiptDetailsPage = () => {
             return;
         }
 
-        try {
-            const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
-            setSuggestions(res.data);
-            setShowSuggestions(res.data.length > 0);
-        } catch (error) {
-            console.error('Error searching products:', error);
+        const valueLower = value.toLowerCase().trim();
+        const searchTerms = valueLower.split(/\s+/);
+
+        // 1. Local document items search (Priority)
+        const localMatches = items.filter(i => {
+            const desc = (i.products?.description || '').toLowerCase();
+            const code = (i.product_code || '').toLowerCase();
+            const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
+            return searchTerms.every(term =>
+                desc.includes(term) || code.includes(term) || barcode.includes(term)
+            );
+        }).map(i => ({
+            code: i.product_code,
+            description: i.products?.description || 'Producto',
+            barcode: i.products?.barcode || i.barcode || '',
+            inDocument: true
+        }));
+
+        setSuggestions(localMatches);
+        setShowSuggestions(localMatches.length > 0);
+
+        // 2. Local DB catalog search (Fallback/Extra)
+        if (localMatches.length < 5) {
+            const globalMatches = await searchProductsLocally(valueLower);
+            const existingCodes = new Set(localMatches.map(m => m.code));
+            const newSuggestions = globalMatches
+                .filter(m => !existingCodes.has(m.code))
+                .map(m => ({
+                    code: m.code,
+                    description: m.description,
+                    barcode: m.barcode || '',
+                    inDocument: false
+                }));
+
+            if (newSuggestions.length > 0) {
+                setSuggestions(prev => [...prev.slice(0, 10), ...newSuggestions.slice(0, 10)]);
+                setShowSuggestions(true);
+            }
         }
     };
 
@@ -353,7 +390,23 @@ const ReceiptDetailsPage = () => {
                 }
             } catch (error) {
                 console.error('Error fetching product:', error);
-                toast.error('Producto no encontrado');
+
+                // FINAL FALLBACK: Local Database
+                const localProduct = await getProductByCode(code);
+                if (localProduct) {
+                    const productObj = {
+                        code: localProduct.code,
+                        description: localProduct.description,
+                        barcode: localProduct.barcode || '',
+                        secondary_unit: localProduct.secondary_unit || null,
+                        primary_unit: localProduct.primary_unit || null,
+                        conversion_factor: localProduct.conversion_factor || null,
+                        conversion_type: localProduct.conversion_type || null
+                    };
+                    openModal(productObj, null, 0);
+                } else {
+                    toast.error('Producto no encontrado');
+                }
             } finally {
                 setProcessing(false);
             }
@@ -618,6 +671,19 @@ const ReceiptDetailsPage = () => {
                     <button onClick={syncOfflineData} className="bg-yellow-500 text-white px-3 py-1 rounded text-xs">Sincronizar</button>
                 </div>
             )}
+
+            {/* Sync Status Badge */}
+            <div className="fixed bottom-20 right-4 z-40">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}>
+                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                    {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                    {!isSyncing && (
+                        <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
+                            🔄
+                        </button>
+                    )}
+                </div>
+            </div>
             <div className={`container mx-auto p-4 max-w-lg md:max-w-5xl ${isBarcodeReaderActive || showScanner ? 'hidden' : 'block'}`}>
                 {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -803,7 +869,14 @@ const ReceiptDetailsPage = () => {
                                                         }}
                                                     >
                                                         <div className="font-bold text-gray-900">{s.description}</div>
-                                                        <div className="text-xs text-gray-500">COD: {s.code} {s.provider_code ? `| PROV: ${s.provider_code}` : ''}</div>
+                                                        <div className="text-xs text-gray-500">
+                                                            COD: {s.code} {s.provider_code ? `| PROV: ${s.provider_code}` : ''}
+                                                            {s.inDocument ? (
+                                                                <span className="ml-2 text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">EN DOCUMENTO</span>
+                                                            ) : (
+                                                                <span className="ml-2 text-orange-600 font-bold bg-orange-50 px-1.5 py-0.5 rounded text-[10px]">CATÁLOGO</span>
+                                                            )}
+                                                        </div>
                                                     </button>
                                                 ))}
                                             </div>

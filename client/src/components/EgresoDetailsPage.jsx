@@ -4,6 +4,7 @@ import api from '../api';
 import Scanner from './Scanner';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
+import { useProductSync } from '../hooks/useProductSync'; // Add this line
 import { toast } from 'sonner';
 import { downloadFile } from '../utils/downloadUtils';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -23,6 +24,9 @@ const EgresoDetailsPage = () => {
     const [visibleItems, setVisibleItems] = useState(20);
     const [activeTab, setActiveTab] = useState('control');
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+    // Local DB Sync
+    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing } = useProductSync();
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_egresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_egresos');
@@ -55,6 +59,7 @@ const EgresoDetailsPage = () => {
     useEffect(() => {
         fetchEgresoDetails();
         checkPendingSync();
+        syncProducts(); // Sync catalog on mount
         window.addEventListener('online', syncOfflineData);
         return () => window.removeEventListener('online', syncOfflineData);
     }, [id]);
@@ -148,7 +153,10 @@ const EgresoDetailsPage = () => {
             return;
         }
 
-        const searchTerms = value.toLowerCase().trim().split(/\s+/);
+        const valueLower = value.toLowerCase().trim();
+        const searchTerms = valueLower.split(/\s+/);
+
+        // 1. Local document search (first priority)
         const localSuggestions = items.filter(i => {
             const desc = (i.products?.description || '').toLowerCase();
             const code = (i.product_code || '').toLowerCase();
@@ -159,7 +167,8 @@ const EgresoDetailsPage = () => {
         }).map(i => ({
             code: i.product_code,
             description: i.products?.description || 'Producto',
-            barcode: i.products?.barcode || i.barcode || ''
+            barcode: i.products?.barcode || i.barcode || '',
+            inDocument: true
         }));
 
         const unique = Array.from(new Set(localSuggestions.map(a => a.code)))
@@ -167,6 +176,26 @@ const EgresoDetailsPage = () => {
 
         setSuggestions(unique);
         setShowSuggestions(unique.length > 0);
+
+        // 2. Global catalog search (Async fallback if not enough results)
+        if (unique.length < 5) {
+            searchProductsLocally(valueLower).then(globalMatches => {
+                const existingCodes = new Set(unique.map(u => u.code));
+                const newSuggestions = globalMatches
+                    .filter(m => !existingCodes.has(m.code))
+                    .map(m => ({
+                        code: m.code,
+                        description: m.description,
+                        barcode: m.barcode || '',
+                        inDocument: false
+                    }));
+
+                if (newSuggestions.length > 0) {
+                    setSuggestions(prev => [...prev.slice(0, 10), ...newSuggestions.slice(0, 10)]);
+                    setShowSuggestions(true);
+                }
+            });
+        }
     };
 
     const handleInputChange = (e) => {
@@ -359,8 +388,23 @@ const EgresoDetailsPage = () => {
             })));
             setShowMatchModal(true);
         } else {
-            toast.error(`El producto "${code}" no está listado en el documento de Egreso de Mercadería precargado.`, { duration: 4000 });
-            setScanInput('');
+            // FALLBACK TO LOCAL DATABASE
+            const localProduct = await getProductByCode(code);
+            if (localProduct) {
+                setScanInput('');
+                processProductSelection({
+                    code: localProduct.code,
+                    description: localProduct.description,
+                    barcode: localProduct.barcode || '',
+                    secondary_unit: localProduct.secondary_unit || null,
+                    primary_unit: localProduct.primary_unit || null,
+                    conversion_factor: localProduct.conversion_factor || null,
+                    conversion_type: localProduct.conversion_type || null
+                });
+            } else {
+                toast.error(`El producto "${code}" no está listado en el documento ni en el catálogo local.`, { duration: 4000 });
+                setScanInput('');
+            }
         }
         setProcessing(false);
     };
@@ -533,6 +577,19 @@ const EgresoDetailsPage = () => {
                                 {pendingSyncCount} <span className="hidden sm:inline">pendientes</span>
                             </button>
                         )}
+
+                        {/* Sync Status Badge */}
+                        <div className="fixed bottom-20 right-4 z-40">
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}>
+                                <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                                {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                                {!isSyncing && (
+                                    <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
+                                        🔄
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                         <button
                             onClick={() => {
                                 api.get(`/api/egresos/${id}/export`, { responseType: 'blob' })
@@ -664,7 +721,14 @@ const EgresoDetailsPage = () => {
                                                         }}
                                                     >
                                                         <div className="font-bold text-gray-900">{s.description}</div>
-                                                        <div className="text-xs text-gray-500">COD: {s.code} {s.barcode ? `| BARRAS: ${s.barcode}` : ''}</div>
+                                                        <div className="text-xs text-gray-500">
+                                                            COD: {s.code} {s.barcode ? `| BARRAS: ${s.barcode}` : ''}
+                                                            {s.inDocument ? (
+                                                                <span className="ml-2 text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">EN DOCUMENTO</span>
+                                                            ) : (
+                                                                <span className="ml-2 text-orange-600 font-bold bg-orange-50 px-1.5 py-0.5 rounded text-[10px]">CATÁLOGO</span>
+                                                            )}
+                                                        </div>
                                                     </button>
                                                 ))}
                                             </div>

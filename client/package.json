@@ -23,6 +23,7 @@
     "@capacitor/share": "^8.0.0",
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.13.2",
+    "dexie": "^4.3.0",
     "html5-qrcode": "^2.3.8",
     "lodash": "^4.17.21",
     "lucide-react": "^0.563.0",
