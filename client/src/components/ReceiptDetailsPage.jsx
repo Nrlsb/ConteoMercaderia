@@ -285,7 +285,11 @@ const ReceiptDetailsPage = () => {
             openModal({
                 code: existingItem.product_code,
                 description: existingItem.products?.description || 'Producto',
-                barcode: existingItem.products?.barcode || existingItem.barcode || ''
+                barcode: existingItem.products?.barcode || existingItem.barcode || '',
+                secondary_unit: existingItem.products?.secondary_unit || null,
+                primary_unit: existingItem.products?.primary_unit || null,
+                conversion_factor: existingItem.products?.conversion_factor || null,
+                conversion_type: existingItem.products?.conversion_type || null,
             }, existingItem.expected_quantity, existingItem.scanned_quantity);
         } else if (matchingItems.length > 1) {
             setDuplicateProducts(matchingItems.map(item => ({
@@ -294,7 +298,11 @@ const ReceiptDetailsPage = () => {
                 barcode: item.products?.barcode || item.barcode || '',
                 brand: item.products?.brand || '',
                 expected_quantity: item.expected_quantity,
-                scanned_quantity: item.scanned_quantity
+                scanned_quantity: item.scanned_quantity,
+                secondary_unit: item.products?.secondary_unit || null,
+                primary_unit: item.products?.primary_unit || null,
+                conversion_factor: item.products?.conversion_factor || null,
+                conversion_type: item.products?.conversion_type || null,
             })));
             setIsDuplicateModalOpen(true);
             setScanInput('');
@@ -334,7 +342,11 @@ const ReceiptDetailsPage = () => {
                     const productObj = {
                         code: product.code,
                         description: product.description,
-                        barcode: product.barcode || ''
+                        barcode: product.barcode || '',
+                        secondary_unit: product.secondary_unit || null,
+                        primary_unit: product.primary_unit || null,
+                        conversion_factor: product.conversion_factor || null,
+                        conversion_type: product.conversion_type || null,
                     };
                     productCacheRef.current.set(code, productObj);
                     openModal(productObj, null, 0);
@@ -1233,7 +1245,11 @@ const ReceiptDetailsPage = () => {
                                         openModal({
                                             code: prod.code,
                                             description: prod.description,
-                                            barcode: prod.barcode
+                                            barcode: prod.barcode,
+                                            secondary_unit: prod.secondary_unit || null,
+                                            primary_unit: prod.primary_unit || null,
+                                            conversion_factor: prod.conversion_factor || null,
+                                            conversion_type: prod.conversion_type || null,
                                         }, prod.expected_quantity, prod.scanned_quantity);
                                     }}
                                     className="w-full text-left group transition-all duration-300 transform active:scale-[0.98]"

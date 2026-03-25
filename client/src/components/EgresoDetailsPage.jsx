@@ -287,13 +287,21 @@ const EgresoDetailsPage = () => {
             openModal({
                 code: existingItem.product_code,
                 description: existingItem.products?.description || 'Producto',
-                barcode: existingItem.products?.barcode || existingItem.barcode || ''
+                barcode: existingItem.products?.barcode || existingItem.barcode || '',
+                secondary_unit: existingItem.products?.secondary_unit || null,
+                primary_unit: existingItem.products?.primary_unit || null,
+                conversion_factor: existingItem.products?.conversion_factor || null,
+                conversion_type: existingItem.products?.conversion_type || null,
             }, existingItem.expected_quantity, existingItem.scanned_quantity);
         } else {
             openModal({
                 code: product.code,
                 description: product.description,
-                barcode: product.barcode || ''
+                barcode: product.barcode || '',
+                secondary_unit: product.secondary_unit || null,
+                primary_unit: product.primary_unit || null,
+                conversion_factor: product.conversion_factor || null,
+                conversion_type: product.conversion_type || null,
             }, null, 0);
         }
     };
@@ -331,7 +339,11 @@ const EgresoDetailsPage = () => {
             processProductSelection({
                 code: matchingItems[0].product_code,
                 description: matchingItems[0].products?.description || 'Producto',
-                barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || ''
+                barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || '',
+                secondary_unit: matchingItems[0].products?.secondary_unit || null,
+                primary_unit: matchingItems[0].products?.primary_unit || null,
+                conversion_factor: matchingItems[0].products?.conversion_factor || null,
+                conversion_type: matchingItems[0].products?.conversion_type || null,
             });
         } else if (matchingItems.length > 1) {
             setScanInput('');
@@ -339,7 +351,11 @@ const EgresoDetailsPage = () => {
                 id: i.id || i.product_code,
                 code: i.product_code,
                 description: i.products?.description || 'Producto',
-                barcode: i.products?.barcode || i.barcode || ''
+                barcode: i.products?.barcode || i.barcode || '',
+                secondary_unit: i.products?.secondary_unit || null,
+                primary_unit: i.products?.primary_unit || null,
+                conversion_factor: i.products?.conversion_factor || null,
+                conversion_type: i.products?.conversion_type || null,
             })));
             setShowMatchModal(true);
         } else {
