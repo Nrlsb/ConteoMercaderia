@@ -179,26 +179,6 @@ const EgresoDetailsPage = () => {
 
         setSuggestions(unique);
         setShowSuggestions(unique.length > 0);
-
-        // 2. Global catalog search (Async fallback if not enough results)
-        if (unique.length < 5) {
-            searchProductsLocally(valueLower).then(globalMatches => {
-                const existingCodes = new Set(unique.map(u => u.code));
-                const newSuggestions = globalMatches
-                    .filter(m => !existingCodes.has(m.code))
-                    .map(m => ({
-                        code: m.code,
-                        description: m.description,
-                        barcode: m.barcode || '',
-                        inDocument: false
-                    }));
-
-                if (newSuggestions.length > 0) {
-                    setSuggestions(prev => [...prev.slice(0, 10), ...newSuggestions.slice(0, 10)]);
-                    setShowSuggestions(true);
-                }
-            });
-        }
     };
 
     const handleInputChange = (e) => {
@@ -391,23 +371,8 @@ const EgresoDetailsPage = () => {
             })));
             setShowMatchModal(true);
         } else {
-            // FALLBACK TO LOCAL DATABASE
-            const localProduct = await getProductByCode(code);
-            if (localProduct) {
-                setScanInput('');
-                processProductSelection({
-                    code: localProduct.code,
-                    description: localProduct.description,
-                    barcode: localProduct.barcode || '',
-                    secondary_unit: localProduct.secondary_unit || null,
-                    primary_unit: localProduct.primary_unit || null,
-                    conversion_factor: localProduct.conversion_factor || null,
-                    conversion_type: localProduct.conversion_type || null
-                });
-            } else {
-                toast.error(`El producto "${code}" no está listado en el documento ni en el catálogo local.`, { duration: 4000 });
-                setScanInput('');
-            }
+            toast.error(`El producto "${code}" no forma parte de este remito de egreso.`, { duration: 4000 });
+            setScanInput('');
         }
         setProcessing(false);
     };

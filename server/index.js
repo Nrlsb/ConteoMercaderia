@@ -1177,15 +1177,13 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
             .eq('product_code', productCode)
             .maybeSingle();
 
-        let newScanned = qtyToAdd;
-        let currentExpected = 0;
-        let oldScanned = 0;
-
-        if (existingItem) {
-            oldScanned = (Number(existingItem.scanned_quantity) || 0);
-            newScanned = oldScanned + qtyToAdd;
-            currentExpected = existingItem.expected_quantity;
+        if (!existingItem) {
+            return res.status(400).json({ message: 'El producto no forma parte de este remito de egreso.' });
         }
+
+        let oldScanned = (Number(existingItem.scanned_quantity) || 0);
+        let newScanned = oldScanned + qtyToAdd;
+        let currentExpected = existingItem.expected_quantity;
 
         const { data: savedItem, error: saveError } = await supabase
             .from('egreso_items')
