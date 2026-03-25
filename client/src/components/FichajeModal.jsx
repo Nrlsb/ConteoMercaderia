@@ -205,10 +205,17 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     // Converted quantity for display
     const parsedQty = parseInt(quantity, 10) || 0;
     let convertedQtyText = '';
-    if (selectedUnit === 'secondary' && parsedQty > 0 && product?.conversion_factor) {
+    if (parsedQty > 0 && product?.conversion_factor) {
         const factor = Number(product.conversion_factor);
-        const finalVal = product.conversion_type === 'Divisor' ? parsedQty / factor : parsedQty * factor;
-        convertedQtyText = `Equivale a ${finalVal} ${product.primary_unit || 'UN'}`;
+        if (selectedUnit === 'secondary') {
+            const finalVal = product.conversion_type === 'Divisor' ? parsedQty / factor : parsedQty * factor;
+            convertedQtyText = `Equivale a ${finalVal} ${product.primary_unit || 'UN'}`;
+        } else if (selectedUnit === 'primary' && product.secondary_unit) {
+            const finalVal = product.conversion_type === 'Divisor' ? parsedQty * factor : parsedQty / factor;
+            // Round to 3 decimals to avoid floating point issues
+            const roundedVal = Math.round(finalVal * 1000) / 1000;
+            convertedQtyText = `Equivale a ${roundedVal} ${product.secondary_unit}`;
+        }
     }
 
     // Excess validation
@@ -324,7 +331,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                     {product.secondary_unit}
                                 </button>
                             </div>
-                            {selectedUnit === 'secondary' && product.conversion_factor && (
+                            {product.conversion_factor && (
                                 <p className="text-xs text-brand-blue mt-2 font-medium">
                                     Factor: 1 {product.secondary_unit} = {product.conversion_type === 'Divisor' ? `1/${product.conversion_factor}` : product.conversion_factor} {product.primary_unit || 'UN'}
                                 </p>
