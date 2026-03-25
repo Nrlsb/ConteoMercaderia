@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { db } from '../db';
 
 const ReceiptsList = () => {
     const { user } = useAuth();
@@ -22,13 +23,19 @@ const ReceiptsList = () => {
         try {
             const response = await api.get('/api/receipts');
             setReceipts(response.data);
-            localStorage.setItem('receipts_list_cache', JSON.stringify(response.data));
+            // Cache in IndexedDB (much larger quota than localStorage)
+            await db.offline_caches.put({
+                id: 'receipts_list',
+                data: response.data,
+                timestamp: Date.now()
+            });
             setLoading(false);
         } catch (error) {
             console.error('Error fetching receipts:', error);
-            const cache = localStorage.getItem('receipts_list_cache');
+            // Try to load from IndexedDB cache
+            const cache = await db.offline_caches.get('receipts_list');
             if (cache) {
-                setReceipts(JSON.parse(cache));
+                setReceipts(cache.data);
                 toast.info('Mostrando datos offline');
             } else {
                 toast.error('Error al cargar los ingresos');

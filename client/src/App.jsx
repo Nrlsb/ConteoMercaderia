@@ -90,6 +90,17 @@ const AppContent = () => {
   const location = useLocation();
 
   useEffect(() => {
+    // Clean up old large localStorage caches to recover space
+    const oldCaches = [
+      'remitos_list_cache',
+      'receipts_list_cache',
+      'egresos_list_cache',
+      'egreso_list_cache' // just in case
+    ];
+    oldCaches.forEach(key => localStorage.removeItem(key));
+  }, []);
+
+  useEffect(() => {
     const attachListener = async () => {
       const backListener = await CapacitorApp.addListener('backButton', () => {
         if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/list') {

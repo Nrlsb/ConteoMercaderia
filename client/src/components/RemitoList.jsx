@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'sonner';
+import { db } from '../db';
 
 const RemitoList = () => {
     const { user } = useAuth();
@@ -28,12 +30,18 @@ const RemitoList = () => {
         try {
             const response = await api.get('/api/remitos');
             setRemitos(response.data);
-            localStorage.setItem('remitos_list_cache', JSON.stringify(response.data));
+            // Cache in IndexedDB (much larger quota than localStorage)
+            await db.offline_caches.put({
+                id: 'remitos_list',
+                data: response.data,
+                timestamp: Date.now()
+            });
         } catch (error) {
             console.error('Error fetching remitos:', error);
-            const cache = localStorage.getItem('remitos_list_cache');
+            // Try to load from IndexedDB cache
+            const cache = await db.offline_caches.get('remitos_list');
             if (cache) {
-                setRemitos(JSON.parse(cache));
+                setRemitos(cache.data);
                 toast.info('Mostrando datos offline');
             }
         } finally {

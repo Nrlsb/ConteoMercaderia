@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { db } from '../db';
 
 // IndexedDB helpers for persisting directory handle across page reloads
 const openFolderDB = () => new Promise((resolve, reject) => {
@@ -71,12 +72,18 @@ const EgresosList = () => {
             const response = await api.get('/api/egresos');
             setEgresos(response.data);
             setLoading(false);
-            localStorage.setItem('egresos_list_cache', JSON.stringify(response.data));
+            // Cache in IndexedDB (much larger quota than localStorage)
+            await db.offline_caches.put({
+                id: 'egresos_list',
+                data: response.data,
+                timestamp: Date.now()
+            });
         } catch (error) {
             console.error('Error fetching egresos:', error);
-            const cache = localStorage.getItem('egresos_list_cache');
+            // Try to load from IndexedDB cache
+            const cache = await db.offline_caches.get('egresos_list');
             if (cache) {
-                setEgresos(JSON.parse(cache));
+                setEgresos(cache.data);
                 toast.info('Mostrando datos offline');
             } else {
                 toast.error('Error al cargar los egresos');
@@ -474,10 +481,10 @@ const EgresosList = () => {
             {/* Folder watcher status banner */}
             {folderName && (
                 <div className={`mb-4 rounded-xl border text-sm overflow-hidden ${needsPermission
-                        ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
-                        : watching
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                    ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+                    : watching
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                        : 'bg-gray-50 border-gray-200 text-gray-600'
                     }`}>
                     <div className="flex flex-wrap items-center gap-3 p-3">
                         <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
