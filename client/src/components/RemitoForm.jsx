@@ -268,6 +268,31 @@ const RemitoForm = () => {
         }
     }, [selectedCount?.id]); // Only depend on ID change
 
+    // Auto-load expected items (pre-remitos) when a count is active and items are null
+    useEffect(() => {
+        const autoLoadExpected = async () => {
+            if (selectedCount && countMode === 'pre_remito' && !expectedItems && preRemitoStatus !== 'loading') {
+                // Determine if this count name looks like order numbers (Remito Mode)
+                // In this app, counts created from remitos have the order numbers as name
+                const orderNumbers = selectedCount.name.split(',').map(n => n.trim());
+                if (orderNumbers.length > 0 && orderNumbers[0].length > 3) {
+                    console.log('Auto-loading expected items for count:', selectedCount.name);
+                    try {
+                        setPreRemitoStatus('loading');
+                        const mergedItems = await fetchItemsByOrders(orderNumbers);
+                        setExpectedItems(mergedItems);
+                        setPreRemitoStatus('found');
+                        setRemitoNumber(orderNumbers.join(', '));
+                    } catch (e) {
+                        console.error('Failed to auto-load expected items:', e);
+                        setPreRemitoStatus('error');
+                    }
+                }
+            }
+        };
+        autoLoadExpected();
+    }, [selectedCount, countMode, expectedItems, preRemitoStatus]);
+
     const handleVoiceSearch = async () => {
         if (Capacitor.isNativePlatform()) {
             try {
@@ -491,37 +516,35 @@ const RemitoForm = () => {
         fetchBranches();
     }, []);
 
+    const fetchItemsByOrders = async (orderNumbers) => {
+        const results = await Promise.all(
+            orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
+        );
+
+        const mergedItemsMap = {};
+        results.forEach(res => {
+            const { items } = res.data;
+            if (items && Array.isArray(items)) {
+                items.forEach(item => {
+                    const code = item.code;
+                    if (mergedItemsMap[code]) {
+                        mergedItemsMap[code].quantity += Number(item.quantity) || 0;
+                    } else {
+                        mergedItemsMap[code] = {
+                            ...item,
+                            quantity: Number(item.quantity) || 0
+                        };
+                    }
+                });
+            }
+        });
+        return Object.values(mergedItemsMap);
+    };
+
     const handleResumeActiveCount = async (count, orderNumbers) => {
         try {
             setPreRemitoStatus('loading');
-            const results = await Promise.all(
-                orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
-            );
-
-            // Consolidate items
-            const mergedItemsMap = {};
-            const loadedOrderNumbers = [];
-
-            results.forEach(res => {
-                const { items, order_number } = res.data;
-                loadedOrderNumbers.push(order_number);
-
-                if (items && Array.isArray(items)) {
-                    items.forEach(item => {
-                        const code = item.code;
-                        if (mergedItemsMap[code]) {
-                            mergedItemsMap[code].quantity += Number(item.quantity) || 0;
-                        } else {
-                            mergedItemsMap[code] = {
-                                ...item,
-                                quantity: Number(item.quantity) || 0
-                            };
-                        }
-                    });
-                }
-            });
-
-            const mergedItems = Object.values(mergedItemsMap);
+            const mergedItems = await fetchItemsByOrders(orderNumbers);
             setExpectedItems(mergedItems);
 
             // Set the selected count to trigger the display of the active count
@@ -537,6 +560,8 @@ const RemitoForm = () => {
             }
 
             setPreRemitoStatus('found');
+            // Auto-set remito number from order numbers when resuming
+            setRemitoNumber(orderNumbers.join(', '));
         } catch (error) {
             console.error('Error resuming active count:', error);
             triggerModal('Error', 'No se pudo cargar el conteo activo. Intente nuevamente.', 'error');
@@ -549,37 +574,10 @@ const RemitoForm = () => {
         if (selectedPreRemitos.length === 0) return;
         setPreRemitoStatus('loading');
         try {
-            const results = await Promise.all(
-                selectedPreRemitos.map(num => api.get(`/api/pre-remitos/${num}`))
-            );
-
-            // Consolidate items
-            const mergedItemsMap = {};
-            const orderNumbers = [];
-
-            results.forEach(res => {
-                const { items, order_number } = res.data;
-                orderNumbers.push(order_number);
-
-                if (items && Array.isArray(items)) {
-                    items.forEach(item => {
-                        const code = item.code;
-                        if (mergedItemsMap[code]) {
-                            mergedItemsMap[code].quantity += Number(item.quantity) || 0;
-                        } else {
-                            mergedItemsMap[code] = {
-                                ...item,
-                                quantity: Number(item.quantity) || 0
-                            };
-                        }
-                    });
-                }
-            });
-
-            const mergedItems = Object.values(mergedItemsMap);
+            const mergedItems = await fetchItemsByOrders(selectedPreRemitos);
             setExpectedItems(mergedItems);
             setPreRemitoStatus('found');
-            setRemitoNumber(orderNumbers.join(', '));
+            setRemitoNumber(selectedPreRemitos.join(', '));
         } catch (error) {
             console.error('Error loading pre-remitos:', error);
             setPreRemitoStatus('not_found');
