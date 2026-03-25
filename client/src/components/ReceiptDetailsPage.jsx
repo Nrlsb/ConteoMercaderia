@@ -665,26 +665,44 @@ const ReceiptDetailsPage = () => {
     };
 
     const handlePdfUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const formData = new FormData();
-        formData.append('file', file);
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
 
         try {
             setIsBulkImporting(true);
-            const response = await api.post('/api/remitos/upload-pdf', formData);
-            const extractedItems = response.data.items; // Backend returns { items: [...] }
+            let allExtractedItems = [];
+            let totalFiles = files.length;
 
-            if (extractedItems && extractedItems.length > 0) {
-                await handleScanComplete(extractedItems);
+            for (let i = 0; i < totalFiles; i++) {
+                const file = files[i];
+                if (totalFiles > 1) {
+                    toast.info(`Procesando archivo ${i + 1} de ${totalFiles}: ${file.name}`, { duration: 2000 });
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await api.post('/api/remitos/upload-pdf', formData);
+                    const items = response.data.items;
+                    if (items && items.length > 0) {
+                        allExtractedItems = [...allExtractedItems, ...items];
+                    }
+                } catch (err) {
+                    console.error(`Error processing file ${file.name}:`, err);
+                    toast.error(`Error al procesar ${file.name}`);
+                }
+            }
+
+            if (allExtractedItems.length > 0) {
+                await handleScanComplete(allExtractedItems);
             } else {
-                toast.info('No se encontraron productos en el PDF');
+                toast.info('No se encontraron productos en los PDFs seleccionados');
                 setIsBulkImporting(false);
             }
         } catch (error) {
-            console.error('Error uploading pdf:', error);
-            toast.error('Error al procesar el PDF');
+            console.error('Error in multi-pdf upload:', error);
+            toast.error('Error general al procesar PDFs');
             setIsBulkImporting(false);
         } finally {
             e.target.value = null;
@@ -864,6 +882,7 @@ const ReceiptDetailsPage = () => {
                             <input
                                 type="file"
                                 accept=".pdf"
+                                multiple
                                 className="hidden"
                                 id="pdf-upload-input"
                                 onChange={handlePdfUpload}

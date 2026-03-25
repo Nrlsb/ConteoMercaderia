@@ -239,39 +239,42 @@ const EgresosList = () => {
     }, [startWatcher]);
 
     const handleFileSelect = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (!file.name.toLowerCase().endsWith('.pdf')) {
-            toast.error('Solo se permiten archivos PDF');
-            return;
-        }
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
 
         setUploading(true);
-        setUploadProgress('Procesando PDF...');
-
         try {
-            const formData = new FormData();
-            formData.append('pdf', file);
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (!file.name.toLowerCase().endsWith('.pdf')) {
+                    toast.error(`"${file.name}" omitido: Solo se permiten archivos PDF`);
+                    continue;
+                }
 
-            const response = await api.post('/api/egresos/upload-pdf', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+                setUploadProgress(`Procesando ${i + 1}/${files.length}: ${file.name}`);
 
-            const { egreso, results } = response.data;
+                try {
+                    const formData = new FormData();
+                    formData.append('pdf', file);
 
-            if (results.success.length > 0) {
-                toast.success(`Egreso creado: ${results.success.length} productos cargados`);
+                    const response = await api.post('/api/egresos/upload-pdf', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+
+                    const { results } = response.data;
+                    if (results.success.length > 0) {
+                        toast.success(`"${file.name}" → Egreso creado: ${results.success.length} productos cargados`);
+                    }
+                    if (results.failed.length > 0) {
+                        toast.warning(`"${file.name}" → ${results.failed.length} productos no encontrados`);
+                    }
+                } catch (error) {
+                    console.error(`Error uploading PDF ${file.name}:`, error);
+                    const msg = error.response?.data?.message || `Error al procesar "${file.name}"`;
+                    toast.error(msg);
+                }
             }
-            if (results.failed.length > 0) {
-                toast.warning(`${results.failed.length} productos no se encontraron en la base de datos`);
-            }
-
             fetchEgresos();
-        } catch (error) {
-            console.error('Error uploading PDF:', error);
-            const msg = error.response?.data?.message || 'Error al procesar el PDF';
-            toast.error(msg);
         } finally {
             setUploading(false);
             setUploadProgress(null);
@@ -317,6 +320,7 @@ const EgresosList = () => {
                             ref={fileInputRef}
                             type="file"
                             accept=".pdf"
+                            multiple
                             onChange={handleFileSelect}
                             className="hidden"
                             id="pdf-upload"
@@ -469,13 +473,12 @@ const EgresosList = () => {
 
             {/* Folder watcher status banner */}
             {folderName && (
-                <div className={`mb-4 rounded-xl border text-sm overflow-hidden ${
-                    needsPermission
+                <div className={`mb-4 rounded-xl border text-sm overflow-hidden ${needsPermission
                         ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
                         : watching
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                        : 'bg-gray-50 border-gray-200 text-gray-600'
-                }`}>
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                    }`}>
                     <div className="flex flex-wrap items-center gap-3 p-3">
                         <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
