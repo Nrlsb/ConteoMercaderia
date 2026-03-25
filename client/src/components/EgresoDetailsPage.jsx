@@ -5,6 +5,7 @@ import Scanner from './Scanner';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
 import { useProductSync } from '../hooks/useProductSync'; // Add this line
+import { db } from '../db';
 import { toast } from 'sonner';
 import { downloadFile } from '../utils/downloadUtils';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -64,20 +65,19 @@ const EgresoDetailsPage = () => {
         return () => window.removeEventListener('online', syncOfflineData);
     }, [id]);
 
-    const checkPendingSync = () => {
-        const queueKey = `pending_egreso_scans_${id}`;
+    const checkPendingSync = async () => {
         try {
-            const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
-            setPendingSyncCount(queue.length);
-        } catch (e) { }
+            const count = await db.pending_syncs
+                .where({ document_id: id, type: 'egreso' })
+                .count();
+            setPendingSyncCount(count);
+        } catch (e) { console.error('Error counting pending syncs:', e); }
     };
 
     const syncOfflineData = async () => {
-        const queueKey = `pending_egreso_scans_${id}`;
-        let queue = [];
-        try {
-            queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
-        } catch (e) { }
+        const queue = await db.pending_syncs
+            .where({ document_id: id, type: 'egreso' })
+            .toArray();
 
         if (queue.length === 0) return;
 
@@ -85,9 +85,9 @@ const EgresoDetailsPage = () => {
 
         try {
             for (const scan of queue) {
-                await api.post(`/api/egresos/${id}/scan`, { code: scan.code, quantity: scan.quantity });
+                await api.post(`/api/egresos/${id}/scan`, { code: scan.data.code, quantity: scan.data.quantity });
+                await db.pending_syncs.delete(scan.id);
             }
-            localStorage.removeItem(queueKey);
             checkPendingSync();
             toast.success('Sincronización completada exitosamente', { id: 'sync' });
             fetchEgresoDetails();
@@ -115,16 +115,19 @@ const EgresoDetailsPage = () => {
             setEgreso(response.data);
             setItems(response.data.items || []);
             setLoading(false);
-            // Guardar respaldo local
-            localStorage.setItem(`egreso_cache_${id}`, JSON.stringify(response.data));
+            // Guardar respaldo local en IndexedDB
+            await db.offline_caches.put({
+                id: `egreso_${id}`,
+                data: response.data,
+                timestamp: Date.now()
+            });
         } catch (error) {
             console.error('Error fetching egreso details:', error);
-            // Intentar recuperar de caché local
-            const cache = localStorage.getItem(`egreso_cache_${id}`);
-            if (cache) {
-                const data = JSON.parse(cache);
-                setEgreso(data);
-                setItems(data.items || []);
+            // Intentar recuperar de caché local IndexedDB
+            const cache = await db.offline_caches.get(`egreso_${id}`);
+            if (cache && cache.data) {
+                setEgreso(cache.data);
+                setItems(cache.data.items || []);
                 setLoading(false);
                 toast.info('Cargado desde respaldo offline local');
             } else {
@@ -418,10 +421,12 @@ const EgresoDetailsPage = () => {
         const qty = parseFloat(quantityToAdd) || 1;
 
         if (!navigator.onLine) {
-            const queueKey = `pending_egreso_scans_${id}`;
-            const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
-            queue.push({ code, quantity: qty, timestamp: Date.now() });
-            localStorage.setItem(queueKey, JSON.stringify(queue));
+            await db.pending_syncs.add({
+                document_id: id,
+                type: 'egreso',
+                data: { code, quantity: qty },
+                timestamp: Date.now()
+            });
 
             setItems(prevItems => prevItems.map(item => {
                 if (item.product_code === code) {
@@ -451,25 +456,26 @@ const EgresoDetailsPage = () => {
         setProcessing(false);
 
         // API call + refresh in background
-        api.post(`/api/egresos/${id}/scan`, { code, quantity: qty })
-            .then(() => {
-                fetchEgresoDetails();
-            })
-            .catch(error => {
-                console.error('Scan error:', error);
-                if (error.response?.status === 404) {
-                    toast.error(`Producto no encontrado: ${code}`);
-                    fetchEgresoDetails(); // Revert: product doesn't exist on server
-                } else {
-                    // API failed (network/server error) — queue for later sync, keep optimistic state
-                    const queueKey = `pending_egreso_scans_${id}`;
-                    const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
-                    queue.push({ code, quantity: qty, timestamp: Date.now() });
-                    localStorage.setItem(queueKey, JSON.stringify(queue));
-                    checkPendingSync();
-                    toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
-                }
-            });
+        try {
+            await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
+            fetchEgresoDetails();
+        } catch (error) {
+            console.error('Scan error:', error);
+            if (error.response?.status === 404) {
+                toast.error(`Producto no encontrado: ${code}`);
+                fetchEgresoDetails(); // Revert: product doesn't exist on server
+            } else {
+                // API failed (network/server error) — queue for later sync, keep optimistic state
+                await db.pending_syncs.add({
+                    document_id: id,
+                    type: 'egreso',
+                    data: { code, quantity: qty },
+                    timestamp: Date.now()
+                });
+                checkPendingSync();
+                toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+            }
+        }
     };
 
     const handleBarcodeScan = (code) => {

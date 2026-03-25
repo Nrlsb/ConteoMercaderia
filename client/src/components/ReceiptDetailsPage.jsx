@@ -8,6 +8,7 @@ import { downloadFile } from '../utils/downloadUtils';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
 import { useProductSync } from '../hooks/useProductSync'; // Add this line
+import { db } from '../db';
 import { toast } from 'sonner';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
@@ -76,29 +77,33 @@ const ReceiptDetailsPage = () => {
         }
     }, [processing, activeTab, items]);
 
-    const checkPendingSync = () => {
-        const pendingKey = `pending_receipt_scans_${id}`;
-        const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
-        setPendingSyncCount(queue.length);
+    const checkPendingSync = async () => {
+        try {
+            const count = await db.pending_syncs
+                .where({ document_id: id, type: 'receipt' })
+                .count();
+            setPendingSyncCount(count);
+        } catch (e) { console.error('Error counting pending syncs:', e); }
     };
 
     const syncOfflineData = async () => {
-        const pendingKey = `pending_receipt_scans_${id}`;
-        const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+        const queue = await db.pending_syncs
+            .where({ document_id: id, type: 'receipt' })
+            .toArray();
+
         if (queue.length === 0) return;
 
         try {
             toast.info('Sincronizando datos offline...', { duration: 2000 });
             // Sync each item
             for (const scan of queue) {
-                if (scan.type === 'load') {
-                    await api.post(`/api/receipts/${id}/items`, { code: scan.code, quantity: scan.quantity });
+                if (scan.data.type === 'load') {
+                    await api.post(`/api/receipts/${id}/items`, { code: scan.data.code, quantity: scan.data.quantity });
                 } else {
-                    await api.post(`/api/receipts/${id}/scan`, { code: scan.code, quantity: scan.quantity });
+                    await api.post(`/api/receipts/${id}/scan`, { code: scan.data.code, quantity: scan.data.quantity });
                 }
+                await db.pending_syncs.delete(scan.id);
             }
-            // Clear queue on success
-            localStorage.removeItem(pendingKey);
             checkPendingSync();
             toast.success('Sincronización completada');
             await fetchReceiptDetails();
@@ -137,14 +142,17 @@ const ReceiptDetailsPage = () => {
             setReceipt(response.data);
             setItems(response.data.items || []);
             setLoading(false);
-            localStorage.setItem(`receipt_cache_${id}`, JSON.stringify(response.data));
+            await db.offline_caches.put({
+                id: `receipt_${id}`,
+                data: response.data,
+                timestamp: Date.now()
+            });
         } catch (error) {
             console.error('Error fetching receipt details:', error);
-            const cache = localStorage.getItem(`receipt_cache_${id}`);
-            if (cache) {
-                const data = JSON.parse(cache);
-                setReceipt(data);
-                setItems(data.items || []);
+            const cache = await db.offline_caches.get(`receipt_${id}`);
+            if (cache && cache.data) {
+                setReceipt(cache.data);
+                setItems(cache.data.items || []);
                 setLoading(false);
                 toast.info('Cargado desde respaldo offline local');
             } else {
@@ -422,11 +430,13 @@ const ReceiptDetailsPage = () => {
         const qty = parseFloat(quantityToAdd) || 1;
 
         if (!navigator.onLine) {
-            // Guardar en cola offline
-            const pendingKey = `pending_receipt_scans_${id}`;
-            const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
-            currentQueue.push({ code, quantity: qty, timestamp: new Date().toISOString(), type: activeTab });
-            localStorage.setItem(pendingKey, JSON.stringify(currentQueue));
+            // Guardar en cola offline IndexedDB
+            await db.pending_syncs.add({
+                document_id: id,
+                type: 'receipt',
+                data: { code, quantity: qty, type: activeTab },
+                timestamp: Date.now()
+            });
 
             // Actualización optimista local
             setItems(prevItems => {
@@ -485,33 +495,32 @@ const ReceiptDetailsPage = () => {
         setProcessing(false);
 
         // API call + refresh in background
-        const endpoint = activeTab === 'load'
-            ? api.post(`/api/receipts/${id}/items`, { code, quantity: qty })
-            : api.post(`/api/receipts/${id}/scan`, { code, quantity: qty });
-
-        endpoint
-            .then(() => {
-                if (activeTab !== 'load') {
-                    const sound = new Audio('/success-beep.mp3');
-                    sound.play().catch(e => console.log('Audio error:', e));
-                }
-                fetchReceiptDetails();
-            })
-            .catch(error => {
-                console.error('Scan error:', error);
-                if (error.response?.status === 404) {
-                    toast.error(`Producto no encontrado: ${code}`);
-                    fetchReceiptDetails(); // Revert: product doesn't exist on server
-                } else {
-                    // API failed (network/server error) — queue for later sync, keep optimistic state
-                    const pendingKey = `pending_receipt_scans_${id}`;
-                    const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
-                    currentQueue.push({ code, quantity: qty, timestamp: new Date().toISOString(), type: activeTab });
-                    localStorage.setItem(pendingKey, JSON.stringify(currentQueue));
-                    checkPendingSync();
-                    toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
-                }
-            });
+        try {
+            if (activeTab === 'load') {
+                await api.post(`/api/receipts/${id}/items`, { code, quantity: qty });
+            } else {
+                await api.post(`/api/receipts/${id}/scan`, { code, quantity: qty });
+                const sound = new Audio('/success-beep.mp3');
+                sound.play().catch(e => console.log('Audio error:', e));
+            }
+            fetchReceiptDetails();
+        } catch (error) {
+            console.error('Scan error:', error);
+            if (error.response?.status === 404) {
+                toast.error(`Producto no encontrado: ${code}`);
+                fetchReceiptDetails(); // Revert: product doesn't exist on server
+            } else {
+                // API failed (network/server error) — queue for later sync, keep optimistic state
+                await db.pending_syncs.add({
+                    document_id: id,
+                    type: 'receipt',
+                    data: { code, quantity: qty, type: activeTab },
+                    timestamp: Date.now()
+                });
+                checkPendingSync();
+                toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+            }
+        }
     };
 
     const handleBarcodeScan = (code) => {

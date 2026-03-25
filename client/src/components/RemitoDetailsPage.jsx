@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { downloadFile } from '../utils/downloadUtils';
 import { Toaster, toast } from 'sonner';
+import { db } from '../db';
 import RemitoHistory from './RemitoHistory';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
@@ -26,12 +27,16 @@ const RemitoDetailsPage = () => {
             try {
                 const response = await api.get(`/api/remitos/${id}/details`);
                 setData(response.data);
-                localStorage.setItem(`remito_detail_cache_${id}`, JSON.stringify(response.data));
+                await db.offline_caches.put({
+                    id: `remito_${id}`,
+                    data: response.data,
+                    timestamp: Date.now()
+                });
             } catch (err) {
                 console.error('Error fetching details:', err);
-                const cache = localStorage.getItem(`remito_detail_cache_${id}`);
-                if (cache) {
-                    setData(JSON.parse(cache));
+                const cache = await db.offline_caches.get(`remito_${id}`);
+                if (cache && cache.data) {
+                    setData(cache.data);
                     toast.info('Cargado desde respaldo offline local');
                 } else {
                     setError('No se pudo cargar el detalle del remito.');
