@@ -4269,7 +4269,56 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         console.log(`Received PDF upload. Size: ${req.file.size} bytes`);
-        const extractedItems = await parseRemitoPdf(req.file.buffer);
+        let extractedItems = await parseRemitoPdf(req.file.buffer);
+
+        // FALLBACK TO GEMINI if no items found (likely a scanned PDF)
+        if (extractedItems.length === 0 && process.env.GEMINI_API_KEY) {
+            console.log('[AI PDF PARSER] No items found with regex. Falling back to Gemini...');
+            const pdfParts = [
+                {
+                    inlineData: {
+                        data: req.file.buffer.toString("base64"),
+                        mimeType: "application/pdf"
+                    },
+                },
+            ];
+
+            const prompt = `
+                Eres un experto en extracción de datos de remitos de logística.
+                Analiza el PDF adjunto y extrae todos los productos listados en la tabla del remito.
+                
+                REGLAS CRÍTICAS:
+                1. Devuelve SOLO un array JSON válido de objetos.
+                2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
+                3. El "code" es el código del producto (suele estar en la primera columna).
+                4. La "quantity" es la cantidad pedida/enviada.
+                5. La "description" es el nombre del producto.
+                6. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
+                7. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada.
+                8. Sé extremadamente preciso con los códigos numéricos.
+                
+                Formato esperado:
+                [
+                  {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+                  ...
+                ]
+            `;
+
+            const result = await model.generateContent([prompt, ...pdfParts]);
+            const response = await result.response;
+            const resultText = response.text();
+
+            // Extract JSON from response
+            const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                try {
+                    extractedItems = JSON.parse(jsonMatch[0]);
+                    console.log(`[AI PDF PARSER] Gemini extracted ${extractedItems.length} items.`);
+                } catch (parseError) {
+                    console.error('[AI PDF PARSER] Error al parsear JSON de Gemini:', parseError.message);
+                }
+            }
+        }
 
         // Enrich items with barcodes from DB
         const enrichedItems = [];
@@ -4281,23 +4330,14 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 .from('products')
                 .select('barcode, description')
                 .eq('code', internalCode)
-                .maybeSingle(); // Use maybeSingle to avoid error if 0 rows (though unlikely with checking)
+                .maybeSingle();
 
-            if (product && product.barcode) {
-                enrichedItems.push({
-                    code: internalCode,
-                    barcode: product.barcode,
-                    quantity: item.quantity,
-                    description: product.description || item.description
-                });
-            } else {
-                enrichedItems.push({
-                    code: internalCode,
-                    barcode: null, // Frontend will fallback to code
-                    quantity: item.quantity,
-                    description: item.description
-                });
-            }
+            enrichedItems.push({
+                code: internalCode,
+                barcode: product?.barcode || null,
+                quantity: item.quantity,
+                description: product?.description || item.description
+            });
         }
 
         res.json({ items: enrichedItems });
