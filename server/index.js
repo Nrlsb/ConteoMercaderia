@@ -468,7 +468,11 @@ app.get('/api/receipts/:id', verifyToken, verifyBranchAccess('receipts'), async 
                     brand,
                     code,
                     barcode,
-                    provider_code
+                    provider_code,
+                    primary_unit,
+                    secondary_unit,
+                    conversion_factor,
+                    conversion_type
                 )
             `)
             .eq('receipt_id', id);
@@ -3463,6 +3467,32 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
             throw error;
         }
 
+        // ENRICHMENT: Fetch units and brands for items if missing
+        if (data.items && data.items.length > 0) {
+            const codes = data.items.map(i => i.code);
+            const { data: products } = await supabase
+                .from('products')
+                .select('code, brand, primary_unit, secondary_unit, conversion_factor, conversion_type')
+                .in('code', codes);
+
+            if (products) {
+                const productMap = {};
+                products.forEach(p => productMap[p.code] = p);
+
+                data.items = data.items.map(item => {
+                    const match = productMap[item.code];
+                    return {
+                        ...item,
+                        brand: item.brand || (match ? match.brand : 'Sin Marca'),
+                        primary_unit: match ? match.primary_unit : null,
+                        secondary_unit: match ? match.secondary_unit : null,
+                        conversion_factor: match ? match.conversion_factor : null,
+                        conversion_type: match ? match.conversion_type : null
+                    };
+                });
+            }
+        }
+
         // Flatten info
         const responseData = {
             ...data,
@@ -3497,20 +3527,25 @@ app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.me
         const uniqueCodes = [...new Set(items.map(i => i.code))];
         const { data: existingProducts } = await supabase
             .from('products')
-            .select('code, barcode')
+            .select('code, barcode, primary_unit, secondary_unit, conversion_factor, conversion_type')
             .in('code', uniqueCodes);
 
-        const dbBarcodeMap = new Map();
+        const dbProductMap = new Map();
         if (existingProducts) {
             existingProducts.forEach(p => {
-                if (p.barcode) dbBarcodeMap.set(p.code, p.barcode);
+                dbProductMap.set(p.code, p);
             });
         }
 
-        // Enrich items with barcodes from DB if not present in XML
+        // Enrich items with barcodes and units from DB if not present in XML
         items.forEach(item => {
-            if (!item.barcode && dbBarcodeMap.has(item.code)) {
-                item.barcode = dbBarcodeMap.get(item.code);
+            const dbProd = dbProductMap.get(item.code);
+            if (dbProd) {
+                if (!item.barcode && dbProd.barcode) item.barcode = dbProd.barcode;
+                item.primary_unit = dbProd.primary_unit;
+                item.secondary_unit = dbProd.secondary_unit;
+                item.conversion_factor = dbProd.conversion_factor;
+                item.conversion_type = dbProd.conversion_type;
             }
         });
 
