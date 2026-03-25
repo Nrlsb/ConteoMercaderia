@@ -9,6 +9,7 @@ import FichajeModal from './FichajeModal';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { useProductSync } from '../hooks/useProductSync';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 
@@ -24,10 +25,17 @@ const RemitoForm = () => {
     const [isProcessingScan, setIsProcessingScan] = useState(false); // Scanner Pause State
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
+
+    // Local DB Sync
+    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
     const selectionClearedRef = React.useRef(false); // Tracks if user explicitly cleared selection (prevents poll restore)
     const productCacheRef = React.useRef(new Map()); // Client-side product cache to avoid repeated API calls
+
+    useEffect(() => {
+        syncProducts();
+    }, []);
 
 
     // Report State
@@ -298,6 +306,17 @@ const RemitoForm = () => {
                         for (const match of candidates) {
                             if (!match || match.trim().length < 2) continue;
                             try {
+                                // First try local DB for speed and offline
+                                const localResults = await searchProductsLocally(match);
+                                if (localResults && localResults.length > 0) {
+                                    setManualCode(match);
+                                    if (typeof executeSearch === 'function') {
+                                        executeSearch(match);
+                                    }
+                                    return;
+                                }
+
+                                // Fallback to API if not in local DB (e.g. newly added products)
                                 const res = await api.get(`/api/products/search?q=${encodeURIComponent(match)}`);
                                 if (res.data && res.data.length > 0) {
                                     setManualCode(match);
@@ -860,7 +879,7 @@ const RemitoForm = () => {
     };
 
     // Handle barcode scan (from camera or physical scanner)
-    const handleScan = React.useCallback((rawCode) => {
+    const handleScan = React.useCallback(async (rawCode) => {
         const inputCode = rawCode.trim(); // Trim whitespace/newlines
         // setIsScanning(false); // REMOVED: Keep camera open after scan
 
@@ -951,71 +970,97 @@ const RemitoForm = () => {
             }
 
             setIsProcessingScan(true);
-            api.get(`/api/products/${inputCode}`)
-                .then(response => {
-                    const data = response.data;
+            try {
+                // 1. Try Local DB first (much faster + offline)
+                const localProduct = await getProductByCode(inputCode);
 
-                    if (Array.isArray(data)) {
-                        if (data.length === 1) {
-                            const productData = data[0];
-                            const product = {
-                                code: productData.code || inputCode,
-                                name: productData.description || 'Producto Desconocido',
-                                description: productData.description,
-                                barcode: inputCode,
-                                brand: productData.brand,
-                                primary_unit: productData.primary_unit,
-                                secondary_unit: productData.secondary_unit,
-                                conversion_factor: productData.conversion_factor,
-                                conversion_type: productData.conversion_type
-                            };
-                            productCacheRef.current.set(inputCode, product);
-                            saveProductToLocalStorage(inputCode, product);
-                            openFichajeModal(product, null);
-                        } else if (data.length > 1) {
-                            const duplicates = data.map(pd => ({
-                                code: pd.code || inputCode,
-                                name: pd.description || 'Producto Desconocido',
-                                description: pd.description,
-                                barcode: inputCode,
-                                brand: pd.brand,
-                                primary_unit: pd.primary_unit,
-                                secondary_unit: pd.secondary_unit,
-                                conversion_factor: pd.conversion_factor,
-                                conversion_type: pd.conversion_type
-                            }));
-                            productCacheRef.current.set(inputCode, duplicates);
-                            saveProductToLocalStorage(inputCode, duplicates);
-                            setDuplicateProducts(duplicates);
-                            setIsDuplicateModalOpen(true);
-                        } else {
-                            triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
-                        }
-                    } else if (data) {
-                        // Single object (legacy or unexpected)
+                if (localProduct) {
+                    const product = {
+                        code: localProduct.code || inputCode,
+                        name: localProduct.description || 'Producto Desconocido',
+                        description: localProduct.description,
+                        barcode: localProduct.barcode || inputCode,
+                        brand: localProduct.brand,
+                        primary_unit: localProduct.primary_unit,
+                        secondary_unit: localProduct.secondary_unit,
+                        conversion_factor: localProduct.conversion_factor,
+                        conversion_type: localProduct.conversion_type
+                    };
+                    productCacheRef.current.set(inputCode, product);
+                    saveProductToLocalStorage(inputCode, product);
+                    openFichajeModal(product, null);
+                    setIsProcessingScan(false);
+                    return;
+                }
+
+                // 2. Fallback to API if not found or online
+                if (!navigator.onLine) {
+                    triggerModal('Sin conexión', 'Este producto no está en el catálogo local. Conéctate para buscarlo.', 'warning');
+                    setIsProcessingScan(false);
+                    return;
+                }
+
+                const response = await api.get(`/api/products/${inputCode}`);
+                const data = response.data;
+
+                if (Array.isArray(data)) {
+                    if (data.length === 1) {
+                        const productData = data[0];
                         const product = {
-                            code: data.code || inputCode,
-                            name: data.description || 'Producto Desconocido',
-                            description: data.description,
+                            code: productData.code || inputCode,
+                            name: productData.description || 'Producto Desconocido',
+                            description: productData.description,
                             barcode: inputCode,
-                            brand: data.brand,
-                            primary_unit: data.primary_unit,
-                            secondary_unit: data.secondary_unit,
-                            conversion_factor: data.conversion_factor,
-                            conversion_type: data.conversion_type
+                            brand: productData.brand,
+                            primary_unit: productData.primary_unit,
+                            secondary_unit: productData.secondary_unit,
+                            conversion_factor: productData.conversion_factor,
+                            conversion_type: productData.conversion_type
                         };
                         productCacheRef.current.set(inputCode, product);
                         saveProductToLocalStorage(inputCode, product);
                         openFichajeModal(product, null);
+                    } else if (data.length > 1) {
+                        const duplicates = data.map(pd => ({
+                            code: pd.code || inputCode,
+                            name: pd.description || 'Producto Desconocido',
+                            description: pd.description,
+                            barcode: inputCode,
+                            brand: pd.brand,
+                            primary_unit: pd.primary_unit,
+                            secondary_unit: pd.secondary_unit,
+                            conversion_factor: pd.conversion_factor,
+                            conversion_type: pd.conversion_type
+                        }));
+                        productCacheRef.current.set(inputCode, duplicates);
+                        saveProductToLocalStorage(inputCode, duplicates);
+                        setDuplicateProducts(duplicates);
+                        setIsDuplicateModalOpen(true);
+                    } else {
+                        triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
                     }
-                })
-                .catch(error => {
-                    console.error('Error fetching product:', error);
-                    triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
-                })
-                .finally(() => {
-                    setIsProcessingScan(false);
-                });
+                } else if (data) {
+                    const product = {
+                        code: data.code || inputCode,
+                        name: data.description || 'Producto Desconocido',
+                        description: data.description,
+                        barcode: inputCode,
+                        brand: data.brand,
+                        primary_unit: data.primary_unit,
+                        secondary_unit: data.secondary_unit,
+                        conversion_factor: data.conversion_factor,
+                        conversion_type: data.conversion_type
+                    };
+                    productCacheRef.current.set(inputCode, product);
+                    saveProductToLocalStorage(inputCode, product);
+                    openFichajeModal(product, null);
+                }
+            } catch (error) {
+                console.error('Error fetching product:', error);
+                triggerModal('Atención', 'Producto no encontrado en la base de datos.', 'warning');
+            } finally {
+                setIsProcessingScan(false);
+            }
         }
     }, []); // Empty dependency array as we use refs/setters
 
@@ -1224,27 +1269,40 @@ const RemitoForm = () => {
             }).map(item => ({ ...item, isExpected: true }));
         }
 
-        // Always try to fetch from API to supplement or if no local matches
+        // Try with local DB first
         try {
-            const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
-            const apiResults = res.data.map(item => ({
-                ...item,
-                isExpected: expectedItems ? expectedItems.some(ei => ei.code === item.code) : false
-            }));
+            const localResults = await searchProductsLocally(value);
+            const apiResults = [];
 
-            // Merge: Prefer localMatches but add API results that aren't already there
-            const combined = [...localMatches];
+            // Supplement with API if online and local results are few
+            if (navigator.onLine && localResults.length < 5) {
+                try {
+                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                    apiResults.push(...res.data);
+                } catch (e) { console.error("API Search fallback failed", e); }
+            }
+
+            // Merge results
+            const combined = [...localResults.map(p => ({
+                ...p,
+                inDocument: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false,
+                isExpected: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false
+            }))];
+
             apiResults.forEach(apiItem => {
                 if (!combined.some(c => c.code === apiItem.code)) {
-                    combined.push(apiItem);
+                    combined.push({
+                        ...apiItem,
+                        inDocument: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false,
+                        isExpected: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false
+                    });
                 }
             });
 
-            setManualSuggestions(combined.slice(0, 10)); // Show more suggestions if available
+            setManualSuggestions(combined.slice(0, 15));
             setShowSuggestions(combined.length > 0);
         } catch (error) {
             console.error('Error searching products:', error);
-            // Fallback to just local matches if API fails
             setManualSuggestions(localMatches.slice(0, 10));
             setShowSuggestions(localMatches.length > 0);
         }
@@ -2091,9 +2149,16 @@ const RemitoForm = () => {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
                                                             <span className="block text-sm font-medium text-gray-800 whitespace-normal break-words">{item.description || item.name}</span>
-                                                            {item.isExpected && (
-                                                                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Esperado</span>
-                                                            )}
+                                                            <div className="flex gap-2">
+                                                                {item.inDocument ? (
+                                                                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">EN DOCUMENTO</span>
+                                                                ) : (
+                                                                    <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">CATÁLOGO</span>
+                                                                )}
+                                                                {item.isExpected && (
+                                                                    <span className="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Esperado</span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         <span className="block text-xs text-gray-500">{item.code}</span>
                                                     </div>
@@ -2344,6 +2409,18 @@ const RemitoForm = () => {
                     </div>
                 </div>
             )}
+            {/* Sync Status Badge */}
+            <div className="fixed bottom-20 right-4 z-40">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}>
+                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                    {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                    {!isSyncing && (
+                        <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
+                            🔄
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

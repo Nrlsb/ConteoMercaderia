@@ -4,6 +4,7 @@ import Scanner from './Scanner';
 import api from '../api';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
+import { useProductSync } from '../hooks/useProductSync';
 import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter } from 'lucide-react';
 
 const BarcodeControl = () => {
@@ -14,6 +15,11 @@ const BarcodeControl = () => {
     const [error, setError] = useState(null);
     const inputRef = useRef(null);
     const productCacheRef = useRef({});
+    const { getProductByCode, searchProductsLocally, isSyncing, lastSync, syncProducts } = useProductSync();
+
+    useEffect(() => {
+        syncProducts();
+    }, []);
 
     // Edit state
     const [editMode, setEditMode] = useState(false);
@@ -182,8 +188,19 @@ const BarcodeControl = () => {
             if (productCacheRef.current[code]) {
                 data = productCacheRef.current[code];
             } else {
-                const response = await api.get(`/api/products/barcode/${code}`);
-                data = response.data;
+                // 1. Try Local DB first
+                const localData = await getProductByCode(code);
+                if (localData) {
+                    data = localData;
+                } else {
+                    // 2. Fallback to API
+                    if (navigator.onLine) {
+                        const response = await api.get(`/api/products/barcode/${code}`);
+                        data = response.data;
+                    } else {
+                        throw { response: { status: 404 } };
+                    }
+                }
                 productCacheRef.current[code] = data; // Guardar en caché
             }
 
@@ -191,7 +208,8 @@ const BarcodeControl = () => {
                 setDuplicateProducts(data);
                 setIsDuplicateModalOpen(true);
             } else {
-                selectProduct(Array.isArray(data) ? data[0] : data);
+                selectProduct(Array.isArray(data) ? data[0] : (data || null));
+                if (!data) setError('code_not_found');
             }
         } catch (err) {
             console.error('Lookup error:', err);
@@ -250,15 +268,31 @@ const BarcodeControl = () => {
 
         setSearching(true);
         try {
-            const response = await api.get(`/api/products/search?q=${encodeURIComponent(query)}`);
-            const data = response.data;
-            setSearchResults(data);
-            if (data.length === 0) {
+            const localResults = await searchProductsLocally(query);
+            const apiResults = [];
+
+            if (navigator.onLine && localResults.length < 5) {
+                try {
+                    const response = await api.get(`/api/products/search?q=${encodeURIComponent(query)}`);
+                    apiResults.push(...response.data);
+                } catch (e) { console.error("API Search fallback failed", e); }
+            }
+
+            // Merge
+            const combined = [...localResults];
+            apiResults.forEach(apiItem => {
+                if (!combined.some(c => c.id === apiItem.id)) {
+                    combined.push(apiItem);
+                }
+            });
+
+            setSearchResults(combined);
+            if (combined.length === 0) {
                 toast.info('No se encontraron productos para esta búsqueda');
             }
         } catch (err) {
             console.error('Search error:', err);
-            toast.error('Error de conexión al buscar');
+            toast.error('Error al buscar productos');
         } finally {
             setSearching(false);
         }
@@ -318,6 +352,15 @@ const BarcodeControl = () => {
                         for (const match of candidates) {
                             if (!match || !match.trim()) continue;
                             try {
+                                // 1. Try Local DB
+                                const localResults = await searchProductsLocally(match);
+                                if (localResults && localResults.length > 0) {
+                                    setSearchQuery(match);
+                                    setSearchResults(localResults);
+                                    return;
+                                }
+
+                                // 2. Fallback to API
                                 const res = await api.get(`/api/products/search?q=${encodeURIComponent(match)}`);
                                 if (res.data && res.data.length > 0) {
                                     setSearchQuery(match);
@@ -982,6 +1025,19 @@ const BarcodeControl = () => {
                     </div>
                 </div>
             )}
+
+            {/* Sync Status Badge */}
+            <div className="fixed bottom-20 right-4 z-40">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-400 border-gray-100'}`}>
+                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                    {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                    {!isSyncing && (
+                        <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
+                            <RotateCcw className="w-3 h-3" />
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
