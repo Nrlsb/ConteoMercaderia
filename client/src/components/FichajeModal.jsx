@@ -184,16 +184,17 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const handleSubmit = (e) => {
         e.preventDefault();
         if (isSubmitting) return; // Guard
-        const qty = parseInt(quantity, 10);
-        if (!qty || qty < 1) return;
+        const qty = parseFloat(quantity);
+        if (isNaN(qty) || qty <= 0) return;
 
         let finalQty = qty;
         if (selectedUnit === 'secondary' && product?.conversion_factor) {
             const factor = Number(product.conversion_factor);
+            // Invert logic: If IM is selected, the input is in UNITS, and we want to record BOXES
             if (product.conversion_type === 'Divisor') {
-                finalQty = qty / factor;
-            } else {
                 finalQty = qty * factor;
+            } else {
+                finalQty = qty / factor;
             }
         }
 
@@ -203,19 +204,14 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     if (!isOpen || !product) return null;
 
     // Converted quantity for display
-    const parsedQty = parseInt(quantity, 10) || 0;
+    const parsedQty = parseFloat(quantity) || 0;
     let convertedQtyText = '';
-    if (parsedQty > 0 && product?.conversion_factor) {
+    if (parsedQty > 0 && product?.conversion_factor && selectedUnit === 'secondary') {
         const factor = Number(product.conversion_factor);
-        if (selectedUnit === 'secondary') {
-            const finalVal = product.conversion_type === 'Divisor' ? parsedQty / factor : parsedQty * factor;
-            convertedQtyText = `Equivale a ${finalVal} ${product.primary_unit || 'UN'}`;
-        } else if (selectedUnit === 'primary' && product.secondary_unit) {
-            const finalVal = product.conversion_type === 'Divisor' ? parsedQty * factor : parsedQty / factor;
-            // Round to 3 decimals to avoid floating point issues
-            const roundedVal = Math.round(finalVal * 1000) / 1000;
-            convertedQtyText = `Equivale a ${roundedVal} ${product.secondary_unit}`;
-        }
+        const finalVal = product.conversion_type === 'Divisor' ? parsedQty * factor : parsedQty / factor;
+        // Round to 3 decimals to avoid floating point issues
+        const roundedVal = Math.round(finalVal * 1000) / 1000;
+        convertedQtyText = `Equivale a ${roundedVal} ${product.secondary_unit}`;
     }
 
     // Excess validation
