@@ -83,24 +83,60 @@ export const useProductSync = () => {
         if (!query || query.length < 2) return [];
 
         const terms = query.toLowerCase().trim().split(/\s+/);
+        const firstTerm = terms[0];
 
-        // Búsqueda simple por prefijo en descripción para velocidad
-        // Dexie/IndexedDB no soporta FULLTEXT nativamente de forma eficiente sin plugins,
-        // pero podemos filtrar por el primer término y luego refinar.
-        const matches = await db.products
-            .where('description').startsWithIgnoreCase(terms[0])
-            .limit(50)
-            .toArray();
+        // 1. Intentar búsqueda rápida por prefijo en indexes clave (code, barcode, description)
+        // Esto aprovecha los índices de IndexedDB para velocidad inicial.
+        let results = [];
+        try {
+            // Buscamos productos que EMPIECEN con el primer término en cualquiera de los 3 campos.
+            const primaryMatches = await db.products
+                .where('code').startsWithIgnoreCase(firstTerm)
+                .or('barcode').startsWithIgnoreCase(firstTerm)
+                .or('description').startsWithIgnoreCase(firstTerm)
+                .limit(100)
+                .toArray();
 
-        // Refinar con todos los términos
-        return matches.filter(p => {
-            const desc = p.description.toLowerCase();
-            const code = p.code.toLowerCase();
+            results = primaryMatches;
+        } catch (e) {
+            console.error("Error in primary search:", e);
+        }
+
+        // 2. Si hay pocos resultados y el término es alfabético, intentar búsqueda por "contiene" en descripción
+        // Nota: Esto es un full-scan, pero para catálogos típicos (<20k items) es aceptable (<100ms).
+        if (results.length < 10 && isNaN(firstTerm)) {
+            try {
+                const containsMatches = await db.products
+                    .filter(p => p.description.toLowerCase().includes(firstTerm))
+                    .limit(50)
+                    .toArray();
+
+                // Combinar resultados evitando duplicados por código
+                const existingCodes = new Set(results.map(r => r.code));
+                containsMatches.forEach(m => {
+                    if (!existingCodes.has(m.code)) {
+                        results.push(m);
+                    }
+                });
+            } catch (e) {
+                console.error("Error in contains search:", e);
+            }
+        }
+
+        // 3. Refinar todos los resultados encontrados para asegurar que CUMPLEN con TODOS los términos ingresados
+        return results.filter(p => {
+            const desc = (p.description || '').toLowerCase();
+            const code = (p.code || '').toLowerCase();
             const barcode = (p.barcode || '').toLowerCase();
+            const brand = (p.brand || '').toLowerCase();
+
             return terms.every(term =>
-                desc.includes(term) || code.includes(term) || barcode.includes(term)
+                desc.includes(term) ||
+                code.includes(term) ||
+                barcode.includes(term) ||
+                brand.includes(term)
             );
-        });
+        }).slice(0, 50); // Limitar salida final por UX
     }, []);
 
     return {

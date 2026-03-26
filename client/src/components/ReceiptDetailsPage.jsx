@@ -194,7 +194,7 @@ const ReceiptDetailsPage = () => {
         setShowSuggestions(localMatches.length > 0);
 
         // 2. Local DB catalog search (Fallback/Extra)
-        if (localMatches.length < 5) {
+        if (localMatches.length < 20) {
             const globalMatches = await searchProductsLocally(valueLower);
             const existingCodes = new Set(localMatches.map(m => m.code));
             const newSuggestions = globalMatches
