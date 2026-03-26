@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { toast } from 'sonner';
+import Scanner from './Scanner';
 
 const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting, receiptId, isEgreso = false }) => {
     const [quantity, setQuantity] = useState('');
@@ -14,6 +15,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const [calcDisplay, setCalcDisplay] = useState('0');
     const [calcExpression, setCalcExpression] = useState('');
     const [calcJustEvaluated, setCalcJustEvaluated] = useState(false);
+    const [isScanningBarcode, setIsScanningBarcode] = useState(false);
 
     const inputRef = useRef(null);
     const barcodeRef = useRef(null);
@@ -57,6 +59,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setCalcExpression('');
             setCalcJustEvaluated(false);
             setSelectedUnit('primary');
+            setIsScanningBarcode(false);
             // Focus input after a short delay to ensure modal is rendered
             setTimeout(() => {
                 inputRef.current?.focus();
@@ -265,6 +268,18 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                         />
                                         <button
                                             type="button"
+                                            onClick={() => setIsScanningBarcode(true)}
+                                            disabled={isUpdatingBarcode}
+                                            className="p-2 bg-brand-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                            title="Escanear con cámara"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={handleUpdateBarcode}
                                             disabled={isUpdatingBarcode}
                                             className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
@@ -466,6 +481,22 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     </button>
                 </div>
             </div>
+
+            {/* Barcode Scanner Overlay */}
+            {isScanningBarcode && (
+                <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+                    <div className="flex-1 relative">
+                        <Scanner
+                            onScan={(code) => {
+                                setBarcodeInput(code);
+                                setIsScanningBarcode(false);
+                                toast.success("Código escaneado correctamente");
+                            }}
+                            onCancel={() => setIsScanningBarcode(false)}
+                        />
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

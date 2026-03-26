@@ -205,7 +205,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             // 6. Iniciar escaneo continuo (la cámara se ve detrás de la WebView)
             await BarcodeScanner.startScan({
                 formats: [
-                    'QR_CODE', 'EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E'
+                    'EAN_13', 'EAN_8', 'CODE_128', 'QR_CODE', 'UPC_A', 'UPC_E'
                 ]
             });
 
@@ -277,7 +277,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             await scannerRef.current.start(
                 { facingMode: "environment" },
                 {
-                    fps: 30,
+                    fps: 20, // Reducido de 30 para ahorrar CPU en gama baja
                     qrbox: { width: 280, height: 140 },
                     videoConstraints: constraints
                 },
@@ -300,8 +300,8 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
         try {
             await tryStart({
                 facingMode: "environment",
-                width: { min: 1280, ideal: 1920, max: 3840 },
-                height: { min: 720, ideal: 1080, max: 2160 },
+                width: { min: 640, ideal: 1280, max: 1920 }, // Reducido de 1080p/4K para mayor rapidez
+                height: { min: 480, ideal: 720, max: 1080 },
                 focusMode: "continuous",
             });
             setIsScanning(true);
@@ -445,7 +445,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button
                             onClick={handleNativeCancel}
-                            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-sm text-white active:scale-90 transition-transform"
+                            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/60 text-white active:scale-90 transition-transform"
                             aria-label="Cerrar escáner"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -455,7 +455,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                         </button>
 
                         {/* Selector Auto/Manual en el centro del Header */}
-                        <div className="flex bg-black/40 backdrop-blur-sm rounded-full p-1 border border-white/20" style={{ width: '130px' }}>
+                        <div className="flex bg-black/60 rounded-full p-1 border border-white/20" style={{ width: '130px' }}>
                             <button
                                 onClick={() => { if (isAutoConfirm) toggleAutoConfirm(); }}
                                 className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${!isAutoConfirm ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}
@@ -469,7 +469,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                         {/* Botón de Flash funcional */}
                         <button
                             onClick={handleToggleTorch}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-sm text-white active:scale-90 transition-all ${torchOn ? 'bg-yellow-500/70' : 'bg-black/40'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${torchOn ? 'bg-yellow-500/80' : 'bg-black/60'}`}
                             aria-label="Toggle flash"
                         >
                             {torchOn ? (
@@ -487,10 +487,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                     {/* Zona central: visor con esquinas tipo Google */}
                     <div className="flex-1 flex items-center justify-center relative">
                         {/* Oscurecimiento alrededor del visor */}
-                        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 35% at center, transparent 0%, rgba(0,0,0,0.55) 100%)' }}></div>
+                        {/* Overlay eliminado para mayor rapidez */}
 
                         {/* Visor rectangular con esquinas */}
-                        <div className="relative w-[85%] max-w-sm aspect-[2/1]">
+                        <div className="relative w-[90%] max-w-sm aspect-square">
                             {/* Esquinas del visor */}
                             <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-white rounded-tl-lg"></div>
                             <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-white rounded-tr-lg"></div>
@@ -503,7 +503,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                             {/* Indicador de código detectado */}
                             {detectedCode && (
                                 <div className="absolute -bottom-10 left-0 right-0 flex justify-center">
-                                    <div className="bg-green-500/90 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
+                                    <div className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                             <polyline points="20 6 9 17 4 12"></polyline>
                                         </svg>
@@ -519,7 +519,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
 
                         {/* Código detectado visible */}
                         {detectedCode && (
-                            <div className="bg-black/50 backdrop-blur-md rounded-xl px-5 py-2.5 max-w-full">
+                            <div className="bg-black/70 rounded-xl px-5 py-2.5 max-w-full">
                                 <p className="text-white/60 text-[10px] uppercase tracking-widest text-center mb-0.5">Código leído</p>
                                 <p className="text-white text-lg font-mono font-bold text-center tracking-wider break-all">{detectedCode}</p>
                             </div>
@@ -580,7 +580,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                     {/* Top bar: Auto/Manual + Torch + Zoom */}
                     <div className="pointer-events-auto flex items-center justify-between px-3 pt-2 pb-1 bg-gradient-to-b from-black/60 to-transparent">
                         {/* Auto/Manual toggle */}
-                        <div className="flex bg-black/50 backdrop-blur-sm rounded-full p-0.5 border border-white/20" style={{ width: '120px' }}>
+                        <div className="flex bg-black/60 rounded-full p-0.5 border border-white/20" style={{ width: '120px' }}>
                             <button
                                 onClick={() => { if (isAutoConfirm) toggleAutoConfirm(); }}
                                 className={`flex-1 text-[11px] font-bold py-1 rounded-full transition ${!isAutoConfirm ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}
@@ -594,7 +594,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                         <div className="flex items-center gap-2">
                             {/* Zoom controls */}
                             {webZoomSupported && (
-                                <div className="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-full px-2 py-1 border border-white/20">
+                                <div className="flex items-center gap-1 bg-black/60 rounded-full px-2 py-1 border border-white/20">
                                     <button onClick={() => handleWebZoom(-0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">−</button>
                                     <span className="text-white text-[10px] font-mono min-w-[28px] text-center">{webZoom.toFixed(1)}x</span>
                                     <button onClick={() => handleWebZoom(+0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">+</button>
@@ -605,7 +605,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                             {webTorchSupported && (
                                 <button
                                     onClick={handleWebToggleTorch}
-                                    className={`w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-sm text-white active:scale-90 transition-all ${webTorchOn ? 'bg-yellow-500/80' : 'bg-black/50 border border-white/20'}`}
+                                    className={`w-8 h-8 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${webTorchOn ? 'bg-yellow-500/80' : 'bg-black/60 border border-white/20'}`}
                                     aria-label="Toggle linterna"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={webTorchOn ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -619,9 +619,9 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                     {/* Center: viewfinder */}
                     <div className="flex-1 flex items-center justify-center relative">
                         {/* Dark overlay around scanner box */}
-                        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 40% at center, transparent 0%, rgba(0,0,0,0.5) 100%)' }}></div>
+                        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)' }}></div>
 
-                        <div className="relative w-[80%] max-w-sm" style={{ aspectRatio: '2/1' }}>
+                        <div className="relative w-[85%] max-w-sm aspect-square">
                             {/* Corner markers */}
                             <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-white rounded-tl-md"></div>
                             <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-white rounded-tr-md"></div>
@@ -634,7 +634,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                             {/* Detected badge */}
                             {webDetectedCode && (
                                 <div className="absolute -bottom-9 left-0 right-0 flex justify-center">
-                                    <div className="bg-green-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[11px] font-bold shadow-lg flex items-center gap-1.5">
+                                    <div className="bg-green-600 text-white px-3 py-1 rounded-full text-[11px] font-bold shadow-lg flex items-center gap-1.5">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                             <polyline points="20 6 9 17 4 12"></polyline>
                                         </svg>
@@ -649,7 +649,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                     {!isAutoConfirm && (
                         <div className="pointer-events-auto pb-4 px-4 flex flex-col items-center gap-2 bg-gradient-to-t from-black/60 to-transparent pt-8">
                             {webDetectedCode && (
-                                <div className="bg-black/60 backdrop-blur-md rounded-xl px-4 py-2 max-w-full">
+                                <div className="bg-black/70 rounded-xl px-4 py-2 max-w-full">
                                     <p className="text-white/60 text-[9px] uppercase tracking-widest text-center mb-0.5">Código leído</p>
                                     <p className="text-white text-base font-mono font-bold text-center tracking-wider break-all">{webDetectedCode}</p>
                                 </div>
