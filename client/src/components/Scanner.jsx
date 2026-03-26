@@ -35,6 +35,9 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
 
     // Flash state
     const [torchOn, setTorchOn] = useState(false);
+    const [nativeZoom, setNativeZoom] = useState(1.0);
+    const [showFocusHint, setShowFocusHint] = useState(false);
+    const focusTimerRef = useRef(null);
 
     // Web-specific state
     const [webTorchOn, setWebTorchOn] = useState(false);
@@ -115,6 +118,12 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
         webDetectedCodeRef.current = null;
         webPausedRef.current = false;
         setWebTorchOn(false);
+        setNativeZoom(1.0);
+        setShowFocusHint(false);
+        if (focusTimerRef.current) {
+            clearTimeout(focusTimerRef.current);
+            focusTimerRef.current = null;
+        }
 
         if (restartTimerRef.current) {
             clearTimeout(restartTimerRef.current);
@@ -208,6 +217,19 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                     'EAN_13', 'EAN_8', 'CODE_128', 'QR_CODE', 'UPC_A', 'UPC_E'
                 ]
             });
+
+            // 7. Aplicar zoom inicial de seguridad (20%) para ayudar al enfoque en gama baja
+            try {
+                await BarcodeScanner.setZoom({ ratio: 1.2 });
+                setNativeZoom(1.2);
+            } catch (e) {
+                console.warn("Zoom no soportado en este dispositivo");
+            }
+
+            // 8. Iniciar timer para ayuda visual
+            focusTimerRef.current = setTimeout(() => {
+                setShowFocusHint(true);
+            }, 3500);
 
             nativeScanActiveRef.current = true;
 
@@ -499,6 +521,16 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
 
                             {/* Línea de escaneo animada */}
                             <div className="absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent opacity-60 animate-scan-line"></div>
+
+                            {/* Mensaje de ayuda para enfoque */}
+                            {showFocusHint && !detectedCode && (
+                                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
+                                    <div className="bg-black/40 backdrop-blur-sm border border-white/20 text-white px-4 py-3 rounded-2xl text-center shadow-xl animate-pulse">
+                                        <p className="text-sm font-bold">¿No enfoca?</p>
+                                        <p className="text-[11px] opacity-90 mt-0.5 text-white/80">Alejá un poco el celular del código</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Indicador de código detectado */}
                             {detectedCode && (
