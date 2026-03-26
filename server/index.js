@@ -983,13 +983,19 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         // 1. Parse PDF
-        const items = await parseRemitoPdf(req.file.buffer);
+        const { items, metadata } = await parseRemitoPdf(req.file.buffer);
         if (!items || items.length === 0) {
             return res.status(400).json({ message: 'No se pudieron extraer productos del PDF' });
         }
 
-        // 2. Create Egreso automatically with filename as reference
-        const referenceNumber = req.file.originalname.replace('.pdf', '').replace('.PDF', '');
+        // 2. Create Egreso automatically with metadata (Client Name + Remito Number) or filename as fallback
+        let referenceNumber = '';
+        if (metadata && metadata.clientName && metadata.remitoNumber) {
+            referenceNumber = `${metadata.clientName} ${metadata.remitoNumber}`;
+        } else {
+            referenceNumber = req.file.originalname.replace('.pdf', '').replace('.PDF', '');
+        }
+
         const sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
 
         const { data: egreso, error: egresoError } = await supabase

@@ -93,6 +93,14 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
         const data = await pdf(dataBuffer, options);
         const text = data.text;
+
+        // Extract metadata: Remito Number and Client Name
+        const remitoMatch = text.match(/Nº:\s*(\d+)/i);
+        const clientMatch = text.match(/Sr\.\/\s*es\.:\s*([^ ](?:.*?))(?=\s{2,}|Código:)/i);
+
+        const remitoNumber = remitoMatch ? remitoMatch[1] : null;
+        const clientName = clientMatch ? clientMatch[1].trim() : null;
+
         const lines = text.split('\n');
         const items = [];
 
@@ -235,7 +243,13 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         items.forEach(item => console.log(`- Code: ${item.code}, Desc: ${item.description}, Qty: ${item.quantity}`));
         console.log('---------------------------');
 
-        return items;
+        return {
+            items,
+            metadata: {
+                clientName,
+                remitoNumber
+            }
+        };
     } catch (error) {
         console.error('Error parsing PDF:', error);
         throw new Error('Failed to parse PDF');
