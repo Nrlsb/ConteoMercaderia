@@ -4308,7 +4308,7 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         console.log(`Received PDF upload. Size: ${req.file.size} bytes`);
-        let extractedItems = await parseRemitoPdf(req.file.buffer, false); // stopOnCopies = false for Ingresos
+        let { items: extractedItems } = await parseRemitoPdf(req.file.buffer, false); // stopOnCopies = false for Ingresos
 
         // FALLBACK TO GEMINI if no items found (likely a scanned PDF)
         if (extractedItems.length === 0 && process.env.GEMINI_API_KEY) {
