@@ -4422,7 +4422,7 @@ app.put('/api/auth/active-count', verifyToken, async (req, res) => {
 // Rate limiter: max 10 intentos por 15 minutos en login/register
 const authRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Demasiados intentos. Intente nuevamente en 15 minutos.' }
