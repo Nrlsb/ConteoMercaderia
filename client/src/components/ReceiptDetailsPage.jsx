@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import ReceiptHistory from './ReceiptHistory';
+import { normalizeText } from '../utils/textUtils';
 
 const ReceiptDetailsPage = () => {
     const { id } = useParams();
@@ -172,14 +173,14 @@ const ReceiptDetailsPage = () => {
             return;
         }
 
-        const valueLower = value.toLowerCase().trim();
-        const searchTerms = valueLower.split(/\s+/);
+        const normalizedValue = normalizeText(value);
+        const searchTerms = normalizedValue.split(/\s+/);
 
         // 1. Local document items search (Priority)
         const localMatches = items.filter(i => {
-            const desc = (i.products?.description || '').toLowerCase();
-            const code = (i.product_code || '').toLowerCase();
-            const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
+            const desc = normalizeText(i.products?.description || '');
+            const code = normalizeText(i.product_code || '');
+            const barcode = normalizeText(i.products?.barcode || i.barcode || '');
             return searchTerms.every(term =>
                 desc.includes(term) || code.includes(term) || barcode.includes(term)
             );
@@ -713,15 +714,19 @@ const ReceiptDetailsPage = () => {
             return;
         }
 
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
         setIsLinkingSearching(true);
-        try {
-            const matches = await searchProductsLocally(value);
-            setLinkingSuggestions(matches);
-        } catch (error) {
-            console.error('Error searching products for linking:', error);
-        } finally {
-            setIsLinkingSearching(false);
-        }
+        searchTimeoutRef.current = setTimeout(async () => {
+            try {
+                const matches = await searchProductsLocally(value);
+                setLinkingSuggestions(matches);
+            } catch (error) {
+                console.error('Error searching products for linking:', error);
+            } finally {
+                setIsLinkingSearching(false);
+            }
+        }, 300);
     };
 
     const handlePdfUpload = async (e) => {
@@ -1430,8 +1435,13 @@ const ReceiptDetailsPage = () => {
                                                             <div className="text-[10px] text-gray-500 font-mono">INT: {s.code} {s.barcode ? `| BAR: ${s.barcode}` : ''}</div>
                                                         </button>
                                                     ))}
+                                                    {isLinkingSearching && (
+                                                        <div className="text-center py-2 text-[10px] text-gray-400">Buscando...</div>
+                                                    )}
                                                     {!isLinkingSearching && linkingSuggestions.length === 0 && (
-                                                        <div className="text-center py-2 text-[10px] text-gray-400">Ingresa 2 o más caracteres para buscar</div>
+                                                        <div className="text-center py-2 text-[10px] text-gray-400">
+                                                            {normalizeText(linkingItem?.description).length > 2 ? 'No se encontraron coincidencias' : 'Ingresa 2 o más caracteres para buscar'}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <button

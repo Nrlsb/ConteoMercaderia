@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import api from '../api';
 import { db } from '../db';
 import { toast } from 'sonner';
+import { normalizeText } from '../utils/textUtils';
 
 export const useProductSync = () => {
     const [isSyncing, setIsSyncing] = useState(false);
@@ -82,14 +83,15 @@ export const useProductSync = () => {
     const searchProductsLocally = useCallback(async (query) => {
         if (!query || query.length < 2) return [];
 
-        const terms = query.toLowerCase().trim().split(/\s+/);
+        const normalizedQuery = normalizeText(query);
+        const terms = normalizedQuery.trim().split(/\s+/);
         const firstTerm = terms[0];
 
         // 1. Intentar búsqueda rápida por prefijo en indexes clave (code, barcode, description)
-        // Esto aprovecha los índices de IndexedDB para velocidad inicial.
         let results = [];
         try {
-            // Buscamos productos que EMPIECEN con el primer término en cualquiera de los 3 campos.
+            // Nota: startsWithIgnoreCase de Dexie no siempre maneja acentos bien si el índice no está normalizado.
+            // Pero como primer filtro rápido es excelente.
             const primaryMatches = await db.products
                 .where('code').startsWithIgnoreCase(firstTerm)
                 .or('barcode').startsWithIgnoreCase(firstTerm)
@@ -102,16 +104,14 @@ export const useProductSync = () => {
             console.error("Error in primary search:", e);
         }
 
-        // 2. Si hay pocos resultados y el término es alfabético, intentar búsqueda por "contiene" en descripción
-        // Nota: Esto es un full-scan, pero para catálogos típicos (<20k items) es aceptable (<100ms).
-        if (results.length < 10 && isNaN(firstTerm)) {
+        // 2. Si hay pocos resultados y no parece un código puro, intentar búsqueda por "contiene" normalizada
+        if (results.length < 15 && isNaN(firstTerm)) {
             try {
                 const containsMatches = await db.products
-                    .filter(p => p.description.toLowerCase().includes(firstTerm))
+                    .filter(p => normalizeText(p.description).includes(firstTerm))
                     .limit(50)
                     .toArray();
 
-                // Combinar resultados evitando duplicados por código
                 const existingCodes = new Set(results.map(r => r.code));
                 containsMatches.forEach(m => {
                     if (!existingCodes.has(m.code)) {
@@ -123,12 +123,12 @@ export const useProductSync = () => {
             }
         }
 
-        // 3. Refinar todos los resultados encontrados para asegurar que CUMPLEN con TODOS los términos ingresados
+        // 3. Refinar todos los resultados encontrados para asegurar que CUMPLEN con TODOS los términos ingresados (Normalizado)
         return results.filter(p => {
-            const desc = (p.description || '').toLowerCase();
-            const code = (p.code || '').toLowerCase();
-            const barcode = (p.barcode || '').toLowerCase();
-            const brand = (p.brand || '').toLowerCase();
+            const desc = normalizeText(p.description);
+            const code = normalizeText(p.code);
+            const barcode = normalizeText(p.barcode);
+            const brand = normalizeText(p.brand);
 
             return terms.every(term =>
                 desc.includes(term) ||
@@ -136,7 +136,7 @@ export const useProductSync = () => {
                 barcode.includes(term) ||
                 brand.includes(term)
             );
-        }).slice(0, 50); // Limitar salida final por UX
+        }).slice(0, 50);
     }, []);
 
     return {
