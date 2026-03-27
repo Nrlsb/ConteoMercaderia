@@ -214,14 +214,14 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             // 6. Iniciar escaneo continuo (la cámara se ve detrás de la WebView)
             await BarcodeScanner.startScan({
                 formats: [
-                    'EAN_13', 'EAN_8', 'CODE_128', 'QR_CODE', 'UPC_A', 'UPC_E'
+                    'EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E', 'CODE_39'
                 ]
             });
 
-            // 7. Aplicar zoom inicial de seguridad (20%) para ayudar al enfoque en gama baja
+            // 7. Aplicar zoom inicial de seguridad (50%) para ayudar al enfoque en gama baja y códigos de barras pequeños
             try {
-                await BarcodeScanner.setZoom({ ratio: 1.2 });
-                setNativeZoom(1.2);
+                await BarcodeScanner.setZoom({ ratio: 1.5 });
+                setNativeZoom(1.5);
             } catch (e) {
                 console.warn("Zoom no soportado en este dispositivo");
             }
@@ -291,6 +291,14 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
         if (!scannerRef.current) {
             scannerRef.current = new Html5Qrcode("reader", {
                 experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    Html5QrcodeSupportedFormats.CODE_39
+                ],
                 verbose: false
             });
         }
