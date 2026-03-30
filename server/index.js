@@ -973,6 +973,77 @@ app.get('/api/receipts/:id/export-differences', verifyToken, verifyBranchAccess(
     }
 });
 
+// Export scanned items from one receipt to another receipt's expected items
+app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+    const { id } = req.params;
+    const { targetReceiptId } = req.body;
+
+    if (!targetReceiptId) return res.status(400).json({ message: 'Falta targetReceiptId' });
+    if (targetReceiptId === id) return res.status(400).json({ message: 'El ingreso destino debe ser diferente al actual' });
+
+    try {
+        // Check target receipt exists and is open
+        const { data: targetReceipt, error: targetError } = await supabase
+            .from('receipts')
+            .select('id, remito_number, status')
+            .eq('id', targetReceiptId)
+            .single();
+
+        if (targetError || !targetReceipt) return res.status(404).json({ message: 'Ingreso destino no encontrado' });
+        if (targetReceipt.status === 'finalized') return res.status(400).json({ message: 'El ingreso destino está finalizado' });
+
+        // Get scanned items from source receipt
+        const { data: sourceItems, error: sourceError } = await supabase
+            .from('receipt_items')
+            .select('product_code, scanned_quantity')
+            .eq('receipt_id', id)
+            .gt('scanned_quantity', 0);
+
+        if (sourceError) throw sourceError;
+        if (!sourceItems || sourceItems.length === 0) return res.status(400).json({ message: 'No hay productos controlados para exportar' });
+
+        // Upsert each item into target receipt
+        let exportedCount = 0;
+        for (const item of sourceItems) {
+            const { data: existing } = await supabase
+                .from('receipt_items')
+                .select('id, expected_quantity')
+                .eq('receipt_id', targetReceiptId)
+                .eq('product_code', item.product_code)
+                .maybeSingle();
+
+            const newExpected = (Number(existing?.expected_quantity) || 0) + Number(item.scanned_quantity);
+
+            const { error: upsertError } = await supabase
+                .from('receipt_items')
+                .upsert({
+                    receipt_id: targetReceiptId,
+                    product_code: item.product_code,
+                    expected_quantity: newExpected
+                }, { onConflict: 'receipt_id, product_code' });
+
+            if (!upsertError) {
+                exportedCount++;
+                // Log history
+                await supabase.from('receipt_items_history').insert({
+                    receipt_id: targetReceiptId,
+                    user_id: req.user.id,
+                    operation: existing ? 'UPDATE_EXPECTED' : 'INSERT_EXPECTED',
+                    product_code: item.product_code,
+                    old_data: { expected_quantity: Number(existing?.expected_quantity) || 0 },
+                    new_data: { expected_quantity: newExpected },
+                    changed_at: new Date().toISOString()
+                });
+            }
+        }
+
+        res.json({ exported: exportedCount, total: sourceItems.length, targetRemito: targetReceipt.remito_number });
+    } catch (error) {
+        console.error('Error exporting to receipt:', error);
+        res.status(500).json({ message: 'Error al exportar productos' });
+    }
+});
+
 // --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
 
 // Create Egreso via PDF Upload (auto-create)

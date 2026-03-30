@@ -66,6 +66,13 @@ const ReceiptDetailsPage = () => {
     const [duplicateProducts, setDuplicateProducts] = useState([]);
     const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
 
+    // Export to another receipt state
+    const [showExportToModal, setShowExportToModal] = useState(false);
+    const [exportReceiptList, setExportReceiptList] = useState([]);
+    const [exportReceiptSearch, setExportReceiptSearch] = useState('');
+    const [loadingExportList, setLoadingExportList] = useState(false);
+    const [exportingTo, setExportingTo] = useState(false);
+
     // Focus management
     const inputRef = useRef(null);
 
@@ -561,6 +568,38 @@ const ReceiptDetailsPage = () => {
         }
     };
 
+    const handleOpenExportToModal = async () => {
+        const scannedItems = items.filter(i => Number(i.scanned_quantity) > 0);
+        if (scannedItems.length === 0) {
+            toast.error('No hay productos controlados para exportar');
+            return;
+        }
+        setExportReceiptSearch('');
+        setShowExportToModal(true);
+        setLoadingExportList(true);
+        try {
+            const { data } = await api.get('/api/receipts');
+            setExportReceiptList((data || []).filter(r => r.id !== id && r.status !== 'finalized'));
+        } catch {
+            toast.error('Error al cargar ingresos');
+        } finally {
+            setLoadingExportList(false);
+        }
+    };
+
+    const handleExportToReceipt = async (targetReceiptId) => {
+        setExportingTo(true);
+        try {
+            const { data } = await api.post(`/api/receipts/${id}/export-to-receipt`, { targetReceiptId });
+            toast.success(`${data.exported} productos exportados al ingreso "${data.targetRemito}"`);
+            setShowExportToModal(false);
+        } catch (err) {
+            toast.error(err?.response?.data?.message || 'Error al exportar');
+        } finally {
+            setExportingTo(false);
+        }
+    };
+
     const handlePrintDifferences = () => {
         const diffItems = items.filter(item => {
             const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
@@ -864,6 +903,13 @@ const ReceiptDetailsPage = () => {
                         >
                             <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             Excel Dif.
+                        </button>
+                        <button
+                            onClick={handleOpenExportToModal}
+                            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all"
+                        >
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                            Exportar a Ingreso
                         </button>
                         {receipt.status !== 'finalized' ? (
                             canClose && (
@@ -1562,6 +1608,77 @@ const ReceiptDetailsPage = () => {
                 expectedQuantity={fichajeState.expectedQuantity}
                 receiptId={id}
             />
+
+            {/* Export to another receipt modal */}
+            {showExportToModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-2xl">
+                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 rounded-t-2xl flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-white">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold leading-tight">Exportar a otro Ingreso</h2>
+                                    <p className="text-blue-100 text-xs">Seleccioná el ingreso destino</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowExportToModal(false)} className="text-white/70 hover:text-white transition">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+
+                        <div className="p-4 border-b border-gray-100">
+                            <p className="text-sm text-gray-500 mb-3">
+                                Se exportarán <span className="font-bold text-gray-800">{items.filter(i => Number(i.scanned_quantity) > 0).length} productos controlados</span> como cantidades esperadas al ingreso seleccionado.
+                            </p>
+                            <input
+                                type="text"
+                                placeholder="Buscar ingreso..."
+                                value={exportReceiptSearch}
+                                onChange={e => setExportReceiptSearch(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            />
+                        </div>
+
+                        <div className="overflow-y-auto max-h-72 p-2">
+                            {loadingExportList ? (
+                                <div className="p-6 text-center text-gray-400 text-sm">Cargando ingresos...</div>
+                            ) : exportReceiptList.filter(r =>
+                                !exportReceiptSearch || r.remito_number?.toLowerCase().includes(exportReceiptSearch.toLowerCase())
+                            ).length === 0 ? (
+                                <div className="p-6 text-center text-gray-400 text-sm">No hay ingresos abiertos disponibles</div>
+                            ) : (
+                                exportReceiptList
+                                    .filter(r => !exportReceiptSearch || r.remito_number?.toLowerCase().includes(exportReceiptSearch.toLowerCase()))
+                                    .map(r => (
+                                        <button
+                                            key={r.id}
+                                            onClick={() => handleExportToReceipt(r.id)}
+                                            disabled={exportingTo}
+                                            className="w-full text-left px-4 py-3 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-200 transition mb-1 flex items-center justify-between group disabled:opacity-50"
+                                        >
+                                            <div>
+                                                <div className="font-semibold text-gray-800 text-sm group-hover:text-blue-700">{r.remito_number}</div>
+                                                <div className="text-xs text-gray-400">{r.date ? new Date(r.date).toLocaleDateString('es-AR') : ''}</div>
+                                            </div>
+                                            <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                                        </button>
+                                    ))
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 flex justify-end">
+                            <button
+                                onClick={() => setShowExportToModal(false)}
+                                className="px-5 py-2 text-gray-500 font-medium hover:bg-gray-100 rounded-lg transition text-sm"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
