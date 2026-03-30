@@ -266,6 +266,34 @@ app.get('/api/health', (req, res) => {
     res.send('Control de Remitos API Running');
 });
 
+/**
+ * Helper to find a product by ANY code (internal code, barcode, or provider code)
+ * Search Order: barcode -> code -> provider_code
+ */
+async function findProductByAnyCode(inputCode) {
+    if (!inputCode) return null;
+    const codeStr = String(inputCode).trim();
+
+    try {
+        // 1. Try exact barcode match first (usually most specific)
+        const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr).maybeSingle();
+        if (pBar) return pBar;
+
+        // 2. Try internal code
+        const { data: pCode } = await supabase.from('products').select('*').eq('code', codeStr).maybeSingle();
+        if (pCode) return pCode;
+
+        // 3. Try provider code
+        const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).maybeSingle();
+        if (pProv) return pProv;
+
+        return null;
+    } catch (error) {
+        console.error(`Error resolving product for code ${codeStr}:`, error);
+        return null;
+    }
+}
+
 // AI Parsing Endpoint
 app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
     const { text } = req.body;
@@ -495,27 +523,8 @@ app.post('/api/receipts/:id/items', verifyToken, verifyBranchAccess('receipts'),
     if (!code || !quantity) return res.status(400).json({ message: 'Missing code or quantity' });
 
     try {
-        // 1. Find the product first
-        // Search by provider_code first, then internal code
-        let { data: product, error: prodError } = await supabase
-            .from('products')
-            .select('code, provider_code, description')
-            .eq('provider_code', code)
-            .maybeSingle();
-
-        if (!product) {
-            // Try internal code
-            const { data: productInternal } = await supabase
-                .from('products')
-                .select('code, provider_code, description')
-                .eq('code', code)
-                .maybeSingle();
-            product = productInternal;
-        }
-
-        if (!product) {
-            return res.status(404).json({ message: 'Producto no encontrado con ese código' });
-        }
+        // 1. Find the product first using the unified helper
+        const product = await findProductByAnyCode(code);
 
         // 2. Fetch existing item to log history
         const { data: existingItem } = await supabase
@@ -583,27 +592,12 @@ app.post('/api/receipts/:id/scan', verifyToken, verifyBranchAccess('receipts'), 
     const qtyToAdd = quantity || 1;
 
     try {
-        let productCode = null;
+        const product = await findProductByAnyCode(code);
 
-        // Try exact match on code (internal)
-        const { data: pCode } = await supabase.from('products').select('code').eq('code', code).maybeSingle();
-        if (pCode) productCode = pCode.code;
-
-        if (!productCode) {
-            // Try barcode
-            const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
-            if (pBar) productCode = pBar.code;
-        }
-
-        if (!productCode) {
-            // Try provider code
-            const { data: pProv } = await supabase.from('products').select('code').eq('provider_code', code).maybeSingle();
-            if (pProv) productCode = pProv.code;
-        }
-
-        if (!productCode) {
+        if (!product) {
             return res.status(404).json({ message: 'Producto no encontrado' });
         }
+        const productCode = product.code;
 
         const { data: existingItem } = await supabase
             .from('receipt_items')
@@ -2008,19 +2002,11 @@ app.post('/api/stock/import', verifyToken, hasPermission('import_data'), multer(
 app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;
     try {
-        // 1. Try exact match first
-        const { data: matches, error } = await supabase
-            .from('products')
-            .select('*')
-            .or(`code.eq.${barcode},barcode.eq.${barcode}`);
+        // 1. Try unified exact match
+        const product = await findProductByAnyCode(barcode);
 
-        if (matches && matches.length > 0) {
-            // If there are multiple matches, return all of them
-            if (matches.length > 1) {
-                return res.json(matches);
-            }
-            // If only one, return the object (existing legacy behavior)
-            return res.json(matches[0]);
+        if (product) {
+            return res.json(product);
         }
 
         // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)
