@@ -1007,13 +1007,15 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
                 .maybeSingle();
 
             const newExpected = (Number(existing?.expected_quantity) || 0) + Number(item.scanned_quantity);
+            const newScanned = (Number(existing?.scanned_quantity) || 0) + Number(item.scanned_quantity);
 
             const { error: upsertError } = await supabase
                 .from('receipt_items')
                 .upsert({
                     receipt_id: targetReceiptId,
                     product_code: item.product_code,
-                    expected_quantity: newExpected
+                    expected_quantity: newExpected,
+                    scanned_quantity: newScanned
                 }, { onConflict: 'receipt_id, product_code' });
 
             if (!upsertError) {
@@ -1022,10 +1024,16 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
                 await supabase.from('receipt_items_history').insert({
                     receipt_id: targetReceiptId,
                     user_id: req.user.id,
-                    operation: existing ? 'UPDATE_EXPECTED' : 'INSERT_EXPECTED',
+                    operation: existing ? 'UPDATE_EXPECTED_SCANNED' : 'INSERT_EXPECTED_SCANNED',
                     product_code: item.product_code,
-                    old_data: { expected_quantity: Number(existing?.expected_quantity) || 0 },
-                    new_data: { expected_quantity: newExpected },
+                    old_data: {
+                        expected_quantity: Number(existing?.expected_quantity) || 0,
+                        scanned_quantity: Number(existing?.scanned_quantity) || 0
+                    },
+                    new_data: {
+                        expected_quantity: newExpected,
+                        scanned_quantity: newScanned
+                    },
                     changed_at: new Date().toISOString()
                 });
             }
