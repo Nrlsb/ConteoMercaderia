@@ -1006,7 +1006,7 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
                 .eq('product_code', item.product_code)
                 .maybeSingle();
 
-            const newExpected = (Number(existing?.expected_quantity) || 0) + Number(item.scanned_quantity);
+            const newExpected = (Number(existing?.expected_quantity) || 0); // User requested only to update scanned, not expected
             const newScanned = (Number(existing?.scanned_quantity) || 0) + Number(item.scanned_quantity);
 
             const { error: upsertError } = await supabase
