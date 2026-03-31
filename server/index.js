@@ -826,19 +826,28 @@ app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'),
         const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
 
         const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-        const { data: products } = await supabase.from('products').select('code, description').in('code', productCodes);
+        const { data: products } = await supabase.from('products').select('code, description, provider_code').in('code', productCodes);
 
         const userMap = {};
         if (users) users.forEach(u => userMap[u.id] = u.username);
 
         const productMap = {};
-        if (products) products.forEach(p => productMap[p.code] = p.description);
+        if (products) products.forEach(p => {
+            productMap[p.code] = {
+                description: p.description,
+                provider_code: p.provider_code
+            };
+        });
 
-        const enrichedHistory = history.map(entry => ({
-            ...entry,
-            username: userMap[entry.user_id] || 'Desconocido',
-            description: productMap[entry.product_code] || 'Sin descripción'
-        }));
+        const enrichedHistory = history.map(entry => {
+            const product = productMap[entry.product_code] || { description: 'Sin descripción', provider_code: null };
+            return {
+                ...entry,
+                username: userMap[entry.user_id] || 'Desconocido',
+                description: product.description,
+                provider_code: product.provider_code
+            };
+        });
 
         res.json(enrichedHistory);
     } catch (error) {
