@@ -43,6 +43,7 @@ const ReceiptDetailsPage = () => {
     const [linkingItem, setLinkingItem] = useState(null); // Item from importFailedItems being linked
     const [linkingSuggestions, setLinkingSuggestions] = useState([]);
     const [isLinkingSearching, setIsLinkingSearching] = useState(false);
+    const [searchType, setSearchType] = useState('any'); // 'any', 'barcode', 'provider', 'internal'
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_ingresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_ingresos');
@@ -188,13 +189,20 @@ const ReceiptDetailsPage = () => {
             const desc = normalizeText(i.products?.description || '');
             const code = normalizeText(i.product_code || '');
             const barcode = normalizeText(i.products?.barcode || i.barcode || '');
-            return searchTerms.every(term =>
-                desc.includes(term) || code.includes(term) || barcode.includes(term)
-            );
+            const provCode = normalizeText(i.products?.provider_code || '');
+
+            return searchTerms.every(term => {
+                if (searchType === 'barcode') return barcode.includes(term);
+                if (searchType === 'internal') return code.includes(term);
+                if (searchType === 'provider') return provCode.includes(term);
+
+                return desc.includes(term) || code.includes(term) || barcode.includes(term) || provCode.includes(term);
+            });
         }).map(i => ({
             code: i.product_code,
             description: i.products?.description || 'Producto',
             barcode: i.products?.barcode || i.barcode || '',
+            provider_code: i.products?.provider_code || '',
             inDocument: true
         }));
 
@@ -203,7 +211,7 @@ const ReceiptDetailsPage = () => {
 
         // 2. Local DB catalog search (Fallback/Extra)
         if (localMatches.length < 20) {
-            const globalMatches = await searchProductsLocally(valueLower);
+            const globalMatches = await searchProductsLocally(value, searchType);
             const existingCodes = new Set(localMatches.map(m => m.code));
             const newSuggestions = globalMatches
                 .filter(m => !existingCodes.has(m.code))
@@ -211,6 +219,7 @@ const ReceiptDetailsPage = () => {
                     code: m.code,
                     description: m.description,
                     barcode: m.barcode || '',
+                    provider_code: m.provider_code || '',
                     inDocument: false
                 }));
 
@@ -378,7 +387,7 @@ const ReceiptDetailsPage = () => {
 
             try {
                 setProcessing(true);
-                const response = await api.get(`/api/products/${code}`);
+                const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
                 const data = response.data;
                 if (Array.isArray(data) && data.length > 1) {
                     const duplicates = data.map(p => ({
@@ -411,7 +420,7 @@ const ReceiptDetailsPage = () => {
                 console.error('Error fetching product:', error);
 
                 // FINAL FALLBACK: Local Database
-                const localProduct = await getProductByCode(code);
+                const localProduct = await getProductByCode(code, searchType);
                 if (localProduct) {
                     const productObj = {
                         code: localProduct.code,
@@ -508,9 +517,9 @@ const ReceiptDetailsPage = () => {
         // API call + refresh in background
         try {
             if (activeTab === 'load') {
-                await api.post(`/api/receipts/${id}/items`, { code, quantity: qty });
+                await api.post(`/api/receipts/${id}/items`, { code, quantity: qty, searchType });
             } else {
-                await api.post(`/api/receipts/${id}/scan`, { code, quantity: qty });
+                await api.post(`/api/receipts/${id}/scan`, { code, quantity: qty, searchType });
                 const sound = new Audio('/success-beep.mp3');
                 sound.play().catch(e => console.log('Audio error:', e));
             }
@@ -667,23 +676,33 @@ const ReceiptDetailsPage = () => {
         printWindow.document.close();
     };
 
-    const handleScanComplete = async (items) => {
+    const handleScanComplete = async (scannedItems) => {
         setIsBulkImporting(true);
-        setImportProgress({ current: 0, total: items.length });
+        setImportProgress({ current: 0, total: scannedItems.length });
         let successCount = 0;
         let failCount = 0;
         const failedItemsLog = [];
 
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
+        const isControlTab = activeTab === 'control';
+        const endpoint = isControlTab ? `/api/receipts/${id}/scan` : `/api/receipts/${id}/items`;
+
+        for (let i = 0; i < scannedItems.length; i++) {
+            const item = scannedItems[i];
             try {
                 // Post each item as 'expected'
-                // Assuming logic is similar to manual provider code input
+                // For OCR/PDF we strictly use 'provider' code
                 await api.post(`/api/receipts/${id}/items`, {
                     code: item.code,
-                    quantity: item.quantity
+                    quantity: item.quantity,
+                    searchType: 'provider'
                 });
                 successCount++;
+
+                // Optional: Play sound for each item in control mode (maybe too much for bulk, but consistent)
+                // if (isControlTab) {
+                //     const sound = new Audio('/success-beep.mp3');
+                //     sound.play().catch(e => console.log('Audio error:', e));
+                // }
             } catch (error) {
                 console.error(`Error importing item ${item.code}:`, error);
                 failCount++;
@@ -694,10 +713,18 @@ const ReceiptDetailsPage = () => {
                     error: error.response?.data?.message || 'Error desconocido'
                 });
             }
-            setImportProgress({ current: i + 1, total: items.length });
+            setImportProgress({ current: i + 1, total: scannedItems.length });
         }
 
-        if (successCount > 0) toast.success(`¡Listo! ${successCount} productos cargados en la base de datos.`);
+        if (successCount > 0) {
+            const modeText = isControlTab ? 'controlados' : 'cargados como esperados';
+            toast.success(`¡Listo! ${successCount} productos ${modeText}.`);
+            if (isControlTab) {
+                const sound = new Audio('/success-beep.mp3');
+                sound.play().catch(e => console.log('Audio error:', e));
+            }
+        }
+
         if (failCount > 0) {
             toast.error(`${failCount} fallaron al importar`);
             setImportFailedItems(failedItemsLog);
@@ -988,7 +1015,7 @@ const ReceiptDetailsPage = () => {
                             Historial
                         </button>
                     </div>
-                    {activeTab === 'load' && receipt.status !== 'finalized' && canUpload && (
+                    {(activeTab === 'load' || activeTab === 'control') && receipt.status !== 'finalized' && canUpload && (
                         <div className="flex gap-2 w-full sm:w-auto">
                             <input
                                 type="file"
@@ -1020,8 +1047,30 @@ const ReceiptDetailsPage = () => {
                         <form onSubmit={handleScan} className="flex flex-col gap-4">
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <div className="flex-1">
+                                    <div className="flex flex-wrap gap-2 mb-3 px-1">
+                                        {[
+                                            { id: 'any', label: 'Cualquiera', icon: '🔍' },
+                                            { id: 'barcode', label: 'Barras', icon: '🏷️' },
+                                            { id: 'provider', label: 'Proveedor', icon: '🚚' },
+                                            { id: 'internal', label: 'Interno', icon: '🏢' }
+                                        ].map(type => (
+                                            <button
+                                                key={type.id}
+                                                type="button"
+                                                onClick={() => setSearchType(type.id)}
+                                                className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-sm border ${searchType === type.id
+                                                        ? 'bg-brand-blue text-white border-brand-blue ring-2 ring-blue-100'
+                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-200 hover:bg-blue-50'
+                                                    }`}
+                                            >
+                                                <span className="text-xs">{type.icon}</span> {type.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
-                                        {activeTab === 'load' ? 'Código de Proveedor' : 'Producto (Interno/Prov)'}
+                                        {searchType === 'any' ? 'Buscar Producto' :
+                                            searchType === 'barcode' ? 'Código de Barras' :
+                                                searchType === 'provider' ? 'Código Proveedor' : 'Código Interno'}
                                     </label>
                                     <div className="relative">
                                         <input

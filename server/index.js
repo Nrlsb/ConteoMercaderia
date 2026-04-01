@@ -269,23 +269,31 @@ app.get('/api/health', (req, res) => {
 /**
  * Helper to find a product by ANY code (internal code, barcode, or provider code)
  * Search Order: barcode -> code -> provider_code
+ * @param {string} inputCode - The code to search for
+ * @param {string} type - The type of search: 'any', 'barcode', 'internal', 'provider'
  */
-async function findProductByAnyCode(inputCode) {
+async function findProductByAnyCode(inputCode, type = 'any') {
     if (!inputCode) return null;
     const codeStr = String(inputCode).trim();
 
     try {
-        // 1. Try exact barcode match first (usually most specific)
-        const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr).maybeSingle();
-        if (pBar) return pBar;
+        // 1. Try exact barcode match
+        if (type === 'any' || type === 'barcode') {
+            const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr).maybeSingle();
+            if (pBar) return pBar;
+        }
 
         // 2. Try internal code
-        const { data: pCode } = await supabase.from('products').select('*').eq('code', codeStr).maybeSingle();
-        if (pCode) return pCode;
+        if (type === 'any' || type === 'internal') {
+            const { data: pCode } = await supabase.from('products').select('*').eq('code', codeStr).maybeSingle();
+            if (pCode) return pCode;
+        }
 
         // 3. Try provider code
-        const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).maybeSingle();
-        if (pProv) return pProv;
+        if (type === 'any' || type === 'provider') {
+            const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).maybeSingle();
+            if (pProv) return pProv;
+        }
 
         return null;
     } catch (error) {
@@ -524,7 +532,7 @@ app.post('/api/receipts/:id/items', verifyToken, verifyBranchAccess('receipts'),
 
     try {
         // 1. Find the product first using the unified helper
-        const product = await findProductByAnyCode(code);
+        const product = await findProductByAnyCode(code, req.body.searchType || 'any');
 
         // 2. Fetch existing item to log history
         const { data: existingItem } = await supabase
@@ -592,7 +600,7 @@ app.post('/api/receipts/:id/scan', verifyToken, verifyBranchAccess('receipts'), 
     const qtyToAdd = quantity || 1;
 
     try {
-        const product = await findProductByAnyCode(code);
+        const product = await findProductByAnyCode(code, req.body.searchType || 'any');
 
         if (!product) {
             return res.status(404).json({ message: 'Producto no encontrado' });
@@ -2015,12 +2023,13 @@ app.post('/api/stock/import', verifyToken, hasPermission('import_data'), multer(
 
 // Duplicate search endpoint removed to avoid conflict
 
-// Get product by barcode
+// Get product by barcode/code with optional type
 app.get('/api/products/:barcode', verifyToken, async (req, res) => {
     const { barcode } = req.params;
+    const { searchType } = req.query;
     try {
         // 1. Try unified exact match
-        const product = await findProductByAnyCode(barcode);
+        const product = await findProductByAnyCode(barcode, searchType || 'any');
 
         if (product) {
             return res.json(product);

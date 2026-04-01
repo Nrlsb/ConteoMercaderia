@@ -67,45 +67,70 @@ export const useProductSync = () => {
         }
     }, [isSyncing]);
 
-    const getProductByCode = useCallback(async (code) => {
+    const getProductByCode = useCallback(async (code, type = 'any') => {
         if (!code) return null;
         const normalized = code.trim().toLowerCase();
 
-        // Buscar por código exacto o código de barras exacto
-        const product = await db.products
-            .where('code').equalsIgnoreCase(normalized)
-            .or('barcode').equalsIgnoreCase(normalized)
-            .first();
+        // Si es 'any', mantiene el comportamiento original agregando provider_code
+        if (type === 'any') {
+            return await db.products
+                .where('code').equalsIgnoreCase(normalized)
+                .or('barcode').equalsIgnoreCase(normalized)
+                .or('provider_code').equalsIgnoreCase(normalized)
+                .first();
+        }
 
-        return product;
+        // Búsquedas específicas por índice
+        if (type === 'barcode') return await db.products.where('barcode').equalsIgnoreCase(normalized).first();
+        if (type === 'internal') return await db.products.where('code').equalsIgnoreCase(normalized).first();
+        if (type === 'provider') return await db.products.where('provider_code').equalsIgnoreCase(normalized).first();
+
+        return null;
     }, []);
 
-    const searchProductsLocally = useCallback(async (query) => {
+    const searchProductsLocally = useCallback(async (query, type = 'any') => {
         if (!query || query.length < 2) return [];
 
         const normalizedQuery = normalizeText(query);
         const terms = normalizedQuery.trim().split(/\s+/);
         const firstTerm = terms[0];
 
-        // 1. Intentar búsqueda rápida por prefijo en indexes clave (code, barcode, description)
         let results = [];
         try {
-            // Nota: startsWithIgnoreCase de Dexie no siempre maneja acentos bien si el índice no está normalizado.
-            // Pero como primer filtro rápido es excelente.
-            const primaryMatches = await db.products
-                .where('code').startsWithIgnoreCase(firstTerm)
-                .or('barcode').startsWithIgnoreCase(firstTerm)
-                .or('description').startsWithIgnoreCase(firstTerm)
-                .limit(100)
-                .toArray();
+            // 1. Búsqueda rápida por prefijo según el tipo seleccionado
+            const collection = db.products;
 
-            results = primaryMatches;
+            if (type === 'any' || type === 'internal') {
+                const inner = await collection.where('code').startsWithIgnoreCase(firstTerm).limit(50).toArray();
+                results = [...results, ...inner];
+            }
+            if (type === 'any' || type === 'barcode') {
+                const inner = await collection.where('barcode').startsWithIgnoreCase(firstTerm).limit(50).toArray();
+                results = [...results, ...inner];
+            }
+            if (type === 'any' || type === 'provider') {
+                const inner = await collection.where('provider_code').startsWithIgnoreCase(firstTerm).limit(50).toArray();
+                results = [...results, ...inner];
+            }
+            if (type === 'any') {
+                const inner = await collection.where('description').startsWithIgnoreCase(firstTerm).limit(50).toArray();
+                results = [...results, ...inner];
+            }
+
+            // Deduplicar por código
+            const seen = new Set();
+            results = results.filter(r => {
+                if (seen.has(r.code)) return false;
+                seen.add(r.code);
+                return true;
+            });
+
         } catch (e) {
             console.error("Error in primary search:", e);
         }
 
-        // 2. Si hay pocos resultados y no parece un código puro, intentar búsqueda por "contiene" normalizada
-        if (results.length < 15 && isNaN(firstTerm)) {
+        // 2. Si hay pocos resultados y no es una búsqueda de código específico de tipo barcode/internal/provider, buscar en descripción
+        if (results.length < 15 && type === 'any' && isNaN(firstTerm)) {
             try {
                 const containsMatches = await db.products
                     .filter(p => normalizeText(p.description).includes(firstTerm))
@@ -127,15 +152,24 @@ export const useProductSync = () => {
         return results.filter(p => {
             const desc = normalizeText(p.description);
             const code = normalizeText(p.code);
-            const barcode = normalizeText(p.barcode);
-            const brand = normalizeText(p.brand);
+            const barcode = normalizeText(p.barcode || '');
+            const provCode = normalizeText(p.provider_code || '');
+            const brand = normalizeText(p.brand || '');
 
-            return terms.every(term =>
-                desc.includes(term) ||
-                code.includes(term) ||
-                barcode.includes(term) ||
-                brand.includes(term)
-            );
+            return terms.every(term => {
+                // Si el tipo es específico, el término debe coincidir con ese campo ESPECÍFICO para que sea válido?
+                // O el filtro global simplemente ayuda a encontrar candidatos?
+                // Lo más coherente es que si el usuario eligió "Proveedor", el primer término DEBIERA estar en el código de proveedor.
+                if (type === 'barcode') return barcode.includes(term);
+                if (type === 'internal') return code.includes(term);
+                if (type === 'provider') return provCode.includes(term);
+
+                return desc.includes(term) ||
+                    code.includes(term) ||
+                    barcode.includes(term) ||
+                    provCode.includes(term) ||
+                    brand.includes(term);
+            });
         }).slice(0, 50);
     }, []);
 
