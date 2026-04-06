@@ -39,7 +39,7 @@ async function updateBarcodes() {
         const rawData = xlsx.utils.sheet_to_json(sheet);
         console.log(`Found ${rawData.length} rows in Excel.`);
 
-        // Create a map of internal code to barcode
+        // Create a map  of internal code to barcode
         const excelDataMap = new Map();
         for (const row of rawData) {
             const findKey = (partialKey) => Object.keys(row).find(k => k.trim().toLowerCase().includes(partialKey.toLowerCase()));
