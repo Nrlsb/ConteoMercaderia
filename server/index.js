@@ -3715,8 +3715,19 @@ app.post('/api/pre-remitos/import-xml', verifyToken, multer({ storage: multer.me
         });
 
     } catch (error) {
-        console.error('Error importing XML:', error);
-        res.status(500).json({ message: 'Error importing XML file: ' + error.message });
+        console.error('CRITICAL ERROR importing XML:', error);
+        console.error('Error stack:', error.stack);
+
+        let clientMessage = 'Error al importar el archivo XML';
+        if (error.message) {
+            clientMessage += ': ' + error.message;
+        }
+
+        res.status(500).json({
+            message: clientMessage,
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
