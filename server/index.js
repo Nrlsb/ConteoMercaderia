@@ -1603,11 +1603,23 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
     const { description, code, barcode, provider_code } = req.body;
 
     try {
+        // Fetch current product state before update for history logging
+        const { data: currentProduct, error: fetchError } = await supabase
+            .from('products')
+            .select('barcode, description')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (fetchError) {
+            console.error('[UPDATE ERROR] Error fetching product for history:', fetchError.message);
+        }
+
         const updateData = {};
         if (description !== undefined) updateData.description = description;
         if (code !== undefined) updateData.code = code;
         if (barcode !== undefined) updateData.barcode = barcode;
         if (provider_code !== undefined) updateData.provider_code = provider_code;
+
         const { data, error } = await supabase
             .from('products')
             .update(updateData)
@@ -1617,6 +1629,11 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
 
         if (error) throw error;
 
+        // Log Barcode History if changed explicitly in the update payload
+        if (currentProduct && barcode !== undefined) {
+            await recordBarcodeHistory(id, currentProduct.barcode, barcode, req.user.id, data.description);
+        }
+
         res.json(data);
     } catch (error) {
         console.error('Error updating product:', error);
@@ -1624,7 +1641,37 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
     }
 });
 
-// --- BARCODE HISTORY ENDPOINTS ---
+// --- BARCODE HISTORY HELPERS & ENDPOINTS ---
+
+// Helper to record barcode history
+async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, description = 'Actualización de producto') {
+    // Treat empty strings or dashes as null/empty
+    const normalize = (val) => (val && val.trim() !== '' && !/^[-_]+$/.test(val.trim())) ? val.trim() : null;
+
+    const oldB = normalize(oldBarcode);
+    const newB = normalize(newBarcode);
+
+    if (oldB === newB) return;
+
+    try {
+        const { error } = await supabase
+            .from('barcode_history')
+            .insert([{
+                action_type: oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE',
+                product_id: productId,
+                product_description: description || 'Sin descripción',
+                details: oldB ? `De ${oldB} a ${newB || '(vacío)'}` : `Código inicial: ${newB}`,
+                created_by: userId,
+                created_at: new Date().toISOString()
+            }]);
+
+        if (error) {
+            console.error('[HISTORY ERROR] Could not record barcode history:', error.message);
+        }
+    } catch (err) {
+        console.error('[HISTORY ERROR] Unexpected error recording barcode history:', err.message);
+    }
+}
 
 // Get barcode history
 // Get barcode history
@@ -1835,18 +1882,42 @@ app.post('/api/products/import', verifyToken, hasPermission('import_data'), mult
             });
         }
 
-        // Batch upsert
+        // Batch upsert and log changes
         const batchSize = 1000;
         let upsertedCount = 0;
 
         for (let i = 0; i < products.length; i += batchSize) {
             const batch = products.slice(i, i + batchSize);
+
+            // 1. Detect changes for history
+            const productCodes = batch.map(p => p.code);
+            const { data: existingProds } = await supabase
+                .from('products')
+                .select('id, code, barcode, description')
+                .in('code', productCodes);
+
+            const existingMap = new Map();
+            if (existingProds) existingProds.forEach(ep => existingMap.set(ep.code, ep));
+
+            // 2. Perform the upsert
             const { error } = await supabase
                 .from('products')
                 .upsert(batch, { onConflict: 'code' });
 
             if (error) throw error;
             upsertedCount += batch.length;
+
+            // 3. Record History for updates
+            for (const product of batch) {
+                const existing = existingMap.get(product.code);
+                if (existing) {
+                    // Update check
+                    if (product.barcode !== undefined) {
+                        // recordBarcodeHistory handles normalization and equality check
+                        await recordBarcodeHistory(existing.id, existing.barcode, product.barcode, req.user.id, product.description);
+                    }
+                }
+            }
         }
 
         res.json({
@@ -2090,6 +2161,13 @@ app.put('/api/products/:code/barcode', verifyToken, async (req, res) => {
     }
 
     try {
+        // Fetch current product for history logging
+        const { data: currentProduct } = await supabase
+            .from('products')
+            .select('id, barcode, description')
+            .eq('code', code)
+            .maybeSingle();
+
         const { data, error } = await supabase
             .from('products')
             .update({ barcode: barcode })
@@ -2100,6 +2178,11 @@ app.put('/api/products/:code/barcode', verifyToken, async (req, res) => {
 
         if (data.length === 0) {
             return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Log Barcode History
+        if (currentProduct) {
+            await recordBarcodeHistory(currentProduct.id, currentProduct.barcode, barcode, req.user.id, currentProduct.description);
         }
 
         res.json({ message: 'Barcode updated successfully', product: data[0] });

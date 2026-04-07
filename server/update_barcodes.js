@@ -117,13 +117,12 @@ async function updateBarcodes() {
         // console.log(updates.slice(0, 5));
         // return;
 
-        // Perform updates in batches
+        // Perform updates in batches and LOG HISTORY
         const batchSize = 100;
         for (let i = 0; i < updates.length; i += batchSize) {
             const batch = updates.slice(i, i + batchSize);
             console.log(`Updating batch ${i / batchSize + 1} (${batch.length} items)...`);
 
-            // Supabase upsert with id will update existing records
             const { error: updateError } = await supabase
                 .from('products')
                 .upsert(batch, { onConflict: 'id' });
@@ -131,6 +130,20 @@ async function updateBarcodes() {
             if (updateError) {
                 console.error(`Error updating batch starting at ${i}:`, updateError);
             } else {
+                // Log to history table
+                for (const item of batch) {
+                    const original = dbProducts.find(p => p.id === item.id);
+                    if (original) {
+                        await supabase.from('barcode_history').insert([{
+                            action_type: original.barcode ? 'UPDATE_BARCODE' : 'ADD_BARCODE',
+                            product_id: item.id,
+                            product_description: original.description,
+                            details: original.barcode ? `De ${original.barcode} a ${item.barcode}` : `Código inicial: ${item.barcode}`,
+                            created_by: 'Script: update_barcodes.js',
+                            created_at: new Date().toISOString()
+                        }]);
+                    }
+                }
                 process.stdout.write('.');
             }
         }

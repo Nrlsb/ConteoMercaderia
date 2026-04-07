@@ -128,23 +128,6 @@ const BarcodeControl = () => {
         }
     };
 
-    const logHistoryEvent = async (action_type, product, details) => {
-        try {
-            await api.post('/api/barcode-history', {
-                action_type,
-                product_id: product.id,
-                product_description: product.description || 'Producto sin descripción',
-                details
-            });
-            // If we are currently on the history tab, refresh it
-            if (activeTab === 'history') {
-                fetchHistory();
-            }
-        } catch (err) {
-            console.error('Error logging history:', err);
-            // Non-blocking error for the user
-        }
-    };
 
     // Focus input on mount and whenever we are not in edit mode or searching
     useEffect(() => {
@@ -237,16 +220,6 @@ const BarcodeControl = () => {
             setProduct(updated);
             setEditMode(false);
 
-            const changes = [];
-            if (product.description !== updated.description) changes.push(`Descripción a "${updated.description}"`);
-            if (product.code !== updated.code) changes.push(`Cód Interno a "${updated.code}"`);
-            if (product.provider_code !== updated.provider_code) changes.push(`Cód Proveedor a "${updated.provider_code}"`);
-            if (product.barcode !== updated.barcode) changes.push(`Cód Barras a: ${updated.barcode}`);
-
-            const detailsStr = changes.join(', ') || `Modificación general (Cód Barras: ${updated.barcode || 'Ninguno'})`;
-
-            // Log to database
-            await logHistoryEvent('edit', updated, detailsStr);
 
             productCacheRef.current = {}; // Limpiar caché tras editar
 
@@ -418,8 +391,6 @@ const BarcodeControl = () => {
             const response = await api.put(`/api/products/${selectedProduct.id}`, { barcode: scannedBarcode });
             const updated = response.data;
 
-            // Log to database
-            await logHistoryEvent('link', updated, `Cód Barras: ${scannedBarcode}`);
 
             toast.success('Código de barras vinculado exitosamente');
             // Refresh the view to show the newly linked product
