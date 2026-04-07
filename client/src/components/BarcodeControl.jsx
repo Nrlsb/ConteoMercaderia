@@ -47,7 +47,10 @@ const BarcodeControl = () => {
 
     // History state
     const [actionHistory, setActionHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
     // Layout state
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [layoutHistory, setLayoutHistory] = useState([]);
     const [layoutLoading, setLayoutLoading] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState('');
