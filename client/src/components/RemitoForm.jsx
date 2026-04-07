@@ -1773,7 +1773,7 @@ const RemitoForm = () => {
                                                     <div key={count.id} className="flex items-center p-3 rounded-lg border border-blue-200 bg-blue-50 shadow-sm">
                                                         <div className="flex-1 flex justify-between items-center">
                                                             <div>
-                                                                <div className="text-sm font-bold text-blue-900">
+                                                                <div className="text-sm font-bold text-blue-900 max-h-24 overflow-y-auto break-all custom-scrollbar pr-2">
                                                                     Conteo Activo: {count.name.split(',').map(n => n.trim()).map(num => {
                                                                         const pre = preRemitoList.find(p => p.order_number === num);
                                                                         if (pre) {

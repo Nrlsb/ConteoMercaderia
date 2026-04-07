@@ -430,9 +430,9 @@ const RemitoList = () => {
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4 whitespace-normal max-w-xs">
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-semibold text-brand-blue font-mono">{remito.count_name || remito.remito_number}</span>
+                                                    <span className="text-sm font-semibold text-brand-blue font-mono break-all whitespace-normal">{remito.count_name || remito.remito_number}</span>
                                                     {remito.id_inventory && (
                                                         <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-0.5">ID: {remito.id_inventory}</span>
                                                     )}
