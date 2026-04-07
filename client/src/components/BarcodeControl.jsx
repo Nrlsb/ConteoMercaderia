@@ -55,6 +55,15 @@ const BarcodeControl = () => {
     const [layoutLoading, setLayoutLoading] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState('');
     const [usersList, setUsersList] = useState([]);
+    const [saveToLayout, setSaveToLayout] = useState(() => {
+        const saved = localStorage.getItem('saveToLayout');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+
+    // Save toggle preference to localStorage
+    useEffect(() => {
+        localStorage.setItem('saveToLayout', JSON.stringify(saveToLayout));
+    }, [saveToLayout]);
 
     // Fetch history/layout on mount and when switching tabs
     useEffect(() => {
@@ -249,8 +258,10 @@ const BarcodeControl = () => {
                 selectProduct(foundProduct);
                 if (!data) setError('code_not_found');
 
-                // Log the scan (lookup)
-                logScan(foundProduct, code);
+                // Log the scan (lookup) only if enabled
+                if (saveToLayout) {
+                    logScan(foundProduct, code);
+                }
             }
         } catch (err) {
             console.error('Lookup error:', err);
@@ -537,6 +548,25 @@ const BarcodeControl = () => {
 
                 {activeTab === 'scanner' && (
                     <div className="animate-fade-in">
+                        {/* Save to Layout Toggle */}
+                        <div className="flex justify-center mb-6">
+                            <label className="flex items-center cursor-pointer group">
+                                <span className={`mr-3 text-sm font-medium transition-colors ${saveToLayout ? 'text-primary-700 font-bold' : 'text-gray-500'}`}>
+                                    {saveToLayout ? 'Guardado en Layout Activado' : 'Guardado en Layout Desactivado'}
+                                </span>
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only"
+                                        checked={saveToLayout}
+                                        onChange={() => setSaveToLayout(!saveToLayout)}
+                                    />
+                                    <div className={`block w-14 h-8 rounded-full transition-colors ${saveToLayout ? 'bg-primary-500' : 'bg-gray-300'}`}></div>
+                                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform duration-300 ease-in-out ${saveToLayout ? 'transform translate-x-6' : ''}`}></div>
+                                </div>
+                            </label>
+                        </div>
+
                         {/* Main Scanner Input */}
                         <form onSubmit={handleScan} className="mb-6 sm:mb-8">
                             <div className="relative flex flex-col sm:flex-row items-center max-w-lg mx-auto gap-2 sm:gap-3">
