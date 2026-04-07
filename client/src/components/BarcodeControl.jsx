@@ -60,10 +60,22 @@ const BarcodeControl = () => {
         return saved !== null ? JSON.parse(saved) : true;
     });
 
-    // Save toggle preference to localStorage
+    const [allowRepetition, setAllowRepetition] = useState(() => {
+        const saved = localStorage.getItem('allowRepetition');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+
+    // Sesión local de códigos escaneados para evitar repetición inmediata si está desactivado
+    const [scannedInSession, setScannedInSession] = useState(new Set());
+
+    // Save toggle preferences to localStorage
     useEffect(() => {
         localStorage.setItem('saveToLayout', JSON.stringify(saveToLayout));
     }, [saveToLayout]);
+
+    useEffect(() => {
+        localStorage.setItem('allowRepetition', JSON.stringify(allowRepetition));
+    }, [allowRepetition]);
 
     // Fetch history/layout on mount and when switching tabs
     useEffect(() => {
@@ -255,12 +267,25 @@ const BarcodeControl = () => {
                 setIsDuplicateModalOpen(true);
             } else {
                 const foundProduct = Array.isArray(data) ? data[0] : (data || null);
+
+                // Si la repetición no está permitida, verificar si ya se escaneó en esta "sesión"
+                // Usamos el código o el ID del producto para verificar
+                const productIdentifier = foundProduct?.id || code;
+                if (!allowRepetition && scannedInSession.has(productIdentifier)) {
+                    toast.warning('Este producto ya fue escaneado en esta sesión.');
+                    selectProduct(foundProduct);
+                    if (!data) setError('code_not_found');
+                    return;
+                }
+
                 selectProduct(foundProduct);
                 if (!data) setError('code_not_found');
 
                 // Log the scan (lookup) only if enabled
                 if (saveToLayout) {
                     logScan(foundProduct, code);
+                    // Agregar a la sesión de escaneados
+                    setScannedInSession(prev => new Set(prev).add(productIdentifier));
                 }
             }
         } catch (err) {
@@ -493,6 +518,7 @@ const BarcodeControl = () => {
         setSearchQuery('');
         setSearchResults([]);
         setSelectedProductToLink(null);
+        setScannedInSession(new Set()); // Limpiar sesión de escaneados al resetear
         setTimeout(() => { if (!showScanner) inputRef.current?.focus() }, 100);
     };
 
@@ -548,8 +574,9 @@ const BarcodeControl = () => {
 
                 {activeTab === 'scanner' && (
                     <div className="animate-fade-in">
-                        {/* Save to Layout Toggle */}
-                        <div className="flex justify-center mb-6">
+                        {/* Config Toggles */}
+                        <div className="flex flex-col sm:flex-row justify-center items-center mb-6 gap-4 sm:gap-8">
+                            {/* Save to Layout Toggle */}
                             <label className="flex items-center cursor-pointer group">
                                 <span className={`mr-3 text-sm font-medium transition-colors ${saveToLayout ? 'text-brand-blue font-bold' : 'text-gray-500'}`}>
                                     {saveToLayout ? 'Guardado en Layout Activado' : 'Guardado en Layout Desactivado'}
@@ -563,6 +590,23 @@ const BarcodeControl = () => {
                                     />
                                     <div className={`w-14 h-7 rounded-full transition-colors duration-200 border border-gray-200 shadow-inner ${saveToLayout ? 'bg-brand-blue' : 'bg-gray-300'}`}></div>
                                     <div className={`absolute left-1 top-1 bg-white w-5 h-5 rounded-full shadow transform transition-transform duration-200 ease-in-out ${saveToLayout ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                                </div>
+                            </label>
+
+                            {/* Allow Repetition Toggle */}
+                            <label className="flex items-center cursor-pointer group">
+                                <span className={`mr-3 text-sm font-medium transition-colors ${allowRepetition ? 'text-brand-blue font-bold' : 'text-gray-500'}`}>
+                                    {allowRepetition ? 'Permitir Repetición Activo' : 'Permitir Repetición Inactivo'}
+                                </span>
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only"
+                                        checked={allowRepetition}
+                                        onChange={() => setAllowRepetition(!allowRepetition)}
+                                    />
+                                    <div className={`w-14 h-7 rounded-full transition-colors duration-200 border border-gray-200 shadow-inner ${allowRepetition ? 'bg-brand-blue' : 'bg-gray-300'}`}></div>
+                                    <div className={`absolute left-1 top-1 bg-white w-5 h-5 rounded-full shadow transform transition-transform duration-200 ease-in-out ${allowRepetition ? 'translate-x-7' : 'translate-x-0'}`}></div>
                                 </div>
                             </label>
                         </div>
