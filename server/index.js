@@ -3252,7 +3252,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
                 const description = expectedItem ? (expectedItem.description || expectedItem.name) : (extraProductMap[code] || 'Producto Extra / Desconocido');
 
                 return {
-                    'ID Inventario': expectedItem?.id_inventory || remito.id_inventory || '-',
+                    'ID Inventario': expectedItem?.id_inventory || '-',
                     Codigo: code,
                     Descripcion: description,
                     'Stock actual': expectedQty,
@@ -3267,7 +3267,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
                 remito.discrepancies.missing.forEach(d => {
                     const code = String(d.code).trim();
                     exportData.push({
-                        'ID Inventario': d.id_inventory || remito.id_inventory || '-',
+                        'ID Inventario': d.id_inventory || '-',
                         Codigo: d.code,
                         Descripcion: d.description,
                         'Stock actual': d.expected,
@@ -3281,7 +3281,7 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
                 remito.discrepancies.extra.forEach(d => {
                     const code = String(d.code).trim();
                     exportData.push({
-                        'ID Inventario': d.id_inventory || remito.id_inventory || '-',
+                        'ID Inventario': d.id_inventory || '-',
                         Codigo: d.code,
                         Descripcion: d.description,
                         'Stock actual': d.expected,
@@ -3938,10 +3938,19 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
                             mergedItemsMap[code] = {
                                 code: code,
                                 description: item.description,
-                                current_stock: item.quantity || 0
+                                current_stock: item.quantity || 0,
+                                id_inventory: pr.id_inventory || null
                             };
                         } else {
                             mergedItemsMap[code].current_stock += (item.quantity || 0);
+                            // Concatenar IDs si el producto está en múltiples pre-remitos
+                            if (pr.id_inventory && mergedItemsMap[code].id_inventory !== pr.id_inventory) {
+                                if (!mergedItemsMap[code].id_inventory) {
+                                    mergedItemsMap[code].id_inventory = pr.id_inventory;
+                                } else if (!mergedItemsMap[code].id_inventory.includes(pr.id_inventory)) {
+                                    mergedItemsMap[code].id_inventory += `, ${pr.id_inventory}`;
+                                }
+                            }
                         }
                     });
                 });
@@ -3974,6 +3983,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             const quantity = totals[product.code] || 0;
             return {
                 code: product.code,
+                id_inventory: product.id_inventory || null,
                 barcode: product.barcode || '',
                 description: product.description || 'Sin descripción',
                 quantity,
@@ -4003,6 +4013,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
         const discrepancies = {
             missing: report.filter(i => i.difference < 0).map(i => ({
                 code: i.code,
+                id_inventory: i.id_inventory,
                 barcode: i.barcode,
                 description: i.description,
                 expected: i.stock,
@@ -4011,6 +4022,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             })),
             extra: report.filter(i => i.difference > 0).map(i => ({
                 code: i.code,
+                id_inventory: i.id_inventory,
                 barcode: i.barcode,
                 description: i.description,
                 expected: i.stock,
@@ -4030,7 +4042,8 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             items: allProducts.map(p => ({
                 code: p.code,
                 description: p.description,
-                quantity: p.current_stock || 0
+                quantity: p.current_stock || 0,
+                id_inventory: p.id_inventory || null
             })),
             discrepancies: discrepancies,
             status: 'processed',
