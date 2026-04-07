@@ -289,10 +289,22 @@ async function findProductByAnyCode(inputCode, type = 'any') {
             if (pCode) return pCode;
         }
 
-        // 3. Try provider code
+        // 3. Try provider code (with leading-zero tolerance)
         if (type === 'any' || type === 'provider') {
             const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).maybeSingle();
             if (pProv) return pProv;
+
+            // Try stripping leading zeros (e.g. scanned "012345" → stored "12345")
+            const stripped = codeStr.replace(/^0+/, '');
+            if (stripped && stripped !== codeStr) {
+                const { data: pStripped } = await supabase.from('products').select('*').eq('provider_code', stripped).maybeSingle();
+                if (pStripped) return pStripped;
+            }
+
+            // Try adding a leading zero (e.g. scanned "12345" → stored "012345")
+            const withZero = '0' + codeStr;
+            const { data: pWithZero } = await supabase.from('products').select('*').eq('provider_code', withZero).maybeSingle();
+            if (pWithZero) return pWithZero;
         }
 
         return null;

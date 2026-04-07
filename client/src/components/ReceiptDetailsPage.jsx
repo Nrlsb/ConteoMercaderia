@@ -343,7 +343,18 @@ const ReceiptDetailsPage = () => {
         if (!code) return;
 
         // Try to find product(s) in current items first (for expected quantity)
-        const matchingItems = items.filter(i => i.product_code === code || i.products?.provider_code === code);
+        // Leading-zero tolerance: also try stripping/adding a leading zero to provider_code
+        const strippedCode = code.replace(/^0+/, '');
+        const withZeroCode = '0' + code;
+        const matchingItems = items.filter(i => {
+            const provCode = i.products?.provider_code || '';
+            return (
+                i.product_code === code ||
+                provCode === code ||
+                (strippedCode && provCode === strippedCode) ||
+                provCode === withZeroCode
+            );
+        });
 
         if (matchingItems.length === 1) {
             const existingItem = matchingItems[0];
