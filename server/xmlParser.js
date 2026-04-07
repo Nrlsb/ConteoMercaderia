@@ -223,6 +223,11 @@ const parseExcelXml = async (buffer) => {
     if (isZip) {
         return parseTrueXlsx(buffer);
     }
+    // Check magic number for legacy XLS (OLE2 Compound Document): D0 CF 11 E0
+    const isXls = buffer.length > 4 && buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
+    if (isXls) {
+        return parseTrueXlsx(buffer);
+    }
     return await parseLegacyXml(buffer);
 };
 

@@ -737,7 +737,7 @@ const RemitoForm = () => {
 
         } catch (error) {
             console.error('Error uploading XML:', error);
-            triggerModal('Error', 'Error al importar XML Stock.', 'error');
+            triggerModal('Error', 'Error al importar el archivo de stock.', 'error');
         } finally {
             setIsLoadingXml(false);
             // Reset input
@@ -1946,17 +1946,17 @@ const RemitoForm = () => {
                                                         {isLoadingXml ? (
                                                             <div className="flex items-center text-gray-500">
                                                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                                Procesando XML...
+                                                                Procesando archivo...
                                                             </div>
                                                         ) : (
                                                             <div className="flex items-center text-green-700">
                                                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                                                <span className="font-medium text-sm">Subir DocConteo.xml</span>
+                                                                <span className="font-medium text-sm">Subir DocConteo (XML / XLSX / XLS)</span>
                                                             </div>
                                                         )}
                                                     </label>
                                                 </div>
-                                                <p className="mt-2 text-xs text-gray-500">Sube el archivo XML del ERP para crear una nueva lista de conteo automáticamente.</p>
+                                                <p className="mt-2 text-xs text-gray-500">Sube el archivo XML, XLSX o XLS del ERP para crear una nueva lista de conteo automáticamente.</p>
                                             </div>
                                         </>
                                     )}
