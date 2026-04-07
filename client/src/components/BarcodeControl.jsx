@@ -551,7 +551,7 @@ const BarcodeControl = () => {
                         {/* Save to Layout Toggle */}
                         <div className="flex justify-center mb-6">
                             <label className="flex items-center cursor-pointer group">
-                                <span className={`mr-3 text-sm font-medium transition-colors ${saveToLayout ? 'text-primary-700 font-bold' : 'text-gray-500'}`}>
+                                <span className={`mr-3 text-sm font-medium transition-colors ${saveToLayout ? 'text-brand-blue font-bold' : 'text-gray-500'}`}>
                                     {saveToLayout ? 'Guardado en Layout Activado' : 'Guardado en Layout Desactivado'}
                                 </span>
                                 <div className="relative">
@@ -561,8 +561,8 @@ const BarcodeControl = () => {
                                         checked={saveToLayout}
                                         onChange={() => setSaveToLayout(!saveToLayout)}
                                     />
-                                    <div className={`block w-14 h-8 rounded-full transition-colors ${saveToLayout ? 'bg-primary-500' : 'bg-gray-300'}`}></div>
-                                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform duration-300 ease-in-out ${saveToLayout ? 'transform translate-x-6' : ''}`}></div>
+                                    <div className={`w-14 h-7 rounded-full transition-colors duration-200 border border-gray-200 shadow-inner ${saveToLayout ? 'bg-brand-blue' : 'bg-gray-300'}`}></div>
+                                    <div className={`absolute left-1 top-1 bg-white w-5 h-5 rounded-full shadow transform transition-transform duration-200 ease-in-out ${saveToLayout ? 'translate-x-7' : 'translate-x-0'}`}></div>
                                 </div>
                             </label>
                         </div>
