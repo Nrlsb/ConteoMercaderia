@@ -485,6 +485,7 @@ app.get('/api/receipts', verifyToken, async (req, res) => {
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
+            .is('deleted_at', null)
             .order('date', { ascending: false });
 
         if (error) throw error;
@@ -503,6 +504,7 @@ app.get('/api/receipts/:id', verifyToken, verifyBranchAccess('receipts'), async 
             .from('receipts')
             .select('*')
             .eq('id', id)
+            .is('deleted_at', null)
             .single();
 
         if (receiptError) throw receiptError;
@@ -720,15 +722,14 @@ app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), 
 app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_counts'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
-        // Delete history first
-        await supabase.from('receipt_items_history').delete().eq('receipt_id', id);
-        // Delete items
-        await supabase.from('receipt_items').delete().eq('receipt_id', id);
-        // Delete receipt
-        const { error } = await supabase.from('receipts').delete().eq('id', id);
+        // Soft delete receipt
+        const { error } = await supabase
+            .from('receipts')
+            .update({ deleted_at: new Date() })
+            .eq('id', id);
 
         if (error) throw error;
-        res.json({ message: 'Receipt deleted successfully' });
+        res.json({ message: 'Recibo borrado correctamente' });
     } catch (error) {
         console.error('Error deleting receipt:', error);
         res.status(500).json({ message: 'Error deleting receipt' });
@@ -2155,6 +2156,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
         const { data: remitosData, error: remitosError } = await supabase
             .from('remitos')
             .select('*')
+            .is('deleted_at', null)
             .order('date', { ascending: false });
 
         if (remitosError) throw remitosError;
@@ -2173,7 +2175,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                     numero_pv,
                     sucursal
                 )
-            `);
+            `)
+            .is('deleted_at', null);
 
         if (preRemitosError) throw preRemitosError;
 
@@ -2204,7 +2207,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
         const { data: generalCounts, error: countsError } = await supabase
             .from('general_counts')
             .select('*')
-            .neq('status', 'voided');
+            .neq('status', 'voided')
+            .is('deleted_at', null);
 
         if (countsError) console.error('Error fetching general counts:', countsError);
 
@@ -2516,27 +2520,15 @@ app.delete('/api/remitos/:id', verifyToken, hasPermission('delete_counts'), asyn
     const { id } = req.params;
 
     try {
-        // 1. Get remito to find remito_number (for scans deletion)
-        const { data: remito, error: fetchError } = await supabase
+        // Soft delete remito
+        const { error } = await supabase
             .from('remitos')
-            .select('remito_number')
-            .eq('id', id)
-            .single();
+            .update({ deleted_at: new Date() })
+            .eq('id', id);
 
-        if (fetchError) throw fetchError;
+        if (error) throw error;
 
-        // 2. Delete scans associated with this remito (if any)
-        if (remito && remito.remito_number) {
-            await supabase.from('inventory_scans').delete().eq('order_number', remito.remito_number);
-            await supabase.from('inventory_scans_history').delete().eq('order_number', remito.remito_number);
-        }
-
-        // 3. Delete the remito itself
-        const { error: deleteError } = await supabase.from('remitos').delete().eq('id', id);
-
-        if (deleteError) throw deleteError;
-
-        res.json({ message: 'Remito deleted successfully' });
+        res.json({ message: 'Remito borrado correctamente' });
     } catch (error) {
         console.error('Error deleting remito:', error);
         res.status(500).json({ message: 'Error deleting remito' });
@@ -2548,27 +2540,15 @@ app.delete('/api/pre-remitos/:id', verifyToken, hasPermission('delete_counts'), 
     const { id } = req.params;
 
     try {
-        // 1. Get pre-remito to find order_number
-        const { data: preRemito, error: fetchError } = await supabase
+        // Soft delete pre-remito
+        const { error } = await supabase
             .from('pre_remitos')
-            .select('order_number')
-            .eq('id', id)
-            .single();
+            .update({ deleted_at: new Date() })
+            .eq('id', id);
 
-        if (fetchError) throw fetchError;
+        if (error) throw error;
 
-        // 2. Delete scans associated
-        if (preRemito && preRemito.order_number) {
-            await supabase.from('inventory_scans').delete().eq('order_number', preRemito.order_number);
-            await supabase.from('inventory_scans_history').delete().eq('order_number', preRemito.order_number);
-        }
-
-        // 3. Delete pre-remito
-        const { error: deleteError } = await supabase.from('pre_remitos').delete().eq('id', id);
-
-        if (deleteError) throw deleteError;
-
-        res.json({ message: 'Pre-remito deleted successfully' });
+        res.json({ message: 'Pre-remito borrado correctamente' });
     } catch (error) {
         console.error('Error deleting pre-remito:', error);
         res.status(500).json({ message: 'Error deleting pre-remito' });
@@ -2590,6 +2570,7 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
             .from('general_counts')
             .select('id, status, sucursal_id, product_codes')
             .eq('id', id)
+            .is('deleted_at', null)
             .maybeSingle();
 
         if (countError) throw countError;
@@ -2706,16 +2687,15 @@ app.delete('/api/general-counts/:id', verifyToken, hasPermission('delete_counts'
     const { id } = req.params;
 
     try {
-        // 1. Delete scans associated (using ID as order_number for general counts)
-        await supabase.from('inventory_scans').delete().eq('order_number', id);
-        await supabase.from('inventory_scans_history').delete().eq('order_number', id);
+        // Soft delete general count
+        const { error } = await supabase
+            .from('general_counts')
+            .update({ deleted_at: new Date() })
+            .eq('id', id);
 
-        // 2. Delete general count
-        const { error: deleteError } = await supabase.from('general_counts').delete().eq('id', id);
+        if (error) throw error;
 
-        if (deleteError) throw deleteError;
-
-        res.json({ message: 'General count deleted successfully' });
+        res.json({ message: 'Conteo borrado correctamente' });
     } catch (error) {
         console.error('Error deleting general count:', error);
         res.status(500).json({ message: 'Error deleting general count' });
@@ -2732,6 +2712,7 @@ async function getFullRemitoDetails(id) {
         .from('remitos')
         .select('*')
         .eq('id', id)
+        .is('deleted_at', null)
         .maybeSingle();
 
     if (finalizedRemito) {
@@ -2769,6 +2750,7 @@ async function getFullRemitoDetails(id) {
                 .from('pre_remitos')
                 .select('*, pedidos_ventas(numero_pv, sucursal)')
                 .eq('id', id)
+                .is('deleted_at', null)
                 .maybeSingle();
 
             if (preRemito) {
@@ -2808,6 +2790,7 @@ async function getFullRemitoDetails(id) {
                     .from('general_counts')
                     .select('*')
                     .eq('id', id)
+                    .is('deleted_at', null)
                     .maybeSingle();
 
                 if (generalCount) {
@@ -4126,6 +4109,7 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
             .from('pre_remitos')
             .select('items')
             .eq('order_number', orderNumber)
+            .is('deleted_at', null)
             .maybeSingle();
 
         if (preError) throw preError;
@@ -4138,6 +4122,7 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
                 .from('general_counts')
                 .select('id')
                 .eq('id', orderNumber)
+                .is('deleted_at', null)
                 .maybeSingle();
 
             if (genError) throw genError;
