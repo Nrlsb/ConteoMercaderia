@@ -47,18 +47,56 @@ const BarcodeControl = () => {
 
     // History state
     const [actionHistory, setActionHistory] = useState([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
+    // Layout state
+    const [layoutHistory, setLayoutHistory] = useState([]);
+    const [layoutLoading, setLayoutLoading] = useState(false);
+    const [selectedUserId, setSelectedUserId] = useState('');
+    const [usersList, setUsersList] = useState([]);
 
-    // Date filter state
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-
-    // Fetch history on mount and when switching to history tab
+    // Fetch history/layout on mount and when switching tabs
     useEffect(() => {
         if (activeTab === 'history') {
             fetchHistory();
+        } else if (activeTab === 'layout') {
+            fetchLayout();
+            fetchUsersForFilter();
         }
     }, [activeTab]);
+
+    const fetchUsersForFilter = async () => {
+        try {
+            // We could use /api/users if admin, but to be safe for all roles
+            // we can just get them from the history if needed, or if we have admin rights:
+            const response = await api.get('/api/users');
+            setUsersList(response.data);
+        } catch (err) {
+            console.error('Error fetching users for filter:', err);
+            // Fallback: empty list or just common users
+        }
+    };
+
+    const fetchLayout = async () => {
+        setLayoutLoading(true);
+        try {
+            let url = '/api/barcode-history?action_type=SCAN';
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            if (selectedUserId) params.append('user_id', selectedUserId);
+
+            if (params.toString()) {
+                url += `&${params.toString()}`;
+            }
+
+            const response = await api.get(url);
+            setLayoutHistory(response.data);
+        } catch (err) {
+            console.error('Error fetching layout:', err);
+            toast.error('Error al cargar el layout');
+        } finally {
+            setLayoutLoading(false);
+        }
+    };
 
     const fetchHistory = async () => {
         setHistoryLoading(true);
@@ -145,6 +183,19 @@ const BarcodeControl = () => {
         await lookupProduct(code);
     };
 
+    const logScan = async (productData, code) => {
+        try {
+            await api.post('/api/barcode-history', {
+                action_type: 'SCAN',
+                product_id: productData?.id || null,
+                product_description: productData?.description || `Código desconocido: ${code}`,
+                details: `Escaneo de ${code}`
+            });
+        } catch (err) {
+            console.error('Error logging scan:', err);
+        }
+    };
+
     const selectProduct = (productData) => {
         setProduct(productData);
         setEditData({
@@ -191,8 +242,12 @@ const BarcodeControl = () => {
                 setDuplicateProducts(data);
                 setIsDuplicateModalOpen(true);
             } else {
-                selectProduct(Array.isArray(data) ? data[0] : (data || null));
+                const foundProduct = Array.isArray(data) ? data[0] : (data || null);
+                selectProduct(foundProduct);
                 if (!data) setError('code_not_found');
+
+                // Log the scan (lookup)
+                logScan(foundProduct, code);
             }
         } catch (err) {
             console.error('Lookup error:', err);
@@ -464,6 +519,15 @@ const BarcodeControl = () => {
                         <History className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Historial
                         {actionHistory.length > 0 && (
                             <span className="ml-1.5 sm:ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs border border-gray-200">{actionHistory.length}</span>
+                        )}
+                    </button>
+                    <button
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'layout' ? 'border-primary-600 text-primary-600 bg-primary-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        onClick={() => setActiveTab('layout')}
+                    >
+                        <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Layout
+                        {layoutHistory.length > 0 && (
+                            <span className="ml-1.5 sm:ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs border border-gray-200">{layoutHistory.length}</span>
                         )}
                     </button>
                 </div>
@@ -895,6 +959,106 @@ const BarcodeControl = () => {
                             <div className="text-center py-10 text-gray-500">
                                 <ClipboardList className="w-12 h-12 mb-3 text-gray-300 mx-auto" />
                                 <p>No hay cambios recientes registrados en la base de datos.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Layout Section */}
+                {activeTab === 'layout' && (
+                    <div className="animate-fade-in pt-2">
+                        {/* Filters */}
+                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+                            <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Usuario</label>
+                                    <select
+                                        value={selectedUserId}
+                                        onChange={(e) => setSelectedUserId(e.target.value)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white"
+                                    >
+                                        <option value="">Todos los usuarios</option>
+                                        {usersList.map(u => (
+                                            <option key={u.id} value={u.id}>{u.username}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha Desde</label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha Hasta</label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto">
+                                    <button
+                                        onClick={fetchLayout}
+                                        className="w-full btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        disabled={layoutLoading}
+                                    >
+                                        <Filter className="w-4 h-4" /> Filtrar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {layoutLoading ? (
+                            <div className="flex justify-center py-10">
+                                <Loader2 className="w-10 h-10 text-primary-500 animate-spin" />
+                            </div>
+                        ) : layoutHistory.length > 0 ? (
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <ClipboardList className="w-5 h-5 text-primary-500" />
+                                    Orden de Escaneo (Layout)
+                                </h3>
+                                <div className="space-y-3">
+                                    {layoutHistory.map((item, index) => (
+                                        <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors">
+                                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
+                                                    {layoutHistory.length - index}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-gray-900">{item.product_description}</p>
+                                                    <div className="flex flex-wrap gap-2 mt-1">
+                                                        {item.products?.barcode && (
+                                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono flex items-center gap-1 border border-gray-200">
+                                                                <Barcode className="w-3 h-3" /> {item.products.barcode}
+                                                            </span>
+                                                        )}
+                                                        {item.users?.username && (
+                                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded flex items-center gap-1 border border-blue-100">
+                                                                <User className="w-3 h-3" /> {item.users.username}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100 self-end sm:self-auto">
+                                                <Clock className="w-3.5 h-3.5" />
+                                                {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                                <Package className="w-12 h-12 mb-3 text-gray-300 mx-auto" />
+                                <p className="text-gray-500 font-medium">No hay escaneos registrados para los criterios seleccionados.</p>
+                                <p className="text-xs text-gray-400 mt-1">Comienza a escanear productos en la pestaña principal.</p>
                             </div>
                         )}
                     </div>

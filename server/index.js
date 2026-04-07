@@ -1674,9 +1674,8 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
 }
 
 // Get barcode history
-// Get barcode history
 app.get('/api/barcode-history', verifyToken, async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, user_id, action_type } = req.query;
     try {
         let query = supabase
             .from('barcode_history')
@@ -1693,22 +1692,29 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
             `)
             .order('created_at', { ascending: false });
 
+        // Apply filters
+        if (user_id) {
+            query = query.eq('created_by', user_id);
+        }
+        if (action_type) {
+            query = query.eq('action_type', action_type);
+        }
+
         // Apply date filters if available
         if (startDate) {
-            // For start date, we accept values from the beginning of that day
+            // Para fecha inicio, tomamos desde el comienzo del día
             const startStr = `${startDate}T00:00:00.000Z`;
             query = query.gte('created_at', startStr);
         }
         if (endDate) {
-            // For end date, we encompass the whole day up to 23:59:59
+            // Para fecha fin, abarcamos todo el día hasta las 23:59:59
             const endStr = `${endDate}T23:59:59.999Z`;
             query = query.lte('created_at', endStr);
         }
 
-        // Only limit if there are no date filters provided, to keep general load balanced,
-        // although if they are not provided, maybe the user wants recent history
-        if (!startDate && !endDate) {
-            query = query.limit(50);
+        // Solo limitar si no hay filtros de fecha ni usuario, para mantener carga general equilibrada
+        if (!startDate && !endDate && !user_id) {
+            query = query.limit(100); // Aumentado a 100 para mejor visibilidad inicial
         }
 
         const { data: history, error } = await query;
