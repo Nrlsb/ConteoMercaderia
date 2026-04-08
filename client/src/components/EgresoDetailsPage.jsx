@@ -452,6 +452,21 @@ const EgresoDetailsPage = () => {
         }
     };
 
+    const handleReasonChange = async (productCode, reason) => {
+        try {
+            // Optimistic update
+            setItems(prevItems => prevItems.map(item =>
+                item.product_code === productCode ? { ...item, shortage_reason: reason } : item
+            ));
+
+            await api.put(`/api/egresos/${id}/items/${productCode}/reason`, { reason });
+        } catch (error) {
+            console.error('Error updating reason:', error);
+            toast.error('Error al guardar el motivo');
+            fetchEgresoDetails(); // Revert on failure
+        }
+    };
+
     const handleBarcodeScan = (code) => {
         setScanInput(code);
         setTimeout(() => handleScan(null, code), 50);
@@ -820,6 +835,7 @@ const EgresoDetailsPage = () => {
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Controlado</th>
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Diferencia</th>
+                                                    <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Motivo Faltante</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-100">
@@ -856,6 +872,20 @@ const EgresoDetailsPage = () => {
                                                                     {label}
                                                                 </span>
                                                             </td>
+                                                            <td className="px-5 py-4 text-center">
+                                                                {diff > 0 && (
+                                                                    <select
+                                                                        value={item.shortage_reason || ''}
+                                                                        onChange={(e) => handleReasonChange(item.product_code, e.target.value)}
+                                                                        className="text-xs p-1 border rounded bg-white font-medium outline-none focus:ring-1 focus:ring-blue-400"
+                                                                        disabled={egreso.status === 'finalized'}
+                                                                    >
+                                                                        <option value="">(Sin motivo)</option>
+                                                                        <option value="no hay stock">No hay stock</option>
+                                                                        <option value="producto dañado">Producto dañado</option>
+                                                                    </select>
+                                                                )}
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
@@ -887,6 +917,23 @@ const EgresoDetailsPage = () => {
                                                     {item.products?.barcode && (
                                                         <p className="text-[10px] text-blue-500 font-mono mb-3">{item.products.barcode}</p>
                                                     )}
+
+                                                    {diff > 0 && (
+                                                        <div className="mb-3">
+                                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Motivo del Faltante</label>
+                                                            <select
+                                                                value={item.shortage_reason || ''}
+                                                                onChange={(e) => handleReasonChange(item.product_code, e.target.value)}
+                                                                className="w-full text-xs p-2 border rounded-lg bg-white font-medium outline-none focus:ring-1 focus:ring-blue-400"
+                                                                disabled={egreso.status === 'finalized'}
+                                                            >
+                                                                <option value="">(Sin motivo)</option>
+                                                                <option value="no hay stock">No hay stock</option>
+                                                                <option value="producto dañado">Producto dañado</option>
+                                                            </select>
+                                                        </div>
+                                                    )}
+
                                                     <div className="flex justify-between items-center border-t border-white/60 pt-3">
                                                         <div className="flex gap-4">
                                                             <div className="flex flex-col">

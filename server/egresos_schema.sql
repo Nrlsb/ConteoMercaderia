@@ -22,6 +22,7 @@ create table if not exists egreso_items (
   expected_quantity numeric default 0,
   scanned_quantity numeric default 0,
   last_scanned_at timestamp with time zone default now(),
+  shortage_reason text,
   unique (egreso_id, product_code)
 );
 

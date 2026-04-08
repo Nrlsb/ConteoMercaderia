@@ -1333,6 +1333,39 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
     }
 });
 
+// Update shortage reason for Egreso Item
+app.put('/api/egresos/:id/items/:productCode/reason', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+    const { id, productCode } = req.params;
+    const { reason } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('egreso_items')
+            .update({ shortage_reason: reason })
+            .eq('egreso_id', id)
+            .eq('product_code', productCode)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Log history
+        await supabase.from('egreso_items_history').insert({
+            egreso_id: id,
+            user_id: req.user.id,
+            operation: 'UPDATE_REASON',
+            product_code: productCode,
+            new_data: { shortage_reason: reason },
+            changed_at: new Date().toISOString()
+        });
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error updating shortage reason:', error);
+        res.status(500).json({ message: 'Error updating reason' });
+    }
+});
+
 // Close Egreso
 app.put('/api/egresos/:id/close', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
@@ -1458,7 +1491,8 @@ app.get('/api/egresos/:id/export', verifyToken, verifyBranchAccess('egresos'), a
             'Descripción': item.products?.description || 'Sin descripción',
             'Cant. Esperada': Number(item.expected_quantity) || 0,
             'Cant. Controlada': Number(item.scanned_quantity) || 0,
-            'Diferencia': (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0)
+            'Diferencia': (Number(item.scanned_quantity) || 0) - (Number(item.expected_quantity) || 0),
+            'Motivo Faltante': item.shortage_reason || '-'
         }));
 
         const onlyDifferences = req.query.onlyDifferences === 'true';
