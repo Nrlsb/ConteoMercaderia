@@ -11,7 +11,7 @@ const cleanupScannerCSS = () => {
     document.documentElement.classList.remove('barcode-scanner-active');
 };
 
-const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
+const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
     // Shared state
     const [isAutoConfirm, setIsAutoConfirm] = useState(() => {
         return localStorage.getItem('scanner_auto_confirm') === 'true';
@@ -195,14 +195,6 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                 if (result.barcode && result.barcode.rawValue) {
                     const code = result.barcode.rawValue;
                     if (isAutoConfirmRef.current) {
-                        // Auto-confirmar: detener y procesar inmediatamente
-                        try {
-                            await BarcodeScanner.removeAllListeners();
-                            await BarcodeScanner.stopScan();
-                        } catch (e) { /* ignore */ }
-                        nativeScanActiveRef.current = false;
-                        setIsScanning(false);
-                        cleanupScannerCSS();
                         handleScanSuccess(code);
                     } else {
                         detectedCodeRef.current = code;
@@ -249,11 +241,12 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
         const code = detectedCodeRef.current;
         if (!code) return;
 
-        // Detener el escaneo PRIMERO y esperar
-        await stopScanning();
-
         // Procesar el código capturado
         handleScanSuccess(code);
+
+        // Limpiar para permitir nueva captura si no se cierra (ej: error en padre)
+        detectedCodeRef.current = null;
+        setDetectedCode(null);
     }, []);
 
     // --- NATIVE: Cancelar escaneo ---
@@ -469,7 +462,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
             {/* Renderizado como Portal en document.body     */}
             {/* ============================================ */}
             {isNative && isScanning && ReactDOM.createPortal(
-                <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 99999 }}>
+                <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 1000 }}>
 
                     {/* Header - Barra superior */}
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
@@ -513,6 +506,31 @@ const Scanner = ({ onScan, onCancel, isEnabled = true }) => {
                             )}
                         </button>
                     </div>
+
+                    {/* Banner de Estado (Éxito/Error) */}
+                    {scanStatus && (
+                        <div className="px-4 py-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <div className={`
+                                flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border
+                                ${scanStatus.type === 'error' ? 'bg-red-500 border-red-400 text-white' : 'bg-green-600 border-green-500 text-white'}
+                            `}>
+                                <div className="p-1.5 bg-white/20 rounded-full">
+                                    {scanStatus.type === 'error' ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    )}
+                                </div>
+                                <p className="text-sm font-bold leading-tight flex-1">{scanStatus.message}</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Zona central: visor con esquinas tipo Google */}
                     <div className="flex-1 flex items-center justify-center relative">

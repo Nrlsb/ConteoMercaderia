@@ -25,6 +25,7 @@ const EgresoDetailsPage = () => {
     const [visibleItems, setVisibleItems] = useState(20);
     const [activeTab, setActiveTab] = useState('control');
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const [scanStatus, setScanStatus] = useState(null);
 
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -108,6 +109,13 @@ const EgresoDetailsPage = () => {
             fetchHistory();
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        if (scanStatus) {
+            const timer = setTimeout(() => setScanStatus(null), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [scanStatus]);
 
     const fetchEgresoDetails = async () => {
         try {
@@ -314,6 +322,7 @@ const EgresoDetailsPage = () => {
 
     const handleScan = async (e, overrideCode = null) => {
         if (e) e.preventDefault();
+        if (processing) return;
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
@@ -369,7 +378,9 @@ const EgresoDetailsPage = () => {
             })));
             setShowMatchModal(true);
         } else {
-            toast.error(`El producto "${code}" no forma parte de este remito de egreso.`, { duration: 4000 });
+            const errorMsg = `El producto "${code}" no forma parte de este remito de egreso.`;
+            toast.error(errorMsg, { duration: 4000 });
+            setScanStatus({ type: 'error', message: errorMsg });
             setScanInput('');
         }
         setProcessing(false);
@@ -443,7 +454,6 @@ const EgresoDetailsPage = () => {
 
     const handleBarcodeScan = (code) => {
         setScanInput(code);
-        toast.info(`Código capturado: ${code}`);
         setTimeout(() => handleScan(null, code), 50);
     };
 
@@ -1065,7 +1075,8 @@ const EgresoDetailsPage = () => {
                         <Scanner
                             onScan={handleBarcodeScan}
                             onCancel={() => setIsBarcodeReaderActive(false)}
-                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !processing && !showMatchModal}
+                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !showMatchModal}
+                            scanStatus={scanStatus}
                         />
                     </div>
                     <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">

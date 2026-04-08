@@ -556,8 +556,6 @@ const ReceiptDetailsPage = () => {
 
     const handleBarcodeScan = (code) => {
         setScanInput(code);
-        // Toast with info
-        toast.info(`Código capturado: ${code}`);
         // Auto trigger the scan processing
         setTimeout(() => handleScan(null, code), 50);
     };
@@ -1070,8 +1068,8 @@ const ReceiptDetailsPage = () => {
                                                 type="button"
                                                 onClick={() => setSearchType(type.id)}
                                                 className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-sm border ${searchType === type.id
-                                                        ? 'bg-brand-blue text-white border-brand-blue ring-2 ring-blue-100'
-                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-200 hover:bg-blue-50'
+                                                    ? 'bg-brand-blue text-white border-brand-blue ring-2 ring-blue-100'
+                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-200 hover:bg-blue-50'
                                                     }`}
                                             >
                                                 <span className="text-xs">{type.icon}</span> {type.label}
