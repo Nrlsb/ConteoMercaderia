@@ -41,7 +41,8 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
             if (photo.base64String) {
                 setCapturedImages(prev => [...prev, {
                     base64: photo.base64String,
-                    format: photo.format
+                    format: photo.format,
+                    isGallery: false
                 }]);
             }
         } catch (error) {
@@ -70,7 +71,8 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                     const base64 = await blobToBase64(blob);
                     newImages.push({
                         base64: base64,
-                        format: photo.format
+                        format: photo.format,
+                        isGallery: true
                     });
                 }
                 setCapturedImages(prev => [...prev, ...newImages]);
@@ -112,7 +114,11 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                 });
 
                 if (response.data && response.data.length > 0) {
-                    allItems.push(...response.data);
+                    const itemsWithSource = response.data.map(item => ({
+                        ...item,
+                        fileName: img.isGallery ? 'Galería' : 'Cámara'
+                    }));
+                    allItems.push(...itemsWithSource);
                 }
             }
 
