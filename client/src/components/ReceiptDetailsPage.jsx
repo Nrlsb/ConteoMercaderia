@@ -746,10 +746,11 @@ const ReceiptDetailsPage = () => {
 
     const handleEditFailedItemCode = (index, newCode) => {
         setImportFailedItems(prev => {
-            const updated = [...prev];
-            updated[index].code = newCode;
+            const updated = prev.map((item, i) =>
+                i === index ? { ...item, code: newCode } : item
+            );
 
-            // Si este es el item que se está vinculando, actualizar también linkingItem
+            // Si este es el item que se está vinculando, actualizar también linkingItem con la nueva copia
             if (linkingItem === prev[index]) {
                 setLinkingItem(updated[index]);
             }
@@ -866,6 +867,7 @@ const ReceiptDetailsPage = () => {
 
                 try {
                     const response = await api.post('/api/remitos/upload-pdf', formData);
+                    const items = response.data.items;
                     if (items && items.length > 0) {
                         const itemsWithFileName = items.map(item => ({
                             ...item,
