@@ -110,7 +110,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+/\\s+/\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+/\\s+/\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         const regexB = new RegExp(`^\\s*/\\s+/\\s*(.+?)\\s{5,}(\\d{4,})\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
