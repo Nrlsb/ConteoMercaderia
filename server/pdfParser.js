@@ -102,7 +102,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const clientName = clientMatch ? clientMatch[1].trim() : null;
 
         const isDevolucion = text.includes('REMITO DE DEVOLUCION');
-        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : 'REMITO'}`);
+        const isTransferencia = text.includes('REMITO DE TRANSFERENCIA');
+        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : (isTransferencia ? 'TRANSFERENCIA' : 'REMITO')}`);
 
         const lines = text.split('\n');
         const items = [];
@@ -112,6 +113,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
         const regexA = new RegExp(`^\\s*(\\d{4,})\\s+/\\s+/\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         const regexB = new RegExp(`^\\s*/\\s+/\\s*(.+?)\\s{5,}(\\d{4,})\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s{2,}(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
@@ -168,6 +170,19 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const description = matchB[1].trim();
                 const code = matchB[2];
                 const quantityStr = matchB[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity)) {
+                    pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            // TRY LAYOUT TRANSFER (Code first, no slashes)
+            const matchTransfer = line.match(regexTransfer);
+            if (matchTransfer) {
+                const code = matchTransfer[1];
+                const description = matchTransfer[2].trim();
+                const quantityStr = matchTransfer[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity)) {
                     pushItem(items, code, description, quantity);
@@ -246,6 +261,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 remitoNumber
             },
             isDevolucion,
+            isTransferencia,
             textSnippet: text
         };
     } catch (error) {

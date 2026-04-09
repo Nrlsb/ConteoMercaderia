@@ -552,10 +552,22 @@ const EgresoDetailsPage = () => {
                             </button>
                             <h1 className="text-xl font-bold text-gray-900 leading-tight">Egreso: {egreso.reference_number}</h1>
                         </div>
-                        <div className="text-sm mt-1 ml-7">
-                            Estado: <span className={egreso.status === 'finalized' ? 'text-green-600 font-bold' : 'text-yellow-600 font-bold'}>
-                                {egreso.status === 'finalized' ? 'FINALIZADO' : 'ABIERTO'}
+                        <div className="flex flex-wrap items-center gap-2 mt-1 ml-7">
+                            <span className="text-sm">
+                                Estado: <span className={egreso.status === 'finalized' ? 'text-green-600 font-bold' : 'text-yellow-600 font-bold'}>
+                                    {egreso.status === 'finalized' ? 'FINALIZADO' : 'ABIERTO'}
+                                </span>
                             </span>
+                            {egreso.is_devolucion && (
+                                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 uppercase">
+                                    Remito de Devolución
+                                </span>
+                            )}
+                            {egreso.is_transferencia && (
+                                <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200 uppercase">
+                                    Remito de Transferencia
+                                </span>
+                            )}
                         </div>
                         {egreso.pdf_filename && (
                             <div className="text-xs text-gray-400 ml-7 mt-0.5">📄 {egreso.pdf_filename}</div>

@@ -620,6 +620,11 @@ const EgresosList = () => {
                                                     Devolución
                                                 </span>
                                             )}
+                                            {egreso.is_transferencia && (
+                                                <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200 uppercase">
+                                                    Transferencia
+                                                </span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
@@ -676,6 +681,11 @@ const EgresosList = () => {
                                     {egreso.is_devolucion && (
                                         <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
                                             Devolución
+                                        </span>
+                                    )}
+                                    {egreso.is_transferencia && (
+                                        <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-blue-200 uppercase">
+                                            Transferencia
                                         </span>
                                     )}
                                 </div>
