@@ -129,7 +129,6 @@ const EgresosList = () => {
                     const formData = new FormData();
                     formData.append('pdf', file);
                     const response = await api.post('/api/egresos/upload-pdf', formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' },
                         onUploadProgress: (evt) => {
                             const percent = evt.total ? Math.round((evt.loaded * 100) / evt.total) : 50;
                             setWatcherProgress(prev => prev ? { ...prev, percent } : null);
@@ -264,9 +263,7 @@ const EgresosList = () => {
                     const formData = new FormData();
                     formData.append('pdf', file);
 
-                    const response = await api.post('/api/egresos/upload-pdf', formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                    });
+                    const response = await api.post('/api/egresos/upload-pdf', formData);
 
                     const { results } = response.data;
                     if (results.success.length > 0) {

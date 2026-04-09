@@ -1079,16 +1079,20 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
 // --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
 
 // Create Egreso via PDF Upload (auto-create)
-app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).single('pdf'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ message: 'No se recibió ningún archivo PDF' });
+app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).fields([{ name: 'pdf', maxCount: 1 }, { name: 'file', maxCount: 1 }]), async (req, res) => {
+    const file = (req.files && req.files['pdf'] ? req.files['pdf'][0] : null) || (req.files && req.files['file'] ? req.files['file'][0] : null);
+
+    if (!file) {
+        console.error('[EGRESO PDF] No se recibió ningún archivo. Fields received:', Object.keys(req.files || {}));
+        return res.status(400).json({ message: 'No se recibió ningún archivo PDF (esperado campo "pdf" o "file")' });
     }
 
     try {
         // 1. Parse PDF
-        const { items, metadata } = await parseRemitoPdf(req.file.buffer);
+        const { items, metadata } = await parseRemitoPdf(file.buffer);
         if (!items || items.length === 0) {
-            return res.status(400).json({ message: 'No se pudieron extraer productos del PDF' });
+            console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
+            return res.status(400).json({ message: `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto.` });
         }
 
         // 2. Create Egreso automatically with metadata (Client Name + Remito Number) or filename as fallback
@@ -1096,7 +1100,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         if (metadata && metadata.clientName && metadata.remitoNumber) {
             referenceNumber = `${metadata.clientName} ${metadata.remitoNumber}`;
         } else {
-            referenceNumber = req.file.originalname.replace('.pdf', '').replace('.PDF', '');
+            referenceNumber = file.originalname.replace('.pdf', '').replace('.PDF', '');
         }
 
         const sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
@@ -1105,7 +1109,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
             .from('egresos')
             .insert([{
                 reference_number: referenceNumber,
-                pdf_filename: req.file.originalname,
+                pdf_filename: file.originalname,
                 created_by: req.user.username,
                 sucursal_id: sucursalId,
                 date: new Date()
