@@ -1111,6 +1111,25 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
         const sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
 
+        // Check for duplicate reference to avoid double uploads
+        const { data: existingEgreso, error: checkError } = await supabase
+            .from('egresos')
+            .select('id, reference_number')
+            .eq('reference_number', referenceNumber)
+            .maybeSingle();
+
+        if (checkError) {
+            console.error('[EGRESO PDF] Error checking for duplicate:', checkError);
+        }
+
+        if (existingEgreso) {
+            console.warn(`[EGRESO PDF] Duplicate detected: ${referenceNumber}`);
+            return res.status(400).json({
+                message: `Este remito ya fue cargado previamente (Referencia: ${referenceNumber}).`,
+                duplicateId: existingEgreso.id
+            });
+        }
+
         const { data: egreso, error: egresoError } = await supabase
             .from('egresos')
             .insert([{
