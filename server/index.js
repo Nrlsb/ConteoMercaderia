@@ -1146,6 +1146,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
         // 3. For each parsed item, find product and insert egreso_item
         const results = { success: [], failed: [] };
+        const failedForPersistence = [];
 
         for (const item of items) {
             try {
@@ -1157,12 +1158,14 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
                     .maybeSingle();
 
                 if (!product) {
-                    results.failed.push({
+                    const failedItem = {
                         code: item.code,
                         description: item.description,
                         quantity: item.quantity,
                         error: 'Producto no encontrado en la base de datos'
-                    });
+                    };
+                    results.failed.push(failedItem);
+                    failedForPersistence.push(failedItem);
                     continue;
                 }
 
@@ -1219,8 +1222,20 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
         console.log(`[EGRESO PDF] Created egreso ${egreso.id}: ${results.success.length} items imported, ${results.failed.length} failed`);
 
+        // 4. Update egreso with failed items for persistence
+        if (failedForPersistence.length > 0) {
+            const { error: updateError } = await supabase
+                .from('egresos')
+                .update({ failed_items: failedForPersistence })
+                .eq('id', egreso.id);
+
+            if (updateError) {
+                console.error('[EGRESO PDF] Error updating egreso with failed items:', updateError);
+            }
+        }
+
         res.status(201).json({
-            egreso,
+            egreso: { ...egreso, failed_items: failedForPersistence },
             results
         });
 

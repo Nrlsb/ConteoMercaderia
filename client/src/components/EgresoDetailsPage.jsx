@@ -672,6 +672,16 @@ const EgresoDetailsPage = () => {
                             })()}
                         </button>
                         <button
+                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'failed' ? 'bg-white shadow-sm text-amber-600' : 'text-gray-500'}`}
+                            onClick={() => setActiveTab('failed')}
+                            style={{ display: egreso.failed_items?.length > 0 ? 'block' : 'none' }}
+                        >
+                            No encontrados
+                            {egreso.failed_items?.length > 0 && (
+                                <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-700">{egreso.failed_items.length}</span>
+                            )}
+                        </button>
+                        <button
                             className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
                             onClick={() => setActiveTab('history')}
                         >
@@ -769,6 +779,40 @@ const EgresoDetailsPage = () => {
                         </form>
                         <div className="text-[10px] text-gray-400 mt-3 text-center uppercase tracking-widest font-bold">
                             Confirma disponibilidad del producto para egreso
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'failed' && egreso.failed_items?.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                        <div className="p-4 bg-amber-50 border-b border-amber-100">
+                            <h2 className="text-amber-800 font-bold flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Productos no encontrados en el catálogo
+                            </h2>
+                            <p className="text-amber-700 text-xs mt-1">Estos productos fueron detectados en el PDF pero sus códigos no existen en la base de datos.</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Código PDF</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descripción PDF</th>
+                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Cantidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {egreso.failed_items.map((item, idx) => (
+                                        <tr key={idx} className="hover:bg-gray-50">
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">{item.code}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-600">{item.description}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-gray-900">{item.quantity}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}
