@@ -1122,8 +1122,8 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
             console.error('[EGRESO PDF] Error checking for duplicate:', checkError);
         }
 
-        if (existingEgreso) {
-            console.warn(`[EGRESO PDF] Duplicate detected: ${referenceNumber}`);
+        if (existingEgreso && req.user.role !== 'superadmin') {
+            console.warn(`[EGRESO PDF] Duplicate detected and blocked for role ${req.user.role}: ${referenceNumber}`);
             return res.status(400).json({
                 message: `Este remito ya fue cargado previamente (Referencia: ${referenceNumber}).`,
                 duplicateId: existingEgreso.id
