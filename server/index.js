@@ -3949,6 +3949,7 @@ app.get('/api/general-counts/active', verifyToken, async (req, res) => {
             .from('general_counts')
             .select('*, sucursales(name)')
             .eq('status', 'open')
+            .is('deleted_at', null)
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -3999,7 +4000,8 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
         let query = supabase
             .from('general_counts')
             .select('id')
-            .eq('status', 'open');
+            .eq('status', 'open')
+            .is('deleted_at', null);
 
         if (finalSucursalId) {
             query = query.eq('sucursal_id', finalSucursalId);
@@ -4078,6 +4080,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             .from('general_counts')
             .select('*')
             .eq('id', id)
+            .is('deleted_at', null)
             .single();
 
         if (countFetchError || !currentCount) {
@@ -4427,6 +4430,19 @@ app.post('/api/inventory/scan', verifyToken, async (req, res) => {
         /* Manual history logging removed as it is handled by DB triggers */
 
         // Prepare Upsert Data
+        // Verify count isn't deleted if using General Count ID
+        const { data: countCheck } = await supabase
+            .from('general_counts')
+            .select('id')
+            .eq('id', orderNumber)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+        if (orderNumber.includes('-') === false && !countCheck) {
+            // If it looks like a UUID (doesn't have STOCK-) and not found as active, reject
+            return res.status(404).json({ message: 'Conteo no encontrado o eliminado' });
+        }
+
         const upsertData = items.map(item => ({
             order_number: orderNumber,
             user_id: userId,

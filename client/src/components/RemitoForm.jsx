@@ -350,6 +350,12 @@ const RemitoForm = () => {
             }
         } catch (error) {
             console.error('Error restoring session:', error);
+            if (error.response?.status === 404) {
+                // If count not found/deleted, clear selection to avoid further errors
+                setSelectedCount(null);
+                localStorage.removeItem('selectedCountId');
+                triggerModal('Sesión No Encontrada', 'El conteo fue cerrado o eliminado. Se ha limpiado la selección actual.', 'warning');
+            }
         }
     };
 
