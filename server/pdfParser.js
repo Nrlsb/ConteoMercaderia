@@ -101,37 +101,77 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const remitoNumber = remitoMatch ? remitoMatch[1] : null;
         const clientName = clientMatch ? clientMatch[1].trim() : null;
 
+        const isDevolucion = text.includes('REMITO DE DEVOLUCION');
+        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : 'REMITO'}`);
+
         const lines = text.split('\n');
         const items = [];
 
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        // Revised itemRegex:
-        // 1. Group 1: Code (4+ digits)
-        // 2. Group 2: Description (greedy but stops at quantity)
-        // 3. Group 3: Quantity (digits with optional comma and decimals)
-        // 4. Group 4: UM (optional)
+        // Standard regex for normal Remitos
         const itemRegex = new RegExp(`(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'g');
-
-        // Regex for multi-line items
         const codeLineRegex = /(.*?)(\d{4,})\s+\/\s+\//g;
 
-        // Store multiple pending items for multi-column support
         let pendingItems = [];
 
         for (const line of lines) {
             const trimmedLine = line.trim();
             if (!trimmedLine || trimmedLine.length < 3) continue;
 
-            // STRATEGY 1: Full item match (potentially multiple per line)
+            // Skip headers/metadata specifically for devoluciones or common headers
+            const upperLine = trimmedLine.toUpperCase();
+            if (upperLine.includes('/202') || trimmedLine.match(/^\d+$/)) continue;
+            if (upperLine.includes('SR./ ES.:') || upperLine.includes('C.U.I.T.:') || upperLine.includes('TEL:') || upperLine.includes('I.V.A.') || upperLine.includes('ALBERDI') || upperLine.includes('BRUTOS') || upperLine.includes('DOMICILIO')) continue;
+            if (upperLine.includes('CÓDIGO') && upperLine.includes('DETALLE') && upperLine.includes('CANTIDAD')) continue;
+
+            if (isDevolucion) {
+                // STRATEGY: Last Quantity in Zone (Best for Devoluciones where descriptions often contain numbers)
+                const codes = [];
+                let codeMatch;
+                const codeRegex = /(\d{4,})/g;
+                while ((codeMatch = codeRegex.exec(line)) !== null) {
+                    codes.push({
+                        code: codeMatch[1],
+                        index: codeMatch.index,
+                        end: codeMatch.index + codeMatch[1].length
+                    });
+                }
+
+                for (let i = 0; i < codes.length; i++) {
+                    const current = codes[i];
+                    const next = codes[i + 1];
+                    const zone = line.substring(current.end, next ? next.index : line.length);
+
+                    // Find all potential quantities in zone (looking for the last numeric field)
+                    const qRegex = new RegExp(`(\\d+(?:,\\d{1,3})?)\\s*(?:${umPattern})?(?=\\s*|$)`, 'gi');
+                    let qMatch;
+                    let lastQuantity = null;
+                    while ((qMatch = qRegex.exec(zone)) !== null) {
+                        // We avoid matching numbers that look like years if they are alone
+                        if (qMatch[1].length === 4 && qMatch[1].startsWith('20')) continue;
+
+                        lastQuantity = {
+                            str: qMatch[1],
+                            description: zone.substring(0, qMatch.index).trim()
+                        };
+                    }
+
+                    if (lastQuantity) {
+                        const quantity = parseFloat(lastQuantity.str.replace(',', '.'));
+                        if (!isNaN(quantity)) {
+                            pushItem(items, current.code, lastQuantity.description, quantity);
+                        }
+                    }
+                }
+                if (codes.length > 0) continue;
+            }
+
+            // STRATEGY 1: Full item match (Standard Remitos)
             let match;
             let foundInLine = false;
 
-            // Skip headers/metadata
-            if (trimmedLine.includes('/202') || trimmedLine.match(/^\d+$/)) continue;
-
-            // Use the UM-anchored regex to find items
             while ((match = itemRegex.exec(line)) !== null) {
                 const code = match[1];
                 const description = match[2].trim();
@@ -150,13 +190,13 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
             }
 
             // STRATEGY 2: Multi-line / Interleaved columns
-
+            // ... (Rest of the original Strategy 2 logic)
             // A. Check for codes (e.g. "PRODUCT NAME 00123 / /")
-            let codeMatch;
+            let multiCodeMatch;
             let codesFoundInLine = [];
-            while ((codeMatch = codeLineRegex.exec(line)) !== null) {
-                const descPart = codeMatch[1].trim();
-                const code = matchCode(codeMatch[2]);
+            while ((multiCodeMatch = codeLineRegex.exec(line)) !== null) {
+                const descPart = multiCodeMatch[1].trim();
+                const code = matchCode(multiCodeMatch[2]);
                 if (code) {
                     codesFoundInLine.push({ code, descPart });
                 }
@@ -182,7 +222,6 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
                     if (/^(\d+,\d{2})/.test(word)) {
                         const qStr = word.match(/^(\d+,\d{2})/)[1];
-                        // Identify quantity column by mandatory UM following it
                         if (commonUMs.some(um => nextWord === um || word.toUpperCase().endsWith(um))) {
                             quantities.push(qStr);
                         }
@@ -207,8 +246,6 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
             // C. Accumulate description parts
             if (pendingItems.length > 0 && !line.includes(' / /')) {
-                // Heuristic: if a line is short and doesn't have many numbers, it's likely a description part
-                // We add it to the first pending item's description (simplified for common cases)
                 if (trimmedLine.length > 5 && !trimmedLine.match(/^\d+$/)) {
                     pendingItems[0].descriptionParts.push(trimmedLine);
                 }
