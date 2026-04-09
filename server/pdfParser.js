@@ -110,24 +110,21 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        // Standard regex for normal Remitos
-        const itemRegex = new RegExp(`(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'g');
-        const codeLineRegex = /(.*?)(\d{4,})\s+\/\s+\//g;
-
-        let pendingItems = [];
+        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+/\\s+/\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexB = new RegExp(`^\\s*/\\s+/\\s*(.+?)\\s{5,}(\\d{4,})\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
             if (!trimmedLine || trimmedLine.length < 3) continue;
 
-            // Skip headers/metadata specifically for devoluciones or common headers
             const upperLine = trimmedLine.toUpperCase();
             if (upperLine.includes('/202') || trimmedLine.match(/^\d+$/)) continue;
             if (upperLine.includes('SR./ ES.:') || upperLine.includes('C.U.I.T.:') || upperLine.includes('TEL:') || upperLine.includes('I.V.A.') || upperLine.includes('ALBERDI') || upperLine.includes('BRUTOS') || upperLine.includes('DOMICILIO')) continue;
             if (upperLine.includes('CÓDIGO') && upperLine.includes('DETALLE') && upperLine.includes('CANTIDAD')) continue;
 
             if (isDevolucion) {
-                // STRATEGY: Last Quantity in Zone (Best for Devoluciones where descriptions often contain numbers)
+                // ... (mantener lógica de devolución existente si es necesario, 
+                // pero por ahora nos enfocamos en el remito normal que es el problema reportado)
                 const codes = [];
                 let codeMatch;
                 const codeRegex = /(\d{4,})/g;
@@ -144,14 +141,11 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                     const next = codes[i + 1];
                     const zone = line.substring(current.end, next ? next.index : line.length);
 
-                    // Find all potential quantities in zone (looking for the last numeric field)
                     const qRegex = new RegExp(`(\\d+(?:,\\d{1,3})?)\\s*(?:${umPattern})?(?=\\s*|$)`, 'gi');
                     let qMatch;
                     let lastQuantity = null;
                     while ((qMatch = qRegex.exec(zone)) !== null) {
-                        // We avoid matching numbers that look like years if they are alone
                         if (qMatch[1].length === 4 && qMatch[1].startsWith('20')) continue;
-
                         lastQuantity = {
                             str: qMatch[1],
                             description: zone.substring(0, qMatch.index).trim()
@@ -168,86 +162,44 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 if (codes.length > 0) continue;
             }
 
-            // STRATEGY 1: Full item match (Standard Remitos)
-            let match;
-            let foundInLine = false;
-
-            while ((match = itemRegex.exec(line)) !== null) {
-                const code = match[1];
-                const description = match[2].trim();
-                const quantityStr = match[3];
-
+            // TRY LAYOUT B (Description first, code later)
+            const matchB = line.match(regexB);
+            if (matchB) {
+                const description = matchB[1].trim();
+                const code = matchB[2];
+                const quantityStr = matchB[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity)) {
                     pushItem(items, code, description, quantity);
-                    foundInLine = true;
-                }
-            }
-
-            if (foundInLine) {
-                pendingItems = [];
-                continue;
-            }
-
-            // STRATEGY 2: Multi-line / Interleaved columns
-            // ... (Rest of the original Strategy 2 logic)
-            // A. Check for codes (e.g. "PRODUCT NAME 00123 / /")
-            let multiCodeMatch;
-            let codesFoundInLine = [];
-            while ((multiCodeMatch = codeLineRegex.exec(line)) !== null) {
-                const descPart = multiCodeMatch[1].trim();
-                const code = matchCode(multiCodeMatch[2]);
-                if (code) {
-                    codesFoundInLine.push({ code, descPart });
-                }
-            }
-
-            if (codesFoundInLine.length > 0) {
-                pendingItems = codesFoundInLine.map(c => ({
-                    code: c.code,
-                    descriptionParts: c.descPart ? [c.descPart] : [],
-                    quantityStr: null
-                }));
-                continue;
-            }
-
-            // B. Check for quantities (anchored by UM)
-            if (pendingItems.length > 0 && pendingItems.every(i => !i.quantityStr)) {
-                const words = line.split(/\s+/).filter(w => w.length > 0);
-                const quantities = [];
-
-                for (let i = 0; i < words.length; i++) {
-                    const word = words[i];
-                    const nextWord = (words[i + 1] || '').toUpperCase();
-
-                    if (/^(\d+,\d{2})/.test(word)) {
-                        const qStr = word.match(/^(\d+,\d{2})/)[1];
-                        if (commonUMs.some(um => nextWord === um || word.toUpperCase().endsWith(um))) {
-                            quantities.push(qStr);
-                        }
-                    }
-                }
-
-                if (quantities.length > 0) {
-                    for (let i = 0; i < Math.min(quantities.length, pendingItems.length); i++) {
-                        const qStr = quantities[i];
-                        const quantity = parseFloat(qStr.replace(',', '.'));
-                        if (!isNaN(quantity)) {
-                            pushItem(items, pendingItems[i].code, pendingItems[i].descriptionParts.join(' '), quantity);
-                            pendingItems[i].quantityStr = qStr;
-                        }
-                    }
-                    if (pendingItems.every(i => i.quantityStr)) {
-                        pendingItems = [];
-                    }
                     continue;
                 }
             }
 
-            // C. Accumulate description parts
-            if (pendingItems.length > 0 && !line.includes(' / /')) {
-                if (trimmedLine.length > 5 && !trimmedLine.match(/^\d+$/)) {
-                    pendingItems[0].descriptionParts.push(trimmedLine);
+            // TRY LAYOUT A (Code first)
+            const matchA = line.match(regexA);
+            if (matchA) {
+                const code = matchA[1];
+                const description = matchA[2].trim();
+                const quantityStr = matchA[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity)) {
+                    pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            // FALLBACK: Standard item match (but only if not already matched above)
+            // We use a more restricted version of itemRegex to avoid fake matches
+            let match;
+            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+([^/]+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+            if ((match = line.match(itemRegexFallback)) !== null) {
+                const code = match[1];
+                const description = match[2].trim();
+                const quantityStr = match[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity)) {
+                    pushItem(items, code, description, quantity);
+                    continue;
                 }
             }
         }
