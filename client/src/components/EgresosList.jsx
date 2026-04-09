@@ -122,6 +122,11 @@ const EgresosList = () => {
                 newFiles.push({ name, file, fileKey });
             }
 
+            if (newFiles.length > 0) {
+                // Wait 1 second before processing to ensure file is stabilized (not locked/writing)
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
             for (let i = 0; i < newFiles.length; i++) {
                 const { name, file, fileKey } = newFiles[i];
                 setWatcherProgress({ fileName: name, percent: 0, current: i + 1, total: newFiles.length });

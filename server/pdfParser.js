@@ -104,12 +104,15 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const lines = text.split('\n');
         const items = [];
 
-        const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL'];
+        const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        // Regex for standard items: Code, Description, then Quantity followed by UM
-        // This avoids picking up numbers in the description like "X 0,450"
-        const itemRegex = new RegExp(`(\\d{4,})\\s+(.+?)\\s+(\\d+,\\d{2})\\s+${umPattern}`, 'g');
+        // Revised itemRegex:
+        // 1. Group 1: Code (4+ digits)
+        // 2. Group 2: Description (greedy but stops at quantity)
+        // 3. Group 3: Quantity (digits with optional comma and decimals)
+        // 4. Group 4: UM (optional)
+        const itemRegex = new RegExp(`(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'g');
 
         // Regex for multi-line items
         const codeLineRegex = /(.*?)(\d{4,})\s+\/\s+\//g;
