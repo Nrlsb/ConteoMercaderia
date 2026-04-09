@@ -1089,10 +1089,16 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         // 1. Parse PDF
-        const { items, metadata } = await parseRemitoPdf(file.buffer);
+        const { items, metadata, textSnippet } = await parseRemitoPdf(file.buffer);
         if (!items || items.length === 0) {
             console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
-            return res.status(400).json({ message: `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto.` });
+            return res.status(400).json({
+                message: `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto.`,
+                debug: {
+                    textLength: textSnippet?.length || 0,
+                    preview: textSnippet ? textSnippet.substring(0, 100) : 'N/A'
+                }
+            });
         }
 
         // 2. Create Egreso automatically with metadata (Client Name + Remito Number) or filename as fallback

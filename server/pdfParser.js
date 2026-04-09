@@ -239,6 +239,10 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
         console.log('--- PDF Parsing Results ---');
         console.log(`Total lines processed: ${lines.length}`);
+        console.log(`Text Length: ${text.length}`);
+        if (items.length === 0) {
+            console.log('FRONT 500 CHARS OF TEXT:', text.substring(0, 500));
+        }
         console.log(`Extracted ${items.length} items:`);
         items.forEach(item => console.log(`- Code: ${item.code}, Desc: ${item.description}, Qty: ${item.quantity}`));
         console.log('---------------------------');
@@ -248,7 +252,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
             metadata: {
                 clientName,
                 remitoNumber
-            }
+            },
+            textSnippet: text
         };
     } catch (error) {
         console.error('Error parsing PDF:', error);

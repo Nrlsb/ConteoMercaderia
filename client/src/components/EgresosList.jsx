@@ -146,6 +146,10 @@ const EgresosList = () => {
                     fetchEgresos();
                 } catch (error) {
                     const msg = error.response?.data?.message || 'Error al procesar';
+                    const debug = error.response?.data?.debug;
+                    if (debug) {
+                        console.log(`[DEBUG] Error en "${name}":`, debug);
+                    }
                     toast.error(`Error en "${name}": ${msg}`);
                     // Don't mark as processed so it retries next cycle
                 }
