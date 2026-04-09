@@ -245,6 +245,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 clientName,
                 remitoNumber
             },
+            isDevolucion,
             textSnippet: text
         };
     } catch (error) {

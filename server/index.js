@@ -1089,7 +1089,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         // 1. Parse PDF
-        const { items, metadata, textSnippet } = await parseRemitoPdf(file.buffer);
+        const { items, metadata, textSnippet, isDevolucion } = await parseRemitoPdf(file.buffer);
         if (!items || items.length === 0) {
             console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
             return res.status(400).json({
@@ -1137,6 +1137,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 pdf_filename: file.originalname,
                 created_by: req.user.username,
                 sucursal_id: sucursalId,
+                is_devolucion: isDevolucion || false,
                 date: new Date()
             }])
             .select()

@@ -11,6 +11,7 @@ create table if not exists egresos (
   status text default 'open',
   created_by text,
   sucursal_id uuid references sucursales(id),
+  is_devolucion boolean default false,
   date timestamp with time zone default now()
 );
 

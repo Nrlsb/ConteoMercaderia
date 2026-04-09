@@ -613,7 +613,14 @@ const EgresosList = () => {
                             {filteredEgresos.map(egreso => (
                                 <tr key={egreso.id}>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                        <p className="text-gray-900 whitespace-no-wrap font-bold">{egreso.reference_number}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-gray-900 whitespace-no-wrap font-bold">{egreso.reference_number}</p>
+                                            {egreso.is_devolucion && (
+                                                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
+                                                    Devolución
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                         <p className="text-gray-600 whitespace-no-wrap">{egreso.pdf_filename || '-'}</p>
@@ -664,7 +671,14 @@ const EgresosList = () => {
                     >
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <h3 className="text-lg font-bold text-gray-900">{egreso.reference_number}</h3>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="text-lg font-bold text-gray-900">{egreso.reference_number}</h3>
+                                    {egreso.is_devolucion && (
+                                        <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
+                                            Devolución
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-brand-gray">
                                     {new Date(egreso.date).toLocaleDateString()} - {new Date(egreso.date).toLocaleTimeString()}
                                 </p>
