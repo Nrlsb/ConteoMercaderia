@@ -2974,7 +2974,8 @@ async function getFullRemitoDetails(id) {
                         const { data: linkedPreRemitos } = await supabase
                             .from('pre_remitos')
                             .select('items, id_inventory')
-                            .in('order_number', linkedOrderNumbers);
+                            .in('order_number', linkedOrderNumbers)
+                            .is('deleted_at', null);
 
                         if (linkedPreRemitos && linkedPreRemitos.length > 0) {
                             const mergedItemsMap = {};
@@ -3111,7 +3112,8 @@ async function getFullRemitoDetails(id) {
         const { data: multiplePreRemitos } = await supabase
             .from('pre_remitos')
             .select('items, id_inventory')
-            .in('order_number', orderNumbers);
+            .in('order_number', orderNumbers)
+            .is('deleted_at', null);
 
         if (multiplePreRemitos) {
             multiplePreRemitos.forEach(pr => {
@@ -3644,6 +3646,7 @@ app.get('/api/pre-remitos', verifyToken, async (req, res) => {
                     sucursal
                 )
             `)
+            .is('deleted_at', null)
             .neq('status', 'processed') // Filter out processed orders
             .order('created_at', { ascending: false });
 
@@ -3711,6 +3714,7 @@ app.get('/api/pre-remitos/:orderNumber', verifyToken, async (req, res) => {
                 )
             `)
             .eq('order_number', orderNumber)
+            .is('deleted_at', null)
             .single();
 
         if (error) {
