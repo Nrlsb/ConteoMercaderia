@@ -939,9 +939,7 @@ const EgresoDetailsPage = () => {
                                                                         <option value="">(Sin motivo)</option>
                                                                         <option value="no hay stock">No hay stock</option>
                                                                         <option value="producto dañado">Producto dañado</option>
-                                                                        {item.products?.secondary_unit && (
-                                                                            <option value="colorante de color">Colorante de color</option>
-                                                                        )}
+                                                                        <option value="colorante de color">Colorante de color</option>
                                                                     </select>
                                                                 )}
                                                             </td>
@@ -989,9 +987,7 @@ const EgresoDetailsPage = () => {
                                                                 <option value="">(Sin motivo)</option>
                                                                 <option value="no hay stock">No hay stock</option>
                                                                 <option value="producto dañado">Producto dañado</option>
-                                                                {item.products?.secondary_unit && (
-                                                                    <option value="colorante de color">Colorante de color</option>
-                                                                )}
+                                                                <option value="colorante de color">Colorante de color</option>
                                                             </select>
                                                         </div>
                                                     )}
