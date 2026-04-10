@@ -26,6 +26,7 @@ const RemitoForm = () => {
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
     const [isForcingUnexpected, setIsForcingUnexpected] = useState(false); // New state for adding items not in pre-remito list
+    const isForcingUnexpectedRef = useRef(false);
 
     // Pre-remito state
     const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
@@ -979,8 +980,9 @@ const RemitoForm = () => {
 
             if (matchedExpectedItems.length === 0) {
                 // If force adding, don't block
-                if (isForcingUnexpected) {
-                    setIsForcingUnexpected(false); // Reset after single use
+                if (isForcingUnexpectedRef.current) {
+                    isForcingUnexpectedRef.current = false; // Reset Ref
+                    setIsForcingUnexpected(false); // Reset State for UI
                     // Fall through to general lookup below
                 } else {
                     // STRICT MODE: Block unexpected items
@@ -2193,8 +2195,11 @@ const RemitoForm = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setIsForcingUnexpected(!isForcingUnexpected);
-                                                    if (!isForcingUnexpected) {
+                                                    const newValue = !isForcingUnexpected;
+                                                    setIsForcingUnexpected(newValue);
+                                                    isForcingUnexpectedRef.current = newValue;
+
+                                                    if (newValue) {
                                                         const input = document.querySelector('input[placeholder="Código o Descripción"]');
                                                         if (input) input.focus();
                                                         toast.info('Modo: Agregar producto fuera de lista activado');
