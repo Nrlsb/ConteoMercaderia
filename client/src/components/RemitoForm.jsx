@@ -25,6 +25,7 @@ const RemitoForm = () => {
     const [isProcessingScan, setIsProcessingScan] = useState(false); // Scanner Pause State
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
+    const [isForcingUnexpected, setIsForcingUnexpected] = useState(false); // New state for adding items not in pre-remito list
 
     // Pre-remito state
     const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
@@ -833,14 +834,16 @@ const RemitoForm = () => {
                     discrepancies.extra.push({
                         code: scanned.code,
                         description: scanned.name,
-                        quantity: scanned.quantity
+                        expected: 0, // Explicitly set 0 for reports
+                        scanned: scanned.quantity
                     });
                 } else if (scanned.quantity > expected.quantity) {
                     // Expected item but with excess quantity
                     discrepancies.extra.push({
                         code: scanned.code,
                         description: scanned.name,
-                        quantity: scanned.quantity - expected.quantity
+                        expected: expected.quantity,
+                        scanned: scanned.quantity
                     });
                 }
             });
@@ -975,9 +978,15 @@ const RemitoForm = () => {
             const matchedExpectedItems = currentExpectedItems.filter(item => item.barcode === inputCode || item.code === inputCode);
 
             if (matchedExpectedItems.length === 0) {
-                // STRICT MODE: Block unexpected items
-                triggerModal('Error', 'Este producto no pertenece al pedido cargado.', 'error');
-                return;
+                // If force adding, don't block
+                if (isForcingUnexpected) {
+                    setIsForcingUnexpected(false); // Reset after single use
+                    // Fall through to general lookup below
+                } else {
+                    // STRICT MODE: Block unexpected items
+                    triggerModal('Error', 'Este producto no pertenece al pedido cargado.', 'error');
+                    return;
+                }
             } else if (matchedExpectedItems.length === 1) {
                 const expectedItem = matchedExpectedItems[0];
                 resolvedProducts = [{
@@ -2175,10 +2184,30 @@ const RemitoForm = () => {
                                         </ul>
                                     )}
 
-                                    <button type="submit" className="h-12 w-full bg-brand-blue text-white border border-transparent rounded-lg hover:bg-blue-800 transition shadow-sm flex items-center justify-center font-medium">
-                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                                        Agregar
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button type="submit" className="h-12 flex-1 bg-brand-blue text-white border border-transparent rounded-lg hover:bg-blue-800 transition shadow-sm flex items-center justify-center font-medium">
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                                            Agregar
+                                        </button>
+                                        {expectedItems && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsForcingUnexpected(!isForcingUnexpected);
+                                                    if (!isForcingUnexpected) {
+                                                        const input = document.querySelector('input[placeholder="Código o Descripción"]');
+                                                        if (input) input.focus();
+                                                        toast.info('Modo: Agregar producto fuera de lista activado');
+                                                    }
+                                                }}
+                                                className={`h-12 px-3 rounded-lg border-2 transition font-medium text-xs flex flex-col items-center justify-center ${isForcingUnexpected ? 'bg-orange-100 border-orange-500 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:border-orange-300'}`}
+                                                title="Agregar producto que no figura en la lista original"
+                                            >
+                                                <svg className="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                <span>Fuera Lista</span>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </form>
 
