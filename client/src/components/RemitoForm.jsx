@@ -26,7 +26,7 @@ const RemitoForm = () => {
     const [isSubmittingFichaje, setIsSubmittingFichaje] = useState(false); // New Submitting State
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
     const [isForcingUnexpected, setIsForcingUnexpected] = useState(false); // New state for adding items not in pre-remito list
-    const isForcingUnexpectedRef = useRef(false);
+    const isForcingUnexpectedRef = React.useRef(false);
 
     // Pre-remito state
     const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
