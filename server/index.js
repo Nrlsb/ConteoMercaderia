@@ -266,6 +266,17 @@ app.get('/api/health', (req, res) => {
     res.send('Control de Remitos API Running');
 });
 
+// Helper to extract capacity from description (e.g., "X 1", "X 4")
+const getCapacityFromDescription = (description) => {
+    if (!description) return 999999;
+    // Look for " X " followed by a number (integer or decimal)
+    const match = description.match(/\s+X\s+(\d+(?:\.\d+)?)/i);
+    if (match) {
+        return parseFloat(match[1]);
+    }
+    return 999999; // Items without capacity go to the end
+};
+
 /**
  * Helper to find a product by ANY code (internal code, barcode, or provider code)
  * Search Order: barcode -> code -> provider_code
@@ -2766,39 +2777,72 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
                 .map(code => productMap.get(code))
                 .filter(p => p !== undefined); // Filter out any codes not found in products table
 
+            // Add order info if missing and extract capacity for sorting
+            let productsWithMeta = orderedProducts.map((p, idx) => ({
+                ...p,
+                indexInCount: idx,
+                capacity: getCapacityFromDescription(p.description)
+            }));
+
+            // Apply Grouping by Capacity, preserving relative order (stable sort)
+            productsWithMeta.sort((a, b) => {
+                if (a.capacity !== b.capacity) {
+                    return a.capacity - b.capacity;
+                }
+                return a.indexInCount - b.indexInCount;
+            });
+
             // Apply search filter in memory
             if (search) {
                 const lowerCaseSearch = search.toLowerCase();
-                orderedProducts = orderedProducts.filter(p =>
+                productsWithMeta = productsWithMeta.filter(p =>
                     p.description.toLowerCase().includes(lowerCaseSearch) ||
                     p.code.toLowerCase().includes(lowerCaseSearch)
                 );
             }
 
-            total = orderedProducts.length;
+            total = productsWithMeta.length;
             const from = (page - 1) * pageSize;
             const to = from + pageSize; // 'to' is exclusive for slice
-            products = orderedProducts.slice(from, to);
+            products = productsWithMeta.slice(from, to);
 
         } else {
-            // Original logic: query directly from DB for all products, ordered by excel_order
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-
-            let query = supabase
+            // Original logic: query directly from DB for all products.
+            // Since we need to sort globally by capacity, we fetch all products
+            // for the count (or system) and sort in memory.
+            const { data: allDbProducts, error: allProdError } = await supabase
                 .from('products')
-                .select('code, description, excel_order', { count: 'exact' })
-                .order('excel_order', { ascending: true, nullsFirst: false })
-                .range(from, to);
+                .select('code, description, excel_order')
+                .order('excel_order', { ascending: true, nullsFirst: false });
 
+            if (allProdError) throw allProdError;
+
+            let productsWithMeta = (allDbProducts || []).map(p => ({
+                ...p,
+                capacity: getCapacityFromDescription(p.description)
+            }));
+
+            // Apply Grouping by Capacity, preserving excel_order
+            productsWithMeta.sort((a, b) => {
+                if (a.capacity !== b.capacity) {
+                    return a.capacity - b.capacity;
+                }
+                return (a.excel_order || 0) - (b.excel_order || 0);
+            });
+
+            // Apply search filter in memory
             if (search) {
-                query = query.or(`description.ilike.%${search}%,code.ilike.%${search}%`);
+                const lowerCaseSearch = search.toLowerCase();
+                productsWithMeta = productsWithMeta.filter(p =>
+                    p.description.toLowerCase().includes(lowerCaseSearch) ||
+                    p.code.toLowerCase().includes(lowerCaseSearch)
+                );
             }
 
-            const { data: dbProducts, error: prodError, count: dbTotal } = await query;
-            if (prodError) throw prodError;
-            products = dbProducts;
-            total = dbTotal;
+            total = productsWithMeta.length;
+            const from = (page - 1) * pageSize;
+            const to = from + pageSize;
+            products = productsWithMeta.slice(from, to);
         }
 
         // Fetch scans for the current page's product codes to see my qty and if others scanned
