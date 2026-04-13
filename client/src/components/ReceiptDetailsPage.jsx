@@ -49,6 +49,27 @@ const ReceiptDetailsPage = () => {
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_ingresos');
     const canUpload = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos');
 
+    const isSuperAdmin = user?.role === 'superadmin';
+
+    // Pestañas disponibles según permisos
+    const availableTabs = [
+        { id: 'load', name: '1. Cargar', permission: 'view_ingresos_tab_cargar', colorClass: 'text-brand-blue', showIfOpen: true },
+        { id: 'control', name: '2. Controlar', permission: 'view_ingresos_tab_controlar', colorClass: 'text-brand-success', showIfOpen: true },
+        { id: 'diff', name: 'Diferencias', permission: 'view_ingresos_tab_diferencias', colorClass: 'text-red-600', showIfOpen: false },
+        { id: 'history', name: 'Historial', permission: 'view_ingresos_tab_historial', colorClass: 'text-purple-600', showIfOpen: false },
+    ].filter(tab => {
+        if (isSuperAdmin) return true;
+        if (tab.showIfOpen && receipt?.status === 'finalized') return false;
+        return user?.permissions?.includes(tab.permission);
+    });
+
+    // Asegurar que activeTab sea válida
+    useEffect(() => {
+        if (availableTabs.length > 0 && !availableTabs.find(t => t.id === activeTab)) {
+            setActiveTab(availableTabs[0].id);
+        }
+    }, [availableTabs, activeTab]);
+
     // Intelligent Search State
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -1030,46 +1051,27 @@ const ReceiptDetailsPage = () => {
                     </div>
                 </div>
 
-                {/* Modes Tabs - Only if not finalized */}
+                {/* Modes Tabs */}
                 <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-1">
                     <div className="flex flex-1 gap-1">
-                        {receipt.status !== 'finalized' && (
-                            <>
-                                <button
-                                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'load' ? 'bg-white shadow-sm text-brand-blue' : 'text-gray-500'}`}
-                                    onClick={() => setActiveTab('load')}
-                                >
-                                    1. Cargar
-                                </button>
-                                <button
-                                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'control' ? 'bg-white shadow-sm text-brand-success' : 'text-gray-500'}`}
-                                    onClick={() => setActiveTab('control')}
-                                >
-                                    2. Controlar
-                                </button>
-                            </>
-                        )}
-                        <button
-                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'diff' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500'}`}
-                            onClick={() => setActiveTab('diff')}
-                        >
-                            Diferencias
-                            {(() => {
-                                const count = items.filter(item => {
-                                    const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
-                                    return diff !== 0;
-                                }).length;
-                                return count > 0 ? (
-                                    <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700">{count}</span>
-                                ) : null;
-                            })()}
-                        </button>
-                        <button
-                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
-                            onClick={() => setActiveTab('history')}
-                        >
-                            Historial
-                        </button>
+                        {availableTabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id ? `bg-white shadow-sm ${tab.colorClass}` : 'text-gray-500'}`}
+                                onClick={() => setActiveTab(tab.id)}
+                            >
+                                {tab.name}
+                                {tab.id === 'diff' && (() => {
+                                    const count = items.filter(item => {
+                                        const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
+                                        return diff !== 0;
+                                    }).length;
+                                    return count > 0 ? (
+                                        <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700">{count}</span>
+                                    ) : null;
+                                })()}
+                            </button>
+                        ))}
                     </div>
                     {(activeTab === 'load' || activeTab === 'control') && receipt.status !== 'finalized' && canUpload && (
                         <div className="flex gap-2 w-full sm:w-auto">

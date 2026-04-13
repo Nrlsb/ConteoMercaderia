@@ -169,7 +169,11 @@ const UsersManage = () => {
                 { id: 'use_scanner_ingresos', name: 'Utilizar Cámara/Escáner' },
                 { id: 'upload_ingresos', name: 'Cargar Documento PDF/XML' },
                 { id: 'close_ingresos', name: 'Finalizar/Reabrir Ingresos' },
-                { id: 'delete_ingresos', name: 'Eliminar Ingresos' }
+                { id: 'delete_ingresos', name: 'Eliminar Ingresos' },
+                { id: 'view_ingresos_tab_cargar', name: 'Ver Pestaña: 1. Cargar' },
+                { id: 'view_ingresos_tab_controlar', name: 'Ver Pestaña: 2. Controlar' },
+                { id: 'view_ingresos_tab_diferencias', name: 'Ver Pestaña: Diferencias' },
+                { id: 'view_ingresos_tab_historial', name: 'Ver Pestaña: Historial' }
             ]
         },
         {
@@ -198,7 +202,7 @@ const UsersManage = () => {
         },
         'operario_ingresos': {
             name: 'Operario Ingresos',
-            permissions: ['tab_ingresos', 'use_scanner_ingresos', 'upload_ingresos']
+            permissions: ['tab_ingresos', 'use_scanner_ingresos', 'upload_ingresos', 'view_ingresos_tab_cargar', 'view_ingresos_tab_controlar', 'view_ingresos_tab_diferencias']
         },
         'operario_egresos': {
             name: 'Operario Egresos',
