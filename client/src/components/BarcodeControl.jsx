@@ -864,6 +864,30 @@ const BarcodeControl = () => {
                                         <Search className="w-5 h-5 text-blue-500" /> Vincular a un producto existente
                                     </h4>
 
+                                    <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">1</span>
+                                                <p className="font-bold text-xs text-blue-800">Buscá el producto</p>
+                                            </div>
+                                            <p className="text-[11px] text-blue-700 leading-tight">Escribí el nombre o marca en el cuadro de abajo.</p>
+                                        </div>
+                                        <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-[10px] font-bold flex items-center justify-center">2</span>
+                                                <p className="font-bold text-xs text-amber-800">Elegí el correcto</p>
+                                            </div>
+                                            <p className="text-[11px] text-amber-700 leading-tight">Seleccioná de la lista el producto que tenés en la mano.</p>
+                                        </div>
+                                        <div className="bg-green-50/50 p-3 rounded-xl border border-green-100">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="w-5 h-5 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center">3</span>
+                                                <p className="font-bold text-xs text-green-800">Confirmá la unión</p>
+                                            </div>
+                                            <p className="text-[11px] text-green-700 leading-tight">Aceptá el cartel para que el código quede guardado.</p>
+                                        </div>
+                                    </div>
+
                                     <form onSubmit={handleSearchSubmit} className="relative mb-4">
                                         <div className="relative flex items-center">
                                             <Package className="absolute left-4 text-gray-400 w-5 h-5" />
