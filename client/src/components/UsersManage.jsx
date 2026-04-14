@@ -192,6 +192,11 @@ const UsersManage = () => {
                 { id: 'close_egresos', name: 'Finalizar/Reabrir Egresos' },
                 { id: 'delete_egresos', name: 'Eliminar Egresos' }
             ]
+        },
+        {
+            id: 'tab_ingreso_sucursal',
+            name: 'Ingreso Sucursal',
+            specialPermissions: []
         }
     ];
 
