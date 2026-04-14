@@ -55,6 +55,7 @@ const EgresosList = () => {
     const [watcherProgress, setWatcherProgress] = useState(null); // { fileName, percent, current, total }
     const [needsPermission, setNeedsPermission] = useState(false);
     const [showFolderGuide, setShowFolderGuide] = useState(false);
+    const [failedFiles, setFailedFiles] = useState([]); // Track files that failed in the current session
     const dirHandleRef = useRef(null);
     const watchIntervalRef = useRef(null);
     const checkingRef = useRef(false); // Lock to prevent concurrent checkFolder runs
@@ -156,7 +157,17 @@ const EgresosList = () => {
                         console.log(`[DEBUG] Error en "${name}":`, debug);
                     }
                     toast.error(`Error en "${name}": ${msg}`);
-                    // Don't mark as processed so it retries next cycle
+                    
+                    // Update failed files list for UI
+                    setFailedFiles(prev => [{ name, error: msg, time: new Date() }, ...prev].slice(0, 20));
+
+                    // Mark as processed so it doesn't retry next cycle (as requested by user)
+                    processedFilesRef.current.add(fileKey);
+                    const allKeys = [...processedFilesRef.current];
+                    if (allKeys.length > 1000) {
+                        processedFilesRef.current = new Set(allKeys.slice(-1000));
+                    }
+                    localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
                 }
             }
         } catch (err) {
@@ -285,6 +296,7 @@ const EgresosList = () => {
                     console.error(`Error uploading PDF ${file.name}:`, error);
                     const msg = error.response?.data?.message || `Error al procesar "${file.name}"`;
                     toast.error(msg);
+                    setFailedFiles(prev => [{ name: file.name, error: msg, time: new Date() }, ...prev].slice(0, 20));
                 }
             }
             fetchEgresos();
@@ -543,6 +555,39 @@ const EgresosList = () => {
                             </p>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Failed uploads list */}
+            {failedFiles.length > 0 && (
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between p-3 border-b border-red-100 bg-red-100/50">
+                        <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Archivos con Error ({failedFiles.length})
+                        </div>
+                        <button 
+                            onClick={() => setFailedFiles([])}
+                            className="text-xs bg-white hover:bg-red-50 text-red-600 px-2 py-1 rounded border border-red-200 transition-colors font-medium"
+                        >
+                            Limpiar lista
+                        </button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto">
+                        <ul className="divide-y divide-red-100">
+                            {failedFiles.map((f, idx) => (
+                                <li key={idx} className="p-3 flex flex-col gap-0.5">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <span className="font-mono text-xs font-bold text-red-900 truncate">{f.name}</span>
+                                        <span className="text-[10px] text-red-400 shrink-0">{f.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    <p className="text-xs text-red-600 leading-tight">{f.error}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
             )}
 
