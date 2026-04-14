@@ -1577,6 +1577,128 @@ app.get('/api/egresos/:id/export', verifyToken, verifyBranchAccess('egresos'), a
     }
 });
 
+// --- BRANCH TRANSFERS / INCOMINGS ---
+
+// Get pending transfers for current branch
+app.get('/api/branch-transfers/pending', verifyToken, async (req, res) => {
+    try {
+        let query = supabase
+            .from('egresos')
+            .select(`
+                *,
+                sucursal:sucursales (name)
+            `)
+            .eq('status', 'finalized')
+            .is('receipt_id', null)
+            .order('date', { ascending: false });
+
+        // If user is not admin/superadmin, filter by their branch
+        // Note: As per user request, admins see ALL pending transfers
+        if (!['superadmin', 'admin'].includes(req.user.role) && req.user.sucursal_id) {
+            query = query.eq('sucursal_id', req.user.sucursal_id);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching pending transfers:', error);
+        res.status(500).json({ message: 'Error al obtener transferencias pendientes' });
+    }
+});
+
+// Start receiving a transfer (Create receipt from egreso)
+app.post('/api/branch-transfers/:id/receive', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        // 1. Get egreso and its items
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (egresoError || !egreso) {
+            return res.status(404).json({ message: 'Egreso no encontrado' });
+        }
+
+        if (egreso.status !== 'finalized') {
+            return res.status(400).json({ message: 'Solamente se pueden recibir egresos finalizados' });
+        }
+
+        if (egreso.receipt_id) {
+            return res.status(400).json({ message: 'Este egreso ya ha sido recibido' });
+        }
+
+        const { data: egresoItems, error: itemsError } = await supabase
+            .from('egreso_items')
+            .select('*')
+            .eq('egreso_id', id)
+            .gt('scanned_quantity', 0); // Only items that were actually sent
+
+        if (itemsError) throw itemsError;
+
+        if (!egresoItems || egresoItems.length === 0) {
+            return res.status(400).json({ message: 'El egreso no tiene productos controlados para recibir' });
+        }
+
+        // 2. Create new receipt
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .insert([{
+                remito_number: `REC-${egreso.reference_number}`,
+                type: 'sucursal_transfer',
+                created_by: req.user.username,
+                sucursal_id: req.user.sucursal_id || egreso.sucursal_id,
+                date: new Date()
+            }])
+            .select()
+            .single();
+
+        if (receiptError) throw receiptError;
+
+        // 3. Copy items to receipt_items
+        const receiptItems = egresoItems.map(item => ({
+            receipt_id: receipt.id,
+            product_code: item.product_code,
+            expected_quantity: item.scanned_quantity,
+            scanned_quantity: 0
+        }));
+
+        const { error: batchError } = await supabase
+            .from('receipt_items')
+            .insert(receiptItems);
+
+        if (batchError) throw batchError;
+
+        // 4. Link egreso to receipt
+        const { error: updateError } = await supabase
+            .from('egresos')
+            .update({ receipt_id: receipt.id })
+            .eq('id', id);
+
+        if (updateError) throw updateError;
+
+        // 5. Log history for the new receipt
+        for (const item of receiptItems) {
+            await supabase.from('receipt_items_history').insert({
+                receipt_id: receipt.id,
+                user_id: req.user.id,
+                operation: 'TRANSFER_IMPORT',
+                product_code: item.product_code,
+                new_data: { expected_quantity: item.expected_quantity },
+                changed_at: new Date().toISOString()
+            });
+        }
+
+        res.status(201).json(receipt);
+
+    } catch (error) {
+        console.error('Error receiving transfer:', error);
+        res.status(500).json({ message: 'Error al procesar la recepción' });
+    }
+});
+
 // API Routes
 
 // --- PRODUCT CONTROL ENDPOINTS ---
@@ -4823,7 +4945,7 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
             { expiresIn: '365d' }
         );
 
-        res.status(201).json({ token, user: { id: data[0].id, username: data[0].username, role: data[0].role, sucursal_id: data[0].sucursal_id } });
+        res.status(201).json({ token, user: { id: data[0].id, username: data[0].username, role: data[0].role, sucursal_id: data[0].sucursal_id, sucursal_name: null } }); // New users have no sucursal name yet usually unless provided
     } catch (error) {
         console.error('Error registering user:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -4895,7 +5017,20 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
             { expiresIn: '365d' }
         );
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sucursal_id: user.sucursal_id, permissions: user.permissions || [] } });
+        // Get sucursal name if exists
+        const { data: branchData } = user.sucursal_id ? await supabase.from('sucursales').select('name').eq('id', user.sucursal_id).single() : { data: null };
+
+        res.json({ 
+            token, 
+            user: { 
+                id: user.id, 
+                username: user.username, 
+                role: user.role, 
+                sucursal_id: user.sucursal_id, 
+                sucursal_name: branchData ? branchData.name : null,
+                permissions: user.permissions || [] 
+            } 
+        });
     } catch (error) {
         console.error('Error logging in:', error);
         res.status(500).json({ message: 'Internal server error' });

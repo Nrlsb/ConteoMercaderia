@@ -54,6 +54,7 @@ const Navigation = () => {
     const showIngresos = canSeeTab('tab_ingresos', true);
     const showControlCodigos = canSeeTab('tab_control_codigos', true);
     const showEgresos = canSeeTab('tab_egresos', user?.role === 'admin' || user?.role === 'superadmin' || user?.sucursal_name === 'Deposito');
+    const showIngresoSucursal = canSeeTab('tab_ingreso_sucursal', user?.role === 'admin' || user?.role === 'superadmin' || (user?.sucursal_name && user?.sucursal_name !== 'Deposito'));
 
     const getRoleName = () => {
         switch (user?.role) {
@@ -95,6 +96,9 @@ const Navigation = () => {
                     )}
                     {showEgresos && (
                         <Link to="/egresos" className={getLinkClass('/egresos')}>Egresos</Link>
+                    )}
+                    {showIngresoSucursal && (
+                        <Link to="/branch-incomings" className={getLinkClass('/branch-incomings')}>Ingreso Sucursal</Link>
                     )}
                     <div className="flex items-center space-x-4 ml-6 pl-6 border-l border-blue-400/30">
                         <div className="flex flex-col items-end">
@@ -150,6 +154,9 @@ const Navigation = () => {
                         )}
                         {showEgresos && (
                             <Link to="/egresos" className={getMobileLinkClass('/egresos')} onClick={() => setIsOpen(false)}>Egresos</Link>
+                        )}
+                        {showIngresoSucursal && (
+                            <Link to="/branch-incomings" className={getMobileLinkClass('/branch-incomings')} onClick={() => setIsOpen(false)}>Ingreso Sucursal</Link>
                         )}
                     </div>
                     <div className="pt-4 pb-4 border-t border-blue-800">
