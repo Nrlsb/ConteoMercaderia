@@ -1121,7 +1121,36 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
             referenceNumber = file.originalname.replace('.pdf', '').replace('.PDF', '');
         }
 
-        const sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
+        let sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
+
+        // Intentar detectar sucursal de destino por nombre (clientName del PDF)
+        if (metadata && metadata.clientName) {
+            const { data: branchMatch } = await supabase
+                .from('sucursales')
+                .select('id, name')
+                .ilike('name', metadata.clientName)
+                .maybeSingle();
+            
+            if (branchMatch) {
+                console.log(`[EGRESO PDF] Destino detectado: ${branchMatch.name} (ID: ${branchMatch.id})`);
+                sucursalId = branchMatch.id;
+            } else {
+                // Intento secundario: buscar coincidencias parciales
+                const { data: allBranches } = await supabase.from('sucursales').select('id, name');
+                if (allBranches) {
+                    const bestMatch = allBranches.find(b => 
+                        b.name !== 'Deposito' && (
+                            metadata.clientName.toLowerCase().includes(b.name.toLowerCase()) || 
+                            b.name.toLowerCase().includes(metadata.clientName.toLowerCase())
+                        )
+                    );
+                    if (bestMatch) {
+                        console.log(`[EGRESO PDF] Destino detectado por coincidencia parcial: ${bestMatch.name}`);
+                        sucursalId = bestMatch.id;
+                    }
+                }
+            }
+        }
 
         // Check for duplicate reference to avoid double uploads
         const { data: existingEgreso, error: checkError } = await supabase
