@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
+
 import api from '../api';
 import Scanner from './Scanner';
 import FichajeModal from './FichajeModal';
@@ -1174,26 +1176,16 @@ const EgresoDetailsPage = () => {
             </div>
 
             {/* FULLSCREEN TRANSPARENT NATIVE SCANNER OVERLAY */}
-            {isBarcodeReaderActive && (
-                <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
-                    <div className="relative h-[90%] w-full flex items-center justify-center overflow-hidden">
-                        <Scanner
-                            onScan={handleBarcodeScan}
-                            onCancel={() => setIsBarcodeReaderActive(false)}
-                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !showMatchModal}
-                            scanStatus={scanStatus}
-                        />
-                    </div>
-                    <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
-                        <button
-                            onClick={() => setIsBarcodeReaderActive(false)}
-                            className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            Detener Cámara
-                        </button>
-                    </div>
-                </div>
+            {isBarcodeReaderActive && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] bg-transparent">
+                    <Scanner
+                        onScan={handleBarcodeScan}
+                        onCancel={() => setIsBarcodeReaderActive(false)}
+                        isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !showMatchModal}
+                        scanStatus={scanStatus}
+                    />
+                </div>,
+                document.body
             )}
 
             {/* Fichaje Modal */}
@@ -1208,8 +1200,8 @@ const EgresoDetailsPage = () => {
             />
 
             {/* Multiple Matches Modal */}
-            {showMatchModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+            {showMatchModal && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-brand-blue text-white">
                             <h3 className="font-bold text-lg">Múltiples productos encontrados</h3>
@@ -1252,7 +1244,8 @@ const EgresoDetailsPage = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

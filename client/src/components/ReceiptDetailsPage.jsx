@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
+
 import api from '../api';
 import ReceiptScanner from './ReceiptScanner';
 import Scanner from './Scanner';
@@ -1493,30 +1495,20 @@ const ReceiptDetailsPage = () => {
             )}
 
             {/* FULLSCREEN TRANSPARENT NATIVE SCANNER OVERLAY */}
-            {isBarcodeReaderActive && (
-                <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
-                    <div className="relative h-[90%] w-full flex items-center justify-center overflow-hidden">
-                        <Scanner
-                            onScan={handleBarcodeScan}
-                            onCancel={() => setIsBarcodeReaderActive(false)}
-                            isEnabled={isBarcodeReaderActive}
-                            isPaused={fichajeState.isOpen || processing || isDuplicateModalOpen}
-                        />
-                    </div>
-                    <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
-                        <button
-                            onClick={() => setIsBarcodeReaderActive(false)}
-                            className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            Detener Cámara
-                        </button>
-                    </div>
-                </div>
+            {isBarcodeReaderActive && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] bg-transparent">
+                    <Scanner
+                        onScan={handleBarcodeScan}
+                        onCancel={() => setIsBarcodeReaderActive(false)}
+                        isEnabled={isBarcodeReaderActive}
+                        isPaused={fichajeState.isOpen || processing || isDuplicateModalOpen}
+                    />
+                </div>,
+                document.body
             )}
 
-            {isBulkImporting && (
-                <div className="fixed inset-0 z-[100] bg-black bg-opacity-75 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+            {isBulkImporting && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] bg-black bg-opacity-75 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full text-center">
                         <div className="w-16 h-16 border-4 border-blue-100 border-t-brand-blue rounded-full animate-spin mb-6"></div>
                         <h2 className="text-xl font-bold text-gray-900 mb-2">Cargando Productos</h2>
@@ -1534,11 +1526,12 @@ const ReceiptDetailsPage = () => {
                             No podrás escanear hasta que termine el guardado.
                         </p>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {importFailedItems.length > 0 && (
-                <div className="fixed inset-0 z-[110] bg-black bg-opacity-75 flex items-center justify-center p-4 backdrop-blur-sm">
+            {importFailedItems.length > 0 && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] bg-black bg-opacity-75 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl flex flex-col max-w-lg w-full max-h-[90vh]">
                         <div className="p-4 border-b flex justify-between items-center bg-red-50 rounded-t-2xl">
                             <h2 className="text-xl font-bold text-red-700 flex items-center gap-2">
@@ -1647,12 +1640,13 @@ const ReceiptDetailsPage = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Modal for Duplicate Products Selection */}
-            {isDuplicateModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            {isDuplicateModalOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl border border-gray-100">
                         <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 flex items-center gap-4 shadow-lg">
                             <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner">
@@ -1724,7 +1718,8 @@ const ReceiptDetailsPage = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             <FichajeModal
@@ -1738,8 +1733,8 @@ const ReceiptDetailsPage = () => {
             />
 
             {/* Export to another receipt modal */}
-            {showExportToModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            {showExportToModal && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-2xl">
                         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 rounded-t-2xl flex items-center justify-between">
                             <div className="flex items-center gap-3 text-white">
@@ -1805,7 +1800,8 @@ const ReceiptDetailsPage = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

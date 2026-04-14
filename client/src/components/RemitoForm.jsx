@@ -1,5 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import ReactDOM from 'react-dom';
 import { toast } from 'sonner';
+
 const Scanner = lazy(() => import('./Scanner'));
 const ReportModal = lazy(() => import('./ReportModal'));
 const BranchCountList = lazy(() => import('./BranchCountList'));
@@ -2237,27 +2239,17 @@ const RemitoForm = () => {
                                     </button>
                                 )}
 
-                                {isScanning && !fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isDuplicateModalOpen && (
-                                    <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
-                                        <div className="relative h-[90%] w-full bg-transparent flex items-center justify-center overflow-hidden">
-                                            <Suspense fallback={null}>
-                                                <Scanner
-                                                    onScan={handleScan}
-                                                    onCancel={() => setIsScanning(false)}
-                                                    isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan}
-                                                />
-                                            </Suspense>
-                                        </div>
-                                        <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
-                                            <button
-                                                onClick={() => setIsScanning(false)}
-                                                className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
-                                            >
-                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                                Detener Cámara
-                                            </button>
-                                        </div>
-                                    </div>
+                                {isScanning && !fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isDuplicateModalOpen && ReactDOM.createPortal(
+                                    <div className="fixed inset-0 z-[2000] bg-transparent">
+                                        <Suspense fallback={null}>
+                                            <Scanner
+                                                onScan={handleScan}
+                                                onCancel={() => setIsScanning(false)}
+                                                isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan}
+                                            />
+                                        </Suspense>
+                                    </div>,
+                                    document.body
                                 )}
                             </div>
                         </div>
@@ -2376,8 +2368,8 @@ const RemitoForm = () => {
             </div>
 
             {/* Modal for Duplicate Products Selection */}
-            {isDuplicateModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in shadow-2xl">
+            {isDuplicateModalOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in shadow-2xl">
                     <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl transition-all scale-100 border border-gray-100">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 flex items-center justify-between shadow-lg">
@@ -2449,7 +2441,8 @@ const RemitoForm = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
             {/* Sync Status Badge */}
             <div className="fixed bottom-20 right-4 z-40">

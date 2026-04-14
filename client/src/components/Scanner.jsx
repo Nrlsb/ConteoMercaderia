@@ -563,7 +563,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
             </div>
 
             {isScanning && ReactDOM.createPortal(
-                <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 1000 }}>
+                <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 2000 }}>
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button
                             onClick={isNative && scanMode !== 'ia' ? handleNativeCancel : () => { if (onCancel) onCancel(); }}

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+
 import { toast } from 'sonner';
 import Scanner from './Scanner';
 import api from '../api';
@@ -556,9 +558,9 @@ const BarcodeControl = () => {
                     )}
                 </div>
 
-                {/* Guide Modal */}
-                {showGuide && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowGuide(false)}>
+                {showGuide && ReactDOM.createPortal(
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] p-4" onClick={() => setShowGuide(false)}>
+
                         <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
                                 <div className="flex items-center gap-3">
@@ -623,8 +625,10 @@ const BarcodeControl = () => {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
+
 
                 {/* Tabs Navigation */}
                 <div className="flex border-b border-gray-200 mb-6 w-full">
@@ -1249,8 +1253,8 @@ const BarcodeControl = () => {
             </div>
 
             {/* Modal for Duplicate Products Selection */}
-            {isDuplicateModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            {isDuplicateModalOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl border border-gray-100">
                         <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 flex items-center gap-4 shadow-lg">
                             <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner">
@@ -1314,7 +1318,8 @@ const BarcodeControl = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Scanner Component */}

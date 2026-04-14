@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import Scanner from './Scanner';
+
 import Modal from './Modal';
 import FichajeModal from './FichajeModal';
 import api from '../api';
@@ -456,21 +458,11 @@ const InventoryPage = () => {
             </div>
 
             {/* FULLSCREEN TRANSPARENT NATIVE SCANNER OVERLAY */}
-            {isScanning && !fichajeState.isOpen && (
-                <div className="fixed inset-0 z-[45] bg-transparent flex flex-col">
-                    <div className="relative h-[90%] w-full flex items-center justify-center overflow-hidden">
-                        <Scanner onScan={handleScan} onCancel={() => setIsScanning(false)} isEnabled={!fichajeState.isOpen} />
-                    </div>
-                    <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
-                        <button
-                            onClick={() => setIsScanning(false)}
-                            className="w-full h-full max-w-md bg-red-100 text-red-600 rounded-lg font-bold border border-red-200 flex items-center justify-center gap-2 hover:bg-red-200 transition"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            Detener Cámara
-                        </button>
-                    </div>
-                </div>
+            {isScanning && !fichajeState.isOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] bg-transparent">
+                    <Scanner onScan={handleScan} onCancel={() => setIsScanning(false)} isEnabled={!fichajeState.isOpen} />
+                </div>,
+                document.body
             )}
 
             <FichajeModal

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+
 import api from '../api';
 import { toast } from 'sonner';
 import Scanner from './Scanner';
@@ -222,10 +224,10 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const wouldExceed = expectedQuantity > 0 && (existingQuantity + actualQtyToAdd) > expectedQuantity;
     const excessAmount = wouldExceed ? (existingQuantity + actualQtyToAdd) - expectedQuantity : 0;
 
-    return (
+    return ReactDOM.createPortal(
         <div
             ref={overlayRef}
-            className={`fixed inset-0 z-50 flex ${keyboardHeight > 0 ? 'items-end' : 'items-center'} justify-center p-4 bg-black/60 backdrop-blur-sm`}
+            className={`fixed inset-0 z-[2000] flex ${keyboardHeight > 0 ? 'items-end' : 'items-center'} justify-center p-4 bg-black/60 backdrop-blur-sm`}
             style={keyboardHeight > 0 ? { paddingBottom: `${keyboardHeight + 8}px` } : {}}
         >
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto">
@@ -497,7 +499,8 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     </div>
                 </div>
             )}
-        </div >
+        </div >,
+        document.body
     );
 };
 
