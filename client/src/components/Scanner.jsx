@@ -427,12 +427,20 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                 width: { min: 640, ideal: 1280, max: 1920 }, // Reducido de 1080p/4K para mayor rapidez
                 height: { min: 480, ideal: 720, max: 1080 },
                 focusMode: "continuous",
+                // @ts-ignore - Algunas implementaciones de navegador requieren estos en el objeto principal o advanced
+                advanced: [
+                    { focusMode: "continuous" },
+                    { whiteBalanceMode: "continuous" },
+                    { exposureMode: "continuous" }
+                ]
             });
             setIsScanning(true);
 
             // After start, detect capabilities and apply zoom
             try {
                 const capabilities = scannerRef.current.getRunningTrackCapabilities();
+                console.log("Camera capabilities:", capabilities);
+                
                 if (capabilities?.zoom) {
                     setWebZoomSupported(true);
                     const minZoom = capabilities.zoom.min ?? 1;
@@ -444,7 +452,9 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                     });
                     setWebZoom(clampedZoom);
                 }
-                if (capabilities?.torch) {
+                
+                // Verificación más robusta del torch
+                if (capabilities?.torch || ('torch' in (capabilities || {}))) {
                     setWebTorchSupported(true);
                 }
             } catch (capErr) {
@@ -468,12 +478,36 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const handleWebToggleTorch = async () => {
         try {
             const next = !webTorchOn;
-            await scannerRef.current.applyVideoConstraints({
-                advanced: [{ torch: next }]
-            });
+            
+            // Intento 1: A través de la librería html5-qrcode
+            try {
+                await scannerRef.current.applyVideoConstraints({
+                    advanced: [{ torch: next }]
+                });
+            } catch (libErr) {
+                console.warn('Librería no pudo aplicar torch, reintentando directo...', libErr);
+                
+                // Intento 2: Acceso directo al MediaStreamTrack (más robusto para Samsung)
+                const video = document.querySelector('#reader video');
+                if (video && video.srcObject) {
+                    const track = video.srcObject.getVideoTracks()[0];
+                    if (track) {
+                        await track.applyConstraints({
+                            advanced: [{ torch: next }]
+                        });
+                    } else {
+                        throw new Error('No se encontró el track de video');
+                    }
+                } else {
+                    throw new Error('No se encontró el elemento de video o stream');
+                }
+            }
+            
             setWebTorchOn(next);
         } catch (e) {
-            console.warn('Linterna no soportada en web:', e);
+            console.error('Error al controlar la linterna en IA:', e);
+            // Si falla, al menos intentamos que el estado visual no se quede trabado si el usuario insiste
+            // Pero aquí lo dejamos como error para que el usuario sepa que falló.
         }
     };
 
