@@ -498,6 +498,7 @@ app.get('/api/receipts', verifyToken, async (req, res) => {
             .from('receipts')
             .select('*')
             .is('deleted_at', null)
+            .neq('type', 'sucursal_transfer')
             .order('date', { ascending: false });
 
         if (error) throw error;
@@ -1725,6 +1726,30 @@ app.post('/api/branch-transfers/:id/receive', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error receiving transfer:', error);
         res.status(500).json({ message: 'Error al procesar la recepción' });
+    }
+});
+
+// Get receipts created from branch transfers
+app.get('/api/branch-transfers/receipts', verifyToken, async (req, res) => {
+    try {
+        let query = supabase
+            .from('receipts')
+            .select('*')
+            .eq('type', 'sucursal_transfer')
+            .is('deleted_at', null)
+            .order('date', { ascending: false });
+
+        // Filter by branch for non-admin roles
+        if (!['superadmin', 'admin'].includes(req.user.role) && req.user.sucursal_id) {
+            query = query.eq('sucursal_id', req.user.sucursal_id);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching branch transfer receipts:', error);
+        res.status(500).json({ message: 'Error al obtener los ingresos de sucursal' });
     }
 });
 
