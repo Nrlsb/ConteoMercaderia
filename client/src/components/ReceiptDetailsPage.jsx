@@ -100,6 +100,11 @@ const ReceiptDetailsPage = () => {
     // Focus management
     const inputRef = useRef(null);
 
+    // Surplus correction state
+    const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+    const [correctingItem, setCorrectingItem] = useState(null);
+    const [correctionQuantity, setCorrectionQuantity] = useState('');
+
     useEffect(() => {
         fetchReceiptDetails();
         syncProducts(); // Sync catalog on mount
@@ -638,6 +643,35 @@ const ReceiptDetailsPage = () => {
             toast.error(err?.response?.data?.message || 'Error al exportar');
         } finally {
             setExportingTo(false);
+        }
+    };
+
+    const handleConfirmCorrection = async () => {
+        if (!correctingItem || processing) return;
+
+        const newQty = parseFloat(correctionQuantity);
+        if (isNaN(newQty) || newQty < 0) {
+            toast.error('Cantidad inválida');
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            await api.put(`/api/receipts/${id}/items/${correctingItem.id}`, {
+                expected_quantity: correctingItem.expected_quantity,
+                scanned_quantity: newQty
+            });
+
+            toast.success('Cantidad corregida exitosamente');
+            setIsCorrectionModalOpen(false);
+            setCorrectingItem(null);
+            setCorrectionQuantity('');
+            await fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error correcting item:', error);
+            toast.error(error.response?.data?.message || 'Error al corregir la cantidad');
+        } finally {
+            setProcessing(false);
         }
     };
 
@@ -1315,9 +1349,24 @@ const ReceiptDetailsPage = () => {
                                                             <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
                                                             <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
                                                             <td className="px-5 py-4 text-center">
-                                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${badgeColor}`}>
-                                                                    {label}
-                                                                </span>
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${badgeColor}`}>
+                                                                        {label}
+                                                                    </span>
+                                                                    {diff < 0 && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setCorrectingItem(item);
+                                                                                setCorrectionQuantity(String(item.scanned_quantity));
+                                                                                setIsCorrectionModalOpen(true);
+                                                                            }}
+                                                                            className="p-1 text-orange-600 hover:bg-orange-100 rounded-md transition-colors"
+                                                                            title="Corregir cantidad"
+                                                                        >
+                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );
@@ -1345,7 +1394,21 @@ const ReceiptDetailsPage = () => {
                                             }
                                             return (
                                                 <div key={item.id} className={`p-4 rounded-xl border ${cardColor} shadow-sm`}>
-                                                    <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
+                                                    <div className="flex justify-between items-start gap-2 mb-1">
+                                                        <h4 className="font-bold text-gray-900 text-sm">{item.products?.description || 'Sin descripción'}</h4>
+                                                        {diff < 0 && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setCorrectingItem(item);
+                                                                    setCorrectionQuantity(String(item.scanned_quantity));
+                                                                    setIsCorrectionModalOpen(true);
+                                                                }}
+                                                                className="p-1.5 bg-white text-orange-600 border border-orange-200 rounded-lg shadow-sm active:scale-95 transition-all"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                     <p className="text-[10px] text-gray-400 font-bold mb-2 uppercase tracking-wider">INT: {item.product_code}</p>
                                                     {item.products?.provider_code && (
                                                         <p className="text-[10px] text-blue-500 font-mono mb-3">PROV: {item.products.provider_code}</p>
@@ -1803,8 +1866,95 @@ const ReceiptDetailsPage = () => {
                 </div>,
                 document.body
             )}
+
+            {/* Correction Modal for Surplus Items */}
+            {isCorrectionModalOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl border border-gray-100">
+                        <div className="bg-gradient-to-r from-orange-500 to-red-600 p-6 flex items-center gap-4 shadow-lg">
+                            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner text-white">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-white leading-tight uppercase tracking-wide">Corregir Sobrante</h2>
+                                <p className="text-orange-50 text-sm font-medium opacity-90">Ajusta la cantidad controlada</p>
+                            </div>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl">
+                                <h3 className="text-xs font-bold text-orange-800 uppercase tracking-widest mb-1">Producto</h3>
+                                <p className="text-gray-900 font-black text-lg">{correctingItem?.products?.description}</p>
+                                <p className="text-xs text-orange-600 font-bold mt-1 uppercase tracking-tighter">CÓDIGO: {correctingItem?.product_code}</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                    <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Esperado</span>
+                                    <span className="text-2xl font-black text-gray-700">{correctingItem?.expected_quantity}</span>
+                                </div>
+                                <div className="p-4 bg-brand-blue/5 rounded-2xl border border-brand-blue/10">
+                                    <span className="block text-[10px] font-bold text-brand-blue uppercase mb-1">Controlado Actual</span>
+                                    <span className="text-2xl font-black text-brand-blue">{correctingItem?.scanned_quantity}</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Nueva Cantidad Controlada</label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        autoFocus
+                                        value={correctionQuantity}
+                                        onChange={(e) => setCorrectionQuantity(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleConfirmCorrection()}
+                                        className="w-full bg-gray-50 border-2 border-transparent focus:border-brand-blue focus:bg-white text-3xl font-black text-gray-900 p-5 rounded-2xl outline-none transition-all placeholder-gray-200"
+                                        placeholder="0"
+                                    />
+                                    <div className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-300 font-black text-xs uppercase tracking-widest pointer-events-none">
+                                        Unidades
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setIsCorrectionModalOpen(false);
+                                    setCorrectingItem(null);
+                                }}
+                                disabled={processing}
+                                className="flex-1 px-6 py-4 bg-white hover:bg-gray-100 text-gray-500 font-black rounded-2xl border border-gray-200 shadow-sm transition-all active:scale-95 text-sm uppercase tracking-widest disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmCorrection}
+                                disabled={processing || !correctionQuantity}
+                                className="flex-[2] px-6 py-4 bg-gradient-to-r from-brand-blue to-blue-700 hover:from-blue-700 hover:to-brand-blue text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-95 text-sm uppercase tracking-widest flex items-center justify-center gap-3 disabled:opacity-50"
+                            >
+                                {processing ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                ) : (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Guardar Cambio
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
 
 export default ReceiptDetailsPage;
+
