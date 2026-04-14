@@ -56,6 +56,7 @@ const EgresosList = () => {
     const [needsPermission, setNeedsPermission] = useState(false);
     const [showFolderGuide, setShowFolderGuide] = useState(false);
     const [failedFiles, setFailedFiles] = useState([]); // Track files that failed in the current session
+    const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
     const dirHandleRef = useRef(null);
     const watchIntervalRef = useRef(null);
     const checkingRef = useRef(false); // Lock to prevent concurrent checkFolder runs
@@ -96,6 +97,11 @@ const EgresosList = () => {
     useEffect(() => {
         fetchEgresos();
     }, [fetchEgresos]);
+
+    // Reset visible count when search changes
+    useEffect(() => {
+        setVisibleCount(20);
+    }, [search]);
 
     // --- Folder Watcher Logic ---
 
@@ -334,6 +340,8 @@ const EgresosList = () => {
             );
         })
         : egresos;
+
+    const displayedEgresos = filteredEgresos.slice(0, visibleCount);
 
     return (
         <div className="container mx-auto p-4 max-w-lg md:max-w-6xl">
@@ -655,7 +663,7 @@ const EgresosList = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredEgresos.map(egreso => (
+                            {displayedEgresos.map(egreso => (
                                 <tr key={egreso.id}>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
                                         <div className="flex items-center gap-2">
@@ -713,7 +721,7 @@ const EgresosList = () => {
 
             {/* Vista Mobile (Tarjetas) */}
             <div className="md:hidden space-y-4">
-                {filteredEgresos.map(egreso => (
+                {displayedEgresos.map(egreso => (
                     <Link
                         to={`/egresos/${egreso.id}`}
                         key={egreso.id}
@@ -762,6 +770,21 @@ const EgresosList = () => {
                     </Link>
                 ))}
             </div>
+
+            {/* Pagination / Load More */}
+            {filteredEgresos.length > visibleCount && (
+                <div className="mt-8 mb-12 flex justify-center">
+                    <button
+                        onClick={() => setVisibleCount(prev => prev + 20)}
+                        className="bg-white hover:bg-gray-50 text-brand-blue font-bold py-3 px-8 rounded-xl border-2 border-brand-blue/20 hover:border-brand-blue transition-all shadow-sm flex items-center gap-2"
+                    >
+                        <span>Cargar más remitos</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                </div>
+            )}
 
             {egresos.length === 0 && !uploading && (
                 <div className="bg-white p-8 text-center rounded-lg shadow-inner text-gray-500 italic mt-4">

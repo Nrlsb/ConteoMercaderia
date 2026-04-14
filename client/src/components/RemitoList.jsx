@@ -11,6 +11,7 @@ const RemitoList = () => {
     const [remitos, setRemitos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedRemito, setSelectedRemito] = useState(null);
+    const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
 
     // Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +24,11 @@ const RemitoList = () => {
     useEffect(() => {
         fetchRemitos();
     }, []);
+
+    // Reset visible count when filters change
+    useEffect(() => {
+        setVisibleCount(20);
+    }, [searchTerm, startDate, endDate]);
 
     const navigate = useNavigate();
 
@@ -274,7 +280,7 @@ const RemitoList = () => {
                     <div className="overflow-x-auto">
                         {/* Mobile Card View */}
                         <div className="md:hidden space-y-4 p-4">
-                            {filteredRemitos.map((remito) => (
+                            {filteredRemitos.slice(0, visibleCount).map((remito) => (
                                 <div
                                     key={remito.id}
                                     onClick={() => handleViewDetails(remito)}
@@ -419,7 +425,7 @@ const RemitoList = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredRemitos.map((remito) => (
+                                    filteredRemitos.slice(0, visibleCount).map((remito) => (
                                         <tr key={remito.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm font-medium text-gray-900">
@@ -510,6 +516,20 @@ const RemitoList = () => {
                 )}
             </div>
 
+            {/* Pagination / Load More */}
+            {!loading && filteredRemitos.length > visibleCount && (
+                <div className="mt-8 mb-12 flex justify-center">
+                    <button
+                        onClick={() => setVisibleCount(prev => prev + 20)}
+                        className="bg-white hover:bg-gray-50 text-blue-600 font-bold py-3 px-8 rounded-xl border border-blue-200 hover:border-blue-400 transition-all shadow-sm flex items-center gap-2"
+                    >
+                        <span>Cargar más remitos</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

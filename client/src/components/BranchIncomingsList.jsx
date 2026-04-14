@@ -11,6 +11,7 @@ const BranchIncomingsList = () => {
     const [receiptHistory, setReceiptHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState(null);
+    const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
 
     useEffect(() => {
         const loadData = async () => {
@@ -220,7 +221,7 @@ const BranchIncomingsList = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {receiptHistory.map(receipt => (
+                                        {receiptHistory.slice(0, visibleCount).map(receipt => (
                                             <tr key={receipt.id}>
                                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                                     <p className="text-gray-900 font-bold">{receipt.remito_number}</p>
@@ -254,7 +255,7 @@ const BranchIncomingsList = () => {
 
                             {/* Mobile View */}
                             <div className="md:hidden space-y-4">
-                                {receiptHistory.map(receipt => (
+                                {receiptHistory.slice(0, visibleCount).map(receipt => (
                                     <div 
                                         key={receipt.id} 
                                         onClick={() => navigate(`/receipts/${receipt.id}`)}
@@ -277,6 +278,21 @@ const BranchIncomingsList = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Pagination / Load More */}
+                            {receiptHistory.length > visibleCount && (
+                                <div className="mt-6 mb-8 flex justify-center">
+                                    <button
+                                        onClick={() => setVisibleCount(prev => prev + 20)}
+                                        className="bg-white hover:bg-gray-50 text-blue-600 font-bold py-2.5 px-6 rounded-lg border border-blue-200 hover:border-blue-400 transition-all shadow-sm flex items-center gap-2 text-sm"
+                                    >
+                                        <span>Cargar más historial</span>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
