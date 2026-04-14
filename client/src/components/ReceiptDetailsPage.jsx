@@ -47,9 +47,11 @@ const ReceiptDetailsPage = () => {
     const [isLinkingSearching, setIsLinkingSearching] = useState(false);
     const [searchType, setSearchType] = useState('any'); // 'any', 'barcode', 'provider', 'internal'
 
-    const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_ingresos');
-    const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_ingresos');
-    const canUpload = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos');
+    const hasBranchPermission = user?.permissions?.includes('tab_ingreso_sucursal');
+
+    const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_ingresos') || hasBranchPermission;
+    const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_ingresos') || hasBranchPermission;
+    const canUpload = (user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos')) && !hasBranchPermission;
 
     const isSuperAdmin = user?.role === 'superadmin';
 
@@ -62,6 +64,10 @@ const ReceiptDetailsPage = () => {
     ].filter(tab => {
         if (isSuperAdmin) return true;
         if (tab.showIfOpen && receipt?.status === 'finalized') return false;
+
+        // Branch users can see control, diff and history by default
+        if (hasBranchPermission && ['control', 'diff', 'history'].includes(tab.id)) return true;
+
         return user?.permissions?.includes(tab.permission);
     });
 

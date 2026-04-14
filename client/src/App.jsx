@@ -35,7 +35,9 @@ const ProtectedRoute = ({ children, role, tabPermission }) => {
   if (tabPermission && user?.role !== 'superadmin') {
     const userPermissions = user?.permissions || [];
     const hasTabPermissions = userPermissions.some(p => p.startsWith('tab_'));
-    if (hasTabPermissions && !userPermissions.includes(tabPermission)) {
+    const requiredPermissions = Array.isArray(tabPermission) ? tabPermission : [tabPermission];
+    
+    if (hasTabPermissions && !requiredPermissions.some(p => userPermissions.includes(p))) {
       return <Navigate to="/" replace />;
     }
   }
@@ -181,7 +183,7 @@ const AppContent = () => {
                   </ProtectedRoute>
                 } />
                 <Route path="/receipts/:id" element={
-                  <ProtectedRoute tabPermission="tab_ingresos">
+                  <ProtectedRoute tabPermission={['tab_ingresos', 'tab_ingreso_sucursal']}>
                     <ReceiptDetailsPage />
                   </ProtectedRoute>
                 } />
