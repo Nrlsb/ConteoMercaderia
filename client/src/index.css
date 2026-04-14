@@ -11,9 +11,26 @@
   --color-brand-dark: #111827;
   --color-brand-gray: #6B7280;
 
+  --color-nav-glass: rgba(30, 64, 175, 0.85);
+  --color-nav-hover: rgba(59, 130, 246, 0.2);
+  --color-nav-active-grad-start: #3B82F6;
+  --color-nav-active-grad-end: #1D4ED8;
+
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+@layer utilities {
+  .glass-nav {
+    @apply backdrop-blur-md bg-nav-glass border-b border-white/10;
+  }
+  
+  .nav-item-active {
+    background: linear-gradient(135deg, var(--color-nav-active-grad-start), var(--color-nav-active-grad-end));
+    @apply shadow-lg shadow-blue-900/40;
+  }
+}
+
 
 @layer base {
   body {
