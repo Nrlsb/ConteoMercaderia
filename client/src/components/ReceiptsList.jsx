@@ -11,6 +11,7 @@ const ReceiptsList = () => {
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
     const [newRemitoNumber, setNewRemitoNumber] = useState('');
+    const [creationType, setCreationType] = useState('normal'); // 'normal' or 'overstock'
 
     const canCreate = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos');
     const canDelete = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('delete_ingresos');
@@ -50,7 +51,10 @@ const ReceiptsList = () => {
 
         try {
             const response = await api.post('/api/receipts',
-                { remitoNumber: newRemitoNumber }
+                { 
+                    remitoNumber: newRemitoNumber,
+                    type: creationType
+                }
             );
             toast.success('Ingreso creado correctamente');
             setNewRemitoNumber('');
@@ -81,18 +85,28 @@ const ReceiptsList = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Ingreso de Mercadería</h1>
                 {canCreate && (
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors"
-                    >
-                        Nuevo Ingreso
-                    </button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button
+                            onClick={() => { setCreationType('normal'); setIsCreating(true); }}
+                            className="flex-1 sm:flex-none bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors"
+                        >
+                            Nuevo Ingreso
+                        </button>
+                        <button
+                            onClick={() => { setCreationType('overstock'); setIsCreating(true); }}
+                            className="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-colors"
+                        >
+                            Ingreso Sobrestock
+                        </button>
+                    </div>
                 )}
             </div>
 
             {isCreating && (
-                <div className="mb-6 p-4 bg-white rounded-lg shadow-lg border-l-4 border-brand-blue">
-                    <h2 className="text-lg font-semibold mb-3">Nuevo Remito</h2>
+                <div className={`mb-6 p-4 bg-white rounded-lg shadow-lg border-l-4 ${creationType === 'overstock' ? 'border-purple-600' : 'border-brand-blue'}`}>
+                    <h2 className="text-lg font-semibold mb-3">
+                        {creationType === 'overstock' ? 'Nuevo Remito de Sobrestock' : 'Nuevo Remito'}
+                    </h2>
                     <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-3">
                         <input
                             type="text"
@@ -144,7 +158,14 @@ const ReceiptsList = () => {
                         {receipts.map(receipt => (
                             <tr key={receipt.id}>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                    <p className="text-gray-900 whitespace-no-wrap font-bold">{receipt.remito_number}</p>
+                                    <div className="flex flex-col">
+                                        <p className="text-gray-900 whitespace-no-wrap font-bold">{receipt.remito_number}</p>
+                                        {receipt.type === 'overstock' && (
+                                            <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold w-fit uppercase">
+                                                Sobrestock
+                                            </span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                     <p className="text-gray-900 whitespace-no-wrap">
@@ -191,7 +212,14 @@ const ReceiptsList = () => {
                     >
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <h3 className="text-lg font-bold text-gray-900">{receipt.remito_number}</h3>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-lg font-bold text-gray-900">{receipt.remito_number}</h3>
+                                    {receipt.type === 'overstock' && (
+                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase">
+                                            Sobrestock
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-brand-gray">
                                     {new Date(receipt.date).toLocaleDateString()} - {new Date(receipt.date).toLocaleTimeString()}
                                 </p>

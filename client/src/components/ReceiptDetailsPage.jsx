@@ -179,8 +179,15 @@ const ReceiptDetailsPage = () => {
     const fetchReceiptDetails = async () => {
         try {
             const response = await api.get(`/api/receipts/${id}`);
-            setReceipt(response.data);
-            setItems(response.data.items || []);
+            const data = response.data;
+            setReceipt(data);
+            setItems(data.items || []);
+            
+            // Default search type based on receipt type
+            if (data.type === 'overstock') {
+                setSearchType('internal');
+            }
+            
             setLoading(false);
             await db.offline_caches.put({
                 id: `receipt_${id}`,
@@ -755,12 +762,11 @@ const ReceiptDetailsPage = () => {
         for (let i = 0; i < scannedItems.length; i++) {
             const item = scannedItems[i];
             try {
-                // Post each item as 'expected'
-                // For OCR/PDF we strictly use 'provider' code
+                // For OCR/PDF we use search type based on receipt type
                 await api.post(`/api/receipts/${id}/items`, {
                     code: item.code,
                     quantity: item.quantity,
-                    searchType: 'provider'
+                    searchType: receipt?.type === 'overstock' ? 'internal' : 'provider'
                 });
                 successCount++;
 

@@ -467,7 +467,7 @@ app.post('/api/ai/parse-image', verifyToken, multer({ storage: multer.memoryStor
 
 // Create Receipt
 app.post('/api/receipts', verifyToken, async (req, res) => {
-    const { remitoNumber } = req.body;
+    const { remitoNumber, type } = req.body;
     if (!remitoNumber) return res.status(400).json({ message: 'Missing remito number' });
 
     try {
@@ -475,6 +475,7 @@ app.post('/api/receipts', verifyToken, async (req, res) => {
             .from('receipts')
             .insert([{
                 remito_number: remitoNumber,
+                type: type || 'normal',
                 created_by: req.user.username,
                 sucursal_id: req.user.sucursal_id || null,
                 date: new Date()
