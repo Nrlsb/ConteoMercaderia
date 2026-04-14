@@ -695,7 +695,7 @@ app.post('/api/receipts/:id/scan', verifyToken, verifyBranchAccess('receipts'), 
 });
 
 // Close Receipt
-app.put('/api/receipts/:id/close', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+app.put('/api/receipts/:id/close', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -713,7 +713,7 @@ app.put('/api/receipts/:id/close', verifyToken, verifyBranchAccess('receipts'), 
 });
 
 // Reopen Receipt (Admin only)
-app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), verifyBranchAccess('receipts'), async (req, res) => {
+app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -731,7 +731,7 @@ app.put('/api/receipts/:id/reopen', verifyToken, hasPermission('close_counts'), 
 });
 
 // Delete Receipt (Admin only)
-app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_counts'), verifyBranchAccess('receipts'), async (req, res) => {
+app.delete('/api/receipts/:id', verifyToken, hasPermission('delete_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Soft delete receipt
@@ -1425,7 +1425,7 @@ app.put('/api/egresos/:id/items/:productCode/reason', verifyToken, verifyBranchA
 });
 
 // Close Egreso
-app.put('/api/egresos/:id/close', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+app.put('/api/egresos/:id/close', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -1443,7 +1443,7 @@ app.put('/api/egresos/:id/close', verifyToken, verifyBranchAccess('egresos'), as
 });
 
 // Reopen Egreso
-app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_counts'), verifyBranchAccess('egresos'), async (req, res) => {
+app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -1461,7 +1461,7 @@ app.put('/api/egresos/:id/reopen', verifyToken, hasPermission('close_counts'), v
 });
 
 // Delete Egreso
-app.delete('/api/egresos/:id', verifyToken, hasPermission('delete_counts'), verifyBranchAccess('egresos'), async (req, res) => {
+app.delete('/api/egresos/:id', verifyToken, hasPermission('delete_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         await supabase.from('egreso_items_history').delete().eq('egreso_id', id);
