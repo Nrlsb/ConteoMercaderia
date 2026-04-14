@@ -60,6 +60,20 @@ const BranchIncomingsList = () => {
         }
     };
 
+    const handleDeleteReceipt = async (receiptId) => {
+        if (!window.confirm('¿Estás seguro de que deseas eliminar este control abierto? Esta acción no se puede deshacer.')) return;
+
+        try {
+            await api.delete(`/api/receipts/${receiptId}`);
+            toast.success('Control eliminado correctamente');
+            setReceiptHistory(prev => prev.filter(r => r.id !== receiptId));
+        } catch (error) {
+            console.error('Error deleting receipt:', error);
+            const msg = error.response?.data?.message || 'Error al eliminar el control';
+            toast.error(msg);
+        }
+    };
+
     if (loading) return (
         <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue"></div>
@@ -240,12 +254,25 @@ const BranchIncomingsList = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                                    <button
-                                                        onClick={() => navigate(`/receipts/${receipt.id}`)}
-                                                        className="text-blue-600 hover:text-blue-800 font-bold"
-                                                    >
-                                                        Detalles
-                                                    </button>
+                                                    <div className="flex items-center gap-4">
+                                                        <button
+                                                            onClick={() => navigate(`/receipts/${receipt.id}`)}
+                                                            className="text-blue-600 hover:text-blue-800 font-bold"
+                                                        >
+                                                            Detalles
+                                                        </button>
+                                                        {receipt.status !== 'finalized' && (
+                                                            <button
+                                                                onClick={() => handleDeleteReceipt(receipt.id)}
+                                                                className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                                            title="Eliminar control abierto"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -272,7 +299,21 @@ const BranchIncomingsList = () => {
                                                 {receipt.status === 'finalized' ? 'Finalizado' : 'Abierto'}
                                             </span>
                                         </div>
-                                        <div className="mt-3 flex justify-end">
+                                        <div className="mt-3 flex justify-between items-center">
+                                            {receipt.status !== 'finalized' ? (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteReceipt(receipt.id);
+                                                    }}
+                                                    className="text-red-500 flex items-center gap-1 text-sm font-medium"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                    <span>Eliminar</span>
+                                                </button>
+                                            ) : <div></div>}
                                             <span className="text-blue-600 text-sm font-bold">Ver detalles →</span>
                                         </div>
                                     </div>
