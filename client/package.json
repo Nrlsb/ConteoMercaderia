@@ -21,6 +21,7 @@
     "@capacitor/filesystem": "^8.1.1",
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/share": "^8.0.0",
+    "@pantrist/capacitor-plugin-ml-kit-text-recognition": "^8.0.0",
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.13.2",
     "dexie": "^4.3.0",
@@ -30,8 +31,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
-    "sonner": "^2.0.7",
-    "tesseract.js": "^7.0.0"
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

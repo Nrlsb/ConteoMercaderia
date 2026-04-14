@@ -17,6 +17,7 @@ dependencies {
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-haptics')
     implementation project(':capacitor-share')
+    implementation project(':pantrist-capacitor-plugin-ml-kit-text-recognition')
 
 }
 

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { CapacitorPluginMlKitTextRecognition } from '@pantrist/capacitor-plugin-ml-kit-text-recognition';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 // Helper: Siempre limpiar las clases CSS del escáner
@@ -11,18 +12,62 @@ const cleanupScannerCSS = () => {
     document.documentElement.classList.remove('barcode-scanner-active');
 };
 
-const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
+// Helper: Extraer números del texto OCR y validar checksum (EAN-8, UPC-A, EAN-13, EAN-14)
+const extractNumbers = (text) => {
+    if (!text) return null;
+    const noSpaceText = text.replace(/\s+/g, '');
+    // Buscar todas las secuencias de entre 8 y 14 dígitos que podrían ser códigos
+    const matches = [...noSpaceText.matchAll(/\d{8,14}/g)];
+
+    for (const match of matches) {
+        const code = match[0];
+        if (isValidBarcode(code)) {
+            return code;
+        }
+    }
+    return null;
+};
+
+// Valida si un código numérico es un EAN/UPC válido mediante checksum
+const isValidBarcode = (code) => {
+    if (!/^\d+$/.test(code)) return false;
+    const length = code.length;
+    // Solo validamos longitudes estándar (EAN-8, UPC-A(12), EAN-13, GTIN-14)
+    if (![8, 12, 13, 14].includes(length)) return false;
+
+    let sum = 0;
+    // El dígito verificador es el último
+    const checkDigit = parseInt(code[length - 1], 10);
+
+    for (let i = length - 2; i >= 0; i--) {
+        const digit = parseInt(code[i], 10);
+        // Regla estándar EAN/UPC: de derecha a izquierda (sin el check digit), posiciones impares multiplican por 3
+        const isOddPositionFromRight = ((length - 2 - i) % 2) === 0;
+        sum += isOddPositionFromRight ? digit * 3 : digit;
+    }
+
+    const calculatedCheck = (10 - (sum % 10)) % 10;
+    return calculatedCheck === checkDigit;
+};
+
+const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanStatus = null }) => {
     // Shared state
-    const [isAutoConfirm, setIsAutoConfirm] = useState(() => {
-        return localStorage.getItem('scanner_auto_confirm') === 'true';
+    const [scanMode, setScanMode] = useState(() => {
+        const stored = localStorage.getItem('scanner_mode');
+        if (stored) return stored;
+        return localStorage.getItem('scanner_auto_confirm') === 'true' ? 'auto' : 'manual';
     });
 
-    const toggleAutoConfirm = () => {
-        setIsAutoConfirm(prev => {
-            const next = !prev;
-            localStorage.setItem('scanner_auto_confirm', next.toString());
-            return next;
-        });
+    const isAutoConfirm = scanMode === 'auto';
+
+    const handleModeChange = async (newMode) => {
+        if (scanMode === newMode) return;
+        setScanMode(newMode);
+        localStorage.setItem('scanner_mode', newMode);
+
+        const willBeNative = Capacitor.isNativePlatform() && newMode !== 'ia';
+        await stopScanning(willBeNative);
+        setTimeout(() => { startScanning(newMode); }, 100);
     };
     // Shared state
     const [isNative] = useState(Capacitor.isNativePlatform());
@@ -47,6 +92,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
     const [webDetectedCode, setWebDetectedCode] = useState(null);
     const webDetectedCodeRef = useRef(null);
     const webPausedRef = useRef(false);
+    const ocrIntervalRef = useRef(null);
 
     // Web-specific refs
     const scannerRef = useRef(null);
@@ -63,17 +109,22 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
     const onScanRef = useRef(onScan);
     useEffect(() => { onScanRef.current = onScan; }, [onScan]);
 
-    // Ref for isAutoConfirm to avoid stale closures in scan callbacks
-    const isAutoConfirmRef = useRef(isAutoConfirm);
-    useEffect(() => { isAutoConfirmRef.current = isAutoConfirm; }, [isAutoConfirm]);
+    // Ref for scanMode to avoid stale closures in scan callbacks
+    const scanModeRef = useRef(scanMode);
+    useEffect(() => { scanModeRef.current = scanMode; }, [scanMode]);
 
     // --- REF: Track enabled state for async callbacks ---
     const isEnabledRef = useRef(isEnabled);
+    const isPausedRef = useRef(isPaused);
     const restartTimerRef = useRef(null);
 
     useEffect(() => {
         isEnabledRef.current = isEnabled;
     }, [isEnabled]);
+
+    useEffect(() => {
+        isPausedRef.current = isPaused;
+    }, [isPaused]);
 
     // --- EFFECT: Lifecycle Management ---
     useEffect(() => {
@@ -93,14 +144,15 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
             stopScanning();
             cleanupScannerCSS();
         };
-    }, [isEnabled, isNative]);
+    }, [isEnabled, isNative]); // Removing scanMode dependency from here so it doesn't restart continuously
 
 
     // --- FUNCTION: Start Scanning ---
-    const startScanning = async () => {
+    const startScanning = async (modeOverride) => {
+        const currentMode = modeOverride || scanMode;
         setError(null);
 
-        if (isNative) {
+        if (isNative && currentMode !== 'ia') {
             startNativeScan();
         } else {
             startWebScan();
@@ -130,26 +182,29 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
             restartTimerRef.current = null;
         }
 
-        if (isNative) {
+        if (ocrIntervalRef.current) {
+            clearInterval(ocrIntervalRef.current);
+            ocrIntervalRef.current = null;
+        }
+
+        try {
+            await BarcodeScanner.removeAllListeners();
+            await BarcodeScanner.stopScan();
+        } catch (e) {
+            // Ignore error if not scanning
+        }
+        nativeScanActiveRef.current = false;
+
+        if (scannerRef.current && scannerRef.current.isScanning) {
             try {
-                await BarcodeScanner.removeAllListeners();
-                await BarcodeScanner.stopScan();
-            } catch (e) {
-                // Ignore error if not scanning
+                await scannerRef.current.stop();
+            } catch (err) {
+                console.warn("Failed to stop web scanner", err);
             }
-            nativeScanActiveRef.current = false;
-            // Solo limpiar CSS aquí si NO se delega al useEffect (ej: stopScanning normal)
-            if (!skipCSSCleanup) {
-                cleanupScannerCSS();
-            }
-        } else {
-            if (scannerRef.current && scannerRef.current.isScanning) {
-                try {
-                    await scannerRef.current.stop();
-                } catch (err) {
-                    console.warn("Failed to stop web scanner", err);
-                }
-            }
+        }
+
+        if (!skipCSSCleanup) {
+            cleanupScannerCSS();
         }
     };
 
@@ -192,9 +247,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
 
             // 5. Agregar listener para códigos detectados
             await BarcodeScanner.addListener('barcodeScanned', async (result) => {
+                if (isPausedRef.current) return;
                 if (result.barcode && result.barcode.rawValue) {
                     const code = result.barcode.rawValue;
-                    if (isAutoConfirmRef.current) {
+                    if (scanModeRef.current === 'auto') {
                         handleScanSuccess(code);
                     } else {
                         detectedCodeRef.current = code;
@@ -279,6 +335,52 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
         }
     }, []);
 
+    // --- OCR: Interval for IA Mode ---
+    useEffect(() => {
+        if (!isScanning || scanMode !== 'ia') {
+            if (ocrIntervalRef.current) {
+                clearInterval(ocrIntervalRef.current);
+                ocrIntervalRef.current = null;
+            }
+            return;
+        }
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        ocrIntervalRef.current = setInterval(async () => {
+            if (webPausedRef.current || isPausedRef.current) return;
+            const video = document.querySelector('#reader video');
+            if (!video || video.readyState !== 4) return;
+
+            // set max size for OCR
+            const maxW = 640;
+            const maxH = 640 * (video.videoHeight / video.videoWidth);
+            canvas.width = maxW;
+            canvas.height = maxH;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const base64DataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            const base64Image = base64DataUrl.split(',')[1];
+
+            try {
+                const result = await CapacitorPluginMlKitTextRecognition.detectText({ base64Image });
+                if (result && result.text) {
+                    const code = extractNumbers(result.text);
+                    if (code && scanModeRef.current === 'ia') {
+                        handleScanSuccess(code);
+                    }
+                }
+            } catch (err) {
+                console.error("OCR Check error", err);
+            }
+        }, 1200);
+
+        return () => {
+            if (ocrIntervalRef.current) clearInterval(ocrIntervalRef.current);
+        };
+    }, [isScanning, scanMode]);
+
     // --- STRATEGY: Web (Html5Qrcode) ---
     const startWebScan = async () => {
         if (!scannerRef.current) {
@@ -301,12 +403,11 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
                 { facingMode: "environment" },
                 {
                     fps: 20, // Reducido de 30 para ahorrar CPU en gama baja
-                    qrbox: { width: 280, height: 140 },
                     videoConstraints: constraints
                 },
                 (decodedText) => {
-                    if (webPausedRef.current) return;
-                    if (isAutoConfirmRef.current) {
+                    if (webPausedRef.current || isPausedRef.current) return;
+                    if (scanModeRef.current === 'auto' || scanModeRef.current === 'ia') {
                         handleScanSuccess(decodedText);
                     } else {
                         // Manual mode: show code, wait for user confirmation
@@ -406,6 +507,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
 
     // --- SHARED: Handle Success ---
     const handleScanSuccess = async (code) => {
+        if (isPausedRef.current) return;
         const now = Date.now();
         // Debounce
         if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 800) {
@@ -453,21 +555,18 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
     };
 
     return (
-        <div className={`w-full h-full relative overflow-hidden group ${isNative ? 'bg-transparent' : 'bg-black'}`}>
-            {/* WEB SCANNER CONTAINER */}
-            {!isNative && <div id="reader" className="w-full h-full object-cover"></div>}
+        <>
+            <div className={`w-full h-full relative overflow-hidden ${isNative && scanMode !== 'ia' ? 'bg-transparent' : 'bg-black'}`}>
+                {!(isNative && scanMode !== 'ia') && (
+                    <div id="reader" className="w-full h-full object-cover"></div>
+                )}
+            </div>
 
-            {/* ============================================ */}
-            {/* NATIVE: Overlay UI similar a Google Scanner  */}
-            {/* Renderizado como Portal en document.body     */}
-            {/* ============================================ */}
-            {isNative && isScanning && ReactDOM.createPortal(
+            {isScanning && ReactDOM.createPortal(
                 <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 1000 }}>
-
-                    {/* Header - Barra superior */}
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button
-                            onClick={handleNativeCancel}
+                            onClick={isNative && scanMode !== 'ia' ? handleNativeCancel : () => { if (onCancel) onCancel(); }}
                             className="w-10 h-10 flex items-center justify-center rounded-full bg-black/60 text-white active:scale-90 transition-transform"
                             aria-label="Cerrar escáner"
                         >
@@ -477,79 +576,48 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
                             </svg>
                         </button>
 
-                        {/* Selector Auto/Manual en el centro del Header */}
-                        <div className="flex bg-black/60 rounded-full p-1 border border-white/20" style={{ width: '130px' }}>
-                            <button
-                                onClick={() => { if (isAutoConfirm) toggleAutoConfirm(); }}
-                                className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${!isAutoConfirm ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}
-                            >Manual</button>
-                            <button
-                                onClick={() => { if (!isAutoConfirm) toggleAutoConfirm(); }}
-                                className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${isAutoConfirm ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}
-                            >Auto</button>
+                        <div className="flex bg-black/60 rounded-full p-1 border border-white/20 w-[200px]">
+                            <button onClick={() => handleModeChange('manual')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'manual' ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}>Manual</button>
+                            <button onClick={() => handleModeChange('auto')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'auto' ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}>Auto</button>
+                            <button onClick={() => handleModeChange('ia')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'ia' ? 'bg-blue-500 text-white shadow-sm' : 'text-white/70'}`}>IA</button>
                         </div>
 
-                        {/* Botón de Flash funcional */}
-                        <button
-                            onClick={handleToggleTorch}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${torchOn ? 'bg-yellow-500/80' : 'bg-black/60'}`}
-                            aria-label="Toggle flash"
-                        >
-                            {torchOn ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                                </svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                                </svg>
+                        <div className="flex items-center gap-2">
+                            {!(isNative && scanMode !== 'ia') && webZoomSupported && (
+                                <div className="hidden sm:flex items-center gap-1 bg-black/60 rounded-full px-2 py-1 border border-white/20">
+                                    <button onClick={() => handleWebZoom(-0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">−</button>
+                                    <span className="text-white text-[10px] font-mono min-w-[28px] text-center">{webZoom.toFixed(1)}x</span>
+                                    <button onClick={() => handleWebZoom(+0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">+</button>
+                                </div>
                             )}
-                        </button>
+                            <button
+                                onClick={(isNative && scanMode !== 'ia') ? handleToggleTorch : handleWebToggleTorch}
+                                className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${((isNative && scanMode !== 'ia') ? torchOn : webTorchOn) ? 'bg-yellow-500/80' : 'bg-black/60'}`}
+                                aria-label="Toggle flash"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={((isNative && scanMode !== 'ia') ? torchOn : webTorchOn) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Banner de Estado (Éxito/Error) */}
                     {scanStatus && (
                         <div className="px-4 py-2 animate-in fade-in slide-in-from-top-4 duration-300">
-                            <div className={`
-                                flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border
-                                ${scanStatus.type === 'error' ? 'bg-red-500 border-red-400 text-white' : 'bg-green-600 border-green-500 text-white'}
-                            `}>
-                                <div className="p-1.5 bg-white/20 rounded-full">
-                                    {scanStatus.type === 'error' ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <circle cx="12" cy="12" r="10"></circle>
-                                            <line x1="12" y1="8" x2="12" y2="12"></line>
-                                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
-                                    )}
-                                </div>
+                            <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border ${scanStatus.type === 'error' ? 'bg-red-500 border-red-400 text-white' : 'bg-green-600 border-green-500 text-white'}`}>
                                 <p className="text-sm font-bold leading-tight flex-1">{scanStatus.message}</p>
                             </div>
                         </div>
                     )}
 
-                    {/* Zona central: visor con esquinas tipo Google */}
                     <div className="flex-1 flex items-center justify-center relative">
-                        {/* Oscurecimiento alrededor del visor */}
-                        {/* Overlay eliminado para mayor rapidez */}
-
-                        {/* Visor rectangular con esquinas */}
-                        <div className="relative w-[90%] max-w-sm aspect-square">
-                            {/* Esquinas del visor */}
+                        <div className="relative w-[85%] max-w-sm aspect-square">
                             <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-white rounded-tl-lg"></div>
                             <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-white rounded-tr-lg"></div>
                             <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-white rounded-bl-lg"></div>
                             <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-white rounded-br-lg"></div>
-
-                            {/* Línea de escaneo animada */}
-                            <div className="absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent opacity-60 animate-scan-line"></div>
-
-                            {/* Mensaje de ayuda para enfoque */}
-                            {showFocusHint && !detectedCode && (
+                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? 'via-green-400' : 'via-white'} to-transparent opacity-70 animate-scan-line`}></div>
+                            {showFocusHint && !detectedCode && (isNative && scanMode !== 'ia') && (
                                 <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
                                     <div className="bg-black/40 backdrop-blur-sm border border-white/20 text-white px-4 py-3 rounded-2xl text-center shadow-xl animate-pulse">
                                         <p className="text-sm font-bold">¿No enfoca?</p>
@@ -557,14 +625,10 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
                                     </div>
                                 </div>
                             )}
-
-                            {/* Indicador de código detectado */}
-                            {detectedCode && (
+                            {((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) && (
                                 <div className="absolute -bottom-10 left-0 right-0 flex justify-center">
                                     <div className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                         Código detectado
                                     </div>
                                 </div>
@@ -572,180 +636,32 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
                         </div>
                     </div>
 
-                    {/* Zona inferior: botón de captura y código detectado */}
                     <div className="pb-6 px-6 flex flex-col items-center gap-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
-
-                        {/* Código detectado visible */}
-                        {detectedCode && (
-                            <div className="bg-black/70 rounded-xl px-5 py-2.5 max-w-full">
+                        {((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) && (
+                            <div className="bg-black/70 backdrop-blur-md rounded-xl px-5 py-2.5 max-w-full">
                                 <p className="text-white/60 text-[10px] uppercase tracking-widest text-center mb-0.5">Código leído</p>
-                                <p className="text-white text-lg font-mono font-bold text-center tracking-wider break-all">{detectedCode}</p>
+                                <p className="text-white text-lg font-mono font-bold text-center tracking-wider break-all">{((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode)}</p>
                             </div>
                         )}
-
-                        {/* Botón de captura grande estilo Google Lens */}
-                        <button
-                            onClick={handleNativeCapture}
-                            disabled={!detectedCode}
-                            className={`
-                                w-20 h-20 rounded-full flex items-center justify-center
-                                transition-all duration-200 active:scale-90
-                                shadow-2xl
-                                ${detectedCode
-                                    ? 'bg-white ring-4 ring-white/30'
-                                    : 'bg-white/30 ring-4 ring-white/10'
-                                }
-                            `}
-                            aria-label="Capturar código"
-                        >
-                            <div className={`
-                                w-16 h-16 rounded-full flex items-center justify-center transition-all
-                                ${detectedCode
-                                    ? 'bg-green-500 text-white'
-                                    : 'bg-white/20 text-white/40'
-                                }
-                            `}>
-                                {detectedCode ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12"></polyline>
-                                    </svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="3" y="3" width="7" height="7"></rect>
-                                        <rect x="14" y="3" width="7" height="7"></rect>
-                                        <rect x="14" y="14" width="7" height="7"></rect>
-                                        <rect x="3" y="14" width="7" height="7"></rect>
-                                    </svg>
-                                )}
-                            </div>
-                        </button>
-
-                        <p className="text-white/70 text-xs text-center">
-                            {detectedCode
-                                ? 'Presioná para confirmar'
-                                : 'Apuntá al código de barras'
-                            }
-                        </p>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {/* Web Scanner Overlay */}
-            {!isNative && isScanning && (
-                <div className="absolute inset-0 flex flex-col pointer-events-none">
-
-                    {/* Top bar: Auto/Manual + Torch + Zoom */}
-                    <div className="pointer-events-auto flex items-center justify-between px-3 pt-2 pb-1 bg-gradient-to-b from-black/60 to-transparent">
-                        {/* Auto/Manual toggle */}
-                        <div className="flex bg-black/60 rounded-full p-0.5 border border-white/20" style={{ width: '120px' }}>
+                        {scanMode === 'manual' && (
                             <button
-                                onClick={() => { if (isAutoConfirm) toggleAutoConfirm(); }}
-                                className={`flex-1 text-[11px] font-bold py-1 rounded-full transition ${!isAutoConfirm ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}
-                            >Manual</button>
-                            <button
-                                onClick={() => { if (!isAutoConfirm) toggleAutoConfirm(); }}
-                                className={`flex-1 text-[11px] font-bold py-1 rounded-full transition ${isAutoConfirm ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}
-                            >Auto</button>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {/* Zoom controls */}
-                            {webZoomSupported && (
-                                <div className="flex items-center gap-1 bg-black/60 rounded-full px-2 py-1 border border-white/20">
-                                    <button onClick={() => handleWebZoom(-0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">−</button>
-                                    <span className="text-white text-[10px] font-mono min-w-[28px] text-center">{webZoom.toFixed(1)}x</span>
-                                    <button onClick={() => handleWebZoom(+0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">+</button>
-                                </div>
-                            )}
-
-                            {/* Torch button */}
-                            {webTorchSupported && (
-                                <button
-                                    onClick={handleWebToggleTorch}
-                                    className={`w-8 h-8 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${webTorchOn ? 'bg-yellow-500/80' : 'bg-black/60 border border-white/20'}`}
-                                    aria-label="Toggle linterna"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={webTorchOn ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                                    </svg>
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Center: viewfinder */}
-                    <div className="flex-1 flex items-center justify-center relative">
-                        {/* Dark overlay around scanner box */}
-                        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)' }}></div>
-
-                        <div className="relative w-[85%] max-w-sm aspect-square">
-                            {/* Corner markers */}
-                            <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-white rounded-tl-md"></div>
-                            <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-white rounded-tr-md"></div>
-                            <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-white rounded-bl-md"></div>
-                            <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-white rounded-br-md"></div>
-
-                            {/* Scan line */}
-                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${webDetectedCode ? 'via-green-400' : 'via-white'} to-transparent opacity-70 animate-scan-line`}></div>
-
-                            {/* Detected badge */}
-                            {webDetectedCode && (
-                                <div className="absolute -bottom-9 left-0 right-0 flex justify-center">
-                                    <div className="bg-green-600 text-white px-3 py-1 rounded-full text-[11px] font-bold shadow-lg flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
-                                        Código detectado
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Bottom bar: manual capture button */}
-                    {!isAutoConfirm && (
-                        <div className="pointer-events-auto pb-4 px-4 flex flex-col items-center gap-2 bg-gradient-to-t from-black/60 to-transparent pt-8">
-                            {webDetectedCode && (
-                                <div className="bg-black/70 rounded-xl px-4 py-2 max-w-full">
-                                    <p className="text-white/60 text-[9px] uppercase tracking-widest text-center mb-0.5">Código leído</p>
-                                    <p className="text-white text-base font-mono font-bold text-center tracking-wider break-all">{webDetectedCode}</p>
-                                </div>
-                            )}
-                            <button
-                                onClick={handleWebCapture}
-                                disabled={!webDetectedCode}
-                                className={`
-                                    w-16 h-16 rounded-full flex items-center justify-center
-                                    transition-all duration-200 active:scale-90 shadow-2xl
-                                    ${webDetectedCode
-                                        ? 'bg-white ring-4 ring-white/30'
-                                        : 'bg-white/20 ring-4 ring-white/10'
-                                    }
-                                `}
-                                aria-label="Confirmar código"
+                                onClick={(isNative && scanMode !== 'ia') ? handleNativeCapture : handleWebCapture}
+                                disabled={!((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode)}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-2xl ${((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? 'bg-white ring-4 ring-white/30' : 'bg-white/30 ring-4 ring-white/10'}`}
+                                aria-label="Capturar código"
                             >
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${webDetectedCode ? 'bg-green-500 text-white' : 'bg-white/20 text-white/40'}`}>
-                                    {webDetectedCode ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
+                                <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? 'bg-green-500 text-white' : 'bg-white/20 text-white/40'}`}>
+                                    {((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                     ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <rect x="3" y="3" width="7" height="7"></rect>
-                                            <rect x="14" y="3" width="7" height="7"></rect>
-                                            <rect x="14" y="14" width="7" height="7"></rect>
-                                            <rect x="3" y="14" width="7" height="7"></rect>
-                                        </svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                                     )}
                                 </div>
                             </button>
-                            <p className="text-white/70 text-[11px] text-center">
-                                {webDetectedCode ? 'Presioná para confirmar' : 'Apuntá al código de barras'}
-                            </p>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                </div>,
+                document.body
             )}
 
             {error && (
@@ -756,12 +672,11 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, scanStatus = null }) => {
                         </svg>
                         <p className="text-lg font-bold mb-2">Error</p>
                         <p className="text-sm text-gray-400">{error}</p>
-                        {isNative && <button onClick={startNativeScan} className="mt-4 px-4 py-2 bg-gray-700 rounded text-sm hover:bg-gray-600">Reintentar</button>}
+                        {isNative && <button onClick={() => startScanning()} className="mt-4 px-4 py-2 bg-gray-700 rounded text-sm hover:bg-gray-600">Reintentar</button>}
                     </div>
                 </div>
             )}
-
-        </div>
+        </>
     );
 };
 

@@ -68,6 +68,9 @@ const BarcodeControl = () => {
     // Sesión local de códigos escaneados para evitar repetición inmediata si está desactivado
     const [scannedInSession, setScannedInSession] = useState(new Set());
 
+    // Guide state
+    const [showGuide, setShowGuide] = useState(false);
+
     // Save toggle preferences to localStorage
     useEffect(() => {
         localStorage.setItem('saveToLayout', JSON.stringify(saveToLayout));
@@ -532,7 +535,16 @@ const BarcodeControl = () => {
         <div className="max-w-4xl mx-auto p-2 sm:p-4 animate-fade-in">
             <div className="bg-white rounded-xl shadow-md p-3 sm:p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 gap-3">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">Control de Códigos de Barras</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">Control de Códigos de Barras</h2>
+                        <button
+                            onClick={() => setShowGuide(true)}
+                            className="w-7 h-7 rounded-full bg-primary-100 hover:bg-primary-200 text-primary-700 font-bold text-sm flex items-center justify-center transition-colors border border-primary-300 shadow-sm"
+                            title="Ver guía de uso"
+                        >
+                            !
+                        </button>
+                    </div>
                     {activeTab === 'scanner' && (
                         <button
                             onClick={resetView}
@@ -543,6 +555,76 @@ const BarcodeControl = () => {
                         </button>
                     )}
                 </div>
+
+                {/* Guide Modal */}
+                {showGuide && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowGuide(false)}>
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 font-bold text-lg flex items-center justify-center border border-primary-300">!</div>
+                                    <h2 className="text-lg font-bold text-gray-800">Guía: Control de Códigos</h2>
+                                </div>
+                                <button onClick={() => setShowGuide(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                            <div className="p-5 space-y-6 text-sm text-gray-700">
+                                <p className="text-gray-500">Esta pantalla te permite consultar y gestionar productos escaneando sus códigos de barras.</p>
+
+                                <div className="space-y-4">
+                                    <div className="flex gap-4">
+                                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                                            <Barcode className="w-5 h-5 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 mb-1">Modos de Escaneo</p>
+                                            <ul className="list-disc list-inside space-y-1 text-gray-600">
+                                                <li><strong>Escáner de Mano:</strong> Pestañeá el producto directamente. El sistema detecta el código automáticamente.</li>
+                                                <li><strong>Cámara:</strong> Hacé clic en "Usar Cámara" para habilitar el escáner del celular.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                                            <ClipboardList className="w-5 h-5 text-emerald-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 mb-1">Guardado en Layout</p>
+                                            <p className="text-gray-600">Si está <strong>Activado</strong>, cada vez que escanees un producto se registrará en la pestaña "Layout" con tu usuario. Sirve para auditoría de estanterías.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                                            <RotateCcw className="w-5 h-5 text-amber-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 mb-1">Permitir Repetición</p>
+                                            <p className="text-gray-600">Si está <strong>Inactivo</strong>, el sistema te avisará si intentás escanear el mismo producto dos veces seguidas en la misma sesión.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                                            <Link className="w-5 h-5 text-purple-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 mb-1">Vincular Códigos</p>
+                                            <p className="text-gray-600">Si un código no es reconocido, el sistema te permitirá buscar el producto manualmente y asociarle ese código para escaneos futuros.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4 border-t flex justify-end bg-gray-50">
+                                <button onClick={() => setShowGuide(false)} className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg transition-colors text-sm">
+                                    Entendido
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Tabs Navigation */}
                 <div className="flex border-b border-gray-200 mb-6 w-full">
@@ -1211,29 +1293,15 @@ const BarcodeControl = () => {
                 </div>
             )}
 
-            {/* Scanner Modal overlay */}
+            {/* Scanner Component */}
             {showScanner && (
-                <div className="fixed inset-0 z-50 flex flex-col bg-black">
-                    <div className="flex justify-between items-center px-4 pb-4 pt-10 sm:pt-4 bg-gray-900 text-white shadow-md relative z-[100]">
-                        <h3 className="text-lg font-bold">Escanear Código</h3>
-                        <button
-                            onClick={() => setShowScanner(false)}
-                            className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition"
-                        >
-                            <X className="w-6 h-6" />
-                        </button>
-                    </div>
-                    <div className="flex-1 relative">
+                <div className="fixed inset-0 z-[60] bg-transparent flex flex-col">
+                    <div className="relative h-full w-full">
                         <Scanner
                             onScan={onScannerDecode}
                             onCancel={() => setShowScanner(false)}
                             isEnabled={showScanner}
                         />
-                        <div className="absolute bottom-10 left-0 right-0 flex justify-center pointer-events-none">
-                            <p className="bg-black/50 text-white px-4 py-2 rounded-full text-sm pointer-events-none backdrop-blur-sm">
-                                Apunta la cámara al código de barras
-                            </p>
-                        </div>
                     </div>
                 </div>
             )}

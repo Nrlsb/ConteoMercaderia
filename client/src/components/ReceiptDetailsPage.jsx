@@ -1499,7 +1499,8 @@ const ReceiptDetailsPage = () => {
                         <Scanner
                             onScan={handleBarcodeScan}
                             onCancel={() => setIsBarcodeReaderActive(false)}
-                            isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !processing && !isDuplicateModalOpen}
+                            isEnabled={isBarcodeReaderActive}
+                            isPaused={fichajeState.isOpen || processing || isDuplicateModalOpen}
                         />
                     </div>
                     <div className="h-[10%] w-full bg-white scanner-footer flex items-center justify-center border-t border-gray-200 p-2 z-[46]">
