@@ -189,10 +189,8 @@ const ReceiptDetailsPage = () => {
             setReceipt(data);
             setItems(data.items || []);
             
-            // Default search type based on receipt type
-            if (data.type === 'overstock') {
-                setSearchType('internal');
-            }
+            // Default search type remains 'any' as initialized
+
             
             setLoading(false);
             await db.offline_caches.put({
