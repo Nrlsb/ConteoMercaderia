@@ -131,15 +131,24 @@ const EgresosList = () => {
             for await (const [name, handle] of dirHandleRef.current.entries()) {
                 if (handle.kind !== 'file') continue;
                 if (!name.toLowerCase().endsWith('.pdf')) continue;
-                const file = await handle.getFile();
+                let file = await handle.getFile();
+                
+                // Esperar 2.5 segundos para verificar que el archivo ya no se está escribiendo/descargando
+                await new Promise(r => setTimeout(r, 2500));
+                const fileAfterWait = await handle.getFile();
+                
+                // Si el tamaño cambió, significa que todavía se está descargando/escribiendo. Lo ignoramos por ahora.
+                if (file.size !== fileAfterWait.size) {
+                    console.log(`[Carpeta Auto] Archivo "${name}" aún se está descargando. Se pospone para el próximo ciclo.`);
+                    continue;
+                }
+                
+                // Usar el archivo ya estabilizado
+                file = fileAfterWait;
                 const fileKey = `${name}_${file.size}_${file.lastModified}`;
+                
                 if (processedFilesRef.current.has(fileKey)) continue;
                 newFiles.push({ name, file, fileKey });
-            }
-
-            if (newFiles.length > 0) {
-                // Wait 1 second before processing to ensure file is stabilized (not locked/writing)
-                await new Promise(r => setTimeout(r, 1000));
             }
 
             for (let i = 0; i < newFiles.length; i++) {

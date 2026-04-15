@@ -227,10 +227,10 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     return ReactDOM.createPortal(
         <div
             ref={overlayRef}
-            className={`fixed inset-0 z-[2000] flex ${keyboardHeight > 0 ? 'items-end' : 'items-center'} justify-center p-4 bg-black/60 backdrop-blur-sm`}
+            className={`fixed inset-0 z-[2000] flex ${keyboardHeight > 0 ? 'items-end' : 'items-center'} justify-center p-4 transition-all duration-300 ${isScanningBarcode ? 'bg-transparent' : 'bg-black/60 backdrop-blur-sm'}`}
             style={keyboardHeight > 0 ? { paddingBottom: `${keyboardHeight + 8}px` } : {}}
         >
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto">
+            <div className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto ${isScanningBarcode ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible'}`}>
 
                 {/* Header */}
                 <div className="bg-brand-blue/10 px-6 py-4 border-b border-brand-blue/20 flex justify-between items-center">
@@ -486,7 +486,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
 
             {/* Barcode Scanner Overlay */}
             {isScanningBarcode && (
-                <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+                <div className="fixed inset-0 z-[100] bg-transparent flex flex-col">
                     <div className="flex-1 relative">
                         <Scanner
                             onScan={(code) => {
