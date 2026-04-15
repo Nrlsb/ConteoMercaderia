@@ -111,10 +111,14 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+/\\s+/\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexB = new RegExp(`^\\s*/\\s+/\\s*(.+?)\\s{5,}(\\d{4,})\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{10,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Mejoar regex para ser más flexible con espacios y slashes opcionales
+        // Regex A: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexA = new RegExp(`^\\s*(\\d{4,})\\s*(?:/\\s*/)?\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Regex B: [/ /] [Espacios] Descripción [Espacios >=2] Código [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Regex Transfer: Similar pero sin slashes y con gaps más grandes
+        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
@@ -172,7 +176,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const code = matchB[2];
                 const quantityStr = matchB[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
-                if (!isNaN(quantity)) {
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match B] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     pushItem(items, code, description, quantity);
                     continue;
                 }
@@ -185,20 +190,22 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const description = matchTransfer[2].trim();
                 const quantityStr = matchTransfer[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
-                if (!isNaN(quantity)) {
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match Transfer] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // TRY LAYOUT TRANSFER ALT (Small gap, but still prioritized over fallback)
+            // TRY LAYOUT TRANSFER ALT
             const matchTransferAlt = line.match(regexTransferAlt);
             if (matchTransferAlt) {
                 const code = matchTransferAlt[1];
                 const description = matchTransferAlt[2].trim();
                 const quantityStr = matchTransferAlt[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
-                if (!isNaN(quantity)) {
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match TransferAlt] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     pushItem(items, code, description, quantity);
                     continue;
                 }
@@ -211,22 +218,25 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const description = matchA[2].trim();
                 const quantityStr = matchA[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
-                if (!isNaN(quantity)) {
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match A] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // FALLBACK: Standard item match (but only if not already matched above)
-            // We use a more restricted version of itemRegex to avoid fake matches
+            // FALLBACK: Standard item match
             let match;
-            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+([^/]+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
             if ((match = line.match(itemRegexFallback)) !== null) {
                 const code = match[1];
                 const description = match[2].trim();
                 const quantityStr = match[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
-                if (!isNaN(quantity)) {
+                
+                // Validación extra: si la descripción contiene slashes sospechosos o es muy corta, ignorar o procesar con cuidado
+                if (!isNaN(quantity) && quantity > 0 && description.length > 2) {
+                    console.log(`[PDF Match Fallback] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     pushItem(items, code, description, quantity);
                     continue;
                 }
