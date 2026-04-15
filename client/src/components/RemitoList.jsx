@@ -25,6 +25,14 @@ const RemitoList = () => {
         fetchRemitos();
     }, []);
 
+    // Global refresh polling (every 30 seconds)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchRemitos();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
     // Reset visible count when filters change
     useEffect(() => {
         setVisibleCount(20);

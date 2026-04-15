@@ -21,6 +21,14 @@ const ReceiptsList = () => {
         fetchReceipts();
     }, []);
 
+    // Global refresh polling (every 30 seconds)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchReceipts();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
     const fetchReceipts = async () => {
         try {
             const response = await api.get('/api/receipts');

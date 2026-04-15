@@ -98,6 +98,14 @@ const EgresosList = () => {
         fetchEgresos();
     }, [fetchEgresos]);
 
+    // Global refresh polling (every 30 seconds)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchEgresos();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [fetchEgresos]);
+
     // Reset visible count when search changes
     useEffect(() => {
         setVisibleCount(20);
