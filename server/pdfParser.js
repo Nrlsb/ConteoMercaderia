@@ -113,7 +113,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
         const regexA = new RegExp(`^\\s*(\\d{4,})\\s+/\\s+/\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         const regexB = new RegExp(`^\\s*/\\s+/\\s*(.+?)\\s{5,}(\\d{4,})\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s{2,}(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{10,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
@@ -177,12 +178,25 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 }
             }
 
-            // TRY LAYOUT TRANSFER (Code first, no slashes)
+            // TRY LAYOUT TRANSFER (Code first, no slashes, large gap)
             const matchTransfer = line.match(regexTransfer);
             if (matchTransfer) {
                 const code = matchTransfer[1];
                 const description = matchTransfer[2].trim();
                 const quantityStr = matchTransfer[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity)) {
+                    pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            // TRY LAYOUT TRANSFER ALT (Small gap, but still prioritized over fallback)
+            const matchTransferAlt = line.match(regexTransferAlt);
+            if (matchTransferAlt) {
+                const code = matchTransferAlt[1];
+                const description = matchTransferAlt[2].trim();
+                const quantityStr = matchTransferAlt[3];
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity)) {
                     pushItem(items, code, description, quantity);

@@ -12,7 +12,9 @@ const ReceiptsList = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [newRemitoNumber, setNewRemitoNumber] = useState('');
     const [creationType, setCreationType] = useState('normal'); // 'normal' or 'overstock'
+    const [uploading, setUploading] = useState(false);
     const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
+    const fileInputRef = React.useRef(null);
 
     const canCreate = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos');
     const canDelete = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('delete_ingresos');
@@ -87,6 +89,41 @@ const ReceiptsList = () => {
         }
     };
 
+    const handleOverstockUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            toast.error('Solo se permiten archivos PDF');
+            return;
+        }
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('pdf', file);
+
+        try {
+            const response = await api.post('/api/receipts/upload-overstock', formData);
+            const { results, receipt } = response.data;
+            
+            toast.success(`Ingreso ${receipt.remito_number} creado: ${results.success.length} productos cargados`);
+            if (results.failed.length > 0) {
+                toast.warning(`${results.failed.length} productos no encontrados`);
+                console.log('Failed items:', results.failed);
+            }
+            
+            setIsCreating(false);
+            fetchReceipts();
+        } catch (error) {
+            console.error('Error uploading overstock PDF:', error);
+            const msg = error.response?.data?.message || 'Error al procesar el PDF';
+            toast.error(msg);
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
 
     return (
@@ -116,28 +153,90 @@ const ReceiptsList = () => {
                     <h2 className="text-lg font-semibold mb-3">
                         {creationType === 'overstock' ? 'Nuevo Remito de Sobrestock' : 'Nuevo Remito'}
                     </h2>
-                    <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-3">
-                        <input
-                            type="text"
-                            value={newRemitoNumber}
-                            onChange={(e) => setNewRemitoNumber(e.target.value)}
-                            placeholder="Número de Remito"
-                            className="flex-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none"
-                            autoFocus
-                        />
-                        <div className="flex gap-2">
-                            <button type="submit" className="flex-1 sm:flex-none bg-brand-success text-white px-6 py-2.5 rounded-lg font-bold hover:bg-brand-success/80 transition-colors">
-                                Crear
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setIsCreating(false)}
-                                className="flex-1 sm:flex-none bg-brand-gray text-white px-4 py-2.5 rounded-lg font-bold hover:bg-brand-gray/80 transition-colors"
+                    {creationType === 'overstock' ? (
+                        <div className="space-y-4">
+                            <div 
+                                onClick={() => !uploading && fileInputRef.current?.click()}
+                                className={`p-8 border-2 border-dashed rounded-xl transition-all cursor-pointer text-center ${uploading ? 'bg-gray-50 border-gray-200' : 'bg-purple-50 border-purple-200 hover:border-purple-400 hover:bg-purple-100/50'}`}
                             >
-                                Cancelar
-                            </button>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    className="hidden" 
+                                    accept=".pdf"
+                                    onChange={handleOverstockUpload}
+                                />
+                                {uploading ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-2"></div>
+                                        <p className="text-purple-700 font-medium">Procesando PDF...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <svg className="w-12 h-12 mx-auto text-purple-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                        </svg>
+                                        <p className="text-purple-700 font-bold">Hacé clic para subir el PDF de Sobrestock</p>
+                                        <p className="text-purple-500 text-xs mt-1">Se extraerán automáticamente los productos (Solo ORIGINAL)</p>
+                                    </>
+                                )}
+                            </div>
+                            
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-white px-2 text-gray-500">O crear manualmente</span>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                    type="text"
+                                    value={newRemitoNumber}
+                                    onChange={(e) => setNewRemitoNumber(e.target.value)}
+                                    placeholder="Número de Remito manual"
+                                    className="flex-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                />
+                                <div className="flex gap-2">
+                                    <button type="submit" className="flex-1 sm:flex-none bg-purple-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-purple-700 transition-colors">
+                                        Crear
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCreating(false)}
+                                        className="flex-1 sm:flex-none bg-brand-gray text-white px-4 py-2.5 rounded-lg font-bold hover:bg-brand-gray/80 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    ) : (
+                        <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-3">
+                            <input
+                                type="text"
+                                value={newRemitoNumber}
+                                onChange={(e) => setNewRemitoNumber(e.target.value)}
+                                placeholder="Número de Remito"
+                                className="flex-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none"
+                                autoFocus
+                            />
+                            <div className="flex gap-2">
+                                <button type="submit" className="flex-1 sm:flex-none bg-brand-success text-white px-6 py-2.5 rounded-lg font-bold hover:bg-brand-success/80 transition-colors">
+                                    Crear
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCreating(false)}
+                                    className="flex-1 sm:flex-none bg-brand-gray text-white px-4 py-2.5 rounded-lg font-bold hover:bg-brand-gray/80 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    )}
                 </div>
             )}
 

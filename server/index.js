@@ -1089,6 +1089,120 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
     }
 });
 
+// Create Overstock Receipt via PDF Upload
+app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer.memoryStorage() }).fields([{ name: 'pdf', maxCount: 1 }, { name: 'file', maxCount: 1 }]), async (req, res) => {
+    const file = (req.files && req.files['pdf'] ? req.files['pdf'][0] : null) || (req.files && req.files['file'] ? req.files['file'][0] : null);
+
+    if (!file) {
+        return res.status(400).json({ message: 'No se recibió ningún archivo PDF' });
+    }
+
+    try {
+        // 1. Parse PDF (stopOnCopies = true for ORIGINAL only)
+        const { items, metadata } = await parseRemitoPdf(file.buffer, true);
+        
+        if (!items || items.length === 0) {
+            return res.status(400).json({ message: 'No se pudieron extraer productos del PDF' });
+        }
+
+        const remitoNumber = metadata?.remitoNumber || file.originalname.replace(/\.pdf$/i, '');
+
+        // 2. Check for duplicate
+        const { data: existing } = await supabase
+            .from('receipts')
+            .select('id')
+            .eq('remito_number', remitoNumber)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+        if (existing) {
+            return res.status(400).json({ message: `El remito ${remitoNumber} ya existe.` });
+        }
+
+        // 3. Create Receipt
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .insert([{
+                remito_number: remitoNumber,
+                type: 'overstock',
+                created_by: req.user.username,
+                sucursal_id: req.user.sucursal_id || null,
+                date: new Date()
+            }])
+            .select()
+            .single();
+
+        if (receiptError) throw receiptError;
+
+        // 4. Match items by code and insert
+        const results = { success: [], failed: [] };
+        for (const item of items) {
+            try {
+                // Search by internal code ONLY as requested by user
+                const { data: product } = await supabase
+                    .from('products')
+                    .select('code, description')
+                    .eq('code', item.code)
+                    .maybeSingle();
+
+                if (!product) {
+                    results.failed.push({
+                        code: item.code,
+                        description: item.description,
+                        quantity: item.quantity,
+                        error: 'Producto no encontrado (Código Interno)'
+                    });
+                    continue;
+                }
+
+                // Check if already exists in this receipt (aggregate)
+                const { data: existingItem } = await supabase
+                    .from('receipt_items')
+                    .select('*')
+                    .eq('receipt_id', receipt.id)
+                    .eq('product_code', product.code)
+                    .maybeSingle();
+
+                const newQuantity = existingItem
+                    ? (Number(existingItem.expected_quantity) || 0) + Number(item.quantity)
+                    : Number(item.quantity);
+
+                const { error: itemError } = await supabase
+                    .from('receipt_items')
+                    .upsert({
+                        receipt_id: receipt.id,
+                        product_code: product.code,
+                        expected_quantity: newQuantity,
+                        scanned_quantity: 0
+                    }, { onConflict: 'receipt_id, product_code' });
+
+                if (itemError) throw itemError;
+
+                results.success.push({ code: product.code, description: product.description, quantity: item.quantity });
+
+                // Log history
+                await supabase.from('receipt_items_history').insert({
+                    receipt_id: receipt.id,
+                    user_id: req.user.id,
+                    operation: 'PDF_IMPORT',
+                    product_code: product.code,
+                    new_data: { expected_quantity: newQuantity },
+                    changed_at: new Date().toISOString()
+                });
+
+            } catch (err) {
+                console.error(`Error processing overstock item ${item.code}:`, err);
+                results.failed.push({ ...item, error: err.message });
+            }
+        }
+
+        res.status(201).json({ receipt, results });
+    } catch (error) {
+        console.error('Error creating overstock receipt:', error);
+        res.status(500).json({ message: 'Error al procesar el PDF de sobrestock' });
+    }
+});
+
 // --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
 
 // Create Egreso via PDF Upload (auto-create)
