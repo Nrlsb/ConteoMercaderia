@@ -2698,10 +2698,12 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
             // If no pending items, just return processed
             let processedFormatted = remitosData.map(remito => {
                 const extraInfo = preRemitoMap[remito.remito_number] || { numero_pv: '-', sucursal: '-' };
+                const gc = generalCounts?.find(c => c.id === remito.remito_number);
                 return {
                     ...remito,
                     numero_pv: extraInfo.numero_pv,
-                    sucursal: extraInfo.sucursal,
+                    sucursal: extraInfo.sucursal !== '-' ? extraInfo.sucursal : (gc?.sucursal_name || '-'),
+                    branch_sucursal_id: gc?.sucursal_id || null,
                     count_name: countsMap[remito.remito_number] || null,
                     is_finalized: true,
                     type: 'remito'
@@ -2911,6 +2913,7 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
         // 8. Merge data
         const processedFormatted = remitosData.map(remito => {
             const formatted = formatName(remito.remito_number);
+            const gc = generalCounts?.find(c => c.id === remito.remito_number);
 
             let parsedItems = remito.items;
             if (typeof remito.items === 'string') {
@@ -2925,7 +2928,8 @@ app.get('/api/remitos', verifyToken, async (req, res) => {
                 ...remito,
                 items: parsedItems,
                 numero_pv: formatted.numero_pv,
-                sucursal: formatted.sucursal,
+                sucursal: formatted.sucursal !== '-' ? formatted.sucursal : (gc?.sucursal_name || '-'),
+                branch_sucursal_id: gc?.sucursal_id || null,
                 id_inventory: preRemitoMap[remito.remito_number]?.id_inventory || null,
                 count_name: formatted.name,
                 is_finalized: true,
