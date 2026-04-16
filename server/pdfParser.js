@@ -75,9 +75,12 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                         }
 
                         // Final check for markers in assembled line text (just in case)
-                        if (stopOnCopies && (lineText.includes('DUPLICADO') || lineText.includes('TRIPLICADO'))) {
+                        const upperLineRaw = lineText.toUpperCase();
+                        if (stopOnCopies && (upperLineRaw.includes('DUPLICADO') || upperLineRaw.includes('TRIPLICADO') || upperLineRaw.includes('COPIA'))) {
+                            console.log(`[PDF PARSER] Stop marker found: ${upperLineRaw.includes('DUPLICADO') ? 'DUPLICADO' : (upperLineRaw.includes('TRIPLICADO') ? 'TRIPLICADO' : 'COPIA')}`);
                             stopProcessing = true;
-                            return ''; // Complete page skip
+                            // Return the text accumulated so far for this page, then stop.
+                            return text; 
                         }
 
                         text += lineText + '\n';
@@ -111,14 +114,15 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        // Mejoar regex para ser más flexible con espacios y slashes opcionales
-        // Regex A: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
-        const regexA = new RegExp(`^\\s*(\\d{4,})\\s*(?:/\\s*/)?\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        // Regex B: [/ /] [Espacios] Descripción [Espacios >=2] Código [Espacios >=2] Cantidad [Espacios] [UM]
-        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Mejorar regex para ser más flexible con espacios y slashes opcionales
+        // Regex A: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=4] Cantidad [Espacios] [UM]
+        // Slash pattern adjusted for varying spaces: /\s*/\s*
+        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{4,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Regex B: [/ /] [Espacios] Descripción [Espacios >=4] Código [Espacios >=4] Cantidad [Espacios] [UM]
+        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{4,}(\\d{4,})\\s{4,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         // Regex Transfer: Similar pero sin slashes y con gaps más grandes
         const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{4,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
