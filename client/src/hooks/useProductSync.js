@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import api from '../api';
 import { db } from '../db';
 import { toast } from 'sonner';
-import { normalizeText } from '../utils/textUtils';
+import { normalizeText, normalizePhonetic } from '../utils/textUtils';
 
 export const useProductSync = () => {
     const [isSyncing, setIsSyncing] = useState(false);
@@ -173,13 +173,83 @@ export const useProductSync = () => {
         }).slice(0, 50);
     }, []);
 
+    /**
+     * Búsqueda fuzzy fonética. Usa normalización fonética rioplatense para tolerar
+     * errores de transcripción por voz (b/v, s/z/c, ll/y, h mudo, etc.).
+     * Primero intenta coincidencia exacta normalizada, luego fonética, luego
+     * fallback por palabras individuales.
+     * @param {string} query
+     * @returns {Promise<Array>}
+     */
+    const searchProductsFuzzy = useCallback(async (query) => {
+        if (!query || query.trim().length < 2) return [];
+
+        const words = normalizeText(query).trim().split(/\s+/).filter(w => w.length >= 2);
+        if (words.length === 0) return [];
+
+        const phoneticWords = words.map(normalizePhonetic);
+
+        try {
+            // Buscar por primer término (índice rápido) como base
+            const firstWord = words[0];
+            let candidates = await db.products
+                .where('description').startsWithIgnoreCase(firstWord)
+                .limit(200)
+                .toArray();
+
+            // Complementar con búsqueda contains si pocos resultados
+            if (candidates.length < 20) {
+                const extra = await db.products
+                    .filter(p => normalizeText(p.description).includes(firstWord))
+                    .limit(200)
+                    .toArray();
+                const seen = new Set(candidates.map(r => r.code));
+                extra.forEach(p => { if (!seen.has(p.code)) { seen.add(p.code); candidates.push(p); } });
+            }
+
+            // Filtrar: todos los términos deben aparecer (fonético)
+            const matched = candidates.filter(p => {
+                const descPhonetic = normalizePhonetic(p.description);
+                const descNorm = normalizeText(p.description);
+                const brandPhonetic = normalizePhonetic(p.brand || '');
+                return phoneticWords.every(pt => {
+                    const wt = words[phoneticWords.indexOf(pt)];
+                    return descNorm.includes(wt) ||
+                        descPhonetic.includes(pt) ||
+                        brandPhonetic.includes(pt) ||
+                        normalizePhonetic(p.code || '').includes(pt);
+                });
+            }).slice(0, 50);
+
+            if (matched.length > 0) return matched;
+
+            // Fallback: si hay varias palabras, probar con subconjunto (mayor cobertura primero)
+            if (words.length > 1) {
+                for (let size = words.length - 1; size >= 1; size--) {
+                    const subWords = phoneticWords.slice(0, size);
+                    const subMatched = candidates.filter(p => {
+                        const descPhonetic = normalizePhonetic(p.description);
+                        return subWords.every(pt => descPhonetic.includes(pt));
+                    }).slice(0, 50);
+                    if (subMatched.length > 0) return subMatched;
+                }
+            }
+
+        } catch (e) {
+            console.error('Fuzzy search error:', e);
+        }
+
+        return [];
+    }, []);
+
     return {
         isSyncing,
         lastSync,
         progress,
         syncProducts,
         getProductByCode,
-        searchProductsLocally
+        searchProductsLocally,
+        searchProductsFuzzy,
     };
 };
 

@@ -41,7 +41,7 @@ const RemitoForm = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Local DB Sync
-    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
+    const { syncProducts, getProductByCode, searchProductsLocally, searchProductsFuzzy, isSyncing, lastSync } = useProductSync();
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
     const selectionClearedRef = React.useRef(false); // Tracks if user explicitly cleared selection (prevents poll restore)
@@ -427,50 +427,71 @@ const RemitoForm = () => {
                 setIsListening(true);
 
                 SpeechRecognition.start({
-                    language: 'es-ES',
-                    maxResults: 5,
+                    language: 'es-AR',
+                    maxResults: 10,
                     prompt: 'Diga el código o nombre del producto',
                     partialResults: false,
                     popup: true
                 }).then(async result => {
                     if (result && result.matches && result.matches.length > 0) {
                         // Expandir candidatos: también probar versión sin espacios (ej: "ter suave" → "tersuave")
-                        const candidates = [];
+                        const rawCandidates = [];
                         for (const match of result.matches) {
-                            candidates.push(match);
+                            rawCandidates.push(match);
                             const compressed = match.replace(/\s+/g, '');
-                            if (compressed !== match) candidates.push(compressed);
+                            if (compressed !== match) rawCandidates.push(compressed);
                         }
-                        for (const match of candidates) {
-                            if (!match || match.trim().length < 2) continue;
-                            try {
-                                // First try local DB for speed and offline
-                                const localResults = await searchProductsLocally(match);
-                                if (localResults && localResults.length > 0) {
-                                    setManualCode(match);
-                                    if (typeof executeSearch === 'function') {
-                                        executeSearch(match);
-                                    }
-                                    return;
-                                }
 
-                                // Fallback to API if not in local DB (e.g. newly added products)
-                                const res = await api.get(`/api/products/search?q=${encodeURIComponent(match)}`);
-                                if (res.data && res.data.length > 0) {
-                                    setManualCode(match);
-                                    if (typeof executeSearch === 'function') {
-                                        executeSearch(match);
+                        const trySearch = async (term) => {
+                            if (!term || term.trim().length < 2) return false;
+                            try {
+                                const localResults = await searchProductsLocally(term);
+                                if (localResults && localResults.length > 0) {
+                                    setManualCode(term);
+                                    executeSearch(term);
+                                    return true;
+                                }
+                                if (navigator.onLine) {
+                                    const res = await api.get(`/api/products/search?q=${encodeURIComponent(term)}`);
+                                    if (res.data && res.data.length > 0) {
+                                        setManualCode(term);
+                                        executeSearch(term);
+                                        return true;
                                     }
+                                }
+                            } catch (e) { /* probar siguiente */ }
+                            return false;
+                        };
+
+                        // Paso 1: búsqueda exacta con todos los candidatos
+                        for (const candidate of rawCandidates) {
+                            if (await trySearch(candidate)) return;
+                        }
+
+                        // Paso 2: búsqueda fuzzy fonética con el primer candidato
+                        const firstMatch = result.matches[0];
+                        if (firstMatch && firstMatch.trim().length >= 2) {
+                            try {
+                                const fuzzyResults = await searchProductsFuzzy(firstMatch);
+                                if (fuzzyResults && fuzzyResults.length > 0) {
+                                    setManualCode(firstMatch);
+                                    executeSearch(firstMatch);
                                     return;
                                 }
-                            } catch (e) { /* probar siguiente alternativa */ }
+                            } catch (e) { /* continuar */ }
                         }
-                        // Ninguna alternativa encontró resultados, usar la primera
-                        const first = result.matches[0];
-                        setManualCode(first);
-                        if (typeof executeSearch === 'function') {
-                            executeSearch(first);
+
+                        // Paso 3: probar cada palabra individual del primer candidato
+                        if (firstMatch) {
+                            const words = firstMatch.trim().split(/\s+/).filter(w => w.length >= 3);
+                            for (const word of words) {
+                                if (await trySearch(word)) return;
+                            }
                         }
+
+                        // Sin resultados: usar primer candidato de todas formas
+                        setManualCode(firstMatch);
+                        executeSearch(firstMatch);
                     }
                 }).catch(error => {
                     console.error('Native speech start error:', error);
@@ -501,20 +522,61 @@ const RemitoForm = () => {
         const SpeechRecognitionWeb = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recognition = new SpeechRecognitionWeb();
 
-        recognition.lang = 'es-ES';
+        recognition.lang = 'es-AR';
         recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+        recognition.maxAlternatives = 5;
 
         recognition.onstart = () => {
             setIsListening(true);
         };
 
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            setManualCode(transcript);
+        recognition.onresult = async (event) => {
             setIsListening(false);
-            // Executar busqueda por voz inmediatamente
-            executeSearch(transcript);
+            const alternatives = [];
+            for (let i = 0; i < event.results[0].length; i++) {
+                alternatives.push(event.results[0][i].transcript);
+            }
+            const first = alternatives[0];
+
+            const trySearch = async (term) => {
+                if (!term || term.trim().length < 2) return false;
+                try {
+                    const localResults = await searchProductsLocally(term);
+                    if (localResults && localResults.length > 0) {
+                        setManualCode(term);
+                        executeSearch(term);
+                        return true;
+                    }
+                } catch (e) { /* continuar */ }
+                return false;
+            };
+
+            // Paso 1: candidatos exactos
+            for (const alt of alternatives) {
+                if (await trySearch(alt)) return;
+                const compressed = alt.replace(/\s+/g, '');
+                if (compressed !== alt && await trySearch(compressed)) return;
+            }
+
+            // Paso 2: fuzzy fonético
+            try {
+                const fuzzyResults = await searchProductsFuzzy(first);
+                if (fuzzyResults && fuzzyResults.length > 0) {
+                    setManualCode(first);
+                    executeSearch(first);
+                    return;
+                }
+            } catch (e) { /* continuar */ }
+
+            // Paso 3: palabras individuales
+            const words = first.trim().split(/\s+/).filter(w => w.length >= 3);
+            for (const word of words) {
+                if (await trySearch(word)) return;
+            }
+
+            // Sin resultados: usar transcript de todas formas
+            setManualCode(first);
+            executeSearch(first);
         };
 
         recognition.onerror = (event) => {

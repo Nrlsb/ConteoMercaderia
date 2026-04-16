@@ -181,10 +181,11 @@ const EgresosList = () => {
                     }
                     toast.error(`Error en "${name}": ${msg}`);
                     
-                    // Update failed files list for UI
-                    setFailedFiles(prev => [{ name, error: msg, time: new Date() }, ...prev].slice(0, 20));
+                    // Update failed files list for UI with fileKey for retry
+                    setFailedFiles(prev => [{ name, error: msg, time: new Date(), fileKey }, ...prev].slice(0, 20));
 
                     // Mark as processed so it doesn't retry next cycle (as requested by user)
+                    // but now we have a "Retry" button to clear it
                     processedFilesRef.current.add(fileKey);
                     const allKeys = [...processedFilesRef.current];
                     if (allKeys.length > 1000) {
@@ -260,6 +261,15 @@ const EgresosList = () => {
         setNeedsPermission(false);
         await clearFolderHandle();
         toast.info('Carpeta desconectada');
+    };
+
+    const retryFailedFile = (fileKey) => {
+        if (!fileKey) return;
+        processedFilesRef.current.delete(fileKey);
+        localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
+        setFailedFiles(prev => prev.filter(f => f.fileKey !== fileKey));
+        toast.info('Reintentando archivo...');
+        checkFolder();
     };
 
     // Restore folder handle from IndexedDB on mount
@@ -603,10 +613,20 @@ const EgresosList = () => {
                     <div className="max-h-40 overflow-y-auto">
                         <ul className="divide-y divide-red-100">
                             {failedFiles.map((f, idx) => (
-                                <li key={idx} className="p-3 flex flex-col gap-0.5">
+                                <li key={idx} className="p-3 flex flex-col gap-1.5">
                                     <div className="flex justify-between items-start gap-2">
-                                        <span className="font-mono text-xs font-bold text-red-900 truncate">{f.name}</span>
-                                        <span className="text-[10px] text-red-400 shrink-0">{f.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        <span className="font-mono text-xs font-bold text-red-900 truncate flex-1">{f.name}</span>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-[10px] text-red-400">{f.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            {f.fileKey && (
+                                                <button 
+                                                    onClick={() => retryFailedFile(f.fileKey)}
+                                                    className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded transition-colors"
+                                                >
+                                                    Reintentar
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                     <p className="text-xs text-red-600 leading-tight">{f.error}</p>
                                 </li>

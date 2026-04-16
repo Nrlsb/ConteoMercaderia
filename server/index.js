@@ -1216,11 +1216,63 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
     try {
         // 1. Parse PDF
-        const { items, metadata, textSnippet, isDevolucion, isTransferencia } = await parseRemitoPdf(file.buffer);
+        let { items, metadata, textSnippet, isDevolucion, isTransferencia } = await parseRemitoPdf(file.buffer);
+        
+        // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
+        if ((!items || items.length === 0) && process.env.GEMINI_API_KEY) {
+            console.log('[EGRESO PDF] No items found with regex. Falling back to Gemini AI...');
+            try {
+                const pdfParts = [{
+                    inlineData: {
+                        data: file.buffer.toString("base64"),
+                        mimeType: "application/pdf"
+                    },
+                }];
+
+                const prompt = `
+                    Eres un experto en extracción de datos de remitos de logística para EGRESOS (salida de mercadería).
+                    Analiza el PDF adjunto y extrae TODOS los productos listados en la tabla del remito.
+                    
+                    REGLAS CRÍTICAS:
+                    1. Devuelve SOLO un array JSON válido de objetos.
+                    2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
+                    3. El "code" es el código del producto (Código Interno).
+                    4. La "quantity" es la cantidad pedida/enviada.
+                    5. La "description" es el nombre del producto.
+                    6. Extrae TODOS los productos. No te detengas hasta haber procesado toda la tabla.
+                    7. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
+                    8. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada.
+                    9. Sé extremadamente preciso con los códigos numéricos.
+                    
+                    Formato esperado:
+                    [
+                      {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+                      ...
+                    ]
+                `;
+
+                const aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const aiResult = await aiModel.generateContent([prompt, ...pdfParts]);
+                const aiResponse = await aiResult.response;
+                const aiResultText = aiResponse.text();
+
+                const jsonMatch = aiResultText.match(/\[[\s\S]*\]/);
+                if (jsonMatch) {
+                    const aiItems = JSON.parse(jsonMatch[0]);
+                    if (aiItems && aiItems.length > 0) {
+                        items = aiItems;
+                        console.log(`[EGRESO PDF] Gemini successfully extracted ${items.length} items.`);
+                    }
+                }
+            } catch (aiError) {
+                console.error('[EGRESO PDF] Gemini fallback failed:', aiError.message);
+            }
+        }
+
         if (!items || items.length === 0) {
             console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
             return res.status(400).json({
-                message: `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto.`,
+                message: `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`,
                 debug: {
                     textLength: textSnippet?.length || 0,
                     preview: textSnippet ? textSnippet.substring(0, 100) : 'N/A'
