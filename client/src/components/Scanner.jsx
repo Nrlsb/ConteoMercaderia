@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { CapacitorPluginMlKitTextRecognition } from '@pantrist/capacitor-plugin-ml-kit-text-recognition';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 // Helper: Siempre limpiar las clases CSS del escáner
@@ -54,7 +53,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     // Shared state
     const [scanMode, setScanMode] = useState(() => {
         const stored = localStorage.getItem('scanner_mode');
-        if (stored) return stored;
+        if (stored && stored !== 'ia') return stored;
         return localStorage.getItem('scanner_auto_confirm') === 'true' ? 'auto' : 'manual';
     });
 
@@ -65,7 +64,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
         setScanMode(newMode);
         localStorage.setItem('scanner_mode', newMode);
 
-        const willBeNative = Capacitor.isNativePlatform() && newMode !== 'ia';
+        const willBeNative = Capacitor.isNativePlatform();
         await stopScanning(willBeNative);
         setTimeout(() => { startScanning(newMode); }, 100);
     };
@@ -92,7 +91,6 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const [webDetectedCode, setWebDetectedCode] = useState(null);
     const webDetectedCodeRef = useRef(null);
     const webPausedRef = useRef(false);
-    const ocrIntervalRef = useRef(null);
 
     // Web-specific refs
     const scannerRef = useRef(null);
@@ -149,10 +147,9 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
 
     // --- FUNCTION: Start Scanning ---
     const startScanning = async (modeOverride) => {
-        const currentMode = modeOverride || scanMode;
         setError(null);
 
-        if (isNative && currentMode !== 'ia') {
+        if (isNative) {
             startNativeScan();
         } else {
             startWebScan();
@@ -180,11 +177,6 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
         if (restartTimerRef.current) {
             clearTimeout(restartTimerRef.current);
             restartTimerRef.current = null;
-        }
-
-        if (ocrIntervalRef.current) {
-            clearInterval(ocrIntervalRef.current);
-            ocrIntervalRef.current = null;
         }
 
         try {
@@ -335,51 +327,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
         }
     }, []);
 
-    // --- OCR: Interval for IA Mode ---
-    useEffect(() => {
-        if (!isScanning || scanMode !== 'ia') {
-            if (ocrIntervalRef.current) {
-                clearInterval(ocrIntervalRef.current);
-                ocrIntervalRef.current = null;
-            }
-            return;
-        }
 
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        ocrIntervalRef.current = setInterval(async () => {
-            if (webPausedRef.current || isPausedRef.current) return;
-            const video = document.querySelector('#reader video');
-            if (!video || video.readyState !== 4) return;
-
-            // set max size for OCR
-            const maxW = 640;
-            const maxH = 640 * (video.videoHeight / video.videoWidth);
-            canvas.width = maxW;
-            canvas.height = maxH;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const base64DataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            const base64Image = base64DataUrl.split(',')[1];
-
-            try {
-                const result = await CapacitorPluginMlKitTextRecognition.detectText({ base64Image });
-                if (result && result.text) {
-                    const code = extractNumbers(result.text);
-                    if (code && scanModeRef.current === 'ia') {
-                        handleScanSuccess(code);
-                    }
-                }
-            } catch (err) {
-                console.error("OCR Check error", err);
-            }
-        }, 1200);
-
-        return () => {
-            if (ocrIntervalRef.current) clearInterval(ocrIntervalRef.current);
-        };
-    }, [isScanning, scanMode]);
 
     // --- STRATEGY: Web (Html5Qrcode) ---
     const startWebScan = async () => {
@@ -402,12 +350,12 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
             await scannerRef.current.start(
                 { facingMode: "environment" },
                 {
-                    fps: 20, // Reducido de 30 para ahorrar CPU en gama baja
+                    fps: 25, // Balance óptimo entre fluidez y consumo de CPU
                     videoConstraints: constraints
                 },
                 (decodedText) => {
                     if (webPausedRef.current || isPausedRef.current) return;
-                    if (scanModeRef.current === 'auto' || scanModeRef.current === 'ia') {
+                    if (scanModeRef.current === 'auto') {
                         handleScanSuccess(decodedText);
                     } else {
                         // Manual mode: show code, wait for user confirmation
@@ -424,8 +372,8 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
         try {
             await tryStart({
                 facingMode: "environment",
-                width: { min: 640, ideal: 1280, max: 1920 }, // Reducido de 1080p/4K para mayor rapidez
-                height: { min: 480, ideal: 720, max: 1080 },
+                width: { min: 640, ideal: 720, max: 1280 }, // Resolución balanceada para procesado rápido
+                height: { min: 480, ideal: 480, max: 720 },
                 focusMode: "continuous",
                 // @ts-ignore - Algunas implementaciones de navegador requieren estos en el objeto principal o advanced
                 advanced: [
@@ -543,8 +491,8 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const handleScanSuccess = async (code) => {
         if (isPausedRef.current) return;
         const now = Date.now();
-        // Debounce
-        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 800) {
+        // Debounce reducido para escaneo más ágil (400ms)
+        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 400) {
             return;
         }
         lastScannedCodeRef.current = code;
@@ -590,8 +538,8 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
 
     return (
         <>
-            <div className={`w-full h-full relative overflow-hidden ${isNative && scanMode !== 'ia' ? 'bg-transparent' : 'bg-black'}`}>
-                {!(isNative && scanMode !== 'ia') && (
+            <div className={`w-full h-full relative overflow-hidden ${isNative ? 'bg-transparent' : 'bg-black'}`}>
+                {!isNative && (
                     <div id="reader" className="w-full h-full object-cover"></div>
                 )}
             </div>
@@ -600,7 +548,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                 <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 2000 }}>
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button
-                            onClick={isNative && scanMode !== 'ia' ? handleNativeCancel : () => { if (onCancel) onCancel(); }}
+                            onClick={isNative ? handleNativeCancel : () => { if (onCancel) onCancel(); }}
                             className="w-10 h-10 flex items-center justify-center rounded-full bg-black/60 text-white active:scale-90 transition-transform"
                             aria-label="Cerrar escáner"
                         >
@@ -610,14 +558,13 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                             </svg>
                         </button>
 
-                        <div className="flex bg-black/60 rounded-full p-1 border border-white/20 w-[200px]">
+                        <div className="flex bg-black/60 rounded-full p-1 border border-white/20 w-[140px]">
                             <button onClick={() => handleModeChange('manual')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'manual' ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}>Manual</button>
                             <button onClick={() => handleModeChange('auto')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'auto' ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}>Auto</button>
-                            <button onClick={() => handleModeChange('ia')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'ia' ? 'bg-blue-500 text-white shadow-sm' : 'text-white/70'}`}>IA</button>
                         </div>
 
                         <div className="flex items-center gap-2">
-                            {!(isNative && scanMode !== 'ia') && webZoomSupported && (
+                            {!isNative && webZoomSupported && (
                                 <div className="hidden sm:flex items-center gap-1 bg-black/60 rounded-full px-2 py-1 border border-white/20">
                                     <button onClick={() => handleWebZoom(-0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">−</button>
                                     <span className="text-white text-[10px] font-mono min-w-[28px] text-center">{webZoom.toFixed(1)}x</span>
@@ -625,11 +572,11 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                                 </div>
                             )}
                             <button
-                                onClick={(isNative && scanMode !== 'ia') ? handleToggleTorch : handleWebToggleTorch}
-                                className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${((isNative && scanMode !== 'ia') ? torchOn : webTorchOn) ? 'bg-yellow-500/80' : 'bg-black/60'}`}
+                                onClick={isNative ? handleToggleTorch : handleWebToggleTorch}
+                                className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${(isNative ? torchOn : webTorchOn) ? 'bg-yellow-500/80' : 'bg-black/60'}`}
                                 aria-label="Toggle flash"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={((isNative && scanMode !== 'ia') ? torchOn : webTorchOn) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={(isNative ? torchOn : webTorchOn) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                                 </svg>
                             </button>
@@ -650,8 +597,8 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                             <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-white rounded-tr-lg"></div>
                             <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-white rounded-bl-lg"></div>
                             <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-white rounded-br-lg"></div>
-                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? 'via-green-400' : 'via-white'} to-transparent opacity-70 animate-scan-line`}></div>
-                            {showFocusHint && !detectedCode && (isNative && scanMode !== 'ia') && (
+                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${(isNative ? detectedCode : webDetectedCode) ? 'via-green-400' : 'via-white'} to-transparent opacity-70 animate-scan-line`}></div>
+                            {showFocusHint && !detectedCode && isNative && (
                                 <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
                                     <div className="bg-black/40 backdrop-blur-sm border border-white/20 text-white px-4 py-3 rounded-2xl text-center shadow-xl animate-pulse">
                                         <p className="text-sm font-bold">¿No enfoca?</p>
@@ -659,7 +606,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                                     </div>
                                 </div>
                             )}
-                            {((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) && (
+                            {(isNative ? detectedCode : webDetectedCode) && (
                                 <div className="absolute -bottom-10 left-0 right-0 flex justify-center">
                                     <div className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -671,21 +618,21 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                     </div>
 
                     <div className="pb-6 px-6 flex flex-col items-center gap-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
-                        {((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) && (
+                        {(isNative ? detectedCode : webDetectedCode) && (
                             <div className="bg-black/70 backdrop-blur-md rounded-xl px-5 py-2.5 max-w-full">
                                 <p className="text-white/60 text-[10px] uppercase tracking-widest text-center mb-0.5">Código leído</p>
-                                <p className="text-white text-lg font-mono font-bold text-center tracking-wider break-all">{((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode)}</p>
+                                <p className="text-white text-lg font-mono font-bold text-center tracking-wider break-all">{(isNative ? detectedCode : webDetectedCode)}</p>
                             </div>
                         )}
                         {scanMode === 'manual' && (
                             <button
-                                onClick={(isNative && scanMode !== 'ia') ? handleNativeCapture : handleWebCapture}
-                                disabled={!((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode)}
-                                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-2xl ${((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? 'bg-white ring-4 ring-white/30' : 'bg-white/30 ring-4 ring-white/10'}`}
+                                onClick={isNative ? handleNativeCapture : handleWebCapture}
+                                disabled={!(isNative ? detectedCode : webDetectedCode)}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-2xl ${(isNative ? detectedCode : webDetectedCode) ? 'bg-white ring-4 ring-white/30' : 'bg-white/30 ring-4 ring-white/10'}`}
                                 aria-label="Capturar código"
                             >
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? 'bg-green-500 text-white' : 'bg-white/20 text-white/40'}`}>
-                                    {((isNative && scanMode !== 'ia') ? detectedCode : webDetectedCode) ? (
+                                <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${(isNative ? detectedCode : webDetectedCode) ? 'bg-green-500 text-white' : 'bg-white/20 text-white/40'}`}>
+                                    {(isNative ? detectedCode : webDetectedCode) ? (
                                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                     ) : (
                                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>

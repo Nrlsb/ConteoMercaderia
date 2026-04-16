@@ -12,7 +12,8 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const [barcodeInput, setBarcodeInput] = useState('');
     const [currentBarcode, setCurrentBarcode] = useState('');
     const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+    const [viewportOffset, setViewportOffset] = useState(0);
     const [showCalc, setShowCalc] = useState(false);
     const [calcDisplay, setCalcDisplay] = useState('0');
     const [calcExpression, setCalcExpression] = useState('');
@@ -31,9 +32,8 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
         if (!viewport) return;
 
         const handleResize = () => {
-            // When keyboard opens, visualViewport.height shrinks
-            const heightDiff = window.innerHeight - viewport.height;
-            setKeyboardHeight(heightDiff > 50 ? heightDiff : 0);
+            setViewportHeight(viewport.height);
+            setViewportOffset(viewport.offsetTop);
         };
 
         viewport.addEventListener('resize', handleResize);
@@ -45,7 +45,6 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
         return () => {
             viewport.removeEventListener('resize', handleResize);
             viewport.removeEventListener('scroll', handleResize);
-            setKeyboardHeight(0);
         };
     }, [isOpen]);
 
@@ -227,13 +226,19 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     return ReactDOM.createPortal(
         <div
             ref={overlayRef}
-            className={`fixed inset-0 z-[2000] flex ${keyboardHeight > 0 ? 'items-end' : 'items-center'} justify-center p-4 transition-all duration-300 ${isScanningBarcode ? 'bg-transparent' : 'bg-black/60 backdrop-blur-sm'}`}
-            style={keyboardHeight > 0 ? { paddingBottom: `${keyboardHeight + 8}px` } : {}}
+            className={`fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4 pb-8 sm:pb-4 ${isScanningBarcode ? 'bg-transparent' : 'bg-black/60 backdrop-blur-sm'}`}
+            style={{ 
+                height: `${viewportHeight}px`,
+                top: `${viewportOffset}px`,
+                overflow: 'hidden'
+            }}
         >
-            <div className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto ${isScanningBarcode ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible'}`}>
-
+            <div 
+                className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col ${isScanningBarcode ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible'}`}
+                style={{ maxHeight: viewportHeight < 500 ? '85vh' : `${viewportHeight * 0.95}px` }}
+            >
                 {/* Header */}
-                <div className="bg-brand-blue/10 px-6 py-4 border-b border-brand-blue/20 flex justify-between items-center">
+                <div className="bg-brand-blue/10 px-6 py-4 border-b border-brand-blue/20 flex-shrink-0 flex justify-between items-center">
                     <h3 className="text-xl font-bold text-brand-dark flex items-center">
                         <svg className="w-6 h-6 mr-2 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
                         Fichar Producto
@@ -243,8 +248,9 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     </button>
                 </div>
 
-                {/* Body */}
-                <form id="fichaje-form" onSubmit={handleSubmit} className="p-6">
+                {/* Body - Scrollable wrapper */}
+                <div className="flex-grow overflow-y-auto">
+                    <form id="fichaje-form" onSubmit={handleSubmit} className="p-6">
                     <div className="mb-6">
                         <h4 className="text-lg font-semibold text-gray-900 mb-1">{product.description || product.name}</h4>
                         <div className="flex flex-col gap-2">
@@ -451,10 +457,11 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                     )}
 
 
-                </form>
+                    </form>
+                </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end border-t border-gray-200">
+                <div className="px-6 py-4 bg-gray-50 flex-shrink-0 flex gap-3 justify-end border-t border-gray-200">
                     <button
                         onClick={onClose}
                         type="button"
