@@ -30,6 +30,16 @@ const InventoryPage = () => {
     const isSyncingRef = useRef(false); // Ref to read isSyncing inside intervals without deps
     const [viewMode, setViewMode] = useState('list'); // 'list' | 'brands'
     const [expandedBrands, setExpandedBrands] = useState({}); // { brandName: boolean }
+    
+    // Memoized lookup map for O(1) product searches
+    const productLookup = React.useMemo(() => {
+        const map = new Map();
+        expectedItems.forEach(item => {
+            if (item.code) map.set(String(item.code), item);
+            if (item.barcode) map.set(String(item.barcode), item);
+        });
+        return map;
+    }, [expectedItems]);
 
     // Modal State
     const [fichajeState, setFichajeState] = useState({
@@ -87,8 +97,8 @@ const InventoryPage = () => {
     const handleScan = (code) => {
         const trimmedCode = code.trim();
 
-        // Find product details
-        const expected = expectedItems.find(i => i.code === trimmedCode || i.barcode === trimmedCode);
+        // Find product details using optimized Map
+        const expected = productLookup.get(trimmedCode);
 
         if (!expected) {
             toast.error('Producto no encontrado en el pedido (Modo Estricto)');

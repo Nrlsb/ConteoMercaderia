@@ -491,49 +491,55 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const handleScanSuccess = async (code) => {
         if (isPausedRef.current) return;
         const now = Date.now();
-        // Debounce reducido para escaneo más ágil (400ms)
-        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 400) {
+        // Debounce reducido para escaneo más ágil (300ms)
+        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 300) {
             return;
         }
         lastScannedCodeRef.current = code;
         lastScannedTimeRef.current = now;
 
         console.log("Scanned:", code);
-        // --- Provide User Feedback (Beep & Vibrate) ---
-        try {
-            if (isNative) {
-                Haptics.impact({ style: ImpactStyle.Heavy });
-            }
-            // Reutilizar AudioContext para evitar latencia
-            if (!audioCtxRef.current) {
-                audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            const audioCtx = audioCtxRef.current;
-            if (audioCtx) {
-                // Resumir si fue suspendido por el navegador
-                if (audioCtx.state === 'suspended') await audioCtx.resume();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-
-                oscillator.start(audioCtx.currentTime);
-                oscillator.stop(audioCtx.currentTime + 0.1);
-            }
-        } catch (e) {
-            console.log("Feedback error", e);
-        }
-
-        // Call the parent callback using ref to avoid stale closures
+        // 1. Call the parent callback IMMEDIATELY (Priorizar UI)
         if (onScanRef.current) {
             onScanRef.current(code);
         }
+
+        // 2. Provide User Feedback (Beep & Vibrate) in background WITHOUT awaiting
+        const provideFeedback = async () => {
+            try {
+                if (isNative) {
+                    Haptics.impact({ style: ImpactStyle.Heavy });
+                }
+                // Reutilizar AudioContext para evitar latencia
+                if (!audioCtxRef.current) {
+                    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const audioCtx = audioCtxRef.current;
+                if (audioCtx) {
+                    // Intentar resumir pero sin bloquear el flujo principal
+                    if (audioCtx.state === 'suspended') {
+                        audioCtx.resume().catch(e => console.warn("Failed to resume audio", e));
+                    }
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.1);
+                }
+            } catch (e) {
+                console.log("Feedback error", e);
+            }
+        };
+
+        provideFeedback();
     };
 
     return (

@@ -61,10 +61,10 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setCalcJustEvaluated(false);
             setSelectedUnit('primary');
             setIsScanningBarcode(false);
-            // Focus input after a short delay to ensure modal is rendered
+            // Focus input quickly to ensure modal transition initiated
             setTimeout(() => {
                 inputRef.current?.focus();
-            }, 100);
+            }, 20);
         }
     }, [isOpen, product]);
 

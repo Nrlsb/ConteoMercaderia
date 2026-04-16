@@ -58,6 +58,27 @@ const EgresoDetailsPage = () => {
     const [multipleMatches, setMultipleMatches] = useState([]);
     const [showMatchModal, setShowMatchModal] = useState(false);
 
+    // Optimized map for item lookups
+    const productLookupMap = React.useMemo(() => {
+        const map = new Map();
+        items.forEach(item => {
+            if (!(Number(item.expected_quantity) > 0)) return;
+
+            const code = (item.product_code || '').toLowerCase();
+            const barcode = (item.products?.barcode || item.barcode || '').toLowerCase();
+
+            if (code) {
+                if (!map.has(code)) map.set(code, []);
+                map.get(code).push(item);
+            }
+            if (barcode && barcode !== code) {
+                if (!map.has(barcode)) map.set(barcode, []);
+                map.get(barcode).push(item);
+            }
+        });
+        return map;
+    }, [items]);
+
     const inputRef = useRef(null);
 
     useEffect(() => {
@@ -331,16 +352,10 @@ const EgresoDetailsPage = () => {
         setProcessing(true);
         const lowerCode = code.toLowerCase();
 
-        // 1. Exact match first (Barcode or Internal Code)
-        let matchingItems = items.filter(i =>
-            Number(i.expected_quantity) > 0 && (
-                (i.product_code || '').toLowerCase() === lowerCode ||
-                (i.products && (i.products.barcode || '').toLowerCase() === lowerCode) ||
-                (i.barcode || '').toLowerCase() === lowerCode
-            )
-        );
+        // 1. Optimized search in current items Map
+        let matchingItems = productLookupMap.get(lowerCode) || [];
 
-        // 2. Intelligent Search (If no exact match, search by terms)
+        // 2. Intelligent Search (If no exact match, search by terms - Fallback)
         if (matchingItems.length === 0) {
             const searchTerms = lowerCode.split(/\s+/);
             matchingItems = items.filter(i => {
@@ -471,7 +486,8 @@ const EgresoDetailsPage = () => {
 
     const handleBarcodeScan = (code) => {
         setScanInput(code);
-        setTimeout(() => handleScan(null, code), 50);
+        // Trigger the scan processing immediately
+        handleScan(null, code);
     };
 
     const handleFinalize = async () => {

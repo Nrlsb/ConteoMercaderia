@@ -111,6 +111,40 @@ const ReceiptDetailsPage = () => {
     const [correctingItem, setCorrectingItem] = useState(null);
     const [correctionQuantity, setCorrectionQuantity] = useState('');
 
+    // Optimized map for item lookups
+    const productLookupMap = React.useMemo(() => {
+        const map = new Map();
+        items.forEach(item => {
+            const code = item.product_code;
+            const provCode = item.products?.provider_code;
+            const barcode = item.products?.barcode || item.barcode;
+
+            if (code) {
+                if (!map.has(code)) map.set(code, []);
+                map.get(code).push(item);
+            }
+            if (provCode) {
+                if (!map.has(provCode)) map.set(provCode, []);
+                map.get(provCode).push(item);
+                
+                // Leading zero tolerance
+                const stripped = provCode.replace(/^0+/, '');
+                if (stripped && stripped !== provCode) {
+                    if (!map.has(stripped)) map.set(stripped, []);
+                    map.get(stripped).push(item);
+                }
+                const withZero = '0' + provCode;
+                if (!map.has(withZero)) map.set(withZero, []);
+                map.get(withZero).push(item);
+            }
+            if (barcode) {
+                if (!map.has(barcode)) map.set(barcode, []);
+                map.get(barcode).push(item);
+            }
+        });
+        return map;
+    }, [items]);
+
     useEffect(() => {
         fetchReceiptDetails();
         syncProducts(); // Sync catalog on mount
@@ -381,19 +415,9 @@ const ReceiptDetailsPage = () => {
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
-        // Try to find product(s) in current items first (for expected quantity)
-        // Leading-zero tolerance: also try stripping/adding a leading zero to provider_code
-        const strippedCode = code.replace(/^0+/, '');
-        const withZeroCode = '0' + code;
-        const matchingItems = items.filter(i => {
-            const provCode = i.products?.provider_code || '';
-            return (
-                i.product_code === code ||
-                provCode === code ||
-                (strippedCode && provCode === strippedCode) ||
-                provCode === withZeroCode
-            );
-        });
+        // Find product(s) in current items using optimized Map
+        const matchingItems = productLookupMap.get(code) || [];
+
 
         if (matchingItems.length === 1) {
             const existingItem = matchingItems[0];
@@ -595,8 +619,8 @@ const ReceiptDetailsPage = () => {
 
     const handleBarcodeScan = (code) => {
         setScanInput(code);
-        // Auto trigger the scan processing
-        setTimeout(() => handleScan(null, code), 50);
+        // Trigger the scan processing immediately
+        handleScan(null, code);
     };
 
     const handleFinalize = async () => {
