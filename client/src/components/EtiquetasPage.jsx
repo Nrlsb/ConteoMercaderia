@@ -124,41 +124,39 @@ const EtiquetasPage = () => {
             // FECHAS (EXTRA GRANDES)
             currentY += 25;
             
-            // Fondo gris muy tenue para las fechas
+            // Fondo gris muy tenue para las fechas (Lo ampliamos para fechas más grandes)
             doc.setDrawColor(245);
             doc.setFillColor(252, 252, 252);
-            doc.roundedRect(margin, currentY - 10, contentWidth, 60, 2, 2, 'FD');
+            doc.roundedRect(margin, currentY - 10, contentWidth - 80, 75, 2, 2, 'FD'); // Acortado horizontalmente para dejar espacio libre
 
             doc.setTextColor(0);
-            doc.setFontSize(42); // Aumentado a 42
+            doc.setFontSize(52); // Aumentado a 52 para máxima visibilidad
             doc.setFont('helvetica', 'bold');
-            doc.text('INGRESO:', margin + 10, currentY + 12);
+            doc.text('INGRESO:', margin + 10, currentY + 15);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaIngreso || '-', margin + 90, currentY + 12);
+            doc.text(fechaIngreso || '-', margin + 110, currentY + 15);
 
             doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 10, currentY + 38);
+            doc.text('VENCE:', margin + 10, currentY + 48);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
+            doc.text(fechaVencimiento || 'N/A', margin + 110, currentY + 48);
 
-            // Código de Barras (Achicado y posicionado en la esquina inferior derecha del recuadro)
+            // Código de Barras (Movido a la esquina inferior derecha, zona del recuadro rojo)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    // Achicamos el tamaño significativamente
-                    const imgWidth = 65; 
-                    const imgHeight = 25;
+                    const imgWidth = 70; 
+                    const imgHeight = 28;
                     
-                    // Posicionado en el rincón inferior derecho del recuadro gris (que mide 60 de alto)
-                    // El recuadro empieza en currentY - 10 y termina en currentY + 50
-                    const barcodeX = pageWidth - margin - imgWidth - 5;
-                    const barcodeY = currentY + 45 - imgHeight; // Ajustado para quedar abajo
+                    // Posicionado en el rincón inferior derecho (donde estaba el recuadro rojo)
+                    const barcodeX = pageWidth - margin - imgWidth;
+                    const barcodeY = pageHeight - margin - imgHeight - 12; // Arriba del pie de página
                     
                     doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
                     
                     // Texto del código más pequeño
-                    doc.setFontSize(9);
+                    doc.setFontSize(10);
                     doc.setFont('helvetica', 'italic');
                     doc.setTextColor(150);
                     doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
