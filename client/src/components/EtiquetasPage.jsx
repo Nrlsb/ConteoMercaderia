@@ -15,6 +15,7 @@ const EtiquetasPage = () => {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split('T')[0]);
     const [fechaVencimiento, setFechaVencimiento] = useState('');
+    const [cantidad, setCantidad] = useState('');
     const [generating, setGenerating] = useState(false);
     
     const searchTimeoutRef = useRef(null);
@@ -120,7 +121,7 @@ const EtiquetasPage = () => {
             // Fondo gris muy tenue para las fechas
             doc.setDrawColor(245);
             doc.setFillColor(252, 252, 252);
-            doc.roundedRect(margin, currentY - 10, contentWidth, 60, 2, 2, 'FD');
+            doc.roundedRect(margin, currentY - 10, contentWidth, 85, 2, 2, 'FD');
 
             doc.setTextColor(0);
             doc.setFontSize(42); // Aumentado a 42
@@ -129,11 +130,14 @@ const EtiquetasPage = () => {
             doc.setFont('helvetica', 'normal');
             doc.text(fechaIngreso || '-', margin + 90, currentY + 12);
 
-            doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 10, currentY + 38);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(220, 0, 0); // Rojo intenso
             doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
+
+            doc.setFontSize(42);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0);
+            doc.text('CANTIDAD:', margin + 10, currentY + 64);
+            doc.setFont('helvetica', 'normal');
+            doc.text(cantidad || '-', margin + 90, currentY + 64);
 
             // Código de Barras (ahora a la derecha de las fechas)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
@@ -294,6 +298,20 @@ const EtiquetasPage = () => {
                                     className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
                                 />
                                 <p className="text-[10px] text-gray-400 mt-2 italic">Opcional. Deja vacío si no aplica.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-gray-400" />
+                                    Cantidad
+                                </label>
+                                <input
+                                    type="text"
+                                    value={cantidad}
+                                    onChange={(e) => setCantidad(e.target.value)}
+                                    placeholder="Ej: 50 unidades, 10kg, etc."
+                                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                />
                             </div>
 
                             <div className="pt-6">
