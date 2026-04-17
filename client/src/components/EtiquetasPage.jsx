@@ -97,57 +97,61 @@ const EtiquetasPage = () => {
             doc.setLineWidth(0.3);
             doc.line(margin, 18, pageWidth - margin, 18);
 
+            // RECUADRO ROJO PRINCIPAL (Encierra descripción y fechas)
+            doc.setDrawColor(255, 0, 0); // Rojo
+            doc.setLineWidth(1.5);
+            doc.rect(margin, 25, contentWidth, 115); // Recuadro que ocupa gran parte de la hoja
+
             // DESCRIPCIÓN (MUY VISIBLE)
             doc.setTextColor(0);
             doc.setFontSize(30);
             doc.setFont('helvetica', 'bold');
             
-            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth);
-            doc.text(splitDesc, margin, 35);
+            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 20);
+            doc.text(splitDesc, margin + 10, 45);
             
-            let currentY = 35 + (splitDesc.length * 12);
+            let currentY = 45 + (splitDesc.length * 12);
 
             // CÓDIGO INTERNO (Más pequeño)
             doc.setFontSize(14);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(80);
-            doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
+            doc.text(`Cód. Interno: ${selectedProduct.code}`, margin + 10, currentY + 5);
 
-            // FECHAS (MUY VISIBLES)
+            // FECHAS (TAMAÑO EXTRA GRANDE)
             currentY += 25;
             
-            // Recuadro para fechas
-            doc.setDrawColor(230);
-            doc.setFillColor(250, 250, 250);
-            doc.roundedRect(margin, currentY - 10, contentWidth, 45, 3, 3, 'FD');
+            // Fondo suave para las fechas (dentro del recuadro rojo)
+            doc.setDrawColor(240);
+            doc.setFillColor(248, 248, 248);
+            doc.roundedRect(margin + 5, currentY - 10, contentWidth - 10, 55, 3, 3, 'FD');
 
             doc.setTextColor(0);
-            doc.setFontSize(24);
+            doc.setFontSize(38); // Aumentado de 24 a 38
             doc.setFont('helvetica', 'bold');
-            doc.text('INGRESO:', margin + 10, currentY + 5);
+            doc.text('INGRESO:', margin + 15, currentY + 10);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaIngreso || '-', margin + 60, currentY + 5);
+            doc.text(fechaIngreso || '-', margin + 95, currentY + 10);
 
             doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 10, currentY + 25);
+            doc.text('VENCE:', margin + 15, currentY + 35);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(200, 0, 0); // Rojo para vencimiento
-            doc.text(fechaVencimiento || 'N/A', margin + 60, currentY + 25);
+            doc.setTextColor(255, 0, 0); // Rojo puro para vencimiento
+            doc.text(fechaVencimiento || 'N/A', margin + 95, currentY + 35);
 
-            // Código de Barras
+            // Código de Barras (abajo)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 120;
-                    const imgHeight = 35;
-                    // Posicionar abajo centrado
+                    const imgWidth = 140; // Más ancho
+                    const imgHeight = 40;
                     doc.addImage(barcodeImg, 'PNG', (pageWidth - imgWidth) / 2, pageHeight - 55, imgWidth, imgHeight);
                     
-                    doc.setFontSize(12);
+                    doc.setFontSize(14);
                     doc.setFont('helvetica', 'italic');
                     doc.setTextColor(100);
-                    doc.text(`Cód: ${barcodeText}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+                    doc.text(`Cód: ${barcodeText}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
                 } catch (err) {
                     console.error('Error generating barcode image:', err);
                 }
@@ -156,7 +160,7 @@ const EtiquetasPage = () => {
             // Pie de página
             doc.setFontSize(8);
             doc.setTextColor(180);
-            doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+            doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
 
             // Descarga
             const fileName = `Etiqueta_${selectedProduct.code}_${fechaIngreso}.pdf`;
