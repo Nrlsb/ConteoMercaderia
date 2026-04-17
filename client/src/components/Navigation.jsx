@@ -55,6 +55,7 @@ const Navigation = () => {
     const showControlCodigos = canSeeTab('tab_control_codigos', true);
     const showEgresos = canSeeTab('tab_egresos', user?.role === 'admin' || user?.role === 'superadmin' || user?.sucursal_name === 'Deposito');
     const showIngresoSucursal = canSeeTab('tab_ingreso_sucursal', user?.role === 'admin' || user?.role === 'superadmin' || (user?.sucursal_name && user?.sucursal_name !== 'Deposito'));
+    const showEtiquetas = canSeeTab('tab_etiquetas', true);
 
     const getRoleName = () => {
         switch (user?.role) {
@@ -102,6 +103,9 @@ const Navigation = () => {
                             )}
                             {showIngresoSucursal && (
                                 <Link to="/branch-incomings" className={getLinkClass('/branch-incomings')}>Ingreso Sucursal</Link>
+                            )}
+                            {showEtiquetas && (
+                                <Link to="/etiquetas" className={getLinkClass('/etiquetas')}>Etiquetas</Link>
                             )}
                         </div>
                     </div>
@@ -168,6 +172,9 @@ const Navigation = () => {
                         )}
                         {showIngresoSucursal && (
                             <Link to="/branch-incomings" className={getMobileLinkClass('/branch-incomings')} onClick={() => setIsOpen(false)}>Ingreso Sucursal</Link>
+                        )}
+                        {showEtiquetas && (
+                            <Link to="/etiquetas" className={getMobileLinkClass('/etiquetas')} onClick={() => setIsOpen(false)}>Etiquetas</Link>
                         )}
 
                         <div className="pt-6 mt-6 border-t border-white/10">

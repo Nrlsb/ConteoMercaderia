@@ -25,6 +25,7 @@ const BarcodeControl = lazy(() => import('./components/BarcodeControl'));
 const EgresosList = lazy(() => import('./components/EgresosList'));
 const EgresoDetailsPage = lazy(() => import('./components/EgresoDetailsPage'));
 const BranchIncomingsList = lazy(() => import('./components/BranchIncomingsList'));
+const EtiquetasPage = lazy(() => import('./components/EtiquetasPage'));
 
 const ProtectedRoute = ({ children, role, tabPermission }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -70,6 +71,7 @@ const RoleBasedHome = () => {
       'tab_control_codigos': '/barcode-control',
       'tab_egresos': '/egresos',
       'tab_ingreso_sucursal': '/branch-incomings',
+      'tab_etiquetas': '/etiquetas',
     };
     // Find the first allowed tab and redirect
     for (const perm of userPermissions) {
@@ -205,6 +207,11 @@ const AppContent = () => {
                 <Route path="/branch-incomings" element={
                   <ProtectedRoute tabPermission="tab_ingreso_sucursal">
                     <BranchIncomingsList />
+                  </ProtectedRoute>
+                } />
+                <Route path="/etiquetas" element={
+                  <ProtectedRoute tabPermission="tab_etiquetas">
+                    <EtiquetasPage />
                   </ProtectedRoute>
                 } />
               </Routes>
