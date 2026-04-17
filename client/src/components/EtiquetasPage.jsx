@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Printer, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon } from 'lucide-react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
 import { useProductSync } from '../hooks/useProductSync';
 import { normalizeText } from '../utils/textUtils';
+import { Printer } from '@capgo/capacitor-printer';
 
 const EtiquetasPage = () => {
     const { searchProductsLocally, syncProducts, isSyncing } = useProductSync();
@@ -17,6 +18,7 @@ const EtiquetasPage = () => {
     const [fechaVencimiento, setFechaVencimiento] = useState('');
     const [cantidad, setCantidad] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [printing, setPrinting] = useState(false);
     
     const searchTimeoutRef = useRef(null);
     const inputRef = useRef(null);
@@ -69,6 +71,85 @@ const EtiquetasPage = () => {
         });
     };
 
+    const generatePDFInstance = async () => {
+        const doc = new jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const margin = 15;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const contentWidth = pageWidth - (margin * 2);
+        
+        // DESCRIPCIÓN (SUPER GIGANTE)
+        doc.setTextColor(0);
+        doc.setFontSize(60); 
+        doc.setFont('helvetica', 'bold');
+        
+        const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 60);
+        doc.text(splitDesc, margin, 30); 
+        
+        // CANTIDAD (Cant) en la esquina superior derecha
+        if (cantidad) {
+            doc.setFontSize(24);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Cant:', pageWidth - margin, 20, { align: 'right' }); 
+            doc.setFontSize(80); 
+            doc.text(cantidad, pageWidth - margin, 45, { align: 'right' }); 
+        }
+        
+        let currentY = 30 + (splitDesc.length * 22); 
+
+        // FECHAS (EXTRA GRANDES - DISPUESTAS VERTICALMENTE)
+        currentY += 5;
+        
+        doc.setDrawColor(245);
+        doc.setFillColor(252, 252, 252);
+        doc.roundedRect(margin, currentY - 5, contentWidth, 105, 2, 2, 'FD'); 
+
+        doc.setTextColor(0);
+        doc.setFontSize(70); 
+        doc.setFont('helvetica', 'bold');
+        doc.text('INGRESO:', margin + 10, currentY + 15);
+        doc.setFont('helvetica', 'normal');
+        doc.text(fechaIngreso || '-', margin + 130, currentY + 15); 
+
+        doc.setFont('helvetica', 'bold');
+        doc.text('VENCE:', margin + 10, currentY + 45);
+        doc.setFont('helvetica', 'normal');
+        doc.text(fechaVencimiento || 'N/A', margin + 130, currentY + 45); 
+
+        // Código de Barras
+        const barcodeText = selectedProduct.barcode || selectedProduct.code;
+        if (barcodeText) {
+            try {
+                const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                const imgWidth = 70; 
+                const imgHeight = 28;
+                const barcodeX = margin + (contentWidth / 2) - (imgWidth / 2);
+                const barcodeY = currentY + 68; 
+                
+                doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'italic');
+                doc.setTextColor(150);
+                doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
+            } catch (err) {
+                console.error('Error generating barcode image:', err);
+            }
+        }
+
+        // Pie de página
+        doc.setFontSize(8);
+        doc.setTextColor(180);
+        doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+
+        return doc;
+    };
+
     const handleGeneratePDF = async () => {
         if (!selectedProduct) {
             toast.error('Por favor selecciona un producto');
@@ -77,101 +158,7 @@ const EtiquetasPage = () => {
 
         setGenerating(true);
         try {
-            const doc = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            const margin = 15;
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            const contentWidth = pageWidth - (margin * 2);
-            
-            /* Título/Encabezado eliminado por solicitud del usuario */
-            
-            // doc.setDrawColor(200);
-            // doc.setLineWidth(0.3);
-            // doc.line(margin, 18, pageWidth - margin, 18);
-
-            // DESCRIPCIÓN (SUPER GIGANTE)
-            doc.setTextColor(0);
-            doc.setFontSize(60); // Aumentado a 60 para máxima visibilidad
-            doc.setFont('helvetica', 'bold');
-            
-            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 60);
-            doc.text(splitDesc, margin, 30); // Subido de 45 a 30
-            
-            // CANTIDAD (Cant) en la esquina superior derecha
-            if (cantidad) {
-                doc.setFontSize(24);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Cant:', pageWidth - margin, 20, { align: 'right' }); // Subido de 30 a 20
-                doc.setFontSize(80); 
-                doc.text(cantidad, pageWidth - margin, 45, { align: 'right' }); // Subido de 60 a 45
-            }
-            
-            // Ajustamos el salto de línea basado en el nuevo tamaño de fuente
-            let currentY = 30 + (splitDesc.length * 22); // Subido de 45 a 30 para coincidir con el inicio del texto
-
-            // CÓDIGO INTERNO (ELIMINADO POR SOLICITUD)
-            // let currentY = 45 + (splitDesc.length * 22);
-            // doc.setFontSize(16);
-            // doc.setFont('helvetica', 'normal');
-            // doc.setTextColor(100);
-            // doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
-
-            // FECHAS (EXTRA GRANDES - DISPUESTAS VERTICALMENTE)
-            currentY += 5;
-            
-            // Fondo gris muy tenue para las fechas y código (Lo ampliamos para que quepa todo en vertical)
-            doc.setDrawColor(245);
-            doc.setFillColor(252, 252, 252);
-            // Rectángulo para cubrir fechas y barcode (altura de 105mm para reducir espacio sobrante)
-            doc.roundedRect(margin, currentY - 5, contentWidth, 105, 2, 2, 'FD'); 
-
-            doc.setTextColor(0);
-            doc.setFontSize(70); 
-            doc.setFont('helvetica', 'bold');
-            doc.text('INGRESO:', margin + 10, currentY + 15);
-            doc.setFont('helvetica', 'normal');
-            doc.text(fechaIngreso || '-', margin + 130, currentY + 15); // Aumentado de 110 a 130 para evitar solapamiento
-
-            doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 10, currentY + 45);
-            doc.setFont('helvetica', 'normal');
-            doc.text(fechaVencimiento || 'N/A', margin + 130, currentY + 45); // Aumentado de 110 a 130 para evitar solapamiento
-
-            // Código de Barras (Movido a la esquina inferior derecha, zona del recuadro rojo)
-            const barcodeText = selectedProduct.barcode || selectedProduct.code;
-            if (barcodeText) {
-                try {
-                    const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 70; 
-                    const imgHeight = 28;
-                    
-                    // Posicionado DEBAJO de las fechas, centrado horizontalmente
-                    const barcodeX = margin + (contentWidth / 2) - (imgWidth / 2);
-                    const barcodeY = currentY + 68; 
-                    
-                    doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
-                    
-                    // Texto del código más pequeño
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'italic');
-                    doc.setTextColor(150);
-                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
-                } catch (err) {
-                    console.error('Error generating barcode image:', err);
-                }
-            }
-
-            // Pie de página
-            doc.setFontSize(8);
-            doc.setTextColor(180);
-            doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
-
-            // Descarga
+            const doc = await generatePDFInstance();
             const fileName = `Etiqueta_${selectedProduct.code}_${fechaIngreso}.pdf`;
             doc.save(fileName);
             toast.success('PDF generado y descargado correctamente');
@@ -183,6 +170,57 @@ const EtiquetasPage = () => {
         }
     };
 
+    const handlePrintPDF = async () => {
+        if (!selectedProduct) {
+            toast.error('Por favor selecciona un producto');
+            return;
+        }
+
+        setPrinting(true);
+        try {
+            const doc = await generatePDFInstance();
+            
+            // Comprobamos si estamos en Web o en Capacitor
+            const isNative = window.Capacitor?.isNativePlatform;
+
+            if (isNative) {
+                // Modo Nativo (Android): Usar el plugin Printer
+                const pdfBase64 = doc.output('datauristring').split(',')[1];
+                await Printer.print({
+                    name: `Etiqueta_${selectedProduct.code}`,
+                    data: pdfBase64,
+                    type: 'base64'
+                });
+            } else {
+                // Modo Web: Usar iframe oculto para disparar impresión del sistema
+                const pdfBlob = doc.output('blob');
+                const url = URL.createObjectURL(pdfBlob);
+                
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = url;
+                document.body.appendChild(iframe);
+                
+                iframe.onload = () => {
+                    setTimeout(() => {
+                        iframe.contentWindow.print();
+                        // Limpieza después de un tiempo para asegurar que el diálogo se abrió
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                            URL.revokeObjectURL(url);
+                        }, 1000);
+                    }, 500);
+                };
+            }
+            toast.success('Enviando a la cola de impresión...');
+        } catch (error) {
+            console.error('Error printing PDF:', error);
+            toast.error('Error al intentar imprimir');
+        } finally {
+            setPrinting(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
@@ -190,7 +228,7 @@ const EtiquetasPage = () => {
                 <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
-                            <Printer className="w-8 h-8" />
+                            <PrinterIcon className="w-8 h-8" />
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold">Impresión de Etiquetas</h1>
@@ -319,22 +357,41 @@ const EtiquetasPage = () => {
                                 />
                             </div>
 
-                            <div className="pt-6">
+                            <div className="pt-6 space-y-3">
+                                {/* Botón de Impresión (Principal) */}
                                 <button
-                                    onClick={handleGeneratePDF}
-                                    disabled={!selectedProduct || generating}
+                                    onClick={handlePrintPDF}
+                                    disabled={!selectedProduct || printing || generating}
                                     className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95
-                                        ${!selectedProduct || generating 
+                                        ${!selectedProduct || printing || generating
                                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' 
-                                            : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200 shadow-blue-100'}`}
+                                            : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 shadow-indigo-100'}`}
                                 >
-                                    {generating ? (
+                                    {printing ? (
                                         <Loader2 className="w-6 h-6 animate-spin" />
                                     ) : (
-                                        <Download className="w-6 h-6" />
+                                        <PrinterIcon className="w-6 h-6" />
                                     )}
-                                    {generating ? 'Generando...' : 'Descargar Etiqueta PDF'}
+                                    {printing ? 'Preparando impresora...' : 'Imprimir Etiqueta'}
                                 </button>
+
+                                {/* Botón de Descargar (Secundario) */}
+                                <button
+                                    onClick={handleGeneratePDF}
+                                    disabled={!selectedProduct || generating || printing}
+                                    className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2
+                                        ${!selectedProduct || generating || printing
+                                            ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
+                                            : 'border-blue-600 text-blue-600 hover:bg-blue-50'}`}
+                                >
+                                    {generating ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Download className="w-4 h-4" />
+                                    )}
+                                    {generating ? 'Generando PDF...' : 'Descargar como PDF'}
+                                </button>
+
                                 {!selectedProduct && (
                                     <p className="text-center text-xs text-red-500 mt-3 font-medium animate-pulse">Debes elegir un producto primero</p>
                                 )}
@@ -351,7 +408,7 @@ const EtiquetasPage = () => {
                     </div>
                     <div className="flex items-center gap-4">
                         <span>Formato: A4</span>
-                        <span>Estándar: Code128</span>
+                        <span>Soporte: WiFi / Direct Print</span>
                     </div>
                 </div>
             </div>
