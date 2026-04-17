@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useProductSync } from '../hooks/useProductSync';
 import { normalizeText } from '../utils/textUtils';
 import { Printer } from '@capgo/capacitor-printer';
+import { Capacitor } from '@capacitor/core';
 
 const EtiquetasPage = () => {
     const { searchProductsLocally, syncProducts, isSyncing } = useProductSync();
@@ -180,8 +181,8 @@ const EtiquetasPage = () => {
         try {
             const doc = await generatePDFInstance();
             
-            // Comprobamos si estamos en Web o en Capacitor
-            const isNative = window.Capacitor?.isNativePlatform;
+            // Comprobamos la plataforma usando el objeto oficial de Capacitor
+            const isNative = Capacitor.getPlatform() !== 'web';
 
             if (isNative) {
                 // Modo Nativo (Android): Usar el plugin Printer
