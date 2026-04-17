@@ -134,7 +134,7 @@ export const useProductSync = () => {
             try {
                 const containsMatches = await db.products
                     .filter(p => normalizeText(p.description).includes(firstTerm))
-                    .limit(50)
+                    .limit(500)
                     .toArray();
 
                 const existingCodes = new Set(results.map(r => r.code));
@@ -194,17 +194,17 @@ export const useProductSync = () => {
             const firstWord = words[0];
             let candidates = await db.products
                 .where('description').startsWithIgnoreCase(firstWord)
-                .limit(200)
+                .limit(1000)
                 .toArray();
 
             // Complementar con búsqueda contains si pocos resultados
             if (candidates.length < 20) {
-                const extra = await db.products
+                candidates = await db.products
                     .filter(p => normalizeText(p.description).includes(firstWord))
-                    .limit(200)
+                    .limit(1000)
                     .toArray();
                 const seen = new Set(candidates.map(r => r.code));
-                extra.forEach(p => { if (!seen.has(p.code)) { seen.add(p.code); candidates.push(p); } });
+                // extra.forEach(p => { if (!seen.has(p.code)) { seen.add(p.code); candidates.push(p); } });
             }
 
             // Filtrar: todos los términos deben aparecer (fonético)

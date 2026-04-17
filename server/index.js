@@ -2027,7 +2027,7 @@ app.get('/api/products/search', verifyToken, async (req, res) => {
             .from('products')
             .select('*')
             .or(orString)
-            .limit(20);
+            .limit(100);
 
         if (error) throw error;
         return res.json(data);
