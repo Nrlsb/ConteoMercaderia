@@ -149,9 +149,9 @@ const EtiquetasPage = () => {
                     const imgWidth = 70; 
                     const imgHeight = 28;
                     
-                    // Posicionado en el rincón inferior derecho (donde estaba el recuadro rojo)
+                    // Posicionado en el área del recuadro rojo (más arriba)
                     const barcodeX = pageWidth - margin - imgWidth;
-                    const barcodeY = pageHeight - margin - imgHeight - 2; // Más abajo, cerca del límite del margen
+                    const barcodeY = currentY + 10; 
                     
                     doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
                     
