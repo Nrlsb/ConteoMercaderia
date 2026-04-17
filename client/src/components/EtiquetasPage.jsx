@@ -185,12 +185,12 @@ const EtiquetasPage = () => {
             const isNative = Capacitor.getPlatform() !== 'web';
 
             if (isNative) {
-                // Modo Nativo (Android): Usar el plugin Printer
+                // Modo Nativo (Android): Usar el plugin Printer con el método correcto
                 const pdfBase64 = doc.output('datauristring').split(',')[1];
-                await Printer.print({
+                await Printer.printBase64({
                     name: `Etiqueta_${selectedProduct.code}`,
                     data: pdfBase64,
-                    type: 'base64'
+                    mimeType: 'application/pdf'
                 });
             } else {
                 // Modo Web: Usar iframe oculto para disparar impresión del sistema
