@@ -77,72 +77,86 @@ const EtiquetasPage = () => {
         setGenerating(true);
         try {
             const doc = new jsPDF({
-                orientation: 'portrait',
+                orientation: 'landscape',
                 unit: 'mm',
                 format: 'a4'
             });
 
-            const margin = 20;
+            const margin = 15;
             const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
             const contentWidth = pageWidth - (margin * 2);
             
-            // Título/Encabezado
-            doc.setFontSize(22);
+            // Título/Encabezado más discreto
+            doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
-            doc.text('ETIQUETA DE PRODUCTO', pageWidth / 2, 30, { align: 'center' });
+            doc.setTextColor(100);
+            doc.text('ETIQUETA DE PRODUCTO', margin, 15);
             
-            doc.setLineWidth(0.5);
-            doc.line(margin, 35, pageWidth - margin, 35);
+            doc.setDrawColor(200);
+            doc.setLineWidth(0.3);
+            doc.line(margin, 18, pageWidth - margin, 18);
 
-            // Datos del Producto
-            doc.setFontSize(16);
-            doc.text('Descripción:', margin, 50);
-            doc.setFont('helvetica', 'normal');
+            // DESCRIPCIÓN (MUY VISIBLE)
+            doc.setTextColor(0);
+            doc.setFontSize(30);
+            doc.setFont('helvetica', 'bold');
             
-            // Manejo de descripción larga
             const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth);
-            doc.text(splitDesc, margin, 58);
+            doc.text(splitDesc, margin, 35);
             
-            let currentY = 58 + (splitDesc.length * 7);
+            let currentY = 35 + (splitDesc.length * 12);
+
+            // CÓDIGO INTERNO (Más pequeño)
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80);
+            doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
+
+            // FECHAS (MUY VISIBLES)
+            currentY += 25;
+            
+            // Recuadro para fechas
+            doc.setDrawColor(230);
+            doc.setFillColor(250, 250, 250);
+            doc.roundedRect(margin, currentY - 10, contentWidth, 45, 3, 3, 'FD');
+
+            doc.setTextColor(0);
+            doc.setFontSize(24);
+            doc.setFont('helvetica', 'bold');
+            doc.text('INGRESO:', margin + 10, currentY + 5);
+            doc.setFont('helvetica', 'normal');
+            doc.text(fechaIngreso || '-', margin + 60, currentY + 5);
 
             doc.setFont('helvetica', 'bold');
-            doc.text('Código Interno:', margin, currentY + 10);
+            doc.text('VENCE:', margin + 10, currentY + 25);
             doc.setFont('helvetica', 'normal');
-            doc.text(String(selectedProduct.code), margin + 45, currentY + 10);
-
-            // Fechas
-            doc.setFont('helvetica', 'bold');
-            doc.text('Fecha de Ingreso:', margin, currentY + 25);
-            doc.setFont('helvetica', 'normal');
-            doc.text(fechaIngreso || '-', margin + 50, currentY + 25);
-
-            doc.setFont('helvetica', 'bold');
-            doc.text('Fecha de Vencimiento:', margin, currentY + 35);
-            doc.setFont('helvetica', 'normal');
-            doc.text(fechaVencimiento || 'N/A', margin + 60, currentY + 35);
+            doc.setTextColor(200, 0, 0); // Rojo para vencimiento
+            doc.text(fechaVencimiento || 'N/A', margin + 60, currentY + 25);
 
             // Código de Barras
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 100;
-                    const imgHeight = 40;
-                    doc.addImage(barcodeImg, 'PNG', (pageWidth - imgWidth) / 2, currentY + 50, imgWidth, imgHeight);
+                    const imgWidth = 120;
+                    const imgHeight = 35;
+                    // Posicionar abajo centrado
+                    doc.addImage(barcodeImg, 'PNG', (pageWidth - imgWidth) / 2, pageHeight - 55, imgWidth, imgHeight);
                     
                     doc.setFontSize(12);
                     doc.setFont('helvetica', 'italic');
-                    doc.text(`Cód: ${barcodeText}`, pageWidth / 2, currentY + 95, { align: 'center' });
+                    doc.setTextColor(100);
+                    doc.text(`Cód: ${barcodeText}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
                 } catch (err) {
                     console.error('Error generating barcode image:', err);
-                    doc.text('Error al generar código de barras visual', margin, currentY + 60);
                 }
             }
 
-            // Pie de página decorativo
-            doc.setFontSize(10);
-            doc.setTextColor(150);
-            doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth / 2, 280, { align: 'center' });
+            // Pie de página
+            doc.setFontSize(8);
+            doc.setTextColor(180);
+            doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
 
             // Descarga
             const fileName = `Etiqueta_${selectedProduct.code}_${fechaIngreso}.pdf`;
