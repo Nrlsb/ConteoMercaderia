@@ -135,19 +135,23 @@ const EtiquetasPage = () => {
             doc.setTextColor(220, 0, 0); // Rojo intenso
             doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
 
-            // Código de Barras
+            // Código de Barras (ahora a la derecha de las fechas)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 140;
-                    const imgHeight = 40;
-                    doc.addImage(barcodeImg, 'PNG', (pageWidth - imgWidth) / 2, pageHeight - 55, imgWidth, imgHeight);
+                    const imgWidth = 90;
+                    const imgHeight = 45;
+                    // Posicionado a la derecha de las fechas dentro del recuadro
+                    const barcodeX = pageWidth - margin - imgWidth - 10;
+                    const barcodeY = currentY - 5;
                     
-                    doc.setFontSize(14);
+                    doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
+                    
+                    doc.setFontSize(12);
                     doc.setFont('helvetica', 'italic');
-                    doc.setTextColor(100);
-                    doc.text(`Cód: ${barcodeText}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
+                    doc.setTextColor(150);
+                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 5, { align: 'center' });
                 } catch (err) {
                     console.error('Error generating barcode image:', err);
                 }
