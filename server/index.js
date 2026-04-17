@@ -325,6 +325,83 @@ async function findProductByAnyCode(inputCode, type = 'any') {
     }
 }
 
+/**
+ * Helper to fetch ALL products with full details from Supabase (bypassing 1000 limit)
+ */
+async function fetchAllProductsDetailed() {
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('products')
+            .select('code, description, excel_order, current_stock, brand, brand_code')
+            .range(from, from + step - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            if (data.length < step) hasMore = false;
+            else from += step;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allData;
+}
+
+/**
+ * Helper to fetch ALL stock records for a branch (bypassing 1000 limit)
+ */
+async function fetchBranchStock(sucursalId) {
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('stock_sucursal')
+            .select('product_code, quantity, products(description, brand, brand_code)')
+            .eq('sucursal_id', sucursalId)
+            .range(from, from + step - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            if (data.length < step) hasMore = false;
+            else from += step;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allData;
+}
+
+/**
+ * Helper to fetch specific products by codes in chunks to avoid Supabase/PostgREST limits
+ */
+async function fetchProductsByCodes(codes) {
+    if (!codes || codes.length === 0) return [];
+    
+    let allData = [];
+    const chunkSize = 500; // conservative chunk size for .in() filters
+    
+    for (let i = 0; i < codes.length; i += chunkSize) {
+        const chunk = codes.slice(i, i + chunkSize);
+        const { data, error } = await supabase
+            .from('products')
+            .select('code, description, excel_order')
+            .in('code', chunk);
+            
+        if (error) throw error;
+        if (data) allData = allData.concat(data);
+    }
+    return allData;
+}
+
 // AI Parsing Endpoint
 app.post('/api/ai/parse-remito', verifyToken, async (req, res) => {
     const { text } = req.body;
@@ -3110,12 +3187,7 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
         // If the count has specific product_codes (from XML/pre-remito),
         // we fetch all of them and paginate/filter in memory to respect the original order.
         if (Array.isArray(count.product_codes) && count.product_codes.length > 0) {
-            const { data: allProductsInCount, error: prodError } = await supabase
-                .from('products')
-                .select('code, description, excel_order')
-                .in('code', count.product_codes);
-
-            if (prodError) throw prodError;
+            const allProductsInCount = await fetchProductsByCodes(count.product_codes);
 
             const productMap = new Map(allProductsInCount.map(p => [p.code, p]));
 
@@ -3154,15 +3226,8 @@ app.get('/api/general-counts/:id/product-list', verifyToken, async (req, res) =>
             products = productsWithMeta.slice(from, to);
 
         } else {
-            // Original logic: query directly from DB for all products.
-            // Since we need to sort globally by capacity, we fetch all products
-            // for the count (or system) and sort in memory.
-            const { data: allDbProducts, error: allProdError } = await supabase
-                .from('products')
-                .select('code, description, excel_order')
-                .order('excel_order', { ascending: true, nullsFirst: false });
-
-            if (allProdError) throw allProdError;
+            // Updated logic: Fetch ALL products using helper to avoid 1000 limit
+            const allDbProducts = await fetchAllProductsDetailed();
 
             let productsWithMeta = (allDbProducts || []).map(p => ({
                 ...p,
@@ -3406,10 +3471,7 @@ async function getFullRemitoDetails(id) {
                     if (items.length === 0) {
                         if (generalCount.sucursal_id) {
                             console.log(`Fetching stock for general count ${generalCount.id} from branch ${generalCount.sucursal_id}`);
-                            const { data: branchStock } = await supabase
-                                .from('stock_sucursal')
-                                .select('product_code, quantity, products(description, brand, brand_code)')
-                                .eq('sucursal_id', generalCount.sucursal_id);
+                            const branchStock = await fetchBranchStock(generalCount.sucursal_id);
 
                             if (branchStock && branchStock.length > 0) {
                                 items = branchStock.map(s => ({
@@ -3421,9 +3483,7 @@ async function getFullRemitoDetails(id) {
                                     brand_code: s.products?.brand_code
                                 }));
                             } else {
-                                const { data: allProducts } = await supabase
-                                    .from('products')
-                                    .select('code, description, current_stock, brand, brand_code');
+                                const allProducts = await fetchAllProductsDetailed();
 
                                 items = (allProducts || []).map(p => ({
                                     code: p.code,
@@ -3435,9 +3495,7 @@ async function getFullRemitoDetails(id) {
                                 }));
                             }
                         } else {
-                            const { data: allProducts } = await supabase
-                                .from('products')
-                                .select('code, description, current_stock, brand, brand_code');
+                            const allProducts = await fetchAllProductsDetailed();
 
                             items = (allProducts || []).map(p => ({
                                 code: p.code,
