@@ -103,8 +103,17 @@ const EtiquetasPage = () => {
             doc.setFontSize(60); // Aumentado a 60 para máxima visibilidad
             doc.setFont('helvetica', 'bold');
             
-            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth);
+            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 60);
             doc.text(splitDesc, margin, 45);
+            
+            // CANTIDAD (Cant) en la esquina superior derecha
+            if (cantidad) {
+                doc.setFontSize(24);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Cant:', pageWidth - margin, 35, { align: 'right' });
+                doc.setFontSize(42);
+                doc.text(cantidad, pageWidth - margin, 52, { align: 'right' });
+            }
             
             // Ajustamos el salto de línea basado en el nuevo tamaño de fuente (aprox 1.2 * fontSize en mm)
             let currentY = 45 + (splitDesc.length * 22);
@@ -121,7 +130,7 @@ const EtiquetasPage = () => {
             // Fondo gris muy tenue para las fechas
             doc.setDrawColor(245);
             doc.setFillColor(252, 252, 252);
-            doc.roundedRect(margin, currentY - 10, contentWidth, 85, 2, 2, 'FD');
+            doc.roundedRect(margin, currentY - 10, contentWidth, 60, 2, 2, 'FD');
 
             doc.setTextColor(0);
             doc.setFontSize(42); // Aumentado a 42
@@ -131,13 +140,6 @@ const EtiquetasPage = () => {
             doc.text(fechaIngreso || '-', margin + 90, currentY + 12);
 
             doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
-
-            doc.setFontSize(42);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(0);
-            doc.text('CANTIDAD:', margin + 10, currentY + 64);
-            doc.setFont('helvetica', 'normal');
-            doc.text(cantidad || '-', margin + 90, currentY + 64);
 
             // Código de Barras (ahora a la derecha de las fechas)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
