@@ -122,25 +122,25 @@ const EtiquetasPage = () => {
             // doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
 
             // FECHAS (EXTRA GRANDES - DISPUESTAS VERTICALMENTE)
-            currentY += 15;
+            currentY += 5;
             
             // Fondo gris muy tenue para las fechas y código (Lo ampliamos para que quepa todo en vertical)
             doc.setDrawColor(245);
             doc.setFillColor(252, 252, 252);
-            // Rectángulo más alto para cubrir fechas y barcode (altura de 115mm)
-            doc.roundedRect(margin, currentY - 5, contentWidth, 120, 2, 2, 'FD'); 
+            // Rectángulo para cubrir fechas y barcode (altura de 105mm para reducir espacio sobrante)
+            doc.roundedRect(margin, currentY - 5, contentWidth, 105, 2, 2, 'FD'); 
 
             doc.setTextColor(0);
-            doc.setFontSize(52); 
+            doc.setFontSize(70); 
             doc.setFont('helvetica', 'bold');
             doc.text('INGRESO:', margin + 10, currentY + 15);
             doc.setFont('helvetica', 'normal');
             doc.text(fechaIngreso || '-', margin + 110, currentY + 15);
 
             doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 10, currentY + 48);
+            doc.text('VENCE:', margin + 10, currentY + 45);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaVencimiento || 'N/A', margin + 110, currentY + 48);
+            doc.text(fechaVencimiento || 'N/A', margin + 110, currentY + 45);
 
             // Código de Barras (Movido a la esquina inferior derecha, zona del recuadro rojo)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
@@ -152,7 +152,7 @@ const EtiquetasPage = () => {
                     
                     // Posicionado DEBAJO de las fechas, centrado horizontalmente
                     const barcodeX = margin + (contentWidth / 2) - (imgWidth / 2);
-                    const barcodeY = currentY + 75; 
+                    const barcodeY = currentY + 68; 
                     
                     doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
                     
