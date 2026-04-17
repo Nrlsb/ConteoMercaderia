@@ -121,16 +121,17 @@ const EtiquetasPage = () => {
             // doc.setTextColor(100);
             // doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
 
-            // FECHAS (EXTRA GRANDES)
-            currentY += 25;
+            // FECHAS (EXTRA GRANDES - DISPUESTAS VERTICALMENTE)
+            currentY += 15;
             
-            // Fondo gris muy tenue para las fechas (Lo ampliamos para fechas más grandes)
+            // Fondo gris muy tenue para las fechas y código (Lo ampliamos para que quepa todo en vertical)
             doc.setDrawColor(245);
             doc.setFillColor(252, 252, 252);
-            doc.roundedRect(margin, currentY - 10, contentWidth - 80, 75, 2, 2, 'FD'); // Acortado horizontalmente para dejar espacio libre
+            // Rectángulo más alto para cubrir fechas y barcode (altura de 115mm)
+            doc.roundedRect(margin, currentY - 5, contentWidth, 120, 2, 2, 'FD'); 
 
             doc.setTextColor(0);
-            doc.setFontSize(52); // Aumentado a 52 para máxima visibilidad
+            doc.setFontSize(52); 
             doc.setFont('helvetica', 'bold');
             doc.text('INGRESO:', margin + 10, currentY + 15);
             doc.setFont('helvetica', 'normal');
@@ -149,9 +150,9 @@ const EtiquetasPage = () => {
                     const imgWidth = 70; 
                     const imgHeight = 28;
                     
-                    // Posicionado en el área del recuadro rojo (más arriba)
-                    const barcodeX = pageWidth - margin - imgWidth;
-                    const barcodeY = currentY + 10; 
+                    // Posicionado DEBAJO de las fechas, centrado horizontalmente
+                    const barcodeX = margin + (contentWidth / 2) - (imgWidth / 2);
+                    const barcodeY = currentY + 75; 
                     
                     doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
                     
