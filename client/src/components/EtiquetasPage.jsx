@@ -97,54 +97,49 @@ const EtiquetasPage = () => {
             doc.setLineWidth(0.3);
             doc.line(margin, 18, pageWidth - margin, 18);
 
-            // RECUADRO ROJO PRINCIPAL (Encierra descripción y fechas)
-            doc.setDrawColor(255, 0, 0); // Rojo
-            doc.setLineWidth(1.5);
-            doc.rect(margin, 25, contentWidth, 115); // Recuadro que ocupa gran parte de la hoja
-
-            // DESCRIPCIÓN (MUY VISIBLE)
+            // DESCRIPCIÓN (GIGANTE)
             doc.setTextColor(0);
-            doc.setFontSize(30);
+            doc.setFontSize(40); // Aumentado a 40 para máxima visibilidad
             doc.setFont('helvetica', 'bold');
             
-            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 20);
-            doc.text(splitDesc, margin + 10, 45);
+            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth);
+            doc.text(splitDesc, margin, 45);
             
-            let currentY = 45 + (splitDesc.length * 12);
+            let currentY = 45 + (splitDesc.length * 15);
 
-            // CÓDIGO INTERNO (Más pequeño)
-            doc.setFontSize(14);
+            // CÓDIGO INTERNO
+            doc.setFontSize(16);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(80);
-            doc.text(`Cód. Interno: ${selectedProduct.code}`, margin + 10, currentY + 5);
+            doc.setTextColor(100);
+            doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
 
-            // FECHAS (TAMAÑO EXTRA GRANDE)
+            // FECHAS (EXTRA GRANDES)
             currentY += 25;
             
-            // Fondo suave para las fechas (dentro del recuadro rojo)
-            doc.setDrawColor(240);
-            doc.setFillColor(248, 248, 248);
-            doc.roundedRect(margin + 5, currentY - 10, contentWidth - 10, 55, 3, 3, 'FD');
+            // Fondo gris muy tenue para las fechas
+            doc.setDrawColor(245);
+            doc.setFillColor(252, 252, 252);
+            doc.roundedRect(margin, currentY - 10, contentWidth, 60, 2, 2, 'FD');
 
             doc.setTextColor(0);
-            doc.setFontSize(38); // Aumentado de 24 a 38
+            doc.setFontSize(42); // Aumentado a 42
             doc.setFont('helvetica', 'bold');
-            doc.text('INGRESO:', margin + 15, currentY + 10);
+            doc.text('INGRESO:', margin + 10, currentY + 12);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaIngreso || '-', margin + 95, currentY + 10);
+            doc.text(fechaIngreso || '-', margin + 90, currentY + 12);
 
             doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 15, currentY + 35);
+            doc.text('VENCE:', margin + 10, currentY + 38);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(255, 0, 0); // Rojo puro para vencimiento
-            doc.text(fechaVencimiento || 'N/A', margin + 95, currentY + 35);
+            doc.setTextColor(220, 0, 0); // Rojo intenso
+            doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
 
-            // Código de Barras (abajo)
+            // Código de Barras
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 140; // Más ancho
+                    const imgWidth = 140;
                     const imgHeight = 40;
                     doc.addImage(barcodeImg, 'PNG', (pageWidth - imgWidth) / 2, pageHeight - 55, imgWidth, imgHeight);
                     
