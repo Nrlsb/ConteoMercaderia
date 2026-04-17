@@ -135,12 +135,12 @@ const EtiquetasPage = () => {
             doc.setFont('helvetica', 'bold');
             doc.text('INGRESO:', margin + 10, currentY + 15);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaIngreso || '-', margin + 110, currentY + 15);
+            doc.text(fechaIngreso || '-', margin + 130, currentY + 15); // Aumentado de 110 a 130 para evitar solapamiento
 
             doc.setFont('helvetica', 'bold');
             doc.text('VENCE:', margin + 10, currentY + 45);
             doc.setFont('helvetica', 'normal');
-            doc.text(fechaVencimiento || 'N/A', margin + 110, currentY + 45);
+            doc.text(fechaVencimiento || 'N/A', margin + 130, currentY + 45); // Aumentado de 110 a 130 para evitar solapamiento
 
             // Código de Barras (Movido a la esquina inferior derecha, zona del recuadro rojo)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
