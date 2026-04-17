@@ -97,15 +97,16 @@ const EtiquetasPage = () => {
             doc.setLineWidth(0.3);
             doc.line(margin, 18, pageWidth - margin, 18);
 
-            // DESCRIPCIÓN (GIGANTE)
+            // DESCRIPCIÓN (SUPER GIGANTE)
             doc.setTextColor(0);
-            doc.setFontSize(40); // Aumentado a 40 para máxima visibilidad
+            doc.setFontSize(60); // Aumentado a 60 para máxima visibilidad
             doc.setFont('helvetica', 'bold');
             
             const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth);
             doc.text(splitDesc, margin, 45);
             
-            let currentY = 45 + (splitDesc.length * 15);
+            // Ajustamos el salto de línea basado en el nuevo tamaño de fuente (aprox 1.2 * fontSize en mm)
+            let currentY = 45 + (splitDesc.length * 22);
 
             // CÓDIGO INTERNO
             doc.setFontSize(16);
@@ -247,7 +248,7 @@ const EtiquetasPage = () => {
                                             <X className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    <h3 className="text-xl font-bold text-blue-900 mb-2">{selectedProduct.description}</h3>
+                                    <h3 className="text-3xl font-bold text-blue-900 mb-2">{selectedProduct.description}</h3>
                                     <div className="grid grid-cols-2 gap-4 mt-4">
                                         <div className="bg-white/50 p-3 rounded-xl border border-blue-100">
                                             <div className="text-[10px] text-blue-500 uppercase font-bold mb-1">Código Interno</div>
