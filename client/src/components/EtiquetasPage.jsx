@@ -88,15 +88,11 @@ const EtiquetasPage = () => {
             const pageHeight = doc.internal.pageSize.getHeight();
             const contentWidth = pageWidth - (margin * 2);
             
-            // Título/Encabezado más discreto
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(100);
-            doc.text('ETIQUETA DE PRODUCTO', margin, 15);
+            /* Título/Encabezado eliminado por solicitud del usuario */
             
-            doc.setDrawColor(200);
-            doc.setLineWidth(0.3);
-            doc.line(margin, 18, pageWidth - margin, 18);
+            // doc.setDrawColor(200);
+            // doc.setLineWidth(0.3);
+            // doc.line(margin, 18, pageWidth - margin, 18);
 
             // DESCRIPCIÓN (SUPER GIGANTE)
             doc.setTextColor(0);
@@ -118,11 +114,12 @@ const EtiquetasPage = () => {
             // Ajustamos el salto de línea basado en el nuevo tamaño de fuente (aprox 1.2 * fontSize en mm)
             let currentY = 45 + (splitDesc.length * 22);
 
-            // CÓDIGO INTERNO
-            doc.setFontSize(16);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100);
-            doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
+            // CÓDIGO INTERNO (ELIMINADO POR SOLICITUD)
+            // let currentY = 45 + (splitDesc.length * 22);
+            // doc.setFontSize(16);
+            // doc.setFont('helvetica', 'normal');
+            // doc.setTextColor(100);
+            // doc.text(`Cód. Interno: ${selectedProduct.code}`, margin, currentY + 5);
 
             // FECHAS (EXTRA GRANDES)
             currentY += 25;
@@ -144,23 +141,27 @@ const EtiquetasPage = () => {
             doc.setFont('helvetica', 'normal');
             doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
 
-            // Código de Barras (ahora a la derecha de las fechas)
+            // Código de Barras (Achicado y posicionado en la esquina inferior derecha del recuadro)
             const barcodeText = selectedProduct.barcode || selectedProduct.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 90;
-                    const imgHeight = 45;
-                    // Posicionado a la derecha de las fechas dentro del recuadro
-                    const barcodeX = pageWidth - margin - imgWidth - 10;
-                    const barcodeY = currentY - 5;
+                    // Achicamos el tamaño significativamente
+                    const imgWidth = 65; 
+                    const imgHeight = 25;
+                    
+                    // Posicionado en el rincón inferior derecho del recuadro gris (que mide 60 de alto)
+                    // El recuadro empieza en currentY - 10 y termina en currentY + 50
+                    const barcodeX = pageWidth - margin - imgWidth - 5;
+                    const barcodeY = currentY + 45 - imgHeight; // Ajustado para quedar abajo
                     
                     doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
                     
-                    doc.setFontSize(12);
+                    // Texto del código más pequeño
+                    doc.setFontSize(9);
                     doc.setFont('helvetica', 'italic');
                     doc.setTextColor(150);
-                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 5, { align: 'center' });
+                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
                 } catch (err) {
                     console.error('Error generating barcode image:', err);
                 }
