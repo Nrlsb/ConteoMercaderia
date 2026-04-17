@@ -110,9 +110,9 @@ const EtiquetasPage = () => {
             if (cantidad) {
                 doc.setFontSize(24);
                 doc.setFont('helvetica', 'bold');
-                doc.text('Cant:', pageWidth - margin, 35, { align: 'right' });
-                doc.setFontSize(42);
-                doc.text(cantidad, pageWidth - margin, 52, { align: 'right' });
+                doc.text('Cant:', pageWidth - margin, 30, { align: 'right' });
+                doc.setFontSize(80); // Aumentado para ocupar más espacio
+                doc.text(cantidad, pageWidth - margin, 60, { align: 'right' });
             }
             
             // Ajustamos el salto de línea basado en el nuevo tamaño de fuente (aprox 1.2 * fontSize en mm)
@@ -139,6 +139,9 @@ const EtiquetasPage = () => {
             doc.setFont('helvetica', 'normal');
             doc.text(fechaIngreso || '-', margin + 90, currentY + 12);
 
+            doc.setFont('helvetica', 'bold');
+            doc.text('VENCE:', margin + 10, currentY + 38);
+            doc.setFont('helvetica', 'normal');
             doc.text(fechaVencimiento || 'N/A', margin + 90, currentY + 38);
 
             // Código de Barras (ahora a la derecha de las fechas)
