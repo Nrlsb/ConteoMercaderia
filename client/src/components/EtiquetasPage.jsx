@@ -100,19 +100,19 @@ const EtiquetasPage = () => {
             doc.setFont('helvetica', 'bold');
             
             const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 60);
-            doc.text(splitDesc, margin, 45);
+            doc.text(splitDesc, margin, 30); // Subido de 45 a 30
             
             // CANTIDAD (Cant) en la esquina superior derecha
             if (cantidad) {
                 doc.setFontSize(24);
                 doc.setFont('helvetica', 'bold');
-                doc.text('Cant:', pageWidth - margin, 30, { align: 'right' });
-                doc.setFontSize(80); // Aumentado para ocupar más espacio
-                doc.text(cantidad, pageWidth - margin, 60, { align: 'right' });
+                doc.text('Cant:', pageWidth - margin, 20, { align: 'right' }); // Subido de 30 a 20
+                doc.setFontSize(80); 
+                doc.text(cantidad, pageWidth - margin, 45, { align: 'right' }); // Subido de 60 a 45
             }
             
-            // Ajustamos el salto de línea basado en el nuevo tamaño de fuente (aprox 1.2 * fontSize en mm)
-            let currentY = 45 + (splitDesc.length * 22);
+            // Ajustamos el salto de línea basado en el nuevo tamaño de fuente
+            let currentY = 30 + (splitDesc.length * 22); // Subido de 45 a 30 para coincidir con el inicio del texto
 
             // CÓDIGO INTERNO (ELIMINADO POR SOLICITUD)
             // let currentY = 45 + (splitDesc.length * 22);
