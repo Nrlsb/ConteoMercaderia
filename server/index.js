@@ -4991,6 +4991,10 @@ app.post('/api/inventory/scan-incremental', verifyToken, async (req, res) => {
 // Get Inventory History (Audit Log)
 app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
     const { orderNumber } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
     try {
         const { data: history, error } = await supabase
@@ -4998,18 +5002,14 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
             .select('*')
             .eq('order_number', orderNumber)
             .order('changed_at', { ascending: false })
-            .limit(10000);
+            .range(from, to);
 
         if (error) throw error;
 
-        console.log(`[DEBUG_HISTORY] Fetching history for order: ${orderNumber}`);
+        console.log(`[DEBUG_HISTORY] Fetching history for order: ${orderNumber}, Page: ${page}`);
         console.log(`[DEBUG_HISTORY] Records found: ${history ? history.length : 0}`);
-        if (history && history.length > 0) {
-            console.log('[DEBUG_HISTORY] Sample record:', history[0]);
-        }
 
         // Enrich with usernames
-        // We need to fetch users because history might contain user_ids
         const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
         const { data: users } = await supabase
             .from('users')
@@ -5019,7 +5019,7 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
         const userMap = {};
         if (users) users.forEach(u => userMap[u.id] = u.username);
 
-        // Enrich with Product Info (optional, but good for context if desc is missing)
+        // Enrich with Product Info
         const codes = [...new Set(history.map(h => h.code).filter(Boolean))];
         const { data: products } = await supabase
             .from('products')
@@ -5035,7 +5035,12 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
             description: productMap[entry.code] || 'Producto sin descripción'
         }));
 
-        res.json(enrichedHistory);
+        res.json({
+            data: enrichedHistory,
+            hasMore: history.length === limit,
+            page,
+            limit
+        });
 
     } catch (error) {
         console.error('Error fetching history:', error);
