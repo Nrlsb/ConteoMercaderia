@@ -26,12 +26,13 @@ const RemitoHistory = ({ remitoNumber }) => {
     }, [remitoNumber]);
 
     const filteredHistory = history.filter(entry => {
-        if (!searchTerm.trim()) return true;
-        const term = searchTerm.toLowerCase();
-        return (
-            (entry.code || '').toLowerCase().includes(term) ||
-            (entry.description || '').toLowerCase().includes(term)
-        );
+        const cleanTerm = searchTerm.trim().toLowerCase();
+        if (!cleanTerm) return true;
+        
+        const code = String(entry.code || '').toLowerCase();
+        const description = String(entry.description || '').toLowerCase();
+        
+        return code.includes(cleanTerm) || description.includes(cleanTerm);
     });
 
     if (loading) return (

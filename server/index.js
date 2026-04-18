@@ -4997,7 +4997,8 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
             .from('inventory_scans_history')
             .select('*')
             .eq('order_number', orderNumber)
-            .order('changed_at', { ascending: false });
+            .order('changed_at', { ascending: false })
+            .limit(5000);
 
         if (error) throw error;
 

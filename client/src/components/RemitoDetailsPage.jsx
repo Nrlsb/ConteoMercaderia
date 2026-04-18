@@ -419,7 +419,7 @@ const RemitoDetailsPage = () => {
                         {(() => {
                             // Logic to find products across all users
                             const searchResults = {};
-                            const term = searchTerm.toLowerCase();
+                            const term = searchTerm.trim().toLowerCase();
 
                             userCounts.forEach(userStats => {
                                 userStats.items.forEach(item => {
@@ -492,7 +492,9 @@ const RemitoDetailsPage = () => {
                                                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Movimientos en el Historial</h4>
                                                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                                     {(() => {
-                                                        const movements = historyData.filter(h => h.code === product.code);
+                                                        const movements = historyData.filter(h => 
+                                                            String(h.code || '').trim() === String(product.code || '').trim()
+                                                        );
                                                         if (movements.length === 0) {
                                                             return <p className="text-xs text-gray-400 italic p-3 bg-gray-50 rounded-lg border border-gray-100">No hay movimientos registrados para este producto.</p>;
                                                         }
