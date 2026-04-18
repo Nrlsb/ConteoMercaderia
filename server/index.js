@@ -4953,7 +4953,7 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
         // 2. Get All Scans for this Order
         const { data: scans, error: scanError } = await supabase
             .from('inventory_scans')
-            .select('user_id, code, quantity')
+            .select('user_id, code, quantity, timestamp')
             .eq('order_number', orderNumber);
 
         if (scanError) throw scanError;
@@ -4961,6 +4961,7 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
         // 3. Aggregate Scans
         const scannedMap = {}; // { code: totalQuantity }
         const myScansMap = {}; // { code: myQuantity }
+        const myTimestampsMap = {}; // { code: latestScanTimestamp }
         const myCodes = new Set();
 
         scans.forEach(scan => {
@@ -4973,6 +4974,12 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
             if (scan.user_id === userId) {
                 myScansMap[scan.code] = (myScansMap[scan.code] || 0) + qty;
                 myCodes.add(scan.code);
+
+                // Track latest activity for this code
+                const scanTime = scan.timestamp ? new Date(scan.timestamp).getTime() : 0;
+                if (!myTimestampsMap[scan.code] || scanTime > myTimestampsMap[scan.code]) {
+                    myTimestampsMap[scan.code] = scanTime;
+                }
             }
         });
 
@@ -4990,7 +4997,8 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
                     code: code,
                     name: expectedMap[code].description,
                     barcode: expectedMap[code].barcode,
-                    quantity: myScansMap[code]
+                    quantity: myScansMap[code],
+                    lastScan: myTimestampsMap[code] || 0
                 });
             } else {
                 missingCodes.push(code);
@@ -5013,10 +5021,15 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
                     code: code,
                     name: p ? p.description : 'Producto Desconocido',
                     barcode: p ? p.barcode : code,
-                    quantity: myScansMap[code]
+                    quantity: myScansMap[code],
+                    lastScan: myTimestampsMap[code] || 0
                 });
             });
         }
+
+        // Sort myScansList by last activity (Oldest First)
+        // The frontend will reverse this to show Latest First.
+        myScansList.sort((a, b) => a.lastScan - b.lastScan);
 
         res.json({
             orderNumber,
