@@ -394,7 +394,7 @@ async function fetchProductsByCodes(codes) {
         const chunk = codes.slice(i, i + chunkSize);
         const { data, error } = await supabase
             .from('products')
-            .select('code, description, excel_order')
+            .select('code, description, excel_order, provider_code')
             .in('code', chunk);
             
         if (error) throw error;
@@ -957,7 +957,7 @@ app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'),
         const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
 
         const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-        const { data: products } = await supabase.from('products').select('code, description, provider_code').in('code', productCodes);
+        const products = await fetchProductsByCodes(productCodes);
 
         const userMap = {};
         if (users) users.forEach(u => userMap[u.id] = u.username);
@@ -1020,7 +1020,7 @@ app.get('/api/receipt-history/:id/export', verifyToken, verifyBranchAccess('rece
         const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
 
         const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-        const { data: products } = await supabase.from('products').select('code, description, provider_code').in('code', productCodes);
+        const products = await fetchProductsByCodes(productCodes);
 
         const userMap = {};
         if (users) users.forEach(u => userMap[u.id] = u.username);
@@ -1039,7 +1039,7 @@ app.get('/api/receipt-history/:id/export', verifyToken, verifyBranchAccess('rece
             else if (entry.operation === 'UPDATE_BARCODE') operacion = 'Cód Barras';
 
             return {
-                'Fecha y Hora': new Date(entry.changed_at).toLocaleString(),
+                'Fecha y Hora': new Date(entry.changed_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
                 'Usuario': userMap[entry.user_id] || 'Desconocido',
                 'Operación': operacion,
                 'Código': entry.product_code,
@@ -5184,10 +5184,7 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
 
         // Enrich with Product Info
         const codes = [...new Set(history.map(h => h.code).filter(Boolean))];
-        const { data: products } = await supabase
-            .from('products')
-            .select('code, description')
-            .in('code', codes);
+        const products = await fetchProductsByCodes(codes);
 
         const productMap = {};
         if (products) products.forEach(p => productMap[p.code] = p.description);
@@ -5253,16 +5250,13 @@ app.get('/api/history/:orderNumber/export', verifyToken, async (req, res) => {
 
         // Enrich with Product Info
         const codes = [...new Set(history.map(h => h.code).filter(Boolean))];
-        const { data: products } = await supabase
-            .from('products')
-            .select('code, description')
-            .in('code', codes);
+        const products = await fetchProductsByCodes(codes);
 
         const productMap = {};
         if (products) products.forEach(p => productMap[p.code] = p.description);
 
         const exportData = history.map(entry => ({
-            'Fecha y Hora': new Date(entry.changed_at).toLocaleString(),
+            'Fecha y Hora': new Date(entry.changed_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
             'Usuario': userMap[entry.user_id] || 'Desconocido',
             'Operación': entry.operation === 'INSERT' ? 'CREADO' : entry.operation === 'UPDATE' ? 'MODIFICADO' : 'ELIMINADO',
             'Código': entry.code,
