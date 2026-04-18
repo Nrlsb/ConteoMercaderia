@@ -5255,16 +5255,46 @@ app.get('/api/history/:orderNumber/export', verifyToken, async (req, res) => {
         const productMap = {};
         if (products) products.forEach(p => productMap[p.code] = p.description);
 
-        const exportData = history.map(entry => ({
-            'Fecha y Hora': new Date(entry.changed_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
-            'Usuario': userMap[entry.user_id] || 'Desconocido',
-            'Operación': entry.operation === 'INSERT' ? 'CREADO' : entry.operation === 'UPDATE' ? 'MODIFICADO' : 'ELIMINADO',
-            'Código': entry.code,
-            'Descripción': productMap[entry.code] || 'Sin descripción',
-            'Cantidad Anterior': entry.old_data?.quantity || 0,
-            'Cantidad Nueva': entry.new_data?.quantity || 0,
-            'Diferencia': (entry.new_data?.quantity || 0) - (entry.old_data?.quantity || 0)
-        }));
+        // 1. Fetch Expected Items (from pre_remitos)
+        const { data: preRemito } = await supabase
+            .from('pre_remitos')
+            .select('items')
+            .eq('order_number', orderNumber)
+            .is('deleted_at', null)
+            .maybeSingle();
+        
+        const expectedMap = {};
+        if (preRemito && preRemito.items) {
+            preRemito.items.forEach(i => expectedMap[i.code] = i.quantity);
+        }
+
+        // 2. Fetch Current Global Totals (across all users)
+        const scans = await getAllScans(orderNumber);
+        const globalTotalsMap = {};
+        if (scans) {
+            scans.forEach(s => {
+                globalTotalsMap[s.code] = (globalTotalsMap[s.code] || 0) + (s.quantity || 0);
+            });
+        }
+
+        const exportData = history.map(entry => {
+            const expected = expectedMap[entry.code] || 0;
+            const globalTotal = globalTotalsMap[entry.code] || 0;
+
+            return {
+                'Fecha y Hora': new Date(entry.changed_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
+                'Usuario': userMap[entry.user_id] || 'Desconocido',
+                'Operación': entry.operation === 'INSERT' ? 'CREADO' : entry.operation === 'UPDATE' ? 'MODIFICADO' : 'ELIMINADO',
+                'Código': entry.code,
+                'Descripción': productMap[entry.code] || 'Sin descripción',
+                'Cantidad Anterior': entry.old_data?.quantity || 0,
+                'Cantidad Nueva': entry.new_data?.quantity || 0,
+                'Diferencia': (entry.new_data?.quantity || 0) - (entry.old_data?.quantity || 0),
+                'Total Acumulado': globalTotal,
+                'Esperado': expected || '-',
+                'Saldo': expected ? (globalTotal - expected) : '-'
+            };
+        });
 
         const workbook = xlsx.utils.book_new();
         const ws = xlsx.utils.json_to_sheet(exportData);
