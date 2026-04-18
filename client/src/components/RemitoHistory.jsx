@@ -5,6 +5,7 @@ const RemitoHistory = ({ remitoNumber }) => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         const fetchHistory = async () => {
@@ -23,6 +24,15 @@ const RemitoHistory = ({ remitoNumber }) => {
             fetchHistory();
         }
     }, [remitoNumber]);
+
+    const filteredHistory = history.filter(entry => {
+        if (!searchTerm.trim()) return true;
+        const term = searchTerm.toLowerCase();
+        return (
+            (entry.code || '').toLowerCase().includes(term) ||
+            (entry.description || '').toLowerCase().includes(term)
+        );
+    });
 
     if (loading) return (
         <div className="flex justify-center p-8">
@@ -69,33 +79,64 @@ const RemitoHistory = ({ remitoNumber }) => {
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900">Historial de Cambios</h3>
-                <p className="text-sm text-gray-500">Registro de todas las acciones realizadas sobre este conteo.</p>
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 className="text-lg font-bold text-gray-900">Historial de Cambios</h3>
+                    <p className="text-sm text-gray-500">Registro de todas las acciones realizadas sobre este conteo.</p>
+                </div>
+
+                <div className="relative flex-1 max-w-sm">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Buscar producto..."
+                        className="block w-full pl-10 pr-10 py-2 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-blue focus:border-brand-blue sm:text-sm transition-all"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
             </div>
             {/* Mobile Card View */}
             <div className="md:hidden">
-                {history.map((entry) => (
-                    <div key={entry.history_id} className="p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 flex flex-col gap-2">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <div className="text-xs text-gray-500 mb-1">{new Date(entry.changed_at).toLocaleString()}</div>
-                                <div className="font-bold text-gray-900">{entry.username}</div>
+                {filteredHistory.length > 0 ? (
+                    filteredHistory.map((entry) => (
+                        <div key={entry.history_id} className="p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 flex flex-col gap-2">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-1">{new Date(entry.changed_at).toLocaleString()}</div>
+                                    <div className="font-bold text-gray-900">{entry.username}</div>
+                                </div>
+                                {getActionBadge(entry.operation)}
                             </div>
-                            {getActionBadge(entry.operation)}
-                        </div>
 
-                        <div className="mt-1">
-                            <div className="text-sm text-gray-900 font-medium">{entry.description}</div>
-                            <div className="text-xs text-gray-400 font-mono">{entry.code}</div>
-                        </div>
+                            <div className="mt-1">
+                                <div className="text-sm text-gray-900 font-medium">{entry.description}</div>
+                                <div className="text-xs text-gray-400 font-mono">{entry.code}</div>
+                            </div>
 
-                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
-                            <span className="text-xs text-gray-500 uppercase font-bold">Cambio</span>
-                            {formatData(entry.operation, entry.old_data, entry.new_data)}
+                            <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
+                                <span className="text-xs text-gray-500 uppercase font-bold">Cambio</span>
+                                {formatData(entry.operation, entry.old_data, entry.new_data)}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))
+                ) : (
+                    <div className="p-8 text-center text-gray-500 italic">No se encontraron movimientos para "{searchTerm}"</div>
+                )}
             </div>
 
             {/* Desktop Table View */}
@@ -111,26 +152,34 @@ const RemitoHistory = ({ remitoNumber }) => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {history.map((entry) => (
-                            <tr key={entry.history_id} className="hover:bg-gray-50 text-sm">
-                                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                                    {new Date(entry.changed_at).toLocaleString()}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                                    {entry.username}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    {getActionBadge(entry.operation)}
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="text-gray-900 font-medium truncate max-w-xs">{entry.description}</div>
-                                    <div className="text-gray-400 font-mono text-xs">{entry.code}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                    {formatData(entry.operation, entry.old_data, entry.new_data)}
+                        {filteredHistory.length > 0 ? (
+                            filteredHistory.map((entry) => (
+                                <tr key={entry.history_id} className="hover:bg-gray-50 text-sm">
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                                        {new Date(entry.changed_at).toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                        {entry.username}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {getActionBadge(entry.operation)}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-gray-900 font-medium truncate max-w-xs">{entry.description}</div>
+                                        <div className="text-gray-400 font-mono text-xs">{entry.code}</div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                        {formatData(entry.operation, entry.old_data, entry.new_data)}
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan="5" className="px-6 py-12 text-center text-gray-500 italic">
+                                    No se encontraron movimientos para "{searchTerm}"
                                 </td>
                             </tr>
-                        ))}
+                        )}
                     </tbody>
                 </table>
             </div>

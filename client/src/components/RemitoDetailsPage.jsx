@@ -21,6 +21,7 @@ const RemitoDetailsPage = () => {
     const [isListening, setIsListening] = useState(false); // State for voice search
     const [visibleCount, setVisibleCount] = useState(20); // State for pagination
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const [historyData, setHistoryData] = useState([]);
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -59,6 +60,20 @@ const RemitoDetailsPage = () => {
         window.addEventListener('click', handleOutsideClick);
         return () => window.removeEventListener('click', handleOutsideClick);
     }, [id]);
+
+    useEffect(() => {
+        const loadHistory = async () => {
+            if (data?.remito?.remito_number) {
+                try {
+                    const response = await api.get(`/api/history/${data.remito.remito_number}`);
+                    setHistoryData(response.data);
+                } catch (err) {
+                    console.error('Error loading history for search:', err);
+                }
+            }
+        };
+        loadHistory();
+    }, [data?.remito?.remito_number]);
 
     const handleVoiceSearch = async () => {
         if (Capacitor.isNativePlatform()) {
@@ -454,19 +469,56 @@ const RemitoDetailsPage = () => {
                                             <span className="text-sm font-medium text-blue-900">Total escaneado</span>
                                             <span className="text-lg font-bold text-blue-700">{product.totalQuantity} unidades</span>
                                         </div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Detalle por Usuario</h4>
-                                        <div className="space-y-2">
-                                            {product.scans.map((scan, idx) => (
-                                                <div key={idx} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-xs border border-gray-200">
-                                                            {scan.username.substring(0, 2).toUpperCase()}
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Detalle por Usuario</h4>
+                                                <div className="space-y-2">
+                                                    {product.scans.map((scan, idx) => (
+                                                        <div key={idx} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-xs border border-gray-200">
+                                                                    {scan.username.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                                <span className="font-medium text-gray-900">{scan.username}</span>
+                                                            </div>
+                                                            <span className="font-bold text-gray-700">{scan.quantity} unid.</span>
                                                         </div>
-                                                        <span className="font-medium text-gray-900">{scan.username}</span>
-                                                    </div>
-                                                    <span className="font-bold text-gray-700">{scan.quantity} unid.</span>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            </div>
+
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Movimientos en el Historial</h4>
+                                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                    {(() => {
+                                                        const movements = historyData.filter(h => h.code === product.code);
+                                                        if (movements.length === 0) {
+                                                            return <p className="text-xs text-gray-400 italic p-3 bg-gray-50 rounded-lg border border-gray-100">No hay movimientos registrados para este producto.</p>;
+                                                        }
+                                                        return movements.map((m, idx) => (
+                                                            <div key={idx} className="p-2 bg-gray-50 rounded border border-gray-100 text-[11px] flex justify-between items-center">
+                                                                <div>
+                                                                    <div className="text-gray-400 font-mono mb-0.5">{new Date(m.changed_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
+                                                                    <div className="font-bold text-gray-700">{m.username}</div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="inline-block px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold text-[9px] mb-1">
+                                                                        {m.operation === 'INSERT' ? 'CREADO' : m.operation === 'UPDATE' ? 'MODIF' : 'ELIM'}
+                                                                    </div>
+                                                                    <div className="font-bold text-gray-900">
+                                                                        {m.operation === 'UPDATE' ? (
+                                                                            <span>{m.old_data?.quantity} → {m.new_data?.quantity}</span>
+                                                                        ) : (
+                                                                            <span>{m.new_data?.quantity || m.old_data?.quantity}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ));
+                                                    })()}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
