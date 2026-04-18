@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 const ReceiptHistory = ({ receiptId }) => {
     const [history, setHistory] = useState([]);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 const RemitoHistory = ({ remitoNumber }) => {
     const [history, setHistory] = useState([]);
