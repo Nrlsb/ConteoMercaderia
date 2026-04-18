@@ -925,11 +925,30 @@ app.post('/api/receipt-items-history/barcode', verifyToken, async (req, res) => 
 app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
-        const { data: history, error } = await supabase
-            .from('receipt_items_history')
-            .select('*')
-            .eq('receipt_id', id)
-            .order('changed_at', { ascending: false });
+        // Fetch ALL history for this receipt using pagination to bypass 1000 record limit
+        let history = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('receipt_items_history')
+                .select('*')
+                .eq('receipt_id', id)
+                .order('changed_at', { ascending: false })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                history = [...history, ...data];
+                from += step;
+                if (data.length < step) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
 
         if (error) throw error;
 
@@ -972,13 +991,30 @@ app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'),
 app.get('/api/receipt-history/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
-        const { data: history, error } = await supabase
-            .from('receipt_items_history')
-            .select('*')
-            .eq('receipt_id', id)
-            .order('changed_at', { ascending: false });
+        // Fetch ALL history for this receipt using pagination to bypass 1000 record limit
+        let history = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
 
-        if (error) throw error;
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('receipt_items_history')
+                .select('*')
+                .eq('receipt_id', id)
+                .order('changed_at', { ascending: false })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                history = [...history, ...data];
+                from += step;
+                if (data.length < step) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
 
         const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
         const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
@@ -3995,13 +4031,30 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
 // Export ALL Remitos list to Excel
 app.get('/api/remitos-list/export', verifyToken, async (req, res) => {
     try {
-        // Fetch data exactly like the GET /api/remitos endpoint does
-        // (Simplified versions of the logic from line 2753)
-        const { data: remitosData } = await supabase
-            .from('remitos')
-            .select('*')
-            .is('deleted_at', null)
-            .order('date', { ascending: false });
+        // Fetch ALL remitos using pagination to bypass 1000 record limit
+        let remitosData = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('remitos')
+                .select('*')
+                .is('deleted_at', null)
+                .order('date', { ascending: false })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                remitosData = [...remitosData, ...data];
+                from += step;
+                if (data.length < step) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
 
         const { data: countsData } = await supabase
             .from('general_counts')
@@ -5163,14 +5216,30 @@ app.get('/api/history/:orderNumber/export', verifyToken, async (req, res) => {
     const { orderNumber } = req.params;
 
     try {
-        // Fetch ALL history for this order (no limit)
-        const { data: history, error } = await supabase
-            .from('inventory_scans_history')
-            .select('*')
-            .eq('order_number', orderNumber)
-            .order('changed_at', { ascending: false });
+        // Fetch ALL history for this order using pagination to bypass 1000 record limit
+        let history = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
 
-        if (error) throw error;
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('inventory_scans_history')
+                .select('*')
+                .eq('order_number', orderNumber)
+                .order('changed_at', { ascending: false })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                history = [...history, ...data];
+                from += step;
+                if (data.length < step) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
 
         // Enrich with usernames
         const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
