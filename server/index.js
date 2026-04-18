@@ -12,6 +12,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const rateLimit = require('express-rate-limit');
+const xlsx = require('xlsx');
 
 dotenv.config();
 
@@ -964,6 +965,68 @@ app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'),
     } catch (error) {
         console.error('Error fetching receipt history:', error);
         res.status(500).json({ message: 'Error fetching history' });
+    }
+});
+
+// Export Receipt History to Excel
+app.get('/api/receipt-history/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: history, error } = await supabase
+            .from('receipt_items_history')
+            .select('*')
+            .eq('receipt_id', id)
+            .order('changed_at', { ascending: false });
+
+        if (error) throw error;
+
+        const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
+        const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
+
+        const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+        const { data: products } = await supabase.from('products').select('code, description, provider_code').in('code', productCodes);
+
+        const userMap = {};
+        if (users) users.forEach(u => userMap[u.id] = u.username);
+
+        const productMap = {};
+        if (products) products.forEach(p => {
+            productMap[p.code] = { description: p.description, provider_code: p.provider_code };
+        });
+
+        const exportData = history.map(entry => {
+            const product = productMap[entry.product_code] || { description: 'Sin descripción', provider_code: null };
+            let operacion = 'Otro';
+            if (entry.operation === 'INSERT_EXPECTED' || entry.operation === 'UPDATE_EXPECTED') operacion = 'Esperado';
+            else if (entry.operation === 'INSERT_SCANNED' || entry.operation === 'UPDATE_SCANNED') operacion = 'Control';
+            else if (entry.operation === 'MANUAL_OVERRIDE') operacion = 'Manual';
+            else if (entry.operation === 'UPDATE_BARCODE') operacion = 'Cód Barras';
+
+            return {
+                'Fecha y Hora': new Date(entry.changed_at).toLocaleString(),
+                'Usuario': userMap[entry.user_id] || 'Desconocido',
+                'Operación': operacion,
+                'Código': entry.product_code,
+                'Proveedor': product.provider_code || '-',
+                'Descripción': product.description,
+                'Esp. Anterior': entry.old_data?.expected_quantity ?? '-',
+                'Esp. Nuevo': entry.new_data?.expected_quantity ?? '-',
+                'Cont. Anterior': entry.old_data?.scanned_quantity ?? '-',
+                'Cont. Nuevo': entry.new_data?.scanned_quantity ?? '-'
+            };
+        });
+
+        const workbook = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet(exportData);
+        xlsx.utils.book_append_sheet(workbook, ws, "Historial Ingreso");
+
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Disposition', `attachment; filename="Historial_Ingreso_${id}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buf);
+    } catch (error) {
+        console.error('Error exporting receipt history:', error);
+        res.status(500).json({ message: 'Error generatig history excel' });
     }
 });
 
@@ -3814,7 +3877,6 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
         const countName = remito.count_name || remito.remito_number;
         const isFullExport = type === 'full';
 
-        const xlsx = require('xlsx');
         const workbook = xlsx.utils.book_new();
 
         // Map to find the last scanner for each product
@@ -3927,6 +3989,54 @@ app.get('/api/remitos/:id/export', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error generating excel:', error);
         res.status(500).json({ message: 'Error generating excel' });
+    }
+});
+
+// Export ALL Remitos list to Excel
+app.get('/api/remitos-list/export', verifyToken, async (req, res) => {
+    try {
+        // Fetch data exactly like the GET /api/remitos endpoint does
+        // (Simplified versions of the logic from line 2753)
+        const { data: remitosData } = await supabase
+            .from('remitos')
+            .select('*')
+            .is('deleted_at', null)
+            .order('date', { ascending: false });
+
+        const { data: countsData } = await supabase
+            .from('general_counts')
+            .select('id, name, sucursal_name');
+
+        const countsMap = {};
+        const sucursalMap = {};
+        if (countsData) {
+            countsData.forEach(c => {
+                countsMap[c.id] = c.name;
+                sucursalMap[c.id] = c.sucursal_name;
+            });
+        }
+
+        const exportData = (remitosData || []).map(r => ({
+            'Fecha': new Date(r.date).toLocaleDateString(),
+            'Hora': new Date(r.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            'Conteo / Remito': countsMap[r.remito_number] || r.remito_number,
+            'Sucursal': r.sucursal && r.sucursal !== '-' ? r.sucursal : (sucursalMap[r.remito_number] || '-'),
+            'Items': r.items?.length || 0,
+            'Usuario': r.created_by || 'Sistema',
+            'Estado': r.is_finalized ? 'Finalizado' : 'En curso'
+        }));
+
+        const workbook = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet(exportData);
+        xlsx.utils.book_append_sheet(workbook, ws, "Historial de Remitos");
+
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Disposition', `attachment; filename="Listado_Historial_${new Date().toISOString().slice(0,10)}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buf);
+    } catch (error) {
+        console.error('Error exporting remitos list:', error);
+        res.status(500).json({ message: 'Error generating list excel' });
     }
 });
 
@@ -5045,6 +5155,66 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching history:', error);
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Export Inventory History to Excel
+app.get('/api/history/:orderNumber/export', verifyToken, async (req, res) => {
+    const { orderNumber } = req.params;
+
+    try {
+        // Fetch ALL history for this order (no limit)
+        const { data: history, error } = await supabase
+            .from('inventory_scans_history')
+            .select('*')
+            .eq('order_number', orderNumber)
+            .order('changed_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Enrich with usernames
+        const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
+        const { data: users } = await supabase
+            .from('users')
+            .select('id, username')
+            .in('id', userIds);
+
+        const userMap = {};
+        if (users) users.forEach(u => userMap[u.id] = u.username);
+
+        // Enrich with Product Info
+        const codes = [...new Set(history.map(h => h.code).filter(Boolean))];
+        const { data: products } = await supabase
+            .from('products')
+            .select('code, description')
+            .in('code', codes);
+
+        const productMap = {};
+        if (products) products.forEach(p => productMap[p.code] = p.description);
+
+        const exportData = history.map(entry => ({
+            'Fecha y Hora': new Date(entry.changed_at).toLocaleString(),
+            'Usuario': userMap[entry.user_id] || 'Desconocido',
+            'Operación': entry.operation === 'INSERT' ? 'CREADO' : entry.operation === 'UPDATE' ? 'MODIFICADO' : 'ELIMINADO',
+            'Código': entry.code,
+            'Descripción': productMap[entry.code] || 'Sin descripción',
+            'Cantidad Anterior': entry.old_data?.quantity || 0,
+            'Cantidad Nueva': entry.new_data?.quantity || 0,
+            'Diferencia': (entry.new_data?.quantity || 0) - (entry.old_data?.quantity || 0)
+        }));
+
+        const workbook = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet(exportData);
+        xlsx.utils.book_append_sheet(workbook, ws, "Historial de Cambios");
+
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Disposition', `attachment; filename="Historial_Cambios_${orderNumber}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buf);
+
+    } catch (error) {
+        console.error('Error exporting history:', error);
+        res.status(500).json({ message: 'Error generatig history excel' });
     }
 });
 
