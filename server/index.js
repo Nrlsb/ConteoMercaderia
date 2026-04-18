@@ -4998,7 +4998,7 @@ app.get('/api/history/:orderNumber', verifyToken, async (req, res) => {
             .select('*')
             .eq('order_number', orderNumber)
             .order('changed_at', { ascending: false })
-            .limit(5000);
+            .limit(10000);
 
         if (error) throw error;
 
