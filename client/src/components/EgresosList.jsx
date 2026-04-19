@@ -59,6 +59,7 @@ const EgresosList = () => {
     const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
     const dirHandleRef = useRef(null);
     const watchIntervalRef = useRef(null);
+    const checkingRef = useRef(false); // Lock to prevent concurrent checkFolder runs
     const processedFilesRef = useRef(new Set(
         JSON.parse(localStorage.getItem('egreso_processed_files') || '[]')
     ));
