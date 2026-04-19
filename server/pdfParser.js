@@ -125,12 +125,12 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         // Mejorar regex para ser más flexible con espacios y slashes opcionales
         // Regex A: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=4] Cantidad [Espacios] [UM]
         // Slash pattern adjusted for varying spaces: /\s*/\s*
-        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         // Regex B: [/ /] [Espacios] Descripción [Espacios >=4] Código [Espacios >=4] Cantidad [Espacios] [UM]
-        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         // Regex Transfer: Similar pero sin slashes y con gaps más grandes
-        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{3,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{3,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
@@ -239,7 +239,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
             // FALLBACK: Standard item match
             let match;
-            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s+(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
             if ((match = line.match(itemRegexFallback)) !== null) {
                 const code = match[1];
                 const description = match[2].trim();
