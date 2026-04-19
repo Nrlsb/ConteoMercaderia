@@ -197,6 +197,11 @@ const UsersManage = () => {
             id: 'tab_ingreso_sucursal',
             name: 'Ingreso Sucursal',
             specialPermissions: []
+        },
+        {
+            id: 'tab_etiquetas',
+            name: 'Etiquetas',
+            specialPermissions: []
         }
     ];
 
@@ -219,7 +224,7 @@ const UsersManage = () => {
         },
         'gestor_stock': {
             name: 'Gestor Stock',
-            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data']
+            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data', 'tab_etiquetas']
         }
     };
 
