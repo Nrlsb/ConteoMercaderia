@@ -859,12 +859,14 @@ const RemitoForm = () => {
         const qty = parseInt(newQuantity, 10);
         if (isNaN(qty) || qty < 1) return;
 
-        setItems(prevItems => prevItems.map(item => {
-            if (item.code === code) {
-                return { ...item, quantity: qty, validationError: null };
-            }
-            return item;
-        }));
+        setItems(prevItems => {
+            const item = prevItems.find(i => i.code === code);
+            if (!item) return prevItems;
+            
+            const updatedItem = { ...item, quantity: qty, validationError: null };
+            // Move updated item to the beginning of the list (Native Latest First)
+            return [updatedItem, ...prevItems.filter(i => i.code !== code)];
+        });
 
         // Sincronizar nueva cantidad absoluta con el servidor
         syncTotalToInventory(code, qty);
@@ -1224,17 +1226,17 @@ const RemitoForm = () => {
             const existingItem = prevItems.find(i => i.code === product.code);
             const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
 
-            if (existingItem) {
-                const updatedItem = { ...existingItem, quantity: newTotal, validationError: null };
-                return [...prevItems.filter(i => i.code !== product.code), updatedItem];
-            } else {
-                return [...prevItems, {
+            const updatedItem = existingItem 
+                ? { ...existingItem, quantity: newTotal, validationError: null }
+                : {
                     code: product.code,
                     name: product.name,
                     quantity: quantityToAdd,
                     validationError: null
-                }];
-            }
+                };
+
+            // Prepend updated or new item to the list (Latest First)
+            return [updatedItem, ...prevItems.filter(i => i.code !== product.code)];
         });
 
         // Close modal immediately so the user can scan the next product right away
@@ -2336,7 +2338,7 @@ const RemitoForm = () => {
                                         <p className="text-sm">Escanea productos para comenzar</p>
                                     </div>
                                 ) : (
-                                    items.slice().reverse().slice(0, 20).map((item, index) => {
+                                    items.slice(0, 20).map((item, index) => {
                                         const expectedQty = getExpectedQty(item.code);
                                         const isUnexpected = expectedItems && expectedQty === null;
                                         const isOverQty = false;

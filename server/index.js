@@ -5027,9 +5027,8 @@ app.get('/api/inventory/:orderNumber', verifyToken, async (req, res) => {
             });
         }
 
-        // Sort myScansList by last activity (Oldest First)
-        // The frontend will reverse this to show Latest First.
-        myScansList.sort((a, b) => a.lastScan - b.lastScan);
+        // Sort myScansList by last activity (Latest First)
+        myScansList.sort((a, b) => b.lastScan - a.lastScan);
 
         res.json({
             orderNumber,
