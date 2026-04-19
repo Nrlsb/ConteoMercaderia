@@ -202,13 +202,28 @@ const EgresosList = () => {
                     fetchEgresos();
                 } catch (error) {
                     const msg = error.response?.data?.message || 'Error al procesar';
-                    console.error(`[Carpeta Auto] Error en "${name}":`, msg);
-                    toast.error(`Error en "${name}": ${msg}`);
-                    
-                    setFailedFiles(prev => [{ name, error: msg, time: new Date(), fileKey }, ...prev].slice(0, 20));
+                    const isDuplicate = msg.includes('ya fue cargado previamente') || error.response?.data?.duplicateId;
 
-                    // IMPORTANTE: NO marcar como procesado si falló para permitir reintentos
-                    // processedFilesRef.current.add(fileKey); 
+                    console.error(`[Carpeta Auto] Error en "${name}":`, msg);
+                    
+                    if (isDuplicate) {
+                        // Si es duplicado, lo marcamos como procesado para que no reintente infinitamente
+                        processedFilesRef.current.add(fileKey);
+                        const allKeys = [...processedFilesRef.current];
+                        if (allKeys.length > 1000) {
+                            processedFilesRef.current = new Set(allKeys.slice(-1000));
+                        }
+                        localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
+                        
+                        // Limpiamos de la lista de errores si estaba
+                        setFailedFiles(prev => prev.filter(f => f.fileKey !== fileKey));
+                        
+                        toast.info(`"${name}" ya estaba cargado. Omitiendo.`);
+                    } else {
+                        toast.error(`Error en "${name}": ${msg}`);
+                        setFailedFiles(prev => [{ name, error: msg, time: new Date(), fileKey }, ...prev].slice(0, 20));
+                        // IMPORTANTE: NO marcar como procesado si falló para permitir reintentos
+                    }
                 }
             }
         } catch (err) {
@@ -355,8 +370,14 @@ const EgresosList = () => {
                 } catch (error) {
                     console.error(`Error uploading PDF ${file.name}:`, error);
                     const msg = error.response?.data?.message || `Error al procesar "${file.name}"`;
-                    toast.error(msg);
-                    setFailedFiles(prev => [{ name: file.name, error: msg, time: new Date() }, ...prev].slice(0, 20));
+                    const isDuplicate = msg.includes('ya fue cargado previamente') || error.response?.data?.duplicateId;
+                    
+                    if (isDuplicate) {
+                        toast.info(`"${file.name}" ya estaba cargado. Omitiendo.`);
+                    } else {
+                        toast.error(msg);
+                        setFailedFiles(prev => [{ name: file.name, error: msg, time: new Date() }, ...prev].slice(0, 20));
+                    }
                 }
             }
             fetchEgresos();
