@@ -122,12 +122,16 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        // Mejorar regex para ser más flexible con espacios y slashes opcionales
-        // Regex A: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=4] Cantidad [Espacios] [UM]
-        // Slash pattern adjusted for varying spaces: /\s*/\s*
+        // --- REGEX ESTRÍCTOS (Exigen Unidad de Medida y usan búsqueda codiciosa para la descripción) ---
+        // Regex A Strict: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexA_Strict = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
+        // Regex B Strict: [/ /] [Espacios] Descripción [Espacios >=2] Código [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexB_Strict = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
+
+        // --- REGEX ORIGINALES (UM opcional, usados como Fallback) ---
         const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        // Regex B: [/ /] [Espacios] Descripción [Espacios >=4] Código [Espacios >=4] Cantidad [Espacios] [UM]
         const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        
         // Regex Transfer: Similar pero sin slashes y con gaps más grandes
         const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{3,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
@@ -181,7 +185,35 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 if (codes.length > 0) continue;
             }
 
-            // TRY LAYOUT B (Description first, code later)
+            // 1. INTENTO ESTRÍCTO (Con UM obligatoria y descripción greedy)
+            // Este paso evita capturar "0,900" como cantidad si es parte del nombre.
+            const matchA_Strict = line.match(regexA_Strict);
+            if (matchA_Strict) {
+                const code = matchA_Strict[1];
+                const description = matchA_Strict[2].trim();
+                const quantityStr = matchA_Strict[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match A-Strict] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
+                    pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            const matchB_Strict = line.match(regexB_Strict);
+            if (matchB_Strict) {
+                const description = matchB_Strict[1].trim();
+                const code = matchB_Strict[2];
+                const quantityStr = matchB_Strict[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match B-Strict] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
+                    pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            // 2. FALLBACK A DISEÑO B (Descripción primero, código después, UM opcional)
             const matchB = line.match(regexB);
             if (matchB) {
                 const description = matchB[1].trim();
@@ -195,7 +227,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 }
             }
 
-            // TRY LAYOUT TRANSFER (Code first, no slashes, large gap)
+            // 3. FALLBACK A DISEÑO TRANSFER
             const matchTransfer = line.match(regexTransfer);
             if (matchTransfer) {
                 const code = matchTransfer[1];

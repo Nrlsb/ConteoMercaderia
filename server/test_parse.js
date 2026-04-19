@@ -3,7 +3,7 @@ const path = require('path');
 const { parseRemitoPdf } = require('./pdfParser');
 
 async function testParse() {
-    const pdfPath = path.join(__dirname, '20260409070911.pdf');
+    const pdfPath = path.join(__dirname, '57445.pdf');
     const dataBuffer = fs.readFileSync(pdfPath);
 
     try {
