@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera } from 'lucide-react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
@@ -8,6 +7,7 @@ import { normalizeText } from '../utils/textUtils';
 import { Printer } from '@capgo/capacitor-printer';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import api from '../api';
 
 const Scanner = lazy(() => import('./Scanner'));
 
@@ -26,6 +26,10 @@ const EtiquetasPage = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [fechaIngresoError, setFechaIngresoError] = useState(false);
+    const [isEditingBarcode, setIsEditingBarcode] = useState(false);
+    const [tempBarcode, setTempBarcode] = useState('');
+    const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
+    const [isScanningForUpdate, setIsScanningForUpdate] = useState(false);
     
     const searchTimeoutRef = useRef(null);
     const inputRef = useRef(null);
@@ -54,10 +58,13 @@ const EtiquetasPage = () => {
 
     const handleSelectProduct = (product) => {
         setSelectedProduct(product);
+        setTempBarcode(product.barcode || '');
+        setIsEditingBarcode(false);
         setSearchTerm('');
         setSuggestions([]);
         setShowSuggestions(false);
         setIsScanning(false);
+        setIsScanningForUpdate(false);
     };
 
     const handleVoiceSearch = async () => {
@@ -123,6 +130,16 @@ const EtiquetasPage = () => {
     };
 
     const handleScan = async (code) => {
+        if (isScanningForUpdate) {
+            setTempBarcode(code);
+            setIsEditingBarcode(true);
+            setIsScanning(false);
+            setIsScanningForUpdate(false);
+            // Auto-save if scanning for update? Let's do it for better UX
+            handleUpdateBarcode(code);
+            return;
+        }
+
         try {
             const results = await searchProductsLocally(code);
             if (results && results.length > 0) {
@@ -136,6 +153,34 @@ const EtiquetasPage = () => {
             toast.error('Error al buscar el código.');
         } finally {
             setIsScanning(false);
+            setIsScanningForUpdate(false);
+        }
+    };
+
+    const handleUpdateBarcode = async (newBarcodeValue) => {
+        const barcodeToSave = newBarcodeValue !== undefined ? newBarcodeValue : tempBarcode;
+        
+        if (!selectedProduct || !selectedProduct.id) return;
+        
+        setIsUpdatingBarcode(true);
+        try {
+            const response = await api.put(`/api/products/${selectedProduct.id}`, {
+                barcode: barcodeToSave
+            });
+            
+            // Update local state
+            setSelectedProduct(prev => ({ ...prev, barcode: response.data.barcode }));
+            setTempBarcode(response.data.barcode);
+            setIsEditingBarcode(false);
+            toast.success('Código de barras actualizado correctamente');
+            
+            // Refresh local sync to keep offline DB updated
+            syncProducts();
+        } catch (error) {
+            console.error('Error updating barcode:', error);
+            toast.error('No se pudo actualizar el código de barras');
+        } finally {
+            setIsUpdatingBarcode(false);
         }
     };
 
@@ -419,14 +464,72 @@ const EtiquetasPage = () => {
                                         </button>
                                     </div>
                                     <h3 className="text-3xl font-bold text-blue-900 mb-2">{selectedProduct.description}</h3>
-                                    <div className="grid grid-cols-2 gap-4 mt-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                                         <div className="bg-white/50 p-3 rounded-xl border border-blue-100">
                                             <div className="text-[10px] text-blue-500 uppercase font-bold mb-1">Código Interno</div>
                                             <div className="font-mono text-blue-900 font-bold">{selectedProduct.code}</div>
                                         </div>
-                                        <div className="bg-white/50 p-3 rounded-xl border border-blue-100">
-                                            <div className="text-[10px] text-blue-500 uppercase font-bold mb-1">Código Barras</div>
-                                            <div className="font-mono text-blue-900 font-bold">{selectedProduct.barcode || 'N/A'}</div>
+                                        <div className={`p-3 rounded-xl border transition-all ${isEditingBarcode ? 'bg-white border-blue-500 ring-4 ring-blue-50' : 'bg-white/50 border-blue-100'}`}>
+                                            <div className="flex justify-between items-start mb-1">
+                                                <div className="text-[10px] text-blue-500 uppercase font-bold">Código Barras</div>
+                                                {!isEditingBarcode ? (
+                                                    <div className="flex gap-1">
+                                                        <button 
+                                                            onClick={() => setIsEditingBarcode(true)}
+                                                            className="p-1 hover:bg-white rounded shadow-sm text-blue-500"
+                                                            title="Editar manualmente"
+                                                        >
+                                                            <Edit2 className="w-3 h-3" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {setIsScanning(true); setIsScanningForUpdate(true);}}
+                                                            className="p-1 hover:bg-white rounded shadow-sm text-green-500"
+                                                            title="Escanear nuevo código"
+                                                        >
+                                                            <Camera className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => setIsEditingBarcode(false)}
+                                                        className="p-1 hover:bg-gray-100 rounded text-gray-400"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            
+                                            {isEditingBarcode ? (
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        autoFocus
+                                                        type="text"
+                                                        value={tempBarcode}
+                                                        onChange={(e) => setTempBarcode(e.target.value)}
+                                                        className="w-full bg-transparent font-mono text-blue-900 font-bold outline-none"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleUpdateBarcode();
+                                                            if (e.key === 'Escape') setIsEditingBarcode(false);
+                                                        }}
+                                                    />
+                                                    <button 
+                                                        onClick={() => handleUpdateBarcode()}
+                                                        disabled={isUpdatingBarcode}
+                                                        className="bg-blue-600 text-white p-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                                                    >
+                                                        {isUpdatingBarcode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div 
+                                                    className="cursor-pointer"
+                                                    onClick={() => setIsEditingBarcode(true)}
+                                                >
+                                                    <div className={`font-mono font-bold ${selectedProduct.barcode ? 'text-blue-900' : 'text-blue-300 italic'}`}>
+                                                        {selectedProduct.barcode || 'Sin código'}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
