@@ -59,10 +59,10 @@ const EgresosList = () => {
     const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
     const dirHandleRef = useRef(null);
     const watchIntervalRef = useRef(null);
-    const checkingRef = useRef(false); // Lock to prevent concurrent checkFolder runs
     const processedFilesRef = useRef(new Set(
         JSON.parse(localStorage.getItem('egreso_processed_files') || '[]')
     ));
+    const [detectionStats, setDetectionStats] = useState({ total: 0, ignored: 0 });
 
     // Access control
     const canAccessEgresos = user?.role === 'superadmin' || user?.role === 'admin' || user?.sucursal_name === 'Deposito' || user?.permissions?.includes('tab_egresos');
@@ -111,6 +111,29 @@ const EgresosList = () => {
         setVisibleCount(20);
     }, [search]);
 
+    // Auto-clear cache at 8 PM (20:00)
+    useEffect(() => {
+        const checkAutoClear = () => {
+            const now = new Date();
+            const hours = now.getHours();
+            const today = now.toISOString().split('T')[0];
+            const lastClearDay = localStorage.getItem('egreso_last_auto_clear');
+
+            if (hours >= 20 && lastClearDay !== today) {
+                console.log('[Carpeta Auto] Limpieza programada de las 20:00 hs ejecutándose');
+                processedFilesRef.current = new Set();
+                localStorage.setItem('egreso_processed_files', '[]');
+                localStorage.setItem('egreso_last_auto_clear', today);
+                setFailedFiles([]); // Clear failures too
+                toast.info('Historial de archivos limpiado (Programado 20:00 hs)');
+            }
+        };
+
+        const timer = setInterval(checkAutoClear, 60000); // Check every minute
+        checkAutoClear(); // Check immediately on mount
+        return () => clearInterval(timer);
+    }, []);
+
     // --- Folder Watcher Logic ---
 
     const checkFolder = useCallback(async () => {
@@ -128,28 +151,31 @@ const EgresosList = () => {
             }
 
             const newFiles = [];
+            let totalPdfs = 0;
+            let ignoredCount = 0;
+
             for await (const [name, handle] of dirHandleRef.current.entries()) {
                 if (handle.kind !== 'file') continue;
                 if (!name.toLowerCase().endsWith('.pdf')) continue;
-                let file = await handle.getFile();
+                totalPdfs++;
+
+                const file = await handle.getFile();
+                const fileKey = `${name}_${file.size}_${file.lastModified}`;
                 
-                // Esperar 2.5 segundos para verificar que el archivo ya no se está escribiendo/descargando
-                await new Promise(r => setTimeout(r, 2500));
-                const fileAfterWait = await handle.getFile();
-                
-                // Si el tamaño cambió, significa que todavía se está descargando/escribiendo. Lo ignoramos por ahora.
-                if (file.size !== fileAfterWait.size) {
-                    console.log(`[Carpeta Auto] Archivo "${name}" aún se está descargando. Se pospone para el próximo ciclo.`);
+                if (processedFilesRef.current.has(fileKey)) {
+                    ignoredCount++;
                     continue;
                 }
                 
-                // Usar el archivo ya estabilizado
-                file = fileAfterWait;
-                const fileKey = `${name}_${file.size}_${file.lastModified}`;
-                
-                if (processedFilesRef.current.has(fileKey)) continue;
-                newFiles.push({ name, file, fileKey });
+                // Esperar 2 segundos para verificar estabilidad
+                await new Promise(r => setTimeout(r, 2000));
+                const fileAfterWait = await handle.getFile();
+                if (file.size !== fileAfterWait.size) continue;
+
+                newFiles.push({ name, file: fileAfterWait, fileKey });
             }
+
+            setDetectionStats({ total: totalPdfs, ignored: ignoredCount });
 
             for (let i = 0; i < newFiles.length; i++) {
                 const { name, file, fileKey } = newFiles[i];
@@ -175,23 +201,13 @@ const EgresosList = () => {
                     fetchEgresos();
                 } catch (error) {
                     const msg = error.response?.data?.message || 'Error al procesar';
-                    const debug = error.response?.data?.debug;
-                    if (debug) {
-                        console.log(`[DEBUG] Error en "${name}":`, debug);
-                    }
+                    console.error(`[Carpeta Auto] Error en "${name}":`, msg);
                     toast.error(`Error en "${name}": ${msg}`);
                     
-                    // Update failed files list for UI with fileKey for retry
                     setFailedFiles(prev => [{ name, error: msg, time: new Date(), fileKey }, ...prev].slice(0, 20));
 
-                    // Mark as processed so it doesn't retry next cycle (as requested by user)
-                    // but now we have a "Retry" button to clear it
-                    processedFilesRef.current.add(fileKey);
-                    const allKeys = [...processedFilesRef.current];
-                    if (allKeys.length > 1000) {
-                        processedFilesRef.current = new Set(allKeys.slice(-1000));
-                    }
-                    localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
+                    // IMPORTANTE: NO marcar como procesado si falló para permitir reintentos
+                    // processedFilesRef.current.add(fileKey); 
                 }
             }
         } catch (err) {
@@ -261,6 +277,16 @@ const EgresosList = () => {
         setNeedsPermission(false);
         await clearFolderHandle();
         toast.info('Carpeta desconectada');
+    };
+
+    const clearProcessedHistory = () => {
+        if (!window.confirm('¿Deseas limpiar el historial de archivos vistos? Se volverán a procesar todos los archivos actuales de la carpeta.')) return;
+        processedFilesRef.current = new Set();
+        localStorage.setItem('egreso_processed_files', '[]');
+        setDetectionStats({ total: 0, ignored: 0 });
+        setFailedFiles([]);
+        toast.success('Historial limpiado. Re-escaneando...');
+        checkFolder();
     };
 
     const retryFailedFile = (fileKey) => {
@@ -565,16 +591,28 @@ const EgresosList = () => {
                                 Autorizar
                             </button>
                         )}
-                        {watching && !needsPermission && !watcherProgress && (
-                            <span className="flex items-center gap-1.5 text-xs font-medium">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Activa
-                            </span>
-                        )}
-                        {watcherProgress && (
-                            <span className="text-xs font-bold">{watcherProgress.percent}%</span>
-                        )}
-                    </div>
+                            {watching && !needsPermission && !watcherProgress && (
+                                <div className="ml-auto flex items-center gap-3">
+                                    <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
+                                        Detección: {detectionStats.total} total / {detectionStats.ignored} omitidos
+                                    </span>
+                                    <button 
+                                        onClick={clearProcessedHistory}
+                                        className="text-[10px] text-emerald-700 hover:underline font-bold"
+                                        title="Limpiar historial para procesar todo de nuevo"
+                                    >
+                                        Limpiar Historial
+                                    </button>
+                                    <span className="flex items-center gap-1.5 text-xs font-medium">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        Activa
+                                    </span>
+                                </div>
+                            )}
+                            {watcherProgress && (
+                                <span className="ml-auto text-xs font-bold">{watcherProgress.percent}%</span>
+                            )}
+                        </div>
 
                     {/* Upload progress bar */}
                     {watcherProgress && (

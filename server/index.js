@@ -22,8 +22,8 @@ if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 5) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Usar gemini-2.5-flash según confirmación del usuario de que es lo que le funciona
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// Usar gemini-1.5-flash
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -1427,7 +1427,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
                     ]
                 `;
 
-                const aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const aiResult = await aiModel.generateContent([prompt, ...pdfParts]);
                 const aiResponse = await aiResult.response;
                 const aiResultText = aiResponse.text();
@@ -5368,7 +5368,7 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
             `;
 
             // Usar gemini-1.5-flash para mayor estabilidad y capacidad de visión en PDF
-            const model15 = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const model15 = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const result = await model15.generateContent([prompt, ...pdfParts]);
             const response = await result.response;
             const resultText = response.text();

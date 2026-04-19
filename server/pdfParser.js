@@ -76,8 +76,16 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
                         // Final check for markers in assembled line text (just in case)
                         const upperLineRaw = lineText.toUpperCase();
-                        if (stopOnCopies && (upperLineRaw.includes('DUPLICADO') || upperLineRaw.includes('TRIPLICADO') || upperLineRaw.includes('COPIA'))) {
-                            console.log(`[PDF PARSER] Stop marker found: ${upperLineRaw.includes('DUPLICADO') ? 'DUPLICADO' : (upperLineRaw.includes('TRIPLICADO') ? 'TRIPLICADO' : 'COPIA')}`);
+                        // Refined check for stop markers: only stop if the marker is a prominent part of the line
+                        // (e.g., at the beginning or end, or isolated by several spaces)
+                        const isStopMarker = stopOnCopies && (
+                            /^\s*(DUPLICADO|TRIPLICADO|COPIA|QUADRUPLICADO|QUINTO)\s+/.test(upperLineRaw) ||
+                            /\s+(DUPLICADO|TRIPLICADO|COPIA|QUADRUPLICADO|QUINTO)\s*$/.test(upperLineRaw) ||
+                            /\s{5,}(DUPLICADO|TRIPLICADO|COPIA|QUADRUPLICADO|QUINTO)\s{5,}/.test(upperLineRaw)
+                        );
+
+                        if (isStopMarker) {
+                            console.log(`[PDF PARSER] Valid Stop marker found: ${upperLineRaw.match(/DUPLICADO|TRIPLICADO|COPIA/)[0]}`);
                             stopProcessing = true;
                             // Return the text accumulated so far for this page, then stop.
                             return text; 
@@ -117,12 +125,12 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         // Mejorar regex para ser más flexible con espacios y slashes opcionales
         // Regex A: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=4] Cantidad [Espacios] [UM]
         // Slash pattern adjusted for varying spaces: /\s*/\s*
-        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{4,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         // Regex B: [/ /] [Espacios] Descripción [Espacios >=4] Código [Espacios >=4] Cantidad [Espacios] [UM]
-        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{4,}(\\d{4,})\\s{4,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         // Regex Transfer: Similar pero sin slashes y con gaps más grandes
-        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{4,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{3,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
@@ -231,7 +239,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
             // FALLBACK: Standard item match
             let match;
-            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s+(\\d+(?:[.,]\\d{1,3})?)\\s*(${umPattern})?`, 'i');
             if ((match = line.match(itemRegexFallback)) !== null) {
                 const code = match[1];
                 const description = match[2].trim();
