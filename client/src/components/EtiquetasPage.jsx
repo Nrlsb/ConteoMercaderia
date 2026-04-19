@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
@@ -7,6 +7,9 @@ import { useProductSync } from '../hooks/useProductSync';
 import { normalizeText } from '../utils/textUtils';
 import { Printer } from '@capgo/capacitor-printer';
 import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+
+const Scanner = lazy(() => import('./Scanner'));
 
 const EtiquetasPage = () => {
     const { searchProductsLocally, syncProducts, isSyncing } = useProductSync();
@@ -20,6 +23,9 @@ const EtiquetasPage = () => {
     const [cantidad, setCantidad] = useState('');
     const [generating, setGenerating] = useState(false);
     const [printing, setPrinting] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [fechaIngresoError, setFechaIngresoError] = useState(false);
     
     const searchTimeoutRef = useRef(null);
     const inputRef = useRef(null);
@@ -51,6 +57,86 @@ const EtiquetasPage = () => {
         setSearchTerm('');
         setSuggestions([]);
         setShowSuggestions(false);
+        setIsScanning(false);
+    };
+
+    const handleVoiceSearch = async () => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                const { available } = await SpeechRecognition.available();
+                if (!available) {
+                    toast.error('El reconocimiento de voz no está disponible.');
+                    return;
+                }
+
+                const { speechRecognition } = await SpeechRecognition.checkPermissions();
+                if (speechRecognition !== 'granted') {
+                    const { speechRecognition: newPermission } = await SpeechRecognition.requestPermissions();
+                    if (newPermission !== 'granted') {
+                        toast.error('Se requiere permiso de micrófono.');
+                        return;
+                    }
+                }
+
+                setIsListening(true);
+                SpeechRecognition.start({
+                    language: 'es-AR',
+                    maxResults: 5,
+                    prompt: 'Diga el nombre del producto',
+                    partialResults: false,
+                    popup: true
+                }).then(async result => {
+                    if (result && result.matches && result.matches.length > 0) {
+                        const term = result.matches[0];
+                        setSearchTerm(term);
+                        handleSearch(term);
+                    }
+                }).catch(e => {
+                    console.error('Voice error:', e);
+                }).finally(() => {
+                    setIsListening(false);
+                });
+            } catch (error) {
+                console.error('Speech recognition error:', error);
+                setIsListening(false);
+            }
+            return;
+        }
+
+        // Web Fallback
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            toast.error('Tu navegador no soporta búsqueda por voz.');
+            return;
+        }
+
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'es-AR';
+        recognition.onstart = () => setIsListening(true);
+        recognition.onresult = (event) => {
+            const term = event.results[0][0].transcript;
+            setSearchTerm(term);
+            handleSearch(term);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognition.start();
+    };
+
+    const handleScan = async (code) => {
+        try {
+            const results = await searchProductsLocally(code);
+            if (results && results.length > 0) {
+                handleSelectProduct(results[0]);
+                toast.success('Producto identificado!');
+            } else {
+                toast.error(`Código ${code} no encontrado.`);
+            }
+        } catch (error) {
+            console.error('Scan error:', error);
+            toast.error('Error al buscar el código.');
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     const generateBarcodeBase64 = async (text) => {
@@ -157,6 +243,13 @@ const EtiquetasPage = () => {
             return;
         }
 
+        if (!fechaIngreso) {
+            setFechaIngresoError(true);
+            toast.error('La fecha de ingreso es obligatoria');
+            return;
+        }
+        setFechaIngresoError(false);
+
         setGenerating(true);
         try {
             const doc = await generatePDFInstance();
@@ -176,6 +269,13 @@ const EtiquetasPage = () => {
             toast.error('Por favor selecciona un producto');
             return;
         }
+
+        if (!fechaIngreso) {
+            setFechaIngresoError(true);
+            toast.error('La fecha de ingreso es obligatoria');
+            return;
+        }
+        setFechaIngresoError(false);
 
         setPrinting(true);
         try {
@@ -248,22 +348,40 @@ const EtiquetasPage = () => {
                                     Buscar Producto
                                 </label>
                                 <div className="relative">
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={(e) => handleSearch(e.target.value)}
-                                        placeholder="Nombre o código del producto..."
-                                        className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-lg"
-                                    />
-                                    {searchTerm && (
-                                        <button 
-                                            onClick={() => {setSearchTerm(''); setSuggestions([]); setShowSuggestions(false);}}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full text-gray-400"
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-grow">
+                                            <input
+                                                ref={inputRef}
+                                                type="text"
+                                                value={searchTerm}
+                                                onChange={(e) => handleSearch(e.target.value)}
+                                                placeholder="Nombre o código del producto..."
+                                                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-lg"
+                                            />
+                                            {searchTerm && (
+                                                <button 
+                                                    onClick={() => {setSearchTerm(''); setSuggestions([]); setShowSuggestions(false);}}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full text-gray-400"
+                                                >
+                                                    <X className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={handleVoiceSearch}
+                                            className={`p-4 rounded-xl border-2 transition-all flex items-center justify-center ${isListening ? 'bg-red-100 border-red-500 text-red-600 animate-pulse' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-600'}`}
+                                            title="Buscar por Voz"
                                         >
-                                            <X className="w-5 h-5" />
+                                            <Mic className={`w-6 h-6 ${isListening ? 'animate-bounce' : ''}`} />
                                         </button>
-                                    )}
+                                        <button
+                                            onClick={() => setIsScanning(true)}
+                                            className="p-4 rounded-xl border-2 bg-gray-50 border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-600 transition-all flex items-center justify-center"
+                                            title="Buscar con Escáner"
+                                        >
+                                            <Camera className="w-6 h-6" />
+                                        </button>
+                                    </div>
 
                                     {/* Sugerencias */}
                                     {showSuggestions && (
@@ -325,9 +443,13 @@ const EtiquetasPage = () => {
                                 <input
                                     type="date"
                                     value={fechaIngreso}
-                                    onChange={(e) => setFechaIngreso(e.target.value)}
-                                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                    onChange={(e) => {
+                                        setFechaIngreso(e.target.value);
+                                        if (e.target.value) setFechaIngresoError(false);
+                                    }}
+                                    className={`w-full px-4 py-3 bg-white border-2 rounded-xl outline-none transition-all ${fechaIngresoError ? 'border-red-500 ring-4 ring-red-100' : 'border-gray-200 focus:border-blue-500'}`}
                                 />
+                                {fechaIngresoError && <p className="text-red-500 text-[10px] mt-1 font-bold animate-bounce">* Campo obligatorio</p>}
                             </div>
 
                             <div>
@@ -413,6 +535,19 @@ const EtiquetasPage = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Scanner Overlay */}
+            {isScanning && (
+                <div className="fixed inset-0 z-[100] bg-black">
+                    <Suspense fallback={<div className="flex items-center justify-center h-full text-white">Cargando escáner...</div>}>
+                        <Scanner 
+                            onScan={handleScan}
+                            onCancel={() => setIsScanning(false)}
+                            isEnabled={isScanning}
+                        />
+                    </Suspense>
+                </div>
+            )}
         </div>
     );
 };
