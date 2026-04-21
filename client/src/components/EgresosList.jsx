@@ -199,13 +199,13 @@ const EgresosList = () => {
                         }
                     });
                     const { results } = response.data;
-                    // Mark as processed BEFORE any state updates to prevent race
                     processedFilesRef.current.add(fileKey);
                     const allKeys = [...processedFilesRef.current];
                     if (allKeys.length > 1000) {
                         processedFilesRef.current = new Set(allKeys.slice(-1000));
                     }
                     localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
+
                     toast.success(`"${name}" → ${results.success.length} productos cargados${results.failed.length > 0 ? `, ${results.failed.length} no encontrados` : ''}`);
                     fetchEgresos();
                 } catch (error) {
@@ -214,23 +214,22 @@ const EgresosList = () => {
 
                     console.error(`[Carpeta Auto] Error en "${name}":`, msg);
                     
+                    // Siempre marcamos como procesado para evitar bucles infinitos cada 30 segundos,
+                    // incluso si hay un error (el usuario puede reintentar manualmente).
+                    processedFilesRef.current.add(fileKey);
+                    const allKeys = [...processedFilesRef.current];
+                    if (allKeys.length > 1000) {
+                        processedFilesRef.current = new Set(allKeys.slice(-1000));
+                    }
+                    localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
+
                     if (isDuplicate) {
-                        // Si es duplicado, lo marcamos como procesado para que no reintente infinitamente
-                        processedFilesRef.current.add(fileKey);
-                        const allKeys = [...processedFilesRef.current];
-                        if (allKeys.length > 1000) {
-                            processedFilesRef.current = new Set(allKeys.slice(-1000));
-                        }
-                        localStorage.setItem('egreso_processed_files', JSON.stringify([...processedFilesRef.current]));
-                        
                         // Limpiamos de la lista de errores si estaba
                         setFailedFiles(prev => prev.filter(f => f.fileKey !== fileKey));
-                        
                         toast.info(`"${name}" ya estaba cargado. Omitiendo.`);
                     } else {
                         toast.error(`Error en "${name}": ${msg}`);
                         setFailedFiles(prev => [{ name, error: msg, time: new Date(), fileKey }, ...prev].slice(0, 20));
-                        // IMPORTANTE: NO marcar como procesado si falló para permitir reintentos
                     }
                 }
             }
