@@ -259,10 +259,11 @@ const EtiquetasPage = () => {
         if (barcodeText) {
             try {
                 const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                const imgWidth = 70; 
-                const imgHeight = 28;
-                const barcodeX = margin + (contentWidth / 2) - (imgWidth / 2);
-                const barcodeY = currentY + 68; 
+                const imgWidth = 55; 
+                const imgHeight = 22;
+                // Posición fija a la derecha, debajo de la cantidad
+                const barcodeX = pageWidth - margin - imgWidth;
+                const barcodeY = 65; 
                 
                 doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
                 
