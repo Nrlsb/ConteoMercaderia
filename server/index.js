@@ -4680,11 +4680,15 @@ app.post('/api/general-counts', verifyToken, async (req, res) => {
 
 app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_counts'), async (req, res) => {
     const { id } = req.params;
+    let step = 'init';
 
     try {
+        step = 'fetch_scans';
         // 1. Generate Report Data (Fetch ALL scans paginated)
         const scans = await getAllScans(id);
+        console.log(`[CLOSE_COUNT] ${id}: Fetched ${scans.length} scans`);
 
+        step = 'aggregate_scans';
         // Aggregate
         const totals = {};
         scans.forEach(scan => {
@@ -4693,6 +4697,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
 
         const codes = Object.keys(totals);
 
+        step = 'fetch_count_info';
         // 2. Fetch the current count info to get the name and other details
         const { data: currentCount, error: countFetchError } = await supabase
             .from('general_counts')
@@ -4702,21 +4707,22 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             .single();
 
         if (countFetchError || !currentCount) {
-            throw new Error('No se pudo encontrar el conteo para cerrar');
+            throw new Error(`No se pudo encontrar el conteo para cerrar: ${countFetchError?.message || 'No encontrado'}`);
         }
 
         // 3. Resolve Reference Products (Expected Stock)
         let allProducts = [];
 
+        step = 'resolve_references';
         // Check if grouped stock import
         const parts = (currentCount.name || '').split(',').map(s => s.trim());
         const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
 
         if (linkedOrderNumbers.length > 0) {
-            console.log(`[CLOSE_COUNT] Resolving reference products from imports: ${linkedOrderNumbers.join(', ')}`);
+            console.log(`[CLOSE_COUNT] ${id}: Resolving products from ${linkedOrderNumbers.length} orders`);
             const { data: linkedPreRemitos, error: preRemitosError } = await supabase
                 .from('pre_remitos')
-                .select('items, id_inventory')
+                .select('items, id_inventory, order_number')
                 .in('order_number', linkedOrderNumbers);
 
             if (preRemitosError) throw preRemitosError;
@@ -4724,8 +4730,12 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             if (linkedPreRemitos && linkedPreRemitos.length > 0) {
                 const mergedItemsMap = {};
                 const inventoryIds = new Set();
+                
                 linkedPreRemitos.forEach(pr => {
-                    if (pr.id_inventory) inventoryIds.add(pr.id_inventory);
+                    // Safe conversion to string for ID
+                    const prInvId = pr.id_inventory ? String(pr.id_inventory).trim() : null;
+                    if (prInvId) inventoryIds.add(prInvId);
+                    
                     (pr.items || []).forEach(item => {
                         const code = String(item.code).trim();
                         if (!mergedItemsMap[code]) {
@@ -4733,45 +4743,63 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
                                 code: code,
                                 description: item.description,
                                 current_stock: item.quantity || 0,
-                                id_inventory: pr.id_inventory || null
+                                id_inventory: prInvId
                             };
                         } else {
                             mergedItemsMap[code].current_stock += (item.quantity || 0);
-                            // Concatenar IDs si el producto está en múltiples pre-remitos
-                            if (pr.id_inventory && mergedItemsMap[code].id_inventory !== pr.id_inventory) {
-                                if (!mergedItemsMap[code].id_inventory) {
-                                    mergedItemsMap[code].id_inventory = pr.id_inventory;
-                                } else if (!mergedItemsMap[code].id_inventory.includes(pr.id_inventory)) {
-                                    mergedItemsMap[code].id_inventory += `, ${pr.id_inventory}`;
+                            // Multi-inventory resolution string-safe
+                            if (prInvId) {
+                                let currentInv = mergedItemsMap[code].id_inventory;
+                                if (!currentInv) {
+                                    mergedItemsMap[code].id_inventory = prInvId;
+                                } else {
+                                    const currentInvStr = String(currentInv);
+                                    if (!currentInvStr.includes(prInvId)) {
+                                        mergedItemsMap[code].id_inventory = currentInvStr + `, ${prInvId}`;
+                                    }
                                 }
                             }
                         }
                     });
                 });
 
-                if (inventoryIds.size > 0) currentCount.id_inventory = Array.from(inventoryIds).join(', ');
+                if (inventoryIds.size > 0) {
+                    currentCount.id_inventory = Array.from(inventoryIds).join(', ');
+                }
 
+                step = 'fetch_barcodes';
                 // Enrich with barcodes from products table
                 const codesList = Object.keys(mergedItemsMap);
-                const { data: bars, error: barsError } = await supabase.from('products').select('code, barcode').in('code', codesList);
+                if (codesList.length > 0) {
+                    const barMap = {};
+                    const batchSize = 1000;
+                    for (let i = 0; i < codesList.length; i += batchSize) {
+                        const batch = codesList.slice(i, i + batchSize);
+                        const { data: bars, error: barsError } = await supabase
+                            .from('products')
+                            .select('code, barcode')
+                            .in('code', batch);
+                        
+                        if (barsError) console.error(`[CLOSE_COUNT] ${id}: Error fetching barcodes batch:`, barsError);
+                        if (bars) bars.forEach(b => barMap[b.code] = b.barcode);
+                    }
 
-                if (barsError) throw barsError;
-
-                const barMap = {};
-                if (bars) bars.forEach(b => barMap[b.code] = b.barcode);
-
-                allProducts = Object.values(mergedItemsMap).map(p => ({
-                    ...p,
-                    barcode: barMap[p.code] || ''
-                }));
+                    allProducts = Object.values(mergedItemsMap).map(p => ({
+                        ...p,
+                        barcode: barMap[p.code] || ''
+                    }));
+                }
             }
         }
 
         // Fallback: If not grouped or no items found, use FULL master list
         if (allProducts.length === 0) {
+            step = 'fallback_get_all_products';
+            console.log(`[CLOSE_COUNT] ${id}: Using fallback (FULL products list)`);
             allProducts = await getAllProducts();
         }
 
+        step = 'build_report';
         // Build Report Array iterating over ALL products
         const report = allProducts.map(product => {
             const quantity = totals[product.code] || 0;
@@ -4801,9 +4829,14 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             }
         });
 
-        report.sort((a, b) => (a.description || '').localeCompare(b.description || ''));
+        report.sort((a, b) => {
+            const descA = String(a.description || '');
+            const descB = String(b.description || '');
+            return descA.localeCompare(descB);
+        });
 
-        // 4. Save snapshot to Remitos table
+        step = 'prepare_remito_data';
+        // 4. Save snapshot to Remitos table (Snapshot of the result)
         const discrepancies = {
             missing: report.filter(i => i.difference < 0).map(i => ({
                 code: i.code,
@@ -4845,6 +4878,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             created_by: req.user?.username || req.user?.id || 'Sistema'
         };
 
+        step = 'upsert_remito_snapshot';
         let remitoResult;
         if (existingRemito) {
             remitoResult = await supabase.from('remitos').update(remitoData).eq('id', existingRemito.id);
@@ -4852,8 +4886,12 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             remitoResult = await supabase.from('remitos').insert([remitoData]);
         }
 
-        if (remitoResult.error) throw remitoResult.error;
+        if (remitoResult.error) {
+            console.error(`[CLOSE_COUNT] ${id}: Error saving remito snapshot:`, remitoResult.error);
+            throw remitoResult.error;
+        }
 
+        step = 'update_count_status';
         // 5. FINALLY, Close the count only if everything above succeeded
         const { data: updatedCount, error: updateError } = await supabase
             .from('general_counts')
@@ -4862,23 +4900,32 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             .select()
             .single();
 
-        if (updateError) throw updateError;
+        if (updateError) {
+            console.error(`[CLOSE_COUNT] ${id}: Error updating count status:`, updateError);
+            throw updateError;
+        }
 
+        step = 'clean_up_linked_pre_remitos';
         // Update all linked pre-remitos to processed so they disappear from pending list
-        const linkedOrders = (currentCount.name || '').split(',').map(s => s.trim());
-        if (linkedOrders.length > 0) {
+        const linkedOrdersRaw = (currentCount.name || '').split(',').map(s => s.trim());
+        const stockOrders = linkedOrdersRaw.filter(o => o.startsWith('STOCK-'));
+        
+        if (stockOrders.length > 0) {
             await supabase
                 .from('pre_remitos')
                 .update({ status: 'processed' })
-                .in('order_number', linkedOrders);
+                .in('order_number', stockOrders);
         }
 
+        console.log(`[CLOSE_COUNT] ${id}: Finalized successfully`);
         res.json({ count: updatedCount, report });
+
     } catch (error) {
-        console.error('CRITICAL ERROR closing count:', error);
+        console.error(`[CLOSE_COUNT] CRITICAL ERROR at step [${step}] for count ${id}:`, error);
         res.status(500).json({ 
             message: 'Error al finalizar conteo', 
             details: error.message,
+            step: step,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
