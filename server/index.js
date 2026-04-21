@@ -4801,7 +4801,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             }
         });
 
-        report.sort((a, b) => a.description.localeCompare(b.description));
+        report.sort((a, b) => (a.description || '').localeCompare(b.description || ''));
 
         // 4. Save snapshot to Remitos table
         const discrepancies = {
@@ -4842,7 +4842,7 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
             discrepancies: discrepancies,
             status: 'processed',
             date: new Date().toISOString(),
-            created_by: req.user ? req.user.username : 'Sistema'
+            created_by: req.user?.username || req.user?.id || 'Sistema'
         };
 
         let remitoResult;
@@ -4875,8 +4875,12 @@ app.put('/api/general-counts/:id/close', verifyToken, hasPermission('close_count
 
         res.json({ count: updatedCount, report });
     } catch (error) {
-        console.error('Error closing count:', error);
-        res.status(500).json({ message: 'Error closing count: ' + error.message });
+        console.error('CRITICAL ERROR closing count:', error);
+        res.status(500).json({ 
+            message: 'Error al finalizar conteo', 
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
