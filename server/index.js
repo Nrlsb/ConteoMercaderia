@@ -2337,9 +2337,16 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
             query = query.lte('created_at', endStr);
         }
 
-        // Solo limitar si no hay filtros de fecha ni usuario, para mantener carga general equilibrada
-        if (!startDate && !endDate && !user_id) {
-            query = query.limit(100); // Aumentado a 100 para mejor visibilidad inicial
+        // Aplicar un rango amplio para evitar el límite por defecto de 1000 de Supabase
+        // Para consultas filtradas (fecha/usuario), permitimos hasta 10,000 registros
+        if (startDate || endDate || user_id) {
+            query = query.range(0, 9999);
+        } else if (action_type === 'SCAN') {
+            // Si es la vista de Layout pero sin filtros, mostramos los últimos 1000 por defecto
+            query = query.limit(1000);
+        } else {
+            // Para historial general sin filtros, mantenemos un límite razonable
+            query = query.limit(300);
         }
 
         const { data: history, error } = await query;
@@ -2364,7 +2371,8 @@ app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
             .from('barcode_history')
             .select('product_id')
             .gte('created_at', `${startDate}T00:00:00.000Z`)
-            .lte('created_at', `${endDate}T23:59:59.999Z`);
+            .lte('created_at', `${endDate}T23:59:59.999Z`)
+            .range(0, 9999); // Asegurar que exportamos más de los 1000 por defecto
 
         const { data: history, error } = await query;
         if (error) throw error;
