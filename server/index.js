@@ -1741,7 +1741,14 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
 
         let oldScanned = (Number(existingItem.scanned_quantity) || 0);
         let newScanned = oldScanned + qtyToAdd;
-        let currentExpected = existingItem.expected_quantity;
+        let currentExpected = Number(existingItem.expected_quantity) || 0;
+
+        // Validation: Cannot exceed expected quantity for Egresos
+        if (newScanned > currentExpected) {
+            return res.status(400).json({ 
+                message: `No se puede exceder la cantidad esperada. Máximo permitido: ${currentExpected - oldScanned}` 
+            });
+        }
 
         const { data: savedItem, error: saveError } = await supabase
             .from('egreso_items')

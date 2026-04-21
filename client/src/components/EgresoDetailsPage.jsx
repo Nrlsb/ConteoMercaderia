@@ -444,17 +444,28 @@ const EgresoDetailsPage = () => {
         // Close modal immediately
         setScanInput('');
         setFichajeState(prev => ({ ...prev, isOpen: false }));
-        setProcessing(false);
-
         // API call + refresh in background
         try {
             await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
             fetchEgresoDetails();
         } catch (error) {
             console.error('Scan error:', error);
-            if (error.response?.status === 404) {
+            
+            const serverMsg = error.response?.data?.message;
+            if (error.response?.status === 400 && serverMsg) {
+                // Rejection from server (likely exceeded quantity)
+                toast.error(serverMsg);
+                // Revert optimistic update
+                setItems(prevItems => prevItems.map(item => {
+                    if (item.product_code === code) {
+                        return { ...item, scanned_quantity: Number(item.scanned_quantity) - qty };
+                    }
+                    return item;
+                }));
+                fetchEgresoDetails(); 
+            } else if (error.response?.status === 404) {
                 toast.error(`Producto no encontrado: ${code}`);
-                fetchEgresoDetails(); // Revert: product doesn't exist on server
+                fetchEgresoDetails(); 
             } else {
                 // API failed (network/server error) — queue for later sync, keep optimistic state
                 await db.pending_syncs.add({
@@ -466,6 +477,8 @@ const EgresoDetailsPage = () => {
                 checkPendingSync();
                 toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
             }
+        } finally {
+            setProcessing(false);
         }
     };
 

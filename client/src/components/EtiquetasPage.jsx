@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw } from 'lucide-react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
@@ -8,12 +8,16 @@ import { normalizeText } from '../utils/textUtils';
 import { Printer } from '@capgo/capacitor-printer';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
 const Scanner = lazy(() => import('./Scanner'));
 
 const EtiquetasPage = () => {
-    const { searchProductsLocally, syncProducts, isSyncing } = useProductSync();
+    const { user } = useAuth();
+    
+    const [activeTab, setActiveTab] = useState('individual'); // 'individual' | 'multiple'
+    const [multiProducts, setMultiProducts] = useState([]);
     
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState([]);
@@ -58,6 +62,10 @@ const EtiquetasPage = () => {
     };
 
     const handleSelectProduct = (product) => {
+        if (activeTab === 'multiple') {
+            handleAddMultiProduct(product);
+            return;
+        }
         setSelectedProduct(product);
         setTempBarcode(product.barcode || '');
         setIsEditingBarcode(false);
@@ -279,9 +287,190 @@ const EtiquetasPage = () => {
         // Pie de página
         doc.setFontSize(8);
         doc.setTextColor(180);
-        doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+        doc.text(`Generado el: ${new Date().toLocaleString()}`, margin, pageHeight - 5);
+        
+        if (user && user.nombre_completo) {
+            doc.text(`Creado por: ${user.nombre_completo}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+        } else if (user && user.username) {
+            doc.text(`Creado por: ${user.username}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+        }
 
         return doc;
+    };
+
+    const handleAddMultiProduct = (product) => {
+        // Verificar si ya existe? No, permitir duplicados si el usuario quiere
+        setMultiProducts(prev => [...prev, { ...product, labelCantidad: '' }]);
+        setSearchTerm('');
+        setSuggestions([]);
+        setShowSuggestions(false);
+        toast.success(`${product.description} añadido a la lista`);
+    };
+
+    const handleRemoveMultiProduct = (index) => {
+        setMultiProducts(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleUpdateMultiQty = (index, value) => {
+        setMultiProducts(prev => {
+            const newList = [...prev];
+            newList[index].labelCantidad = value;
+            return newList;
+        });
+    };
+
+    const generateMultiProductPDF = async () => {
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const margin = 10;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const contentWidth = pageWidth - (margin * 2);
+        
+        let y = margin + 10;
+
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ETIQUETA DE PRODUCTOS MÚLTIPLES', pageWidth / 2, y, { align: 'center' });
+        y += 10;
+
+        // Cabecera de Tabla
+        doc.setFontSize(10);
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, y, contentWidth, 8, 'F');
+        doc.text('DESCRIPCIÓN', margin + 2, y + 5);
+        doc.text('CANT', margin + contentWidth - 65, y + 5);
+        doc.text('CÓDIGO DE BARRAS', margin + contentWidth - 35, y + 5);
+        y += 12;
+
+        for (const item of multiProducts) {
+            // Verificar si entra en la página
+            if (y > pageHeight - 30) {
+                doc.addPage();
+                y = margin + 10;
+                // Repeater header on new page?
+                doc.setFillColor(240, 240, 240);
+                doc.rect(margin, y, contentWidth, 8, 'F');
+                doc.text('DESCRIPCIÓN', margin + 2, y + 5);
+                doc.text('CANT', margin + contentWidth - 65, y + 5);
+                doc.text('CÓDIGO DE BARRAS', margin + contentWidth - 35, y + 5);
+                y += 12;
+            }
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            
+            // Descripción (puede ser larga)
+            const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 80);
+            doc.text(descLines, margin + 2, y + 4);
+            
+            // Cantidad
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text(String(item.labelCantidad || '-'), margin + contentWidth - 65, y + 4);
+            
+            // Código de barras
+            const barcodeText = item.barcode || item.code;
+            if (barcodeText) {
+                try {
+                    const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                    doc.addImage(barcodeImg, 'PNG', margin + contentWidth - 45, y - 2, 40, 12);
+                } catch (err) {
+                    console.error('Error in multi-barcode:', err);
+                    doc.setFontSize(7);
+                    doc.text(String(barcodeText), margin + contentWidth - 45, y + 4);
+                }
+            }
+
+            const rowHeight = Math.max(descLines.length * 5, 15);
+            y += rowHeight;
+            
+            // Línea separadora
+            doc.setDrawColor(230);
+            doc.line(margin, y - 2, margin + contentWidth, y - 2);
+            y += 2;
+        }
+
+        // Pie de página
+        doc.setFontSize(8);
+        doc.setTextColor(180);
+        doc.text(`Generado el: ${new Date().toLocaleString()}`, margin, pageHeight - 5);
+        
+        if (user && user.nombre_completo) {
+            doc.text(`Creado por: ${user.nombre_completo}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+        } else if (user && user.username) {
+            doc.text(`Creado por: ${user.username}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+        }
+
+        return doc;
+    };
+
+    const handleGenerateMultiPDF = async () => {
+        if (multiProducts.length === 0) {
+            toast.error('La lista de productos está vacía');
+            return;
+        }
+
+        setGenerating(true);
+        try {
+            const doc = await generateMultiProductPDF();
+            doc.save('Etiqueta_Multiple.pdf');
+            toast.success('PDF generado correctamente');
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Error al generar el PDF');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handlePrintMultiPDF = async () => {
+        if (multiProducts.length === 0) {
+            toast.error('La lista de productos está vacía');
+            return;
+        }
+
+        setPrinting(true);
+        try {
+            const doc = await generateMultiProductPDF();
+            const isNative = Capacitor.getPlatform() !== 'web';
+
+            if (isNative) {
+                const pdfBase64 = doc.output('datauristring').split(',')[1];
+                await Printer.printBase64({
+                    name: `Etiqueta_Multiple`,
+                    data: pdfBase64,
+                    mimeType: 'application/pdf'
+                });
+            } else {
+                const pdfBlob = doc.output('blob');
+                const url = URL.createObjectURL(pdfBlob);
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = url;
+                document.body.appendChild(iframe);
+                iframe.onload = () => {
+                    setTimeout(() => {
+                        iframe.contentWindow.print();
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                            URL.revokeObjectURL(url);
+                        }, 1000);
+                    }, 500);
+                };
+            }
+            toast.success('Enviando a impresión...');
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Error al imprimir');
+        } finally {
+            setPrinting(false);
+        }
     };
 
     const handleGeneratePDF = async () => {
@@ -385,8 +574,28 @@ const EtiquetasPage = () => {
                     </div>
                 </div>
 
+                {/* Tabs */}
+                <div className="flex border-b border-gray-100">
+                    <button 
+                        onClick={() => setActiveTab('individual')}
+                        className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'individual' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        <Tags className="w-4 h-4" />
+                        Etiqueta Individual
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('multiple')}
+                        className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'multiple' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        <LayoutList className="w-4 h-4" />
+                        Etiqueta Múltiple
+                    </button>
+                </div>
+
                 <div className="p-4 sm:p-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12">
+                    {activeTab === 'individual' ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12 animate-in fade-in duration-500">
+                            {/* ... existing individual content ... */}
                         {/* Selector de Producto */}
                         <div className="space-y-4 sm:space-y-6">
                             <div>
@@ -625,7 +834,115 @@ const EtiquetasPage = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            {/* Multiple Products Content */}
+                            <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4 sm:p-6">
+                                <label className="block text-xs sm:text-sm font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <Plus className="w-4 h-4" />
+                                    Añadir productos a la etiqueta
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => handleSearch(e.target.value)}
+                                        placeholder="Busca por nombre o código para añadir..."
+                                        className="w-full px-4 py-4 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-base sm:text-lg"
+                                    />
+                                    {showSuggestions && (
+                                        <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto">
+                                            {suggestions.map((p) => (
+                                                <button
+                                                    key={p.code}
+                                                    onClick={() => handleSelectProduct(p)}
+                                                    className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 text-left"
+                                                >
+                                                    <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600 flex-shrink-0">
+                                                        <Package className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="flex-grow">
+                                                        <div className="font-bold text-gray-900 text-sm">{p.description}</div>
+                                                        <div className="text-[11px] text-gray-500">COD: {p.code}</div>
+                                                    </div>
+                                                    <Plus className="w-5 h-5 text-blue-400" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-white border-2 border-gray-100 rounded-2xl overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-gray-50 border-b border-gray-100">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Producto</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Cantidad</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-20"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {multiProducts.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="3" className="px-6 py-12 text-center text-gray-400 italic">
+                                                        No hay productos seleccionados. Usa el buscador superior para añadir.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                multiProducts.map((item, idx) => (
+                                                    <tr key={`${item.code}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-bold text-gray-900">{item.description}</div>
+                                                            <div className="text-[11px] text-gray-500 font-mono">{item.barcode || item.code}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <input 
+                                                                type="text"
+                                                                value={item.labelCantidad}
+                                                                onChange={(e) => handleUpdateMultiQty(idx, e.target.value)}
+                                                                placeholder="Ej: 10"
+                                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:border-blue-500 outline-none text-sm"
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <button 
+                                                                onClick={() => handleRemoveMultiProduct(idx)}
+                                                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                            >
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                                <button
+                                    onClick={handlePrintMultiPDF}
+                                    disabled={multiProducts.length === 0 || printing || generating}
+                                    className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-100"
+                                >
+                                    {printing ? <Loader2 className="w-6 h-6 animate-spin" /> : <PrinterIcon className="w-6 h-6" />}
+                                    Imprimir Etiqueta Múltiple
+                                </button>
+                                <button
+                                    onClick={handleGenerateMultiPDF}
+                                    disabled={multiProducts.length === 0 || generating || printing}
+                                    className="flex-1 py-4 border-2 border-blue-600 text-blue-600 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-blue-50 disabled:opacity-50 transition-all"
+                                >
+                                    {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                                    Descargar PDF
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Info Bar */}
