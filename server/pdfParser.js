@@ -114,7 +114,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
         const isDevolucion = text.includes('REMITO DE DEVOLUCION');
         const isTransferencia = text.includes('REMITO DE TRANSFERENCIA');
-        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : (isTransferencia ? 'TRANSFERENCIA' : 'REMITO')}`);
+        const isRemito = text.toUpperCase().includes('REMITO');
+        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : (isTransferencia ? 'TRANSFERENCIA' : 'REMITO')} (isRemito: ${isRemito})`);
 
         const lines = text.split('\n');
         const items = [];
@@ -330,6 +331,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
             },
             isDevolucion,
             isTransferencia,
+            isRemito,
             textSnippet: text
         };
     } catch (error) {

@@ -1390,18 +1390,13 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         return res.status(400).json({ message: 'No se recibió ningún archivo PDF (esperado campo "pdf" o "file")' });
     }
 
-    // Filtrar archivos que son solo timestamps de 14 dígitos (no son remitos)
-    const nameWithoutExt = file.originalname.replace(/\.pdf$/i, '');
-    if (/^\d{14}$/.test(nameWithoutExt)) {
-        return res.status(400).json({ message: `El archivo "${file.originalname}" no parece ser un remito válido (posible marca de tiempo).` });
-    }
-
     try {
         // 1. Parse PDF
-        let { items, metadata, textSnippet, isDevolucion, isTransferencia } = await parseRemitoPdf(file.buffer);
+        let { items, metadata, textSnippet, isDevolucion, isTransferencia, isRemito } = await parseRemitoPdf(file.buffer);
         
         // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
         if ((!items || items.length === 0) && process.env.GEMINI_API_KEY) {
+            // ... (rest of the logic)
             console.log('[EGRESO PDF] No items found with regex. Falling back to Gemini AI...');
             try {
                 const pdfParts = [{
@@ -1453,11 +1448,16 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
         if (!items || items.length === 0) {
             console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
+            const errorMsg = !isRemito 
+                ? `El archivo "${file.originalname}" no parece ser un remito válido (no contiene la palabra "REMITO").`
+                : `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`;
+            
             return res.status(400).json({
-                message: `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`,
+                message: errorMsg,
                 debug: {
                     textLength: textSnippet?.length || 0,
-                    preview: textSnippet ? textSnippet.substring(0, 100) : 'N/A'
+                    preview: textSnippet ? textSnippet.substring(0, 100) : 'N/A',
+                    isRemito
                 }
             });
         }
