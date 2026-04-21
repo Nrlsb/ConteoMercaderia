@@ -64,6 +64,8 @@ const BarcodeControl = () => {
     });
 
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const [pendingScans, setPendingScans] = useState([]);
+    const [showPendingModal, setShowPendingModal] = useState(false);
 
     const [allowRepetition, setAllowRepetition] = useState(() => {
         const saved = localStorage.getItem('allowRepetition');
@@ -129,11 +131,27 @@ const BarcodeControl = () => {
                 await db.pending_syncs.delete(scan.id);
             }
             await checkPendingSync();
+            setPendingScans([]); // Limpiar lista local si estaba abierta
+            setShowPendingModal(false);
             toast.success('Sincronización de layout completada', { id: 'layout-sync' });
             if (activeTab === 'layout') fetchLayout();
         } catch (error) {
             console.error('Error syncing layout:', error);
-            toast.error('Error al sincronizar layout. Se reintentará con red.', { id: 'layout-sync' });
+            toast.error('Error al conocer el estado de la red. Reintentando...', { id: 'layout-sync' });
+        }
+    };
+
+    const fetchPendingScans = async () => {
+        try {
+            const queue = await db.pending_syncs
+                .where({ type: 'layout_scan' })
+                .reverse()
+                .toArray();
+            setPendingScans(queue);
+            setShowPendingModal(true);
+        } catch (e) {
+            console.error('Error fetching pending scans:', e);
+            toast.error('Error al cargar la lista de pendientes');
         }
     };
 
@@ -660,9 +678,9 @@ const BarcodeControl = () => {
                         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                             {pendingSyncCount > 0 && (
                                 <button
-                                    onClick={syncOfflineLayoutData}
+                                    onClick={fetchPendingScans}
                                     className="btn bg-amber-100 text-amber-700 hover:bg-amber-200 text-sm flex items-center gap-2 border border-amber-300 animate-pulse"
-                                    title="Sincronizar ahora"
+                                    title="Ver escaneos pendientes"
                                 >
                                     <RefreshCcw className="w-4 h-4" /> {pendingSyncCount} Pendientes
                                 </button>
@@ -1474,6 +1492,81 @@ const BarcodeControl = () => {
                     )}
                 </div>
             </div>
+            {/* Modal de Escaneos Pendientes Offline */}
+            {showPendingModal && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="bg-amber-500 p-4 text-white flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <RefreshCcw className="w-5 h-5 animate-spin-slow" />
+                                <h3 className="text-lg font-bold">Escaneos Pendientes (Offline)</h3>
+                            </div>
+                            <button onClick={() => setShowPendingModal(false)} className="hover:bg-white/20 p-1 rounded-full transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 flex-grow overflow-y-auto bg-gray-50">
+                            <p className="text-sm text-gray-600 mb-4 bg-amber-50 p-3 rounded-lg border border-amber-100 flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                Estos productos se han guardado en la memoria local de tu dispositivo. Se subirán al servidor automáticamente cuando recuperes la conexión.
+                            </p>
+
+                            <div className="space-y-2">
+                                {pendingScans.map((scan, index) => (
+                                    <div key={scan.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex justify-between items-center">
+                                        <div className="flex-grow">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">
+                                                    #{pendingScans.length - index}
+                                                </span>
+                                                <h4 className="font-semibold text-gray-800 text-sm line-clamp-1">
+                                                    {scan.data.product_description}
+                                                </h4>
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs text-gray-500">
+                                                <span className="flex items-center gap-1">
+                                                    <Barcode className="w-3 h-3" /> {scan.data.details.split('Escaneo de ')[1]}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" /> {new Date(scan.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="ml-2">
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                                                Puntual
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                                {pendingScans.length === 0 && (
+                                    <div className="text-center py-10 text-gray-500">
+                                        No hay escaneos pendientes
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-white border-t flex flex-col sm:flex-row gap-2">
+                            <button
+                                onClick={() => setShowPendingModal(false)}
+                                className="btn btn-secondary flex-grow justify-center"
+                            >
+                                Cerrar
+                            </button>
+                            <button
+                                onClick={syncOfflineLayoutData}
+                                disabled={!navigator.onLine}
+                                className={`btn flex-grow justify-center gap-2 ${navigator.onLine ? 'bg-brand-blue hover:bg-brand-blue-dark text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                            >
+                                <RefreshCcw className={`w-4 h-4 ${navigator.onLine ? '' : ''}`} />
+                                {navigator.onLine ? 'Sincronizar ahora' : 'Sin conexión'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

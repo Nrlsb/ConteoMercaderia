@@ -300,7 +300,11 @@ const EtiquetasPage = () => {
     };
 
     const handleAddMultiProduct = (product) => {
-        // Verificar si ya existe? No, permitir duplicados si el usuario quiere
+        if (multiProducts.length >= 6) {
+            toast.error('Límite alcanzado (máx. 6 productos por hoja)');
+            return;
+        }
+        
         setMultiProducts(prev => [...prev, { ...product, labelCantidad: '' }]);
         setSearchTerm('');
         setSuggestions([]);
@@ -331,81 +335,62 @@ const EtiquetasPage = () => {
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const contentWidth = pageWidth - (margin * 2);
+        const labelHeight = (pageHeight - (margin * 2)) / 6; // Aproximadamente 46mm por etiqueta
         
-        let y = margin + 10;
-
-        // Título
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text('ETIQUETA DE PRODUCTOS MÚLTIPLES', pageWidth / 2, y, { align: 'center' });
-        y += 10;
-
-        // Cabecera de Tabla
-        doc.setFontSize(10);
-        doc.setFillColor(240, 240, 240);
-        doc.rect(margin, y, contentWidth, 8, 'F');
-        doc.text('DESCRIPCIÓN', margin + 2, y + 5);
-        doc.text('CANT', margin + contentWidth - 65, y + 5);
-        doc.text('CÓDIGO DE BARRAS', margin + contentWidth - 35, y + 5);
-        y += 12;
+        let y = margin;
 
         for (const item of multiProducts) {
-            // Verificar si entra en la página
-            if (y > pageHeight - 30) {
-                doc.addPage();
-                y = margin + 10;
-                // Repeater header on new page?
-                doc.setFillColor(240, 240, 240);
-                doc.rect(margin, y, contentWidth, 8, 'F');
-                doc.text('DESCRIPCIÓN', margin + 2, y + 5);
-                doc.text('CANT', margin + contentWidth - 65, y + 5);
-                doc.text('CÓDIGO DE BARRAS', margin + contentWidth - 35, y + 5);
-                y += 12;
+            // Dibujar recuadro de la etiqueta
+            doc.setDrawColor(230);
+            doc.setLineWidth(0.1);
+            doc.rect(margin, y, contentWidth, labelHeight);
+
+            // Línea decorativa lateral
+            doc.setFillColor(37, 99, 235); // Blue-600
+            doc.rect(margin, y, 2, labelHeight, 'F');
+
+            // Descripción (GIGANTE)
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(18);
+            doc.setTextColor(0);
+            const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 70);
+            doc.text(descLines, margin + 7, y + 12);
+
+            // Cantidad (A la derecha)
+            if (item.labelCantidad) {
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text('CANTIDAD', margin + contentWidth - 45, y + 10);
+                doc.setFontSize(32);
+                doc.setTextColor(0);
+                doc.text(String(item.labelCantidad), margin + contentWidth - 45, y + 22);
             }
 
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            
-            // Descripción (puede ser larga)
-            const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 80);
-            doc.text(descLines, margin + 2, y + 4);
-            
-            // Cantidad
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.text(String(item.labelCantidad || '-'), margin + contentWidth - 65, y + 4);
-            
-            // Código de barras
+            // Código de Barras (Abajo a la derecha)
             const barcodeText = item.barcode || item.code;
             if (barcodeText) {
                 try {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    doc.addImage(barcodeImg, 'PNG', margin + contentWidth - 45, y - 2, 40, 12);
+                    const barcodeWidth = 50;
+                    const barcodeHeight = 16;
+                    doc.addImage(barcodeImg, 'PNG', margin + contentWidth - barcodeWidth - 5, y + labelHeight - barcodeHeight - 6, barcodeWidth, barcodeHeight);
+                    
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(150);
+                    doc.text(`* ${barcodeText} *`, margin + contentWidth - (barcodeWidth/2) - 5, y + labelHeight - 2, { align: 'center' });
                 } catch (err) {
                     console.error('Error in multi-barcode:', err);
-                    doc.setFontSize(7);
-                    doc.text(String(barcodeText), margin + contentWidth - 45, y + 4);
                 }
             }
 
-            const rowHeight = Math.max(descLines.length * 5, 15);
-            y += rowHeight;
-            
-            // Línea separadora
-            doc.setDrawColor(230);
-            doc.line(margin, y - 2, margin + contentWidth, y - 2);
-            y += 2;
-        }
+            // Información de auditoría y fecha
+            doc.setFontSize(7);
+            doc.setTextColor(180);
+            const userTag = user?.nombre_completo || user?.username || 'Admin';
+            doc.text(`Audit: ${userTag} | Generado: ${new Date().toLocaleString()}`, margin + 7, y + labelHeight - 3);
 
-        // Pie de página
-        doc.setFontSize(8);
-        doc.setTextColor(180);
-        doc.text(`Generado el: ${new Date().toLocaleString()}`, margin, pageHeight - 5);
-        
-        if (user && user.nombre_completo) {
-            doc.text(`Creado por: ${user.nombre_completo}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
-        } else if (user && user.username) {
-            doc.text(`Creado por: ${user.username}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+            y += labelHeight;
         }
 
         return doc;
@@ -839,39 +824,73 @@ const EtiquetasPage = () => {
                     <div className="space-y-6 animate-in fade-in duration-500">
                             {/* Multiple Products Content */}
                             <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4 sm:p-6">
-                                <label className="block text-xs sm:text-sm font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <Plus className="w-4 h-4" />
-                                    Añadir productos a la etiqueta
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={(e) => handleSearch(e.target.value)}
-                                        placeholder="Busca por nombre o código para añadir..."
-                                        className="w-full px-4 py-4 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-base sm:text-lg"
-                                    />
-                                    {showSuggestions && (
-                                        <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto">
-                                            {suggestions.map((p) => (
-                                                <button
-                                                    key={p.code}
-                                                    onClick={() => handleSelectProduct(p)}
-                                                    className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 text-left"
-                                                >
-                                                    <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600 flex-shrink-0">
-                                                        <Package className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex-grow">
-                                                        <div className="font-bold text-gray-900 text-sm">{p.description}</div>
-                                                        <div className="text-[11px] text-gray-500">COD: {p.code}</div>
-                                                    </div>
-                                                    <Plus className="w-5 h-5 text-blue-400" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="text-xs sm:text-sm font-bold text-blue-700 uppercase tracking-wider flex items-center gap-2">
+                                        <Plus className="w-4 h-4" />
+                                        Añadir productos a la etiqueta
+                                    </label>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${multiProducts.length >= 6 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                        {multiProducts.length} / 6
+                                    </span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-grow">
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => handleSearch(e.target.value)}
+                                            placeholder={multiProducts.length >= 6 ? "Límite de 6 alcanzado..." : "Busca por nombre o código para añadir..."}
+                                            disabled={multiProducts.length >= 6}
+                                            className={`w-full px-4 py-4 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-base sm:text-lg ${multiProducts.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        />
+                                        {searchTerm && (
+                                            <button 
+                                                onClick={() => {setSearchTerm(''); setSuggestions([]); setShowSuggestions(false);}}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full text-gray-400"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                        
+                                        {/* Sugerencias integradas en el contenedor relativo */}
+                                        {showSuggestions && (
+                                            <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto">
+                                                {suggestions.map((p) => (
+                                                    <button
+                                                        key={p.code}
+                                                        onClick={() => handleSelectProduct(p)}
+                                                        className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 text-left"
+                                                    >
+                                                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600 flex-shrink-0">
+                                                            <Package className="w-5 h-5" />
+                                                        </div>
+                                                        <div className="flex-grow">
+                                                            <div className="font-bold text-gray-900 text-sm">{p.description}</div>
+                                                            <div className="text-[11px] text-gray-500">COD: {p.code}</div>
+                                                        </div>
+                                                        <Plus className="w-5 h-5 text-blue-400" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={handleVoiceSearch}
+                                        disabled={multiProducts.length >= 6}
+                                        className={`p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-center ${isListening ? 'bg-red-100 border-red-500 text-red-600 animate-pulse' : 'bg-white border-blue-200 text-blue-400 hover:border-blue-500 hover:text-blue-600'} ${multiProducts.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        title="Buscar por Voz"
+                                    >
+                                        <Mic className={`w-5 h-5 sm:w-6 h-6 ${isListening ? 'animate-bounce' : ''}`} />
+                                    </button>
+                                    <button
+                                        onClick={() => setIsScanning(true)}
+                                        disabled={multiProducts.length >= 6}
+                                        className={`p-3 sm:p-4 rounded-xl border-2 bg-white border-blue-200 text-blue-400 hover:border-blue-500 hover:text-blue-600 transition-all flex items-center justify-center ${multiProducts.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        title="Buscar con Escáner"
+                                    >
+                                        <Camera className="w-5 h-5 sm:w-6 h-6" />
+                                    </button>
                                 </div>
                             </div>
 
