@@ -595,9 +595,8 @@ const EtiquetasPage = () => {
                 <div className="p-4 sm:p-8">
                     {activeTab === 'individual' ? (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12 animate-in fade-in duration-500">
-                            {/* ... existing individual content ... */}
-                        {/* Selector de Producto */}
-                        <div className="space-y-4 sm:space-y-6">
+                            {/* Selector de Producto */}
+                            <div className="space-y-4 sm:space-y-6">
                             <div>
                                 <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <Search className="w-4 h-4 text-blue-600" />
@@ -834,8 +833,9 @@ const EtiquetasPage = () => {
                                 )}
                             </div>
                         </div>
-                    ) : (
-                        <div className="space-y-6 animate-in fade-in duration-500">
+                    </div>
+                ) : (
+                    <div className="space-y-6 animate-in fade-in duration-500">
                             {/* Multiple Products Content */}
                             <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4 sm:p-6">
                                 <label className="block text-xs sm:text-sm font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-2">
