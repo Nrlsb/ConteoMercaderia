@@ -68,10 +68,10 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                         let lastX = 0;
                         for (let item of groupItems) {
                             // Add spaces based on X gap to preserve columns
-                            // 5 units roughly = 1 character space
-                            let gap = Math.max(0, Math.floor((item.x - lastX) / 5.5));
+                            // Threshold reduced from 5.5 to 4.0 to be more aggressive in separating close text tokens
+                            let gap = Math.max(0, Math.floor((item.x - lastX) / 4.0));
                             lineText += ' '.repeat(gap) + item.str;
-                            lastX = item.x + (item.width || (item.str.length * 5.5));
+                            lastX = item.x + (item.width || (item.str.length * 4.0));
                         }
 
                         // Final check for markers in assembled line text (just in case)
@@ -126,12 +126,12 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         // --- REGEX ESTRÍCTOS (Exigen Unidad de Medida y usan búsqueda codiciosa para la descripción) ---
         // Regex A Strict: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
         const regexA_Strict = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
-        // Regex B Strict: [/ /] [Espacios] Descripción [Espacios >=2] Código [Espacios >=2] Cantidad [Espacios] [UM]
-        const regexB_Strict = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
+        // Regex B Strict: [/ /] [Espacios] Descripción [Espacios >=1] Código [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexB_Strict = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s+(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
 
         // --- REGEX ORIGINALES (UM opcional, usados como Fallback) ---
         const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s+(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         
         // Regex Transfer: Similar pero sin slashes y con gaps más grandes
         const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{3,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
