@@ -1394,6 +1394,15 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         // 1. Parse PDF
         let { items, metadata, textSnippet, isDevolucion, isTransferencia, isRemito } = await parseRemitoPdf(file.buffer);
         
+        // Stricter validation for 14-digit system files: Must contain the word "REMITO"
+        const nameWithoutExt = file.originalname.replace(/\.pdf$/i, '');
+        if (/^\d{14}$/.test(nameWithoutExt) && !isRemito) {
+            console.log(`[EGRESO PDF] Documento omitido por seguridad (Nombre de 14 dígitos sin la palabra REMITO): ${file.originalname}`);
+            return res.status(400).json({ 
+                message: `El archivo "${file.originalname}" no parece ser un remito válido (formato genérico y sin la palabra REMITO).` 
+            });
+        }
+        
         // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
         if ((!items || items.length === 0) && process.env.GEMINI_API_KEY) {
             // ... (rest of the logic)
