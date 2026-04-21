@@ -2433,6 +2433,88 @@ app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
     }
 });
 
+// Export layout to Excel file (.xlsx)
+app.get('/api/barcode-history/layout-excel', verifyToken, async (req, res) => {
+    const { startDate, endDate, user_id } = req.query;
+    try {
+        let query = supabase
+            .from('barcode_history')
+            .select(`
+                id,
+                action_type,
+                product_description,
+                created_at,
+                users:created_by (username),
+                products:product_id (barcode, code, provider_code)
+            `)
+            .eq('action_type', 'SCAN')
+            .order('created_at', { ascending: false });
+
+        if (user_id) {
+            query = query.eq('created_by', user_id);
+        }
+
+        if (startDate) {
+            query = query.gte('created_at', `${startDate}T00:00:00.000Z`);
+        }
+        if (endDate) {
+            query = query.lte('created_at', `${endDate}T23:59:59.999Z`);
+        }
+
+        // Fetch up to 10,000 records for the full layout
+        const { data: history, error } = await query.range(0, 9999);
+
+        if (error) throw error;
+
+        if (!history || history.length === 0) {
+            return res.status(404).json({ message: 'No hay datos para exportar en el rango seleccionado' });
+        }
+
+        // Format data for Excel
+        const exportData = history.map((item, index) => {
+            const dateObj = new Date(item.created_at);
+            return {
+                "#": history.length - index,
+                "Fecha": dateObj.toLocaleDateString('es-AR'),
+                "Hora": dateObj.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+                "Descripción": item.product_description,
+                "Código de Barras": item.products?.barcode || '-',
+                "Código Interno": item.products?.code || '-',
+                "Cód. Proveedor": item.products?.provider_code || '-',
+                "Usuario": item.users?.username || 'Desconocido'
+            };
+        });
+
+        const workbook = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet(exportData);
+        
+        // Auto-size columns (rough approximation)
+        const colWidths = [
+            { wch: 5 },  // #
+            { wch: 12 }, // Fecha
+            { wch: 8 },  // Hora
+            { wch: 50 }, // Descripción
+            { wch: 18 }, // Código de Barras
+            { wch: 12 }, // Código Interno
+            { wch: 15 }, // Cód. Proveedor
+            { wch: 15 }  // Usuario
+        ];
+        ws['!cols'] = colWidths;
+
+        xlsx.utils.book_append_sheet(workbook, ws, "Layout");
+
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="Layout_${startDate || 'full'}_al_${endDate || 'hoy'}.xlsx"`);
+        res.send(buf);
+
+    } catch (error) {
+        console.error('Error exporting layout to Excel:', error);
+        res.status(500).json({ message: 'Error al generar el archivo Excel' });
+    }
+});
+
 // Post barcode history
 app.post('/api/barcode-history', verifyToken, async (req, res) => {
     const { action_type, product_id, product_description, details } = req.body;

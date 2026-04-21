@@ -7,7 +7,7 @@ import api from '../api';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { useProductSync } from '../hooks/useProductSync';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter } from 'lucide-react';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet } from 'lucide-react';
 
 const BarcodeControl = () => {
     const [scannedBarcode, setScannedBarcode] = useState('');
@@ -192,6 +192,41 @@ const BarcodeControl = () => {
             } else {
                 toast.error('Error al exportar el historial');
             }
+        }
+    };
+
+    const handleExportLayoutExcel = async () => {
+        setLayoutLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            if (selectedUserId) params.append('user_id', selectedUserId);
+
+            const url = `/api/barcode-history/layout-excel?${params.toString()}`;
+            
+            const response = await api.get(url, { responseType: 'blob' });
+            
+            const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `Layout_${startDate || 'completo'}_al_${endDate || 'hoy'}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            toast.success('Excel del Layout descargado correctamente');
+        } catch (err) {
+            console.error('Error exporting layout to excel:', err);
+            if (err.response && err.response.status === 404) {
+                toast.error('No hay datos para exportar en el rango seleccionado');
+            } else {
+                toast.error('Error al descargar el Excel del Layout');
+            }
+        } finally {
+            setLayoutLoading(false);
         }
     };
 
@@ -1188,13 +1223,20 @@ const BarcodeControl = () => {
                                         className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
                                     />
                                 </div>
-                                <div className="w-full sm:w-auto">
+                                <div className="w-full sm:w-auto flex gap-2">
                                     <button
                                         onClick={fetchLayout}
-                                        className="w-full btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        className="flex-1 sm:flex-none btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                                         disabled={layoutLoading}
                                     >
                                         <Filter className="w-4 h-4" /> Filtrar
+                                    </button>
+                                    <button
+                                        onClick={handleExportLayoutExcel}
+                                        className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        disabled={layoutLoading}
+                                    >
+                                        <FileSpreadsheet className="w-4 h-4" /> Excel
                                     </button>
                                 </div>
                             </div>
