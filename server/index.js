@@ -1390,6 +1390,12 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         return res.status(400).json({ message: 'No se recibió ningún archivo PDF (esperado campo "pdf" o "file")' });
     }
 
+    // Filtrar archivos que son solo timestamps de 14 dígitos (no son remitos)
+    const nameWithoutExt = file.originalname.replace(/\.pdf$/i, '');
+    if (/^\d{14}$/.test(nameWithoutExt)) {
+        return res.status(400).json({ message: `El archivo "${file.originalname}" no parece ser un remito válido (posible marca de tiempo).` });
+    }
+
     try {
         // 1. Parse PDF
         let { items, metadata, textSnippet, isDevolucion, isTransferencia } = await parseRemitoPdf(file.buffer);

@@ -158,6 +158,14 @@ const EgresosList = () => {
             for await (const [name, handle] of dirHandleRef.current.entries()) {
                 if (handle.kind !== 'file') continue;
                 if (!name.toLowerCase().endsWith('.pdf')) continue;
+
+                const nameWithoutExt = name.replace(/\.pdf$/i, '');
+                // Omitir archivos que son solo timestamps de 14 dígitos (no son remitos)
+                if (/^\d{14}$/.test(nameWithoutExt)) {
+                    ignoredCount++;
+                    continue;
+                }
+
                 totalPdfs++;
 
                 const file = await handle.getFile();
@@ -349,6 +357,12 @@ const EgresosList = () => {
                 const file = files[i];
                 if (!file.name.toLowerCase().endsWith('.pdf')) {
                     toast.error(`"${file.name}" omitido: Solo se permiten archivos PDF`);
+                    continue;
+                }
+
+                const nameWithoutExt = file.name.replace(/\.pdf$/i, '');
+                if (/^\d{14}$/.test(nameWithoutExt)) {
+                    toast.info(`"${file.name}" omitido: No parece ser un remito válido.`);
                     continue;
                 }
 
