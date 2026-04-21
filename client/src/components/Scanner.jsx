@@ -91,6 +91,15 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const [webDetectedCode, setWebDetectedCode] = useState(null);
     const webDetectedCodeRef = useRef(null);
     const webPausedRef = useRef(false);
+    
+    // Scanner settings
+    const [torchDefault, setTorchDefault] = useState(() => localStorage.getItem('scanner_torch_default') === 'true');
+
+    const toggleTorchDefault = () => {
+        const newValue = !torchDefault;
+        setTorchDefault(newValue);
+        localStorage.setItem('scanner_torch_default', newValue.toString());
+    };
 
     // Web-specific refs
     const scannerRef = useRef(null);
@@ -273,6 +282,15 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
 
             nativeScanActiveRef.current = true;
 
+            // 9. Auto-torch if enabled
+            if (torchDefault) {
+                setTimeout(async () => {
+                    if (nativeScanActiveRef.current && !torchOn) {
+                        handleToggleTorch();
+                    }
+                }, 500);
+            }
+
         } catch (err) {
             console.error("Native scan error:", err);
             if (!err?.message?.toLowerCase().includes('canceled')) {
@@ -404,6 +422,15 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                 // Verificación más robusta del torch
                 if (capabilities?.torch || ('torch' in (capabilities || {}))) {
                     setWebTorchSupported(true);
+                    
+                    // Auto-torch if enabled
+                    if (torchDefault) {
+                        setTimeout(() => {
+                            if (scannerRef.current?.isScanning && !webTorchOn) {
+                                handleWebToggleTorch();
+                            }
+                        }, 500);
+                    }
                 }
             } catch (capErr) {
                 console.warn("No se pudieron leer capabilities:", capErr);
@@ -577,15 +604,27 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                                     <button onClick={() => handleWebZoom(+0.5)} className="w-6 h-6 flex items-center justify-center text-white text-lg font-bold leading-none active:scale-90 transition-transform">+</button>
                                 </div>
                             )}
-                            <button
-                                onClick={isNative ? handleToggleTorch : handleWebToggleTorch}
-                                className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${(isNative ? torchOn : webTorchOn) ? 'bg-yellow-500/80' : 'bg-black/60'}`}
-                                aria-label="Toggle flash"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={(isNative ? torchOn : webTorchOn) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                                </svg>
-                            </button>
+                            <div className="flex flex-col items-center gap-1">
+                                <button
+                                    onClick={isNative ? handleToggleTorch : handleWebToggleTorch}
+                                    className={`w-10 h-10 flex items-center justify-center rounded-full text-white active:scale-90 transition-all ${(isNative ? torchOn : webTorchOn) ? 'bg-yellow-500/80' : 'bg-black/60'}`}
+                                    aria-label="Toggle flash"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={(isNative ? torchOn : webTorchOn) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                    </svg>
+                                </button>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleTorchDefault();
+                                    }}
+                                    className={`text-[9px] font-black px-2 py-0.5 rounded-full transition-all shadow-sm ${torchDefault ? 'bg-yellow-400 text-black' : 'bg-black/40 text-white/50 border border-white/10'}`}
+                                    title="Linterna automática al iniciar"
+                                >
+                                    AUTO
+                                </button>
+                            </div>
                         </div>
                     </div>
 

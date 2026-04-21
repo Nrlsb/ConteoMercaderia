@@ -369,27 +369,27 @@ const EtiquetasPage = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-4 animate-fade-in">
+        <div className="max-w-4xl mx-auto p-2 sm:p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 sm:p-6 text-white">
                     <div className="flex items-center gap-3">
-                        <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
-                            <PrinterIcon className="w-8 h-8" />
+                        <div className="p-2 sm:p-3 bg-white/10 rounded-xl backdrop-blur-md">
+                            <PrinterIcon className="w-6 h-6 sm:w-8 h-8" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold">Impresión de Etiquetas</h1>
-                            <p className="text-blue-100 text-sm">Genera etiquetas A4 para tus productos con códigos de barras.</p>
+                            <h1 className="text-xl sm:text-2xl font-bold">Impresión de Etiquetas</h1>
+                            <p className="text-blue-100 text-[11px] sm:text-sm">Genera etiquetas A4 para tus productos con códigos de barras.</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="p-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <div className="p-4 sm:p-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12">
                         {/* Selector de Producto */}
-                        <div className="space-y-6">
+                        <div className="space-y-4 sm:space-y-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <Search className="w-4 h-4 text-blue-600" />
                                     Buscar Producto
                                 </label>
@@ -401,8 +401,8 @@ const EtiquetasPage = () => {
                                                 type="text"
                                                 value={searchTerm}
                                                 onChange={(e) => handleSearch(e.target.value)}
-                                                placeholder="Nombre o código del producto..."
-                                                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-lg"
+                                                placeholder="Nombre o código..."
+                                                className="w-full px-4 py-3 sm:px-5 sm:py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-base sm:text-lg"
                                             />
                                             {searchTerm && (
                                                 <button 
@@ -415,17 +415,17 @@ const EtiquetasPage = () => {
                                         </div>
                                         <button
                                             onClick={handleVoiceSearch}
-                                            className={`p-4 rounded-xl border-2 transition-all flex items-center justify-center ${isListening ? 'bg-red-100 border-red-500 text-red-600 animate-pulse' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-600'}`}
+                                            className={`p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-center ${isListening ? 'bg-red-100 border-red-500 text-red-600 animate-pulse' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-600'}`}
                                             title="Buscar por Voz"
                                         >
-                                            <Mic className={`w-6 h-6 ${isListening ? 'animate-bounce' : ''}`} />
+                                            <Mic className={`w-5 h-5 sm:w-6 h-6 ${isListening ? 'animate-bounce' : ''}`} />
                                         </button>
                                         <button
                                             onClick={() => setIsScanning(true)}
-                                            className="p-4 rounded-xl border-2 bg-gray-50 border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-600 transition-all flex items-center justify-center"
+                                            className="p-3 sm:p-4 rounded-xl border-2 bg-gray-50 border-gray-200 text-gray-400 hover:border-blue-500 hover:text-blue-600 transition-all flex items-center justify-center"
                                             title="Buscar con Escáner"
                                         >
-                                            <Camera className="w-6 h-6" />
+                                            <Camera className="w-5 h-5 sm:w-6 h-6" />
                                         </button>
                                     </div>
 
@@ -457,15 +457,15 @@ const EtiquetasPage = () => {
 
                             {/* Producto Seleccionado */}
                             {selectedProduct && (
-                                <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 animate-in zoom-in duration-300">
+                                <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 sm:p-6 animate-in zoom-in duration-300">
                                     <div className="flex justify-between items-start mb-4">
                                         <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold uppercase rounded-full tracking-widest">Seleccionado</span>
                                         <button onClick={() => setSelectedProduct(null)} className="text-blue-400 hover:text-blue-600 p-1">
                                             <X className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    <h3 className="text-3xl font-bold text-blue-900 mb-2">{selectedProduct.description}</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                    <h3 className="text-xl sm:text-3xl font-bold text-blue-900 mb-2 leading-tight">{selectedProduct.description}</h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mt-4">
                                         <div className="bg-white/50 p-3 rounded-xl border border-blue-100">
                                             <div className="text-[10px] text-blue-500 uppercase font-bold mb-1">Código Interno</div>
                                             <div className="font-mono text-blue-900 font-bold">{selectedProduct.code}</div>
@@ -538,9 +538,9 @@ const EtiquetasPage = () => {
                         </div>
 
                         {/* Formulario de Fechas */}
-                        <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100 space-y-6">
+                        <div className="bg-gray-50 rounded-2xl p-4 sm:p-8 border border-gray-100 space-y-4 sm:space-y-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <Calendar className="w-4 h-4 text-gray-400" />
                                     Fecha de Ingreso
                                 </label>
@@ -551,13 +551,13 @@ const EtiquetasPage = () => {
                                         setFechaIngreso(e.target.value);
                                         if (e.target.value) setFechaIngresoError(false);
                                     }}
-                                    className={`w-full px-4 py-3 bg-white border-2 rounded-xl outline-none transition-all ${fechaIngresoError ? 'border-red-500 ring-4 ring-red-100' : 'border-gray-200 focus:border-blue-500'}`}
+                                    className={`w-full px-3 py-2 sm:px-4 sm:py-3 bg-white border-2 rounded-xl outline-none transition-all ${fechaIngresoError ? 'border-red-500 ring-4 ring-red-100' : 'border-gray-200 focus:border-blue-500'}`}
                                 />
                                 {fechaIngresoError && <p className="text-red-500 text-[10px] mt-1 font-bold animate-bounce">* Campo obligatorio</p>}
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <Calendar className="w-4 h-4 text-gray-400" />
                                     Fecha de Vencimiento
                                 </label>
@@ -565,13 +565,13 @@ const EtiquetasPage = () => {
                                     type="date"
                                     value={fechaVencimiento}
                                     onChange={(e) => setFechaVencimiento(e.target.value)}
-                                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
                                 />
                                 <p className="text-[10px] text-gray-400 mt-2 italic">Opcional. Deja vacío si no aplica.</p>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <Package className="w-4 h-4 text-gray-400" />
                                     Cantidad
                                 </label>
@@ -580,33 +580,33 @@ const EtiquetasPage = () => {
                                     value={cantidad}
                                     onChange={(e) => setCantidad(e.target.value)}
                                     placeholder="Ej: 50 unidades, 10kg, etc."
-                                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
                                 />
                             </div>
 
-                            <div className="pt-6 space-y-3">
+                            <div className="pt-4 sm:pt-6 space-y-2 sm:space-y-3">
                                 {/* Botón de Impresión (Principal) */}
                                 <button
                                     onClick={handlePrintPDF}
                                     disabled={!selectedProduct || printing || generating}
-                                    className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95
+                                    className={`w-full py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95
                                         ${!selectedProduct || printing || generating
                                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' 
                                             : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 shadow-indigo-100'}`}
                                 >
                                     {printing ? (
-                                        <Loader2 className="w-6 h-6 animate-spin" />
+                                        <Loader2 className="w-5 h-5 sm:w-6 h-6 animate-spin" />
                                     ) : (
-                                        <PrinterIcon className="w-6 h-6" />
+                                        <PrinterIcon className="w-5 h-5 sm:w-6 h-6" />
                                     )}
-                                    {printing ? 'Preparando impresora...' : 'Imprimir Etiqueta'}
+                                    {printing ? 'Preparando...' : 'Imprimir Etiqueta'}
                                 </button>
 
                                 {/* Botón de Descargar (Secundario) */}
                                 <button
                                     onClick={handleGeneratePDF}
                                     disabled={!selectedProduct || generating || printing}
-                                    className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2
+                                    className={`w-full py-2 sm:py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all border-2
                                         ${!selectedProduct || generating || printing
                                             ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
                                             : 'border-blue-600 text-blue-600 hover:bg-blue-50'}`}
@@ -628,14 +628,14 @@ const EtiquetasPage = () => {
                 </div>
 
                 {/* Info Bar */}
-                <div className="bg-gray-50 border-t border-gray-100 px-8 py-4 flex justify-between items-center text-xs text-gray-400 font-medium">
+                <div className="bg-gray-50 border-t border-gray-100 px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-center gap-3 text-[10px] sm:text-xs text-gray-400 font-medium">
                     <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`}></div>
-                        {isSyncing ? 'Sincronizando catálogo...' : 'Base de datos actualizada'}
+                        {isSyncing ? 'Sincronizando...' : 'Base actualizada'}
                     </div>
                     <div className="flex items-center gap-4">
-                        <span>Formato: A4</span>
-                        <span>Soporte: WiFi / Direct Print</span>
+                        <span>A4</span>
+                        <span>WiFi / Direct Print</span>
                     </div>
                 </div>
             </div>

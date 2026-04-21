@@ -14,6 +14,7 @@ const SettingsPage = () => {
 
     const [versionData, setVersionData] = useState({ version: '', downloadUrl: '', releaseNotes: '' });
     const [isSavingVersion, setIsSavingVersion] = useState(false);
+    const [scannerTorchDefault, setScannerTorchDefault] = useState(() => localStorage.getItem('scanner_torch_default') === 'true');
 
     useEffect(() => {
         if (user?.role === 'superadmin') {
@@ -87,8 +88,30 @@ const SettingsPage = () => {
             {/* Tab Content */}
             {activeTab === 'general' && (
                 <div className="space-y-6">
-
-
+                    {/* Scanner Settings */}
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 mb-6">
+                        <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><line x1="7" y1="12" x2="17" y2="12"></line></svg>
+                            Configuración del Escáner
+                        </h2>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-blue-800">Linterna por defecto</p>
+                                <p className="text-xs text-blue-600">Encender automáticamente al abrir el escáner.</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const newValue = !scannerTorchDefault;
+                                    setScannerTorchDefault(newValue);
+                                    localStorage.setItem('scanner_torch_default', newValue.toString());
+                                    toast.success(newValue ? 'Linterna automática activada' : 'Linterna automática desactivada');
+                                }}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${scannerTorchDefault ? 'bg-blue-600' : 'bg-gray-300'}`}
+                            >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${scannerTorchDefault ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                    </div>
 
                     {/* App Version Management */}
                     {user?.role === 'superadmin' && (
