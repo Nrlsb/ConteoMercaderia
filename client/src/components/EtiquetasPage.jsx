@@ -15,6 +15,7 @@ const Scanner = lazy(() => import('./Scanner'));
 
 const EtiquetasPage = () => {
     const { user } = useAuth();
+    const { syncProducts, searchProductsLocally, isSyncing } = useProductSync();
     
     const [activeTab, setActiveTab] = useState('individual'); // 'individual' | 'multiple'
     const [multiProducts, setMultiProducts] = useState([]);
