@@ -29,7 +29,20 @@ const EtiquetasPage = lazy(() => import('./components/EtiquetasPage'));
 
 const ProtectedRoute = ({ children, role, tabPermission }) => {
   const { isAuthenticated, loading, user } = useAuth();
-  if (loading) return <div className="flex justify-center items-center h-screen">Cargando...</div>;
+  if (loading) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen bg-brand-bg transition-all duration-500 animate-in fade-in">
+        <div className="relative">
+          <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-10 h-10 bg-blue-50/50 rounded-full backdrop-blur-sm"></div>
+          </div>
+        </div>
+        <h2 className="mt-8 text-xl font-bold text-gray-800 tracking-tight">Verificando sesión</h2>
+        <p className="text-gray-500 mt-2">Un momento, por favor...</p>
+      </div>
+    );
+  }
   if (!isAuthenticated) return <Navigate to="/login" />;
 
   // Tab permission check (only if user has tab permissions assigned)

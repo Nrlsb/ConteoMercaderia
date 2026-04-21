@@ -74,23 +74,30 @@ const EgresosList = () => {
         try {
             const response = await api.get('/api/egresos');
             setEgresos(response.data);
-            setLoading(false);
-            // Cache in IndexedDB (much larger quota than localStorage)
-            await db.offline_caches.put({
+            
+            // Non-blocking cache update
+            db.offline_caches.put({
                 id: 'egresos_list',
                 data: response.data,
                 timestamp: Date.now()
-            });
+            }).catch(err => console.error('Error caching egresos:', err));
+
         } catch (error) {
             console.error('Error fetching egresos:', error);
             // Try to load from IndexedDB cache
-            const cache = await db.offline_caches.get('egresos_list');
-            if (cache) {
-                setEgresos(cache.data);
-                toast.info('Mostrando datos offline');
-            } else {
+            try {
+                const cache = await db.offline_caches.get('egresos_list');
+                if (cache) {
+                    setEgresos(cache.data);
+                    toast.info('Mostrando datos offline');
+                } else {
+                    toast.error('Error al cargar los egresos');
+                }
+            } catch (cacheError) {
+                console.error('Cache read error:', cacheError);
                 toast.error('Error al cargar los egresos');
             }
+        } finally {
             setLoading(false);
         }
     }, []);
@@ -401,7 +408,20 @@ const EgresosList = () => {
         }
     };
 
-    if (loading) return <div className="p-4 text-center">Cargando...</div>;
+    if (loading) {
+        return (
+            <div className="flex flex-col justify-center items-center py-20 animate-in fade-in duration-700">
+                <div className="relative">
+                    <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-8 h-8 bg-blue-50 rounded-full"></div>
+                    </div>
+                </div>
+                <h2 className="mt-6 text-lg font-semibold text-gray-600 tracking-wide">Cargando Egresos...</h2>
+                <p className="text-sm text-gray-400 mt-2">Estamos preparando todo para vos</p>
+            </div>
+        );
+    }
     if (!canAccessEgresos) return <Navigate to="/" replace />;
 
     const searchTerms = search.toLowerCase().trim().split(/\s+/).filter(Boolean);

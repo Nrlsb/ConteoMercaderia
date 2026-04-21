@@ -307,8 +307,15 @@ const RemitoList = () => {
 
                 {/* Table Content */}
                 {loading ? (
-                    <div className="flex justify-center items-center py-20">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                    <div className="flex flex-col justify-center items-center py-20 animate-in fade-in duration-700">
+                        <div className="relative">
+                            <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-8 h-8 bg-blue-50 rounded-full"></div>
+                            </div>
+                        </div>
+                        <h2 className="mt-6 text-lg font-semibold text-gray-600 tracking-wide">Cargando Historial...</h2>
+                        <p className="text-sm text-gray-400 mt-2">Recuperando registros</p>
                     </div>
                 ) : filteredRemitos.length === 0 ? (
                     <div className="text-center py-20 bg-gray-50">
