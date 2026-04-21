@@ -4,10 +4,11 @@ import ReactDOM from 'react-dom';
 import { toast } from 'sonner';
 import Scanner from './Scanner';
 import api from '../api';
+import { db } from '../db';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { useProductSync } from '../hooks/useProductSync';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet } from 'lucide-react';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw } from 'lucide-react';
 
 const BarcodeControl = () => {
     const [scannedBarcode, setScannedBarcode] = useState('');
@@ -62,6 +63,8 @@ const BarcodeControl = () => {
         return saved !== null ? JSON.parse(saved) : true;
     });
 
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
     const [allowRepetition, setAllowRepetition] = useState(() => {
         const saved = localStorage.getItem('allowRepetition');
         return saved !== null ? JSON.parse(saved) : true;
@@ -84,13 +87,55 @@ const BarcodeControl = () => {
 
     // Fetch history/layout on mount and when switching tabs
     useEffect(() => {
+        checkPendingSync();
         if (activeTab === 'history') {
             fetchHistory();
         } else if (activeTab === 'layout') {
+            syncOfflineLayoutData(); // Intentar sincronizar al entrar a layout
             fetchLayout();
             fetchUsersForFilter();
         }
+
+        window.addEventListener('online', syncOfflineLayoutData);
+        return () => window.removeEventListener('online', syncOfflineLayoutData);
     }, [activeTab]);
+
+    const checkPendingSync = async () => {
+        try {
+            const count = await db.pending_syncs
+                .where({ type: 'layout_scan' })
+                .count();
+            setPendingSyncCount(count);
+        } catch (e) {
+            console.error('Error counting pending syncs:', e);
+        }
+    };
+
+    const syncOfflineLayoutData = async () => {
+        const queue = await db.pending_syncs
+            .where({ type: 'layout_scan' })
+            .toArray();
+
+        if (queue.length === 0) return;
+
+        toast.info(`Sincronizando ${queue.length} escaneos realizados offline...`, { id: 'layout-sync' });
+
+        try {
+            for (const scan of queue) {
+                await api.post('/api/barcode-history', {
+                    ...scan.data,
+                    created_at: new Date(scan.timestamp).toISOString()
+                });
+                await db.pending_syncs.delete(scan.id);
+            }
+            await checkPendingSync();
+            toast.success('Sincronización de layout completada', { id: 'layout-sync' });
+            if (activeTab === 'layout') fetchLayout();
+        } catch (error) {
+            console.error('Error syncing layout:', error);
+            toast.error('Error al sincronizar layout. Se reintentará con red.', { id: 'layout-sync' });
+        }
+    };
 
     const fetchUsersForFilter = async () => {
         try {
@@ -248,15 +293,44 @@ const BarcodeControl = () => {
     };
 
     const logScan = async (productData, code) => {
+        const scanData = {
+            action_type: 'SCAN',
+            product_id: productData?.id || null,
+            product_description: productData?.description || `Código desconocido: ${code}`,
+            details: `Escaneo de ${code}`
+        };
+
+        if (!navigator.onLine) {
+            try {
+                await db.pending_syncs.add({
+                    type: 'layout_scan',
+                    data: scanData,
+                    timestamp: Date.now()
+                });
+                checkPendingSync();
+                toast.info('Escaneo guardado localmente (sin conexión)');
+                return;
+            } catch (e) {
+                console.error('Error saving scan locally:', e);
+            }
+        }
+
         try {
-            await api.post('/api/barcode-history', {
-                action_type: 'SCAN',
-                product_id: productData?.id || null,
-                product_description: productData?.description || `Código desconocido: ${code}`,
-                details: `Escaneo de ${code}`
-            });
+            await api.post('/api/barcode-history', scanData);
         } catch (err) {
             console.error('Error logging scan:', err);
+            // Fallback: guardar localmente si falla la API (posible timeout/error red)
+            try {
+                await db.pending_syncs.add({
+                    type: 'layout_scan',
+                    data: scanData,
+                    timestamp: Date.now()
+                });
+                checkPendingSync();
+                toast.warning('Error de red. Escaneo guardado localmente.');
+            } catch (e) {
+                console.error('Error in emergency local save:', e);
+            }
         }
     };
 
@@ -583,13 +657,24 @@ const BarcodeControl = () => {
                         </button>
                     </div>
                     {activeTab === 'scanner' && (
-                        <button
-                            onClick={resetView}
-                            className="btn btn-secondary text-sm flex items-center gap-2 w-full sm:w-auto justify-center"
-                            title="Limpiar pantalla"
-                        >
-                            <RotateCcw className="w-4 h-4" /> Limpiar
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                            {pendingSyncCount > 0 && (
+                                <button
+                                    onClick={syncOfflineLayoutData}
+                                    className="btn bg-amber-100 text-amber-700 hover:bg-amber-200 text-sm flex items-center gap-2 border border-amber-300 animate-pulse"
+                                    title="Sincronizar ahora"
+                                >
+                                    <RefreshCcw className="w-4 h-4" /> {pendingSyncCount} Pendientes
+                                </button>
+                            )}
+                            <button
+                                onClick={resetView}
+                                className="btn btn-secondary text-sm flex items-center gap-2 w-full sm:w-auto justify-center"
+                                title="Limpiar pantalla"
+                            >
+                                <RotateCcw className="w-4 h-4" /> Limpiar
+                            </button>
+                        </div>
                     )}
                 </div>
 

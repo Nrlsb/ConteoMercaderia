@@ -2524,7 +2524,7 @@ app.get('/api/barcode-history/layout-excel', verifyToken, async (req, res) => {
 
 // Post barcode history
 app.post('/api/barcode-history', verifyToken, async (req, res) => {
-    const { action_type, product_id, product_description, details } = req.body;
+    const { action_type, product_id, product_description, details, created_at } = req.body;
 
     if (!action_type || !product_description) {
         return res.status(400).json({ message: 'Faltan campos requeridos para el historial' });
@@ -2538,7 +2538,8 @@ app.post('/api/barcode-history', verifyToken, async (req, res) => {
                 product_id: product_id || null,
                 product_description,
                 details,
-                created_by: req.user.id // Guardamos el ID del usuario
+                created_by: req.user.id, // Guardamos el ID del usuario
+                created_at: created_at || new Date().toISOString()
             }])
             .select()
             .single();
