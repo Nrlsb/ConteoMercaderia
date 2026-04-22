@@ -268,7 +268,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Bug Report Endpoint
-app.post('/api/reports', verifyToken, async (req, res) => {
+app.post('/api/bug-reports', verifyToken, async (req, res) => {
     const { description, errorData, pageUrl, userAgent, appVersion } = req.body;
 
     try {

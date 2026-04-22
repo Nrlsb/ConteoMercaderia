@@ -41,7 +41,7 @@ const BugReportModal = ({ isOpen, onClose, initialData = null }) => {
                 appVersion: appVersion
             };
 
-            await axios.post('/api/reports', reportBody, {
+            await axios.post('/api/bug-reports', reportBody, {
                 headers: { 'x-auth-token': token }
             });
 
