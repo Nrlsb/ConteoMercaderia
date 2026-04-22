@@ -94,3 +94,14 @@ create table if not exists stock_sucursal (
 
 -- Barcode History
 create table if not exists barcode_history (id uuid default uuid_generate_v4() primary key, action_type text, product_id uuid references products(id) on delete set null, product_description text, details text, created_by text, created_at timestamp with time zone default now());
+
+-- Label Print History
+create table if not exists label_print_history (
+  id uuid default uuid_generate_v4() primary key,
+  type text not null, -- 'individual' | 'multiple'
+  data jsonb not null, -- Stores product(s) info, quantities, dates
+  user_id uuid references users(id) on delete set null,
+  user_name text, -- Denormalized for quick display if user is deleted
+  sucursal_id uuid references sucursales(id) on delete set null,
+  created_at timestamp with time zone default now()
+);

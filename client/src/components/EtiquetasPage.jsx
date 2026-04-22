@@ -37,6 +37,12 @@ const EtiquetasPage = () => {
     const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
     const [isScanningForUpdate, setIsScanningForUpdate] = useState(false);
 
+    // Historial States
+    const [history, setHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [historyOffset, setHistoryOffset] = useState(0);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+
     const searchTimeoutRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -44,6 +50,64 @@ const EtiquetasPage = () => {
         syncProducts();
         inputRef.current?.focus();
     }, [syncProducts]);
+
+    useEffect(() => {
+        if (activeTab === 'historial' && history.length === 0) {
+            fetchHistory(true);
+        }
+    }, [activeTab]);
+
+    const fetchHistory = async (reset = false) => {
+        setLoadingHistory(true);
+        try {
+            const limit = 20;
+            const currentOffset = reset ? 0 : historyOffset;
+            const response = await api.get(`/api/labels/history?limit=${limit}&offset=${currentOffset}`);
+            
+            if (reset) {
+                setHistory(response.data);
+                setHistoryOffset(limit);
+            } else {
+                setHistory(prev => [...prev, ...response.data]);
+                setHistoryOffset(prev => prev + limit);
+            }
+            
+            if (response.data.length < limit) {
+                setHasMoreHistory(false);
+            } else {
+                setHasMoreHistory(true);
+            }
+        } catch (error) {
+            console.error('Error fetching history:', error);
+            toast.error('No se pudo cargar el historial');
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const saveToHistory = async (type, data) => {
+        try {
+            await api.post('/api/labels/history', { type, data });
+        } catch (error) {
+            console.error('Error saving history:', error);
+        }
+    };
+
+    const handleReprint = (entry) => {
+        if (entry.type === 'individual') {
+            const { product, fechaIngreso, fechaVencimiento, cantidad } = entry.data;
+            setSelectedProduct(product);
+            setFechaIngreso(fechaIngreso);
+            setFechaVencimiento(fechaVencimiento);
+            setCantidad(cantidad);
+            setActiveTab('individual');
+            toast.info('Etiqueta cargada en pestaña Individual');
+        } else if (entry.type === 'multiple') {
+            setMultiProducts(entry.data.products);
+            setActiveTab('multiple');
+            toast.info('Pliego cargado en pestaña Múltiple');
+        }
+    };
 
     const handleSearch = async (value) => {
         setSearchTerm(value);
@@ -407,6 +471,12 @@ const EtiquetasPage = () => {
             const doc = await generateMultiProductPDF();
             doc.save('Etiqueta_Multiple.pdf');
             toast.success('PDF generado correctamente');
+            
+            // Save to history
+            saveToHistory('multiple', {
+                products: multiProducts,
+                timestamp: new Date().toISOString()
+            });
         } catch (error) {
             console.error('Error:', error);
             toast.error('Error al generar el PDF');
@@ -451,6 +521,12 @@ const EtiquetasPage = () => {
                 };
             }
             toast.success('Enviando a impresión...');
+            
+            // Save to history
+            saveToHistory('multiple', {
+                products: multiProducts,
+                timestamp: new Date().toISOString()
+            });
         } catch (error) {
             console.error('Error:', error);
             toast.error('Error al imprimir');
@@ -478,6 +554,14 @@ const EtiquetasPage = () => {
             const fileName = `Etiqueta_${selectedProduct.code}_${fechaIngreso}.pdf`;
             doc.save(fileName);
             toast.success('PDF generado y descargado correctamente');
+            
+            // Save to history
+            saveToHistory('individual', {
+                product: selectedProduct,
+                fechaIngreso,
+                fechaVencimiento,
+                cantidad
+            });
         } catch (error) {
             console.error('Error generating PDF:', error);
             toast.error('Error al generar el PDF');
@@ -536,6 +620,14 @@ const EtiquetasPage = () => {
                 };
             }
             toast.success('Enviando a la cola de impresión...');
+            
+            // Save to history
+            saveToHistory('individual', {
+                product: selectedProduct,
+                fechaIngreso,
+                fechaVencimiento,
+                cantidad
+            });
         } catch (error) {
             console.error('Error printing PDF:', error);
             toast.error('Error al intentar imprimir');
@@ -575,6 +667,13 @@ const EtiquetasPage = () => {
                     >
                         <LayoutList className="w-3.5 h-3.5 sm:w-4 h-4" />
                         Múltiple
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('historial')}
+                        className={`flex-1 py-3 sm:py-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'historial' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 sm:w-4 h-4 ${loadingHistory ? 'animate-spin' : ''}`} />
+                        Historial
                     </button>
                 </div>
 
@@ -829,7 +928,7 @@ const EtiquetasPage = () => {
                                 </div>
                             </div>
                         </div>
-                    ) : (
+                    ) : activeTab === 'multiple' ? (
                         <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
                             {/* Multiple Products Selector */}
                             <div className="bg-blue-50/30 border-2 border-blue-100 rounded-2xl p-4 sm:p-8">
@@ -1019,8 +1118,88 @@ const EtiquetasPage = () => {
                                 </button>
                             </div>
                         </div>
-                    )}
+                    ) : (
+                        <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                    <RefreshCw className="w-4 h-4" />
+                                    Últimas Impresiones
+                                </h3>
+                                <button 
+                                    onClick={() => fetchHistory(true)}
+                                    className="p-2 text-blue-400 hover:bg-blue-50 rounded-full transition-all"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${loadingHistory ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
 
+                            {history.length === 0 && !loadingHistory ? (
+                                <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl py-12 px-6 text-center">
+                                    <PrinterIcon className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                                    <p className="text-gray-400 font-medium text-sm">No hay registros de impresión todavía.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {history.map((entry) => (
+                                        <div 
+                                            key={entry.id} 
+                                            className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-md transition-all group"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className={`p-2.5 rounded-xl flex-shrink-0 ${entry.type === 'individual' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                                                    {entry.type === 'individual' ? <Tags className="w-5 h-5" /> : <LayoutList className="w-5 h-5" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter ${entry.type === 'individual' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                            {entry.type === 'individual' ? 'Individual' : 'Múltiple'}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 font-bold">
+                                                            {new Date(entry.created_at).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <p className="font-bold text-gray-900 mt-1 truncate max-w-[250px] sm:max-w-[400px]">
+                                                        {entry.type === 'individual' 
+                                                            ? entry.data.product?.description || 'Sin nombre'
+                                                            : `${entry.data.products?.length || 0} productos (${entry.data.products?.slice(0, 2).map(p => p.description).join(', ')}...)`
+                                                        }
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[9px] text-gray-400 flex items-center gap-1 font-bold">
+                                                            <User className="w-3 h-3" /> {entry.user_name || 'Admin'}
+                                                        </span>
+                                                        {entry.type === 'individual' && entry.data.cantidad && (
+                                                            <span className="text-[9px] text-blue-500 font-black bg-blue-50 px-1.5 rounded">
+                                                                CANT: {entry.data.cantidad}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleReprint(entry)}
+                                                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <RefreshCw className="w-3.5 h-3.5" />
+                                                REIMPRIMIR
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {hasMoreHistory && (
+                                        <button
+                                            onClick={() => fetchHistory()}
+                                            disabled={loadingHistory}
+                                            className="w-full py-4 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-2xl transition-all border-2 border-dashed border-blue-100 flex items-center justify-center gap-3 active:scale-95 mt-4"
+                                        >
+                                            {loadingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                            {loadingHistory ? 'Cargando registros...' : 'Cargar más registros de hoy'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Info Bar */}
