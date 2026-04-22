@@ -2507,7 +2507,7 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
 
 // Export barcode history to CSV files
 app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, user_id } = req.query;
     try {
         if (!startDate || !endDate) {
             return res.status(400).json({ message: 'Debe seleccionar Fecha Desde y Fecha Hasta obligatoriamente.' });
@@ -2517,6 +2517,7 @@ app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
         const history = await getAllBarcodeHistory({ 
             startDate, 
             endDate,
+            user_id,
             action_type: null // Para exportación CSV genérica
         });
 

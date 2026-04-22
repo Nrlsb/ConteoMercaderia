@@ -77,6 +77,10 @@ const BarcodeControl = () => {
     // Layout Multi-user filter state
     const [showUserFilter, setShowUserFilter] = useState(false);
     const userFilterRef = useRef(null);
+
+    // History Multi-user filter state
+    const [showHistoryUserFilter, setShowHistoryUserFilter] = useState(false);
+    const userHistoryFilterRef = useRef(null);
     
     // Selection state for History
     const [selectedHistory, setSelectedHistory] = useState([]);
@@ -111,6 +115,9 @@ const BarcodeControl = () => {
             if (userFilterRef.current && !userFilterRef.current.contains(event.target)) {
                 setShowUserFilter(false);
             }
+            if (userHistoryFilterRef.current && !userHistoryFilterRef.current.contains(event.target)) {
+                setShowHistoryUserFilter(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -130,6 +137,7 @@ const BarcodeControl = () => {
         checkPendingSync();
         if (activeTab === 'history') {
             fetchHistory(1);
+            fetchUsersForFilter();
         } else if (activeTab === 'layout') {
             syncOfflineLayoutData(); // Intentar sincronizar al entrar a layout
             fetchLayout(1);
@@ -241,6 +249,7 @@ const BarcodeControl = () => {
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
+            if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
 
             if (params.toString()) {
                 url += `&${params.toString()}`;
@@ -337,6 +346,7 @@ const BarcodeControl = () => {
             const params = new URLSearchParams();
             params.append('startDate', startDate);
             params.append('endDate', endDate);
+            if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
 
             if (params.toString()) {
                 url += `?${params.toString()}`;
@@ -1417,6 +1427,61 @@ const BarcodeControl = () => {
                         {/* Date Filters and Export */}
                         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="w-full sm:w-auto flex-1 relative" ref={userHistoryFilterRef}>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Usuarios</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowHistoryUserFilter(!showHistoryUserFilter)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white flex items-center justify-between gap-2 min-h-[38px] transition-all hover:border-blue-400"
+                                    >
+                                        <span className="truncate">
+                                            {selectedUserIds.length === 0 
+                                                ? 'Todos los usuarios' 
+                                                : selectedUserIds.length === 1 
+                                                    ? usersList.find(u => u.id === selectedUserIds[0])?.username 
+                                                    : `${selectedUserIds.length} seleccionados`}
+                                        </span>
+                                        <ChevronDown className={`w-4 h-4 transition-transform ${showHistoryUserFilter ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {showHistoryUserFilter && (
+                                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="p-2 border-b sticky top-0 bg-white flex justify-between items-center">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setSelectedUserIds([])}
+                                                    className="text-[10px] font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                                <span className="text-[10px] text-gray-400 font-medium">
+                                                    {selectedUserIds.length} seleccionados
+                                                </span>
+                                            </div>
+                                            <div className="p-1">
+                                                {usersList.map(u => (
+                                                    <label 
+                                                        key={u.id} 
+                                                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedUserIds.includes(u.id)}
+                                                            onChange={() => {
+                                                                const newIds = selectedUserIds.includes(u.id)
+                                                                    ? selectedUserIds.filter(id => id !== u.id)
+                                                                    : [...selectedUserIds, u.id];
+                                                                setSelectedUserIds(newIds);
+                                                            }}
+                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span className="text-sm text-gray-700 font-medium">{u.username}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="w-full sm:w-auto flex-1">
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha Desde</label>
                                     <input
