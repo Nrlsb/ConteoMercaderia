@@ -2745,6 +2745,91 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
     }
 });
 
+app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req, res) => {
+    const { startDate, endDate, user_id } = req.body;
+
+    try {
+        // Obtener historial completo basado en los filtros proporcionados
+        const history = await getAllBarcodeHistory({ 
+            startDate, 
+            endDate, 
+            user_id,
+            action_type: null // Queremos todos los movimientos (vinculaciones, ediciones, etc)
+        });
+
+        if (!history || history.length === 0) {
+            return res.status(404).json({ message: 'No hay datos en el historial para los filtros seleccionados' });
+        }
+
+        // Filtrar productos únicos (basados en product_id)
+        const uniqueProductIds = [...new Set(history.map(item => item.product_id).filter(Boolean))];
+
+        if (uniqueProductIds.length === 0) {
+            return res.status(400).json({ message: 'Los registros seleccionados no tienen productos asociados para pasar al Layout' });
+        }
+
+        // Protección contra duplicados para el día de hoy
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const { data: existingScans } = await supabase
+            .from('barcode_history')
+            .select('product_id')
+            .eq('action_type', 'SCAN')
+            .in('product_id', uniqueProductIds)
+            .gte('created_at', today.toISOString());
+        
+        const existingIds = new Set(existingScans?.map(s => s.product_id) || []);
+
+        // Preparar registros para insertar
+        const finalProductsToInsert = [];
+        const seenInThisBatch = new Set();
+
+        // Mapear los items del historial a registros de SCAN, pero solo uno por cada producto diferente
+        history.forEach(item => {
+            if (item.product_id && !existingIds.has(item.product_id) && !seenInThisBatch.has(item.product_id)) {
+                finalProductsToInsert.push({
+                    action_type: 'SCAN',
+                    product_id: item.product_id,
+                    product_description: item.product_description,
+                    details: 'Transferencia masiva desde historial',
+                    created_by: req.user.id,
+                    created_at: new Date().toISOString()
+                });
+                seenInThisBatch.add(item.product_id);
+            }
+        });
+
+        if (finalProductsToInsert.length === 0) {
+            return res.status(200).json({ 
+                message: 'No hay productos nuevos para agregar. Todos ya se encuentran en el Layout hoy.',
+                processed: 0,
+                skipped: uniqueProductIds.length 
+            });
+        }
+
+        // Insertar en lotes si son muchos para evitar límites de Supabase si fuera necesario
+        // Pero barcode_history suele ser manejable.
+        const { data, error } = await supabase
+            .from('barcode_history')
+            .insert(finalProductsToInsert)
+            .select();
+
+        if (error) throw error;
+
+        res.status(201).json({
+            message: `Sincronización masiva completada: ${finalProductsToInsert.length} productos agregados.`,
+            processed: finalProductsToInsert.length,
+            skipped: uniqueProductIds.length - finalProductsToInsert.length,
+            data
+        });
+
+    } catch (error) {
+        console.error('Error in bulk-transfer-filtered:', error);
+        res.status(500).json({ message: 'Error procesando la transferencia masiva filtrada' });
+    }
+});
+
 // Product Import Endpoint (Admin only)
 app.post('/api/products/import', verifyToken, hasPermission('import_data'), multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
     if (!req.file) {

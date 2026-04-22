@@ -77,6 +77,7 @@ const BarcodeControl = () => {
     
     // Selection state for History
     const [selectedHistory, setSelectedHistory] = useState([]);
+    const [isAllFilteredSelected, setIsAllFilteredSelected] = useState(false);
 
 
     const [saveToLayout, setSaveToLayout] = useState(() => {
@@ -759,33 +760,58 @@ const BarcodeControl = () => {
     };
 
     const handleSelectAllHistory = () => {
+        if (isAllFilteredSelected) {
+            setIsAllFilteredSelected(false);
+            setSelectedHistory([]);
+            return;
+        }
+
         if (selectedHistory.length === actionHistory.length && actionHistory.length > 0) {
             setSelectedHistory([]);
+            setIsAllFilteredSelected(false);
         } else {
             setSelectedHistory([...actionHistory]);
+            // No activamos isAllFilteredSelected automáticamente aquí,
+            // sino que mostraremos el banner para que el usuario decida si quiere "TODOS" los del filtro.
         }
     };
 
+    const handleSelectTotalFilteredResults = () => {
+        setSelectedHistory([...actionHistory]); // Mantenemos la visual de la página actual seleccionada
+        setIsAllFilteredSelected(true);
+    };
+
     const handleBatchToLayout = async () => {
-        if (selectedHistory.length === 0) return;
+        if (!isAllFilteredSelected && selectedHistory.length === 0) return;
         
-        const count = selectedHistory.length;
+        const count = isAllFilteredSelected ? historyTotal : selectedHistory.length;
         if (!window.confirm(`¿Pasar ${count} productos al Layout? (Se ignorarán automáticamente los que ya estén registrados hoy)`)) {
             return;
         }
 
         setLoading(true);
         try {
-            const itemsToProcess = selectedHistory.map(item => ({
-                action_type: 'SCAN',
-                product_id: item.product_id,
-                product_description: item.product_description,
-                details: item.details || 'Re-escaneo desde historial',
-                created_at: new Date().toISOString()
-            }));
+            let response;
+            if (isAllFilteredSelected) {
+                // Usar nuevo endpoint enviando filtros
+                response = await api.post('/api/barcode-history/bulk-transfer-filtered', {
+                    startDate,
+                    endDate,
+                    user_id: null // Opcional si queremos filtrar más, pero por ahora según interfaz
+                });
+            } else {
+                const itemsToProcess = selectedHistory.map(item => ({
+                    action_type: 'SCAN',
+                    product_id: item.product_id,
+                    product_description: item.product_description,
+                    details: item.details || 'Re-escaneo desde historial',
+                    created_at: new Date().toISOString()
+                }));
 
-            const response = await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
-            const { processed, skipped, message } = response.data;
+                response = await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
+            }
+
+            const { processed, skipped } = response.data;
             
             if (processed === 0 && skipped > 0) {
                 toast.info('Todos los productos seleccionados ya se encontraban en el Layout hoy.');
@@ -794,10 +820,11 @@ const BarcodeControl = () => {
             }
             
             setSelectedHistory([]);
+            setIsAllFilteredSelected(false);
             if (activeTab === 'layout') fetchLayout(1);
         } catch (err) {
             console.error('Error in batch move to layout:', err);
-            toast.error('Error al pasar productos al Layout');
+            toast.error(err.response?.data?.message || 'Error al pasar productos al Layout');
         } finally {
             setLoading(false);
         }
@@ -1404,20 +1431,53 @@ const BarcodeControl = () => {
                                         Historial {startDate || endDate ? 'Filtrado' : 'Reciente'}
                                     </h3>
                                     {actionHistory.length > 0 && (
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={handleSelectAllHistory}
-                                                className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
-                                            >
-                                                {selectedHistory.length === actionHistory.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
-                                            </button>
-                                            {selectedHistory.length > 0 && (
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-2 justify-end">
                                                 <button
-                                                    onClick={handleBatchToLayout}
-                                                    className="text-xs font-bold text-white bg-brand-blue hover:bg-brand-blue/90 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                    onClick={handleSelectAllHistory}
+                                                    className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
                                                 >
-                                                    <ClipboardList className="w-3.5 h-3.5" /> Pasar {selectedHistory.length} al Layout
+                                                    {isAllFilteredSelected ? (
+                                                        'Deseleccionar TODO el Filtro'
+                                                    ) : (
+                                                        selectedHistory.length === actionHistory.length && actionHistory.length > 0
+                                                        ? 'Deseleccionar Página'
+                                                        : 'Seleccionar Página'
+                                                    )}
                                                 </button>
+                                                {(selectedHistory.length > 0 || isAllFilteredSelected) && (
+                                                    <button
+                                                        onClick={handleBatchToLayout}
+                                                        className="text-xs font-bold text-white bg-brand-blue hover:bg-brand-blue/90 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                    >
+                                                        <ClipboardList className="w-3.5 h-3.5" /> Pasar {isAllFilteredSelected ? historyTotal : selectedHistory.length} al Layout
+                                                    </button>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Banner de selección de todos los registros del filtro */}
+                                            {!isAllFilteredSelected && selectedHistory.length === actionHistory.length && historyTotal > actionHistory.length && (
+                                                <div className="bg-blue-50 border border-blue-200 p-2 rounded-lg text-xs text-blue-700 text-center animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    Has seleccionado los {actionHistory.length} registros de esta página. 
+                                                    <button 
+                                                        onClick={handleSelectTotalFilteredResults}
+                                                        className="ml-2 font-bold underline hover:text-blue-900"
+                                                    >
+                                                        Seleccionar los {historyTotal} registros del historial filtrado
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {isAllFilteredSelected && (
+                                                <div className="bg-blue-600 border border-blue-700 p-2 rounded-lg text-xs text-white text-center font-medium animate-in zoom-in duration-300">
+                                                    ✓ Los {historyTotal} registros que coinciden con el filtro están seleccionados.
+                                                    <button 
+                                                        onClick={() => { setIsAllFilteredSelected(false); setSelectedHistory([]); }}
+                                                        className="ml-3 underline hover:text-blue-100 font-bold"
+                                                    >
+                                                        Deseleccionar
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     )}
