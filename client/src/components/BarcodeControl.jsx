@@ -769,40 +769,31 @@ const BarcodeControl = () => {
     const handleBatchToLayout = async () => {
         if (selectedHistory.length === 0) return;
         
-        // Filtrar duplicados: solo productos que no estén ya en el layoutLocal
-        // Para ser más precisos, comparamos con lo que tenemos cargado actualmente
-        const existingIds = new Set(layoutHistory.map(item => item.product_id));
-        const itemsToProcess = selectedHistory
-            .filter(item => !existingIds.has(item.product_id))
-            .map(item => ({
-                action_type: 'SCAN',
-                product_id: item.product_id,
-                product_description: item.product_description,
-                details: item.details,
-                created_at: item.created_at
-            }));
-
-        const originalCount = selectedHistory.length;
-        const finalCount = itemsToProcess.length;
-        const skippedCount = originalCount - finalCount;
-
-        if (finalCount === 0) {
-            toast.info('Todos los productos seleccionados ya se encuentran en el Layout.');
-            setSelectedHistory([]);
-            return;
-        }
-
-        if (!window.confirm(`¿Pasar ${finalCount} productos al Layout?${skippedCount > 0 ? ` (${skippedCount} duplicados serán ignorados)` : ''}`)) {
+        const count = selectedHistory.length;
+        if (!window.confirm(`¿Pasar ${count} productos al Layout? (Se ignorarán automáticamente los que ya estén registrados hoy)`)) {
             return;
         }
 
         setLoading(true);
         try {
-            await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
+            const itemsToProcess = selectedHistory.map(item => ({
+                action_type: 'SCAN',
+                product_id: item.product_id,
+                product_description: item.product_description,
+                details: item.details || 'Re-escaneo desde historial',
+                created_at: new Date().toISOString()
+            }));
+
+            const response = await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
+            const { processed, skipped, message } = response.data;
             
-            toast.success(`${finalCount} productos pasados al Layout correctamente.${skippedCount > 0 ? ` (${skippedCount} ya existían y fueron ignorados)` : ''}`);
+            if (processed === 0 && skipped > 0) {
+                toast.info('Todos los productos seleccionados ya se encontraban en el Layout hoy.');
+            } else {
+                toast.success(`${processed} productos agregados.${skipped > 0 ? ` (${skipped} duplicados ignorados)` : ''}`);
+            }
+            
             setSelectedHistory([]);
-            // Si estamos en la pestaña layout, refrescarla
             if (activeTab === 'layout') fetchLayout(1);
         } catch (err) {
             console.error('Error in batch move to layout:', err);

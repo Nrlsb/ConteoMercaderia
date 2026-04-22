@@ -2641,6 +2641,26 @@ app.post('/api/barcode-history', verifyToken, async (req, res) => {
     }
 
     try {
+        // Protección contra duplicados para acciones de tipo SCAN
+        if (action_type === 'SCAN' && product_id) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const { data: existing } = await supabase
+                .from('barcode_history')
+                .select('*')
+                .eq('action_type', 'SCAN')
+                .eq('product_id', product_id)
+                .gte('created_at', today.toISOString())
+                .maybeSingle();
+
+            if (existing) {
+                // Producto ya escaneado hoy, devolvemos el registro existente sin duplicar
+                console.log(`[DUPLICATE IGNORE] Producto ${product_id} ya escaneado hoy.`);
+                return res.status(200).json(existing);
+            }
+        }
+
         const { data, error } = await supabase
             .from('barcode_history')
             .insert([{
@@ -2648,7 +2668,7 @@ app.post('/api/barcode-history', verifyToken, async (req, res) => {
                 product_id: product_id || null,
                 product_description,
                 details,
-                created_by: req.user.id, // Guardamos el ID del usuario
+                created_by: req.user.id,
                 created_at: created_at || new Date().toISOString()
             }])
             .select()
@@ -2670,11 +2690,44 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
     }
 
     try {
-        const records = items.map(item => ({
+        // Filtrar productos que ya fueron escaneados hoy (para acciones tipo SCAN)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const productIds = [...new Set(items.map(i => i.product_id).filter(Boolean))];
+        
+        let existingIds = new Set();
+        if (productIds.length > 0) {
+            const { data: existingScans } = await supabase
+                .from('barcode_history')
+                .select('product_id')
+                .eq('action_type', 'SCAN')
+                .in('product_id', productIds)
+                .gte('created_at', today.toISOString());
+            
+            existingIds = new Set(existingScans?.map(s => s.product_id) || []);
+        }
+        
+        // Solo insertar los que no existen hoy como SCAN o los que no tienen product_id (ej: acciones de edición)
+        const itemsToInsert = items.filter(item => 
+            (item.action_type && item.action_type !== 'SCAN') || 
+            !item.product_id || 
+            !existingIds.has(item.product_id)
+        );
+
+        if (itemsToInsert.length === 0) {
+            return res.status(200).json({ 
+                message: 'Todos los items ya se encontraban registrados hoy.',
+                processed: 0,
+                skipped: items.length 
+            });
+        }
+
+        const records = itemsToInsert.map(item => ({
             action_type: item.action_type || 'SCAN',
             product_id: item.product_id || null,
             product_description: item.product_description,
-            details: item.details || `Re-escaneo desde historial: ${item.details}`,
+            details: item.details || `Re-escaneo desde historial`,
             created_by: req.user.id,
             created_at: item.created_at || new Date().toISOString()
         }));
