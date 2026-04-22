@@ -449,7 +449,7 @@ const ReceiptDetailsPage = () => {
             setIsDuplicateModalOpen(true);
             setScanInput('');
         } else {
-            // Check client cache first, then fetch from API
+            // Check client cache first
             const cached = productCacheRef.current.get(code);
             if (cached) {
                 if (Array.isArray(cached)) {
@@ -462,56 +462,66 @@ const ReceiptDetailsPage = () => {
                 return;
             }
 
+            setProcessing(true);
             try {
-                setProcessing(true);
-                const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
-                const data = response.data;
-                if (Array.isArray(data) && data.length > 1) {
-                    const duplicates = data.map(p => ({
-                        code: p.code,
-                        description: p.description,
-                        barcode: p.barcode || '',
-                        brand: p.brand || '',
-                        expected_quantity: null,
-                        scanned_quantity: 0
-                    }));
-                    productCacheRef.current.set(code, duplicates);
-                    setDuplicateProducts(duplicates);
-                    setIsDuplicateModalOpen(true);
-                    setScanInput('');
-                } else {
-                    const product = Array.isArray(data) ? data[0] : data;
-                    const productObj = {
-                        code: product.code,
-                        description: product.description,
-                        barcode: product.barcode || '',
-                        secondary_unit: product.secondary_unit || null,
-                        primary_unit: product.primary_unit || null,
-                        conversion_factor: product.conversion_factor || null,
-                        conversion_type: product.conversion_type || null,
-                    };
-                    productCacheRef.current.set(code, productObj);
-                    openModal(productObj, null, 0);
-                }
-            } catch (error) {
-                console.error('Error fetching product:', error);
-
-                // FINAL FALLBACK: Local Database
+                // Priority fallback: Local Database (IndexedDB)
                 const localProduct = await getProductByCode(code, searchType);
                 if (localProduct) {
                     const productObj = {
                         code: localProduct.code,
                         description: localProduct.description,
                         barcode: localProduct.barcode || '',
+                        provider_code: localProduct.provider_code || '',
                         secondary_unit: localProduct.secondary_unit || null,
                         primary_unit: localProduct.primary_unit || null,
                         conversion_factor: localProduct.conversion_factor || null,
                         conversion_type: localProduct.conversion_type || null
                     };
+                    productCacheRef.current.set(code, productObj);
                     openModal(productObj, null, 0);
-                } else {
-                    toast.error('Producto no encontrado');
+                    return;
                 }
+
+                // Final fallback (Network): only if not found locally
+                if (navigator.onLine) {
+                    const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
+                    const data = response.data;
+                    if (Array.isArray(data) && data.length > 1) {
+                        const duplicates = data.map(p => ({
+                            code: p.code,
+                            description: p.description,
+                            barcode: p.barcode || '',
+                            brand: p.brand || '',
+                            expected_quantity: null,
+                            scanned_quantity: 0
+                        }));
+                        productCacheRef.current.set(code, duplicates);
+                        setDuplicateProducts(duplicates);
+                        setIsDuplicateModalOpen(true);
+                        setScanInput('');
+                    } else if (data) {
+                        const product = Array.isArray(data) ? data[0] : data;
+                        const productObj = {
+                            code: product.code,
+                            description: product.description,
+                            barcode: product.barcode || '',
+                            provider_code: product.provider_code || '',
+                            secondary_unit: product.secondary_unit || null,
+                            primary_unit: product.primary_unit || null,
+                            conversion_factor: product.conversion_factor || null,
+                            conversion_type: product.conversion_type || null
+                        };
+                        productCacheRef.current.set(code, productObj);
+                        openModal(productObj, null, 0);
+                    } else {
+                        toast.error('Producto no encontrado');
+                    }
+                } else {
+                    toast.error('Producto no encontrado (Modo Offline)');
+                }
+            } catch (error) {
+                console.error('Error during product lookup:', error);
+                toast.error('Error al buscar el producto');
             } finally {
                 setProcessing(false);
             }

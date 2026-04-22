@@ -408,9 +408,17 @@ const EgresoDetailsPage = () => {
             })));
             setShowMatchModal(true);
         } else {
-            const errorMsg = `El producto "${code}" no forma parte de este remito de egreso.`;
-            toast.error(errorMsg, { duration: 4000 });
-            setScanStatus({ type: 'error', message: errorMsg });
+            // Fallback: Check local catalog to provide better feedback without network delay
+            const localProduct = await getProductByCode(code);
+            if (localProduct) {
+                const errorMsg = `El producto "${localProduct.description}" (${code}) no forma parte de este remito de egreso.`;
+                toast.error(errorMsg, { duration: 4000 });
+                setScanStatus({ type: 'error', message: errorMsg });
+            } else {
+                const errorMsg = `El producto "${code}" no fue encontrado en el catálogo local ni en este remito.`;
+                toast.error(errorMsg, { duration: 4000 });
+                setScanStatus({ type: 'error', message: errorMsg });
+            }
             setScanInput('');
         }
         setProcessing(false);
@@ -457,6 +465,8 @@ const EgresoDetailsPage = () => {
         // Close modal immediately
         setScanInput('');
         setFichajeState(prev => ({ ...prev, isOpen: false }));
+        setProcessing(false); // Liberar para el próximo escaneo inmediatamente
+
         // API call + refresh in background
         try {
             await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
@@ -478,7 +488,7 @@ const EgresoDetailsPage = () => {
                 fetchEgresoDetails(); 
             } else if (error.response?.status === 404) {
                 toast.error(`Producto no encontrado: ${code}`);
-                fetchEgresoDetails(); 
+                fetchEgresoDetails(); // Revert: product doesn't exist on server
             } else {
                 // API failed (network/server error) — queue for later sync, keep optimistic state
                 await db.pending_syncs.add({
@@ -490,8 +500,6 @@ const EgresoDetailsPage = () => {
                 checkPendingSync();
                 toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
             }
-        } finally {
-            setProcessing(false);
         }
     };
 
