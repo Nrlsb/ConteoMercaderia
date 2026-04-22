@@ -8,6 +8,7 @@ import { db } from '../db';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
+import { useProductSync } from '../hooks/useProductSync';
 import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
 
 const BarcodeControl = () => {

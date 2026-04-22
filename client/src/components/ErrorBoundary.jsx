@@ -37,7 +37,7 @@ class ErrorBoundary extends React.Component {
             const token = localStorage.getItem('token');
             const { error, errorInfo } = this.state;
             
-            await axios.post('/api/bug-reports', {
+            await axios.post('/api/reports', {
                 description: `Error automático: ${error?.message || 'Error desconocido'}`,
                 errorData: {
                     message: error?.message,
