@@ -294,7 +294,7 @@ const BarcodeControl = () => {
                         <button
                             key={p}
                             onClick={() => onPageChange(p)}
-                            className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${currentPage === p ? 'bg-primary-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                            className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${currentPage === p ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
                         >
                             {p}
                         </button>
@@ -769,13 +769,12 @@ const BarcodeControl = () => {
     const handleBatchToLayout = async () => {
         if (selectedHistory.length === 0) return;
         
-        if (!window.confirm(`¿Estás seguro de que quieres pasar ${selectedHistory.length} productos al Layout?`)) {
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const itemsToProcess = selectedHistory.map(item => ({
+        // Filtrar duplicados: solo productos que no estén ya en el layoutLocal
+        // Para ser más precisos, comparamos con lo que tenemos cargado actualmente
+        const existingIds = new Set(layoutHistory.map(item => item.product_id));
+        const itemsToProcess = selectedHistory
+            .filter(item => !existingIds.has(item.product_id))
+            .map(item => ({
                 action_type: 'SCAN',
                 product_id: item.product_id,
                 product_description: item.product_description,
@@ -783,10 +782,28 @@ const BarcodeControl = () => {
                 created_at: item.created_at
             }));
 
+        const originalCount = selectedHistory.length;
+        const finalCount = itemsToProcess.length;
+        const skippedCount = originalCount - finalCount;
+
+        if (finalCount === 0) {
+            toast.info('Todos los productos seleccionados ya se encuentran en el Layout.');
+            setSelectedHistory([]);
+            return;
+        }
+
+        if (!window.confirm(`¿Pasar ${finalCount} productos al Layout?${skippedCount > 0 ? ` (${skippedCount} duplicados serán ignorados)` : ''}`)) {
+            return;
+        }
+
+        setLoading(true);
+        try {
             await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
             
-            toast.success(`${selectedHistory.length} productos pasados al Layout correctamente`);
+            toast.success(`${finalCount} productos pasados al Layout correctamente.${skippedCount > 0 ? ` (${skippedCount} ya existían y fueron ignorados)` : ''}`);
             setSelectedHistory([]);
+            // Si estamos en la pestaña layout, refrescarla
+            if (activeTab === 'layout') fetchLayout(1);
         } catch (err) {
             console.error('Error in batch move to layout:', err);
             toast.error('Error al pasar productos al Layout');
@@ -823,7 +840,7 @@ const BarcodeControl = () => {
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">Control de Códigos de Barras</h2>
                         <button
                             onClick={() => setShowGuide(true)}
-                            className="w-7 h-7 rounded-full bg-primary-100 hover:bg-primary-200 text-primary-700 font-bold text-sm flex items-center justify-center transition-colors border border-primary-300 shadow-sm"
+                            className="w-7 h-7 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold text-sm flex items-center justify-center transition-colors border border-blue-300 shadow-sm"
                             title="Ver guía de uso"
                         >
                             !
@@ -857,7 +874,7 @@ const BarcodeControl = () => {
                         <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 font-bold text-lg flex items-center justify-center border border-primary-300">!</div>
+                                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold text-lg flex items-center justify-center border border-blue-300">!</div>
                                     <h2 className="text-lg font-bold text-gray-800">Guía: Control de Códigos</h2>
                                 </div>
                                 <button onClick={() => setShowGuide(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -913,7 +930,7 @@ const BarcodeControl = () => {
                                 </div>
                             </div>
                             <div className="p-4 border-t flex justify-end bg-gray-50">
-                                <button onClick={() => setShowGuide(false)} className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg transition-colors text-sm">
+                                <button onClick={() => setShowGuide(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors text-sm">
                                     Entendido
                                 </button>
                             </div>
@@ -926,13 +943,13 @@ const BarcodeControl = () => {
                 {/* Tabs Navigation */}
                 <div className="flex border-b border-gray-200 mb-6 w-full">
                     <button
-                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'scanner' ? 'border-primary-600 text-primary-600 bg-primary-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'scanner' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
                         onClick={() => setActiveTab('scanner')}
                     >
                         <Barcode className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Escanear
                     </button>
                     <button
-                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'history' ? 'border-primary-600 text-primary-600 bg-primary-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'history' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
                         onClick={() => setActiveTab('history')}
                     >
                         <History className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Historial
@@ -941,7 +958,7 @@ const BarcodeControl = () => {
                         )}
                     </button>
                     <button
-                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'layout' ? 'border-primary-600 text-primary-600 bg-primary-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'layout' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
                         onClick={() => setActiveTab('layout')}
                     >
                         <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Layout
@@ -1001,7 +1018,7 @@ const BarcodeControl = () => {
                                         value={inputBarcode}
                                         onChange={(e) => setInputBarcode(e.target.value)}
                                         placeholder="Escanear o ingresar código..."
-                                        className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg border-2 border-primary-500 focus:ring-4 focus:ring-primary-200 focus:border-primary-600 transition-all text-base sm:text-lg shadow-sm"
+                                        className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg border-2 border-blue-500 focus:ring-4 focus:ring-blue-200 focus:border-blue-600 transition-all text-base sm:text-lg shadow-sm"
                                         disabled={loading}
                                         autoFocus
                                     />
@@ -1030,7 +1047,7 @@ const BarcodeControl = () => {
 
                         {loading && (
                             <div className="flex justify-center p-8">
-                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                             </div>
                         )}
 
@@ -1045,7 +1062,7 @@ const BarcodeControl = () => {
                                     {!editMode && (
                                         <button
                                             onClick={() => setEditMode(true)}
-                                            className="px-4 py-2 bg-white sm:bg-transparent border sm:border-0 border-gray-200 rounded text-gray-700 sm:text-primary-600 font-medium text-sm flex items-center justify-center gap-2 w-full sm:w-auto hover:bg-gray-50"
+                                            className="px-4 py-2 bg-white sm:bg-transparent border sm:border-0 border-gray-200 rounded text-gray-700 sm:text-blue-600 font-medium text-sm flex items-center justify-center gap-2 w-full sm:w-auto hover:bg-gray-50"
                                         >
                                             <Edit className="w-4 h-4" /> Editar
                                         </button>
@@ -1134,8 +1151,8 @@ const BarcodeControl = () => {
                                             <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
                                                 <Barcode className="w-4 h-4" /> Cód. Barras Activo
                                             </p>
-                                            <div className="bg-primary-50 border border-primary-100 rounded-md sm:rounded-lg p-2 sm:p-3">
-                                                <p className="text-base sm:text-lg font-bold text-primary-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
+                                            <div className="bg-blue-50 border border-blue-100 rounded-md sm:rounded-lg p-2 sm:p-3">
+                                                <p className="text-base sm:text-lg font-bold text-blue-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1354,7 +1371,7 @@ const BarcodeControl = () => {
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
                                 <div className="w-full sm:w-auto flex-1">
@@ -1363,7 +1380,7 @@ const BarcodeControl = () => {
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
                                 <div className="w-full sm:w-auto flex flex-row gap-2">
@@ -1386,7 +1403,7 @@ const BarcodeControl = () => {
 
                         {historyLoading ? (
                             <div className="flex justify-center py-10">
-                                <Loader2 className="w-10 h-10 text-primary-500 animate-spin" />
+                                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
                             </div>
                         ) : actionHistory.length > 0 ? (
                             <div>
@@ -1399,14 +1416,14 @@ const BarcodeControl = () => {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={handleSelectAllHistory}
-                                                className="text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-100 transition-colors"
+                                                className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
                                             >
                                                 {selectedHistory.length === actionHistory.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
                                             </button>
                                             {selectedHistory.length > 0 && (
                                                 <button
                                                     onClick={handleBatchToLayout}
-                                                    className="text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                    className="text-xs font-bold text-white bg-brand-blue hover:bg-brand-blue/90 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
                                                 >
                                                     <ClipboardList className="w-3.5 h-3.5" /> Pasar {selectedHistory.length} al Layout
                                                 </button>
@@ -1418,7 +1435,7 @@ const BarcodeControl = () => {
                                     {actionHistory.map(item => (
                                         <div 
                                             key={item.id} 
-                                            className={`bg-gray-50 border ${selectedHistory.find(i => i.id === item.id) ? 'border-primary-400 bg-primary-50/30' : 'border-gray-200'} rounded-lg p-3 sm:p-4 text-sm flex items-center gap-3 shadow-sm hover:shadow transition-all group cursor-pointer`}
+                                            className={`bg-gray-50 border ${selectedHistory.find(i => i.id === item.id) ? 'border-blue-400 bg-blue-50/30' : 'border-gray-200'} rounded-lg p-3 sm:p-4 text-sm flex items-center gap-3 shadow-sm hover:shadow transition-all group cursor-pointer`}
                                             onClick={() => handleToggleHistorySelection(item)}
                                         >
                                             <div className="flex-shrink-0 flex items-center">
@@ -1426,10 +1443,13 @@ const BarcodeControl = () => {
                                                     type="checkbox"
                                                     checked={!!selectedHistory.find(i => i.id === item.id)}
                                                     onChange={(e) => {
+                                                        // Ya manejamos el toggle en el onClick del padre, o aquí
+                                                        // Pero evitemos que se disparen ambos.
                                                         e.stopPropagation();
                                                         handleToggleHistorySelection(item);
                                                     }}
-                                                    className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                 />
                                             </div>
                                             <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1437,7 +1457,7 @@ const BarcodeControl = () => {
                                                     <div className="flex flex-wrap items-center gap-2 mb-1">
                                                         <p className="font-semibold text-gray-800 text-base">{item.product_description}</p>
                                                         {item.products?.barcode && (
-                                                            <span className="text-xs bg-primary-50 text-primary-700 border border-primary-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                                                            <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
                                                                 <Barcode className="w-3 h-3" /> {item.products.barcode}
                                                             </span>
                                                         )}
@@ -1491,7 +1511,7 @@ const BarcodeControl = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowUserFilter(!showUserFilter)}
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white flex items-center justify-between gap-2 min-h-[38px] transition-all hover:border-primary-400"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white flex items-center justify-between gap-2 min-h-[38px] transition-all hover:border-blue-400"
                                     >
                                         <span className="truncate">
                                             {selectedUserIds.length === 0 
@@ -1509,7 +1529,7 @@ const BarcodeControl = () => {
                                                 <button 
                                                     type="button"
                                                     onClick={() => setSelectedUserIds([])}
-                                                    className="text-[10px] font-bold text-primary-600 hover:bg-primary-50 px-2 py-1 rounded transition-colors"
+                                                    className="text-[10px] font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
                                                 >
                                                     Limpiar
                                                 </button>
@@ -1532,7 +1552,7 @@ const BarcodeControl = () => {
                                                                     : [...selectedUserIds, u.id];
                                                                 setSelectedUserIds(newIds);
                                                             }}
-                                                            className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                                         />
                                                         <span className="text-sm text-gray-700 font-medium">{u.username}</span>
                                                     </label>
@@ -1547,7 +1567,7 @@ const BarcodeControl = () => {
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
                                 <div className="w-full sm:w-auto flex-1">
@@ -1556,7 +1576,7 @@ const BarcodeControl = () => {
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
                                 <div className="w-full sm:w-auto flex gap-2">
