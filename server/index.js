@@ -2794,7 +2794,7 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
                     product_description: item.product_description,
                     details: 'Transferencia masiva desde historial',
                     created_by: req.user.id,
-                    created_at: new Date().toISOString()
+                    created_at: item.created_at // Preservar fecha original
                 });
                 seenInThisBatch.add(item.product_id);
             }
@@ -2827,6 +2827,44 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
     } catch (error) {
         console.error('Error in bulk-transfer-filtered:', error);
         res.status(500).json({ message: 'Error procesando la transferencia masiva filtrada' });
+    }
+});
+
+// Delete bulk barcode history records (Superadmin only)
+app.delete('/api/barcode-history/bulk', verifyToken, verifySuperAdmin, async (req, res) => {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: 'Se requiere un array de IDs para eliminar' });
+    }
+
+    try {
+        const { error } = await supabase
+            .from('barcode_history')
+            .delete()
+            .in('id', ids);
+
+        if (error) throw error;
+
+        // Log security action
+        const logData = {
+            actor_id: req.user.id,
+            action: 'BARCODE_HISTORY_BULK_DELETE',
+            details: {
+                count: ids.length,
+                ids: ids.slice(0, 50) // Log only first 50 IDs to avoid oversized logs
+            },
+            ip_address: req.ip,
+            user_agent: req.get('user-agent')
+        };
+        supabase.from('security_logs').insert(logData).then(({ error }) => {
+            if (error) console.error('[AUDIT ERROR] No se pudo guardar log de eliminación masiva:', error.message);
+        });
+
+        res.json({ message: `${ids.length} registros eliminados exitosamente` });
+    } catch (error) {
+        console.error('Error deleting bulk barcode history:', error);
+        res.status(500).json({ message: 'Error al eliminar los registros' });
     }
 });
 

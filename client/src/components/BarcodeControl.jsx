@@ -7,10 +7,12 @@ import api from '../api';
 import { db } from '../db';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
-import { useProductSync } from '../hooks/useProductSync';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
 
 const BarcodeControl = () => {
+    const { user } = useAuth();
+    const isSuperAdmin = user?.role === 'superadmin';
     const [scannedBarcode, setScannedBarcode] = useState('');
     const [inputBarcode, setInputBarcode] = useState('');
     const [product, setProduct] = useState(null);
@@ -78,6 +80,9 @@ const BarcodeControl = () => {
     // Selection state for History
     const [selectedHistory, setSelectedHistory] = useState([]);
     const [isAllFilteredSelected, setIsAllFilteredSelected] = useState(false);
+    
+    // Selection state for Layout (Superadmin only)
+    const [selectedLayout, setSelectedLayout] = useState([]);
 
 
     const [saveToLayout, setSaveToLayout] = useState(() => {
@@ -805,7 +810,7 @@ const BarcodeControl = () => {
                     product_id: item.product_id,
                     product_description: item.product_description,
                     details: item.details || 'Re-escaneo desde historial',
-                    created_at: new Date().toISOString()
+                    created_at: item.created_at // Preservar fecha original
                 }));
 
                 response = await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
@@ -825,6 +830,34 @@ const BarcodeControl = () => {
         } catch (err) {
             console.error('Error in batch move to layout:', err);
             toast.error(err.response?.data?.message || 'Error al pasar productos al Layout');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteBulk = async (ids, type) => {
+        if (!ids || ids.length === 0) return;
+        
+        if (!window.confirm(`¿Estás seguro de eliminar permanentemente ${ids.length} registros del ${type}? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await api.delete('/api/barcode-history/bulk', { data: { ids } });
+            toast.success(`${ids.length} registros eliminados correctamente`);
+            
+            if (type === 'Historial') {
+                setSelectedHistory([]);
+                setIsAllFilteredSelected(false);
+                fetchHistory(historyPage);
+            } else {
+                setSelectedLayout([]);
+                fetchLayout(layoutPage);
+            }
+        } catch (err) {
+            console.error('Error deleting bulk items:', err);
+            toast.error(err.response?.data?.message || 'Error al eliminar los registros');
         } finally {
             setLoading(false);
         }
@@ -1453,6 +1486,15 @@ const BarcodeControl = () => {
                                                         <ClipboardList className="w-3.5 h-3.5" /> Pasar {isAllFilteredSelected ? historyTotal : selectedHistory.length} al Layout
                                                     </button>
                                                 )}
+                                                {isSuperAdmin && selectedHistory.length > 0 && !isAllFilteredSelected && (
+                                                    <button
+                                                        onClick={() => handleDeleteBulk(selectedHistory.map(i => i.id), 'Historial')}
+                                                        className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                        title="Eliminar seleccionados permanentemente"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" /> Borrar
+                                                    </button>
+                                                )}
                                             </div>
                                             
                                             {/* Banner de selección de todos los registros del filtro */}
@@ -1655,14 +1697,60 @@ const BarcodeControl = () => {
                             </div>
                         ) : layoutHistory.length > 0 ? (
                             <div>
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <ClipboardList className="w-5 h-5 text-primary-500" />
-                                    Orden de Escaneo (Layout)
-                                </h3>
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                        <ClipboardList className="w-5 h-5 text-primary-500" />
+                                        Orden de Escaneo (Layout)
+                                    </h3>
+                                    {isSuperAdmin && (
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    if (selectedLayout.length === layoutHistory.length) {
+                                                        setSelectedLayout([]);
+                                                    } else {
+                                                        setSelectedLayout(layoutHistory.map(i => i.id));
+                                                    }
+                                                }}
+                                                className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
+                                            >
+                                                {selectedLayout.length === layoutHistory.length ? 'Deseleccionar Página' : 'Seleccionar Página'}
+                                            </button>
+                                            {selectedLayout.length > 0 && (
+                                                <button
+                                                    onClick={() => handleDeleteBulk(selectedLayout, 'Layout')}
+                                                    className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" /> Borrar {selectedLayout.length}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="space-y-3">
                                     {layoutHistory.map((item, index) => (
-                                        <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors">
+                                        <div 
+                                            key={item.id} 
+                                            className={`bg-white border ${selectedLayout.includes(item.id) ? 'border-red-300 bg-red-50/10' : 'border-gray-200'} rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors ${isSuperAdmin ? 'cursor-pointer' : ''}`}
+                                            onClick={() => {
+                                                if (!isSuperAdmin) return;
+                                                const newSelected = selectedLayout.includes(item.id)
+                                                    ? selectedLayout.filter(id => id !== item.id)
+                                                    : [...selectedLayout, item.id];
+                                                setSelectedLayout(newSelected);
+                                            }}
+                                        >
                                             <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                {isSuperAdmin && (
+                                                    <div className="flex-shrink-0 flex items-center mr-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedLayout.includes(item.id)}
+                                                            onChange={() => {}} // Manejado por el onClick del contenedor
+                                                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                                                        />
+                                                    </div>
+                                                )}
                                                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
                                                     {layoutTotal - ((layoutPage - 1) * 20) - index}
                                                 </div>
