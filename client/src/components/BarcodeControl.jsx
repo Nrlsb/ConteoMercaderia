@@ -290,7 +290,7 @@ const BarcodeControl = () => {
                             {startPage > 2 && <span className="text-gray-400 px-1">...</span>}
                         </>
                     )}
-
+                    {pages.map(p => (
                         <button
                             key={p}
                             onClick={() => onPageChange(p)}
@@ -298,6 +298,7 @@ const BarcodeControl = () => {
                         >
                             {p}
                         </button>
+                    ))}
 
                     {endPage < totalPages && (
                         <>
