@@ -2644,20 +2644,24 @@ app.post('/api/barcode-history', verifyToken, async (req, res) => {
     try {
         // Protección contra duplicados para acciones de tipo SCAN
         if (action_type === 'SCAN' && product_id) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const dateToCheck = created_at ? new Date(created_at) : new Date();
+            const startOfDay = new Date(dateToCheck);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(dateToCheck);
+            endOfDay.setHours(23, 59, 59, 999);
             
             const { data: existing } = await supabase
                 .from('barcode_history')
                 .select('*')
                 .eq('action_type', 'SCAN')
                 .eq('product_id', product_id)
-                .gte('created_at', today.toISOString())
+                .gte('created_at', startOfDay.toISOString())
+                .lte('created_at', endOfDay.toISOString())
                 .maybeSingle();
 
             if (existing) {
-                // Producto ya escaneado hoy, devolvemos el registro existente sin duplicar
-                console.log(`[DUPLICATE IGNORE] Producto ${product_id} ya escaneado hoy.`);
+                // Producto ya escaneado en esa fecha, devolvemos el registro existente sin duplicar
+                console.log(`[DUPLICATE IGNORE] Producto ${product_id} ya escaneado en fecha ${startOfDay.toLocaleDateString()}.`);
                 return res.status(200).json(existing);
             }
         }
@@ -2691,51 +2695,71 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
     }
 
     try {
-        // Filtrar productos que ya fueron escaneados hoy (para acciones tipo SCAN)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // 1. Agrupar items por fecha para validación masiva por día
+        const itemsByDay = {};
+        items.forEach(item => {
+            // Extraer solo la parte YYYY-MM-DD para agrupar
+            const dateStr = item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+            if (!itemsByDay[dateStr]) itemsByDay[dateStr] = [];
+            itemsByDay[dateStr].push(item);
+        });
 
-        const productIds = [...new Set(items.map(i => i.product_id).filter(Boolean))];
-        
-        let existingIds = new Set();
-        if (productIds.length > 0) {
-            const { data: existingScans } = await supabase
-                .from('barcode_history')
-                .select('product_id')
-                .eq('action_type', 'SCAN')
-                .in('product_id', productIds)
-                .gte('created_at', today.toISOString());
+        const recordsToInsert = [];
+        const seenInThisBatch = new Set(); // Para evitar duplicados dentro del mismo JSON enviado
+
+        for (const [day, dayItems] of Object.entries(itemsByDay)) {
+            const startOfDay = `${day}T00:00:00.000Z`;
+            const endOfDay = `${day}T23:59:59.999Z`;
             
-            existingIds = new Set(existingScans?.map(s => s.product_id) || []);
-        }
-        
-        // Solo insertar los que no existen hoy como SCAN o los que no tienen product_id (ej: acciones de edición)
-        const itemsToInsert = items.filter(item => 
-            (item.action_type && item.action_type !== 'SCAN') || 
-            !item.product_id || 
-            !existingIds.has(item.product_id)
-        );
+            const productIds = [...new Set(dayItems.map(i => i.product_id).filter(Boolean))];
+            
+            let existingIdsOnDay = new Set();
+            if (productIds.length > 0) {
+                const { data: existingScans } = await supabase
+                    .from('barcode_history')
+                    .select('product_id')
+                    .eq('action_type', 'SCAN')
+                    .in('product_id', productIds)
+                    .gte('created_at', startOfDay)
+                    .lte('created_at', endOfDay);
+                
+                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id) || []);
+            }
 
-        if (itemsToInsert.length === 0) {
+            dayItems.forEach(item => {
+                const itemKey = `${item.product_id}_${day}`;
+                // Criterio de inserción:
+                // 1. No es un SCAN (ej: es un ADD_BARCODE o UPDATE)
+                // 2. O no tiene product_id (ej: log genérico)
+                // 3. O el producto NO ha sido escaneado ese día según la DB Y no lo hemos procesado ya en este bucle
+                if (
+                    ((item.action_type && item.action_type !== 'SCAN') || !item.product_id || !existingIdsOnDay.has(item.product_id)) &&
+                    (!item.product_id || !seenInThisBatch.has(itemKey))
+                ) {
+                    recordsToInsert.push({
+                        action_type: item.action_type || 'SCAN',
+                        product_id: item.product_id || null,
+                        product_description: item.product_description,
+                        details: item.details || `Re-escaneo desde historial`,
+                        created_by: req.user.id,
+                        created_at: item.created_at || new Date().toISOString()
+                    });
+                    if (item.product_id) seenInThisBatch.add(itemKey);
+                }
+            });
+        }
+
+        if (recordsToInsert.length === 0) {
             return res.status(200).json({ 
-                message: 'Todos los items ya se encontraban registrados hoy.',
+                message: 'No hay items nuevos para registrar. Todos ya se encontraban registrados en sus respectivas fechas.',
                 processed: 0,
                 skipped: items.length 
             });
         }
 
-        const records = itemsToInsert.map(item => ({
-            action_type: item.action_type || 'SCAN',
-            product_id: item.product_id || null,
-            product_description: item.product_description,
-            details: item.details || `Re-escaneo desde historial`,
-            created_by: req.user.id,
-            created_at: item.created_at || new Date().toISOString()
-        }));
-
         const { data, error } = await supabase
             .from('barcode_history')
-            .insert(records)
+            .insert(recordsToInsert)
             .select();
 
         if (error) throw error;
@@ -2762,44 +2786,51 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
             return res.status(404).json({ message: 'No hay datos en el historial para los filtros seleccionados' });
         }
 
-        // Filtrar productos únicos (basados en product_id)
-        const uniqueProductIds = [...new Set(history.map(item => item.product_id).filter(Boolean))];
-
-        if (uniqueProductIds.length === 0) {
-            return res.status(400).json({ message: 'Los registros seleccionados no tienen productos asociados para pasar al Layout' });
-        }
-
-        // Protección contra duplicados para el día de hoy
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const { data: existingScans } = await supabase
-            .from('barcode_history')
-            .select('product_id')
-            .eq('action_type', 'SCAN')
-            .in('product_id', uniqueProductIds)
-            .gte('created_at', today.toISOString());
-        
-        const existingIds = new Set(existingScans?.map(s => s.product_id) || []);
-
-        // Preparar registros para insertar
-        const finalProductsToInsert = [];
-        const seenInThisBatch = new Set();
-
-        // Mapear los items del historial a registros de SCAN, pero solo uno por cada producto diferente
+        // 1. Agrupar el historial obtenido por día para validación masiva diaria
+        const historyByDay = {};
         history.forEach(item => {
-            if (item.product_id && !existingIds.has(item.product_id) && !seenInThisBatch.has(item.product_id)) {
-                finalProductsToInsert.push({
-                    action_type: 'SCAN',
-                    product_id: item.product_id,
-                    product_description: item.product_description,
-                    details: 'Transferencia masiva desde historial',
-                    created_by: req.user.id,
-                    created_at: item.created_at // Preservar fecha original
-                });
-                seenInThisBatch.add(item.product_id);
-            }
+            const dateStr = item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+            if (!historyByDay[dateStr]) historyByDay[dateStr] = [];
+            historyByDay[dateStr].push(item);
         });
+
+        const finalProductsToInsert = [];
+        const seenInThisProcess = new Set(); // Evitar duplicados dentro de la misma operación
+
+        for (const [day, dayItems] of Object.entries(historyByDay)) {
+            const startOfDay = `${day}T00:00:00.000Z`;
+            const endOfDay = `${day}T23:59:59.999Z`;
+            
+            const uniqueProductIdsOnDay = [...new Set(dayItems.map(i => i.product_id).filter(Boolean))];
+            
+            let existingIdsOnDay = new Set();
+            if (uniqueProductIdsOnDay.length > 0) {
+                const { data: existingScans } = await supabase
+                    .from('barcode_history')
+                    .select('product_id')
+                    .eq('action_type', 'SCAN')
+                    .in('product_id', uniqueProductIdsOnDay)
+                    .gte('created_at', startOfDay)
+                    .lte('created_at', endOfDay);
+                
+                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id) || []);
+            }
+
+            dayItems.forEach(item => {
+                const itemKey = `${item.product_id}_${day}`;
+                if (item.product_id && !existingIdsOnDay.has(item.product_id) && !seenInThisProcess.has(itemKey)) {
+                    finalProductsToInsert.push({
+                        action_type: 'SCAN',
+                        product_id: item.product_id,
+                        product_description: item.product_description,
+                        details: 'Transferencia masiva desde historial',
+                        created_by: req.user.id,
+                        created_at: item.created_at // Preservar fecha original
+                    });
+                    seenInThisProcess.add(itemKey);
+                }
+            });
+        }
 
         if (finalProductsToInsert.length === 0) {
             return res.status(200).json({ 
