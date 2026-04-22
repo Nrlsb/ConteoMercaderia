@@ -58,6 +58,19 @@ const EgresoDetailsPage = () => {
     const [multipleMatches, setMultipleMatches] = useState([]);
     const [showMatchModal, setShowMatchModal] = useState(false);
 
+    // Sync Badge Expansion State
+    const [isSyncBadgeExpanded, setIsSyncBadgeExpanded] = useState(() => localStorage.getItem('isSyncBadgeExpanded') !== 'false');
+
+    // Linking failed items state
+    const [linkingState, setLinkingState] = useState({
+        isOpen: false,
+        index: null,
+        item: null,
+        searchInput: '',
+        suggestions: [],
+        processing: false
+    });
+
     // Optimized map for item lookups
     const productLookupMap = React.useMemo(() => {
         const map = new Map();
@@ -503,6 +516,49 @@ const EgresoDetailsPage = () => {
         handleScan(null, code);
     };
 
+    const handleOpenLinkModal = (item, index) => {
+        setLinkingState({
+            isOpen: true,
+            index: index,
+            item: item,
+            searchInput: item.code || '',
+            suggestions: [],
+            processing: false
+        });
+    };
+
+    const handleLinkingSearch = async (val) => {
+        setLinkingState(prev => ({ ...prev, searchInput: val }));
+        if (val.length < 2) {
+            setLinkingState(prev => ({ ...prev, suggestions: [] }));
+            return;
+        }
+
+        // Search locally in products DB
+        const results = await searchProductsLocally(val);
+        setLinkingState(prev => ({ ...prev, suggestions: results.slice(0, 10) }));
+    };
+
+    const handleResolveFailed = async (productCode) => {
+        if (linkingState.processing) return;
+        setLinkingState(prev => ({ ...prev, processing: true }));
+
+        try {
+            await api.post(`/api/egresos/${id}/resolve-failed`, {
+                index: linkingState.index,
+                productCode: productCode
+            });
+            toast.success('Producto vinculado correctamente');
+            setLinkingState(prev => ({ ...prev, isOpen: false }));
+            fetchEgresoDetails();
+        } catch (error) {
+            console.error('Error linking product:', error);
+            toast.error(error.response?.data?.message || 'Error al vincular el producto');
+        } finally {
+            setLinkingState(prev => ({ ...prev, processing: false }));
+        }
+    };
+
     const handleFinalize = async () => {
         if (!window.confirm('¿Está seguro de finalizar este egreso? No se podrán realizar más cambios.')) return;
 
@@ -617,13 +673,34 @@ const EgresoDetailsPage = () => {
 
                         {/* Sync Status Badge */}
                         <div className="fixed bottom-20 right-4 z-40">
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}>
-                                <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
-                                {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
-                                {!isSyncing && (
-                                    <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
-                                        🔄
-                                    </button>
+                            <div
+                                onClick={() => {
+                                    const newState = !isSyncBadgeExpanded;
+                                    setIsSyncBadgeExpanded(newState);
+                                    localStorage.setItem('isSyncBadgeExpanded', newState);
+                                }}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all cursor-pointer ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}
+                            >
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                                {isSyncBadgeExpanded ? (
+                                    <>
+                                        {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                                        {!isSyncing && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    syncProducts(true);
+                                                }}
+                                                className="ml-1 hover:text-blue-500"
+                                                title="Sincronizar ahora"
+                                                type="button"
+                                            >
+                                                🔄
+                                            </button>
+                                        )}
+                                    </>
+                                ) : (
+                                    isSyncing && <span className="ml-1">Sincronizando...</span>
                                 )}
                             </div>
                         </div>
@@ -844,6 +921,7 @@ const EgresoDetailsPage = () => {
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Código PDF</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descripción PDF</th>
                                         <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Cantidad</th>
+                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
@@ -852,6 +930,14 @@ const EgresoDetailsPage = () => {
                                             <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">{item.code}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600">{item.description}</td>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-gray-900">{item.quantity}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                                                <button
+                                                    onClick={() => handleOpenLinkModal(item, idx)}
+                                                    className="px-3 py-1 bg-brand-blue text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                                                >
+                                                    Vincular
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1268,6 +1354,74 @@ const EgresoDetailsPage = () => {
                             <button
                                 onClick={() => setShowMatchModal(false)}
                                 className="w-full py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Link Failed Item Modal */}
+            {linkingState.isOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-brand-blue text-white">
+                            <h3 className="font-bold text-lg">Vincular Producto</h3>
+                            <button
+                                onClick={() => setLinkingState(prev => ({ ...prev, isOpen: false }))}
+                                className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <div className="mb-6 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                                <div className="text-[10px] font-bold text-amber-500 uppercase mb-1">Item del PDF</div>
+                                <div className="font-bold text-gray-800 text-sm">{linkingState.item.description}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">Código PDF: <span className="font-mono">{linkingState.item.code}</span> | Cantidad: {linkingState.item.quantity}</div>
+                            </div>
+
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 px-1">
+                                Buscar producto correcto en catálogo
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={linkingState.searchInput}
+                                    onChange={(e) => handleLinkingSearch(e.target.value)}
+                                    className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-brand-blue outline-none bg-gray-50"
+                                    placeholder="Escribir descripción o código..."
+                                    autoFocus
+                                />
+                                {linkingState.suggestions.length > 0 && (
+                                    <div className="absolute z-[2100] w-full mt-1 bg-white border rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                                        {linkingState.suggestions.map((s, idx) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                className="w-full text-left p-3 hover:bg-blue-50 border-b last:border-0 transition-colors"
+                                                onClick={() => handleResolveFailed(s.code)}
+                                            >
+                                                <div className="font-bold text-gray-900 text-sm">{s.description}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    COD: {s.code} {s.barcode ? `| BARRAS: ${s.barcode}` : ''}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <p className="mt-4 text-[10px] text-gray-400 italic">
+                                Al seleccionar un producto, este se agregará al egreso con la cantidad del PDF y se eliminará de la lista de errores.
+                            </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 border-t border-gray-100">
+                            <button
+                                onClick={() => setLinkingState(prev => ({ ...prev, isOpen: false }))}
+                                className="w-full py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
+                                disabled={linkingState.processing}
                             >
                                 Cancelar
                             </button>

@@ -59,6 +59,9 @@ const RemitoForm = () => {
         title: ''
     });
 
+    // Sync Badge Expansion State
+    const [isSyncBadgeExpanded, setIsSyncBadgeExpanded] = useState(() => localStorage.getItem('isSyncBadgeExpanded') !== 'false');
+
     // --- HELPER FUNCTIONS (Defined early to avoid TDZ) ---
     const fetchItemsByOrders = async (orderNumbers) => {
         const results = await Promise.all(
@@ -2510,13 +2513,34 @@ const RemitoForm = () => {
             )}
             {/* Sync Status Badge */}
             <div className="fixed bottom-20 right-4 z-40">
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}>
-                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
-                    {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
-                    {!isSyncing && (
-                        <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
-                            🔄
-                        </button>
+                <div
+                    onClick={() => {
+                        const newState = !isSyncBadgeExpanded;
+                        setIsSyncBadgeExpanded(newState);
+                        localStorage.setItem('isSyncBadgeExpanded', newState);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all cursor-pointer ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-500 border-gray-100'}`}
+                >
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                    {isSyncBadgeExpanded ? (
+                        <>
+                            {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                            {!isSyncing && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        syncProducts(true);
+                                    }}
+                                    className="ml-1 hover:text-blue-500"
+                                    title="Sincronizar ahora"
+                                    type="button"
+                                >
+                                    🔄
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        isSyncing && <span className="ml-1">Sincronizando...</span>
                     )}
                 </div>
             </div>

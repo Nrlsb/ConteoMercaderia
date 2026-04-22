@@ -267,6 +267,40 @@ app.get('/api/health', (req, res) => {
     res.send('Control de Remitos API Running');
 });
 
+// Bug Report Endpoint
+app.post('/api/reports', verifyToken, async (req, res) => {
+    const { description, errorData, pageUrl, userAgent, appVersion } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('bug_reports')
+            .insert([{
+                user_id: req.user.id,
+                username: req.user.username,
+                description,
+                error_data: errorData || {},
+                page_url: pageUrl,
+                user_agent: userAgent,
+                app_version: appVersion,
+                sucursal_id: req.user.sucursal_id,
+                status: 'open',
+                created_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        
+        console.log(`[BUG REPORT] Nuevo reporte de ${req.user.username}: ${description?.substring(0, 50)}...`);
+        
+        res.status(201).json({ message: 'Reporte enviado con éxito', data });
+    } catch (error) {
+        console.error('Error saving bug report:', error);
+        res.status(500).json({ message: 'Error al enviar el reporte' });
+    }
+});
+
+
 // Helper to extract capacity from description (e.g., "X 1", "X 4")
 const getCapacityFromDescription = (description) => {
     if (!description) return 999999;
@@ -949,8 +983,6 @@ app.get('/api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'),
                 hasMore = false;
             }
         }
-
-        if (error) throw error;
 
         // Enrich with usernames and product descriptions
         const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
@@ -1769,7 +1801,7 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
             await supabase.from('egreso_items_history').insert({
                 egreso_id: id,
                 user_id: req.user.id,
-                operation: existingItem ? 'UPDATE_SCANNED' : 'INSERT_SCANNED',
+                operation: 'UPDATE_SCANNED',
                 product_code: productCode,
                 old_data: { scanned_quantity: oldScanned },
                 new_data: { scanned_quantity: newScanned },
@@ -1778,10 +1810,95 @@ app.post('/api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), as
         }
 
         res.json(savedItem);
-
     } catch (error) {
         console.error('Error scanning egreso item:', error);
-        res.status(500).json({ message: 'Error scanning item' });
+        res.status(500).json({ message: 'Error at processing scan' });
+    }
+});
+
+// Resolve a failed PDF item by linking it to a correct catalog product
+app.post('/api/egresos/:id/resolve-failed', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+    const { id } = req.params;
+    const { index, productCode } = req.body;
+
+    if (index === undefined || !productCode) {
+        return res.status(400).json({ message: 'Missing index or productCode' });
+    }
+
+    try {
+        // 1. Fetch the egreso to get failed_items
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (egresoError || !egreso) throw egresoError || new Error('Egreso no encontrado');
+        if (egreso.status === 'finalized') return res.status(400).json({ message: 'No se puede modificar un egreso finalizado' });
+
+        const failedItems = egreso.failed_items || [];
+        if (index < 0 || index >= failedItems.length) {
+            return res.status(404).json({ message: 'Item fallido no encontrado en la lista' });
+        }
+
+        const itemToResolve = failedItems[index];
+
+        // 2. Fetch the correct product
+        const { data: product } = await supabase
+            .from('products')
+            .select('code, description')
+            .eq('code', productCode)
+            .maybeSingle();
+
+        if (!product) return res.status(404).json({ message: 'Producto del catálogo no encontrado' });
+
+        // 3. Insert or update in egreso_items
+        const { data: existingItem } = await supabase
+            .from('egreso_items')
+            .select('*')
+            .eq('egreso_id', id)
+            .eq('product_code', product.code)
+            .maybeSingle();
+
+        const newExpected = (existingItem ? (Number(existingItem.expected_quantity) || 0) : 0) + (Number(itemToResolve.quantity) || 0);
+
+        const { error: saveError } = await supabase
+            .from('egreso_items')
+            .upsert({
+                egreso_id: id,
+                product_code: product.code,
+                expected_quantity: newExpected
+            }, { onConflict: 'egreso_id, product_code' });
+
+        if (saveError) throw saveError;
+
+        // 4. Remove from failed_items
+        const updatedFailedItems = [...failedItems];
+        updatedFailedItems.splice(index, 1);
+
+        const { error: updateEgresoError } = await supabase
+            .from('egresos')
+            .update({ failed_items: updatedFailedItems })
+            .eq('id', id);
+
+        if (updateEgresoError) throw updateEgresoError;
+
+        // 5. Log History
+        await supabase.from('egreso_items_history').insert({
+            egreso_id: id,
+            user_id: req.user.id,
+            operation: 'PDF_IMPORT',
+            product_code: product.code,
+            description: `Vinculación manual de item fallido: ${itemToResolve.description} (${itemToResolve.code})`,
+            old_data: { expected_quantity: existingItem ? Number(existingItem.expected_quantity) : 0 },
+            new_data: { expected_quantity: newExpected },
+            changed_at: new Date().toISOString()
+        });
+
+        res.json({ success: true, message: 'Producto vinculado correctamente' });
+    } catch (error) {
+        console.error('Error resolving failed item:', error);
+        res.status(500).json({ message: 'Error interno al vincular el producto' });
     }
 });
 
@@ -1975,26 +2092,36 @@ app.get('/api/egresos/:id/export', verifyToken, verifyBranchAccess('egresos'), a
 
 // Get pending transfers for current branch
 app.get('/api/branch-transfers/pending', verifyToken, async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
     try {
         let query = supabase
             .from('egresos')
             .select(`
                 *,
                 sucursal:sucursales (name)
-            `)
+            `, { count: 'exact' })
             .eq('status', 'finalized')
             .is('receipt_id', null)
             .order('date', { ascending: false });
 
         // If user is not admin/superadmin, filter by their branch
-        // Note: As per user request, admins see ALL pending transfers
         if (!['superadmin', 'admin'].includes(req.user.role) && req.user.sucursal_id) {
             query = query.eq('sucursal_id', req.user.sucursal_id);
         }
 
-        const { data, error } = await query;
+        const { data, error, count } = await query.range(from, to);
         if (error) throw error;
-        res.json(data);
+        
+        res.json({
+            data,
+            total: count,
+            page,
+            totalPages: Math.ceil((count || 0) / limit)
+        });
     } catch (error) {
         console.error('Error fetching pending transfers:', error);
         res.status(500).json({ message: 'Error al obtener transferencias pendientes' });
@@ -2095,10 +2222,15 @@ app.post('/api/branch-transfers/:id/receive', verifyToken, async (req, res) => {
 
 // Get receipts created from branch transfers
 app.get('/api/branch-transfers/receipts', verifyToken, async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
     try {
         let query = supabase
             .from('receipts')
-            .select('*')
+            .select('*', { count: 'exact' })
             .eq('type', 'sucursal_transfer')
             .is('deleted_at', null)
             .order('date', { ascending: false });
@@ -2108,9 +2240,15 @@ app.get('/api/branch-transfers/receipts', verifyToken, async (req, res) => {
             query = query.eq('sucursal_id', req.user.sucursal_id);
         }
 
-        const { data, error } = await query;
+        const { data, error, count } = await query.range(from, to);
         if (error) throw error;
-        res.json(data);
+
+        res.json({
+            data,
+            total: count,
+            page,
+            totalPages: Math.ceil((count || 0) / limit)
+        });
     } catch (error) {
         console.error('Error fetching branch transfer receipts:', error);
         res.status(500).json({ message: 'Error al obtener los ingresos de sucursal' });
@@ -2307,8 +2445,13 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
 
 // Get barcode history
 app.get('/api/barcode-history', verifyToken, async (req, res) => {
-    const { startDate, endDate, user_id, action_type } = req.query;
+    const { startDate, endDate, user_id, action_type, page = 1, limit = 50 } = req.query;
     try {
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const from = (pageNum - 1) * limitNum;
+        const to = from + limitNum - 1;
+
         let query = supabase
             .from('barcode_history')
             .select(`
@@ -2321,12 +2464,15 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
                 created_at,
                 users:created_by (username),
                 products:product_id (barcode)
-            `)
+            `, { count: 'exact' })
             .order('created_at', { ascending: false });
 
         // Apply filters
         if (user_id) {
-            query = query.eq('created_by', user_id);
+            const userIds = user_id.split(',').filter(id => id.trim() !== '');
+            if (userIds.length > 0) {
+                query = query.in('created_by', userIds);
+            }
         }
         if (action_type) {
             query = query.eq('action_type', action_type);
@@ -2334,32 +2480,25 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
 
         // Apply date filters if available
         if (startDate) {
-            // Para fecha inicio, tomamos desde el comienzo del día
             const startStr = `${startDate}T00:00:00.000Z`;
             query = query.gte('created_at', startStr);
         }
         if (endDate) {
-            // Para fecha fin, abarcamos todo el día hasta las 23:59:59
             const endStr = `${endDate}T23:59:59.999Z`;
             query = query.lte('created_at', endStr);
         }
 
-        // Aplicar un rango amplio para evitar el límite por defecto de 1000 de Supabase
-        // Para consultas filtradas (fecha/usuario), permitimos hasta 10,000 registros
-        if (startDate || endDate || user_id) {
-            query = query.range(0, 9999);
-        } else if (action_type === 'SCAN') {
-            // Si es la vista de Layout pero sin filtros, mostramos los últimos 1000 por defecto
-            query = query.limit(1000);
-        } else {
-            // Para historial general sin filtros, mantenemos un límite razonable
-            query = query.limit(300);
-        }
-
-        const { data: history, error } = await query;
+        const { data: history, count, error } = await query.range(from, to);
 
         if (error) throw error;
-        res.json(history);
+        
+        res.json({
+            data: history,
+            total: count,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil((count || 0) / limitNum)
+        });
     } catch (error) {
         console.error('Error fetching barcode history:', error);
         res.status(500).json({ message: 'Error al obtener el historial de códigos' });
@@ -2374,15 +2513,12 @@ app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
             return res.status(400).json({ message: 'Debe seleccionar Fecha Desde y Fecha Hasta obligatoriamente.' });
         }
 
-        let query = supabase
-            .from('barcode_history')
-            .select('product_id')
-            .gte('created_at', `${startDate}T00:00:00.000Z`)
-            .lte('created_at', `${endDate}T23:59:59.999Z`)
-            .range(0, 9999); // Asegurar que exportamos más de los 1000 por defecto
-
-        const { data: history, error } = await query;
-        if (error) throw error;
+        // Usar la función helper para obtener todo el historial sin límites
+        const history = await getAllBarcodeHistory({ 
+            startDate, 
+            endDate,
+            action_type: null // Para exportación CSV genérica
+        });
 
         if (!history || history.length === 0) {
             return res.status(404).json({ message: 'No hay datos para exportar en este período' });
@@ -2444,34 +2580,8 @@ app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
 app.get('/api/barcode-history/layout-excel', verifyToken, async (req, res) => {
     const { startDate, endDate, user_id } = req.query;
     try {
-        let query = supabase
-            .from('barcode_history')
-            .select(`
-                id,
-                action_type,
-                product_description,
-                created_at,
-                users:created_by (username),
-                products:product_id (barcode, code, provider_code)
-            `)
-            .eq('action_type', 'SCAN')
-            .order('created_at', { ascending: false });
-
-        if (user_id) {
-            query = query.eq('created_by', user_id);
-        }
-
-        if (startDate) {
-            query = query.gte('created_at', `${startDate}T00:00:00.000Z`);
-        }
-        if (endDate) {
-            query = query.lte('created_at', `${endDate}T23:59:59.999Z`);
-        }
-
-        // Fetch up to 10,000 records for the full layout
-        const { data: history, error } = await query.range(0, 9999);
-
-        if (error) throw error;
+        // Obtener historial completo usando la función helper
+        const history = await getAllBarcodeHistory({ startDate, endDate, user_id, action_type: 'SCAN' });
 
         if (!history || history.length === 0) {
             return res.status(404).json({ message: 'No hay datos para exportar en el rango seleccionado' });
@@ -2549,6 +2659,36 @@ app.post('/api/barcode-history', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error recording barcode history:', error);
         res.status(500).json({ message: 'Error registrando el cambio en el historial' });
+    }
+});
+
+app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
+    const { items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'No hay items para registrar' });
+    }
+
+    try {
+        const records = items.map(item => ({
+            action_type: item.action_type || 'SCAN',
+            product_id: item.product_id || null,
+            product_description: item.product_description,
+            details: item.details || `Re-escaneo desde historial: ${item.details}`,
+            created_by: req.user.id,
+            created_at: item.created_at || new Date().toISOString()
+        }));
+
+        const { data, error } = await supabase
+            .from('barcode_history')
+            .insert(records)
+            .select();
+
+        if (error) throw error;
+        res.status(201).json(data);
+    } catch (error) {
+        console.error('Error recording bulk barcode history:', error);
+        res.status(500).json({ message: 'Error registrando los cambios en lote' });
     }
 });
 
@@ -6344,6 +6484,67 @@ async function getAllScansBatch(orderNumbers) {
         }
     }
     return allScans;
+}
+
+// Helper to fetch ALL barcode history with batching (Supabase 1000 limit)
+async function getAllBarcodeHistory(filters = {}) {
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+        let query = supabase
+            .from('barcode_history')
+            .select(`
+                id,
+                action_type,
+                product_id,
+                product_description,
+                details,
+                created_by,
+                created_at,
+                users:created_by (username),
+                products:product_id (barcode, code, provider_code)
+            `)
+            .order('created_at', { ascending: false });
+
+        if (filters.action_type) query = query.eq('action_type', filters.action_type);
+        if (filters.user_id) {
+            const userIds = Array.isArray(filters.user_id) 
+                ? filters.user_id 
+                : typeof filters.user_id === 'string' 
+                    ? filters.user_id.split(',').filter(id => id.trim() !== '')
+                    : [filters.user_id];
+            
+            if (userIds.length > 0) {
+                query = query.in('created_by', userIds);
+            }
+        }
+        
+        if (filters.startDate) {
+            query = query.gte('created_at', `${filters.startDate}T00:00:00.000Z`);
+        }
+        if (filters.endDate) {
+            query = query.lte('created_at', `${filters.endDate}T23:59:59.999Z`);
+        }
+
+        const { data, error } = await query.range(from, from + step - 1);
+        
+        if (error) {
+            console.error('Error in getAllBarcodeHistory batch:', error);
+            throw error;
+        }
+
+        if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            from += step;
+            if (data.length < step) hasMore = false;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allData;
 }
 
 // The catch-all handler must be at the end, after all other routes

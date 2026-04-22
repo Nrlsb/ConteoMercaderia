@@ -8,7 +8,7 @@ import { db } from '../db';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { useProductSync } from '../hooks/useProductSync';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw } from 'lucide-react';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 
 const BarcodeControl = () => {
     const [scannedBarcode, setScannedBarcode] = useState('');
@@ -23,6 +23,9 @@ const BarcodeControl = () => {
     useEffect(() => {
         syncProducts();
     }, []);
+
+    // Sync Badge Expansion State
+    const [isSyncBadgeExpanded, setIsSyncBadgeExpanded] = useState(() => localStorage.getItem('isSyncBadgeExpanded') !== 'false');
 
     // Edit state
     const [editMode, setEditMode] = useState(false);
@@ -56,8 +59,26 @@ const BarcodeControl = () => {
     const [endDate, setEndDate] = useState('');
     const [layoutHistory, setLayoutHistory] = useState([]);
     const [layoutLoading, setLayoutLoading] = useState(false);
-    const [selectedUserId, setSelectedUserId] = useState('');
+    const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [usersList, setUsersList] = useState([]);
+
+    // History pagination state
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyTotalPages, setHistoryTotalPages] = useState(1);
+    const [historyTotal, setHistoryTotal] = useState(0);
+
+    // Layout pagination state
+    const [layoutPage, setLayoutPage] = useState(1);
+    const [layoutTotalPages, setLayoutTotalPages] = useState(1);
+    const [layoutTotal, setLayoutTotal] = useState(0);
+    // Layout Multi-user filter state
+    const [showUserFilter, setShowUserFilter] = useState(false);
+    const userFilterRef = useRef(null);
+    
+    // Selection state for History
+    const [selectedHistory, setSelectedHistory] = useState([]);
+
+
     const [saveToLayout, setSaveToLayout] = useState(() => {
         const saved = localStorage.getItem('saveToLayout');
         return saved !== null ? JSON.parse(saved) : true;
@@ -78,6 +99,16 @@ const BarcodeControl = () => {
     // Guide state
     const [showGuide, setShowGuide] = useState(false);
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (userFilterRef.current && !userFilterRef.current.contains(event.target)) {
+                setShowUserFilter(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     // Save toggle preferences to localStorage
     useEffect(() => {
         localStorage.setItem('saveToLayout', JSON.stringify(saveToLayout));
@@ -91,10 +122,10 @@ const BarcodeControl = () => {
     useEffect(() => {
         checkPendingSync();
         if (activeTab === 'history') {
-            fetchHistory();
+            fetchHistory(1);
         } else if (activeTab === 'layout') {
             syncOfflineLayoutData(); // Intentar sincronizar al entrar a layout
-            fetchLayout();
+            fetchLayout(1);
             fetchUsersForFilter();
         }
 
@@ -167,21 +198,27 @@ const BarcodeControl = () => {
         }
     };
 
-    const fetchLayout = async () => {
+    const fetchLayout = async (page = 1) => {
         setLayoutLoading(true);
         try {
-            let url = '/api/barcode-history?action_type=SCAN';
+            let url = `/api/barcode-history?action_type=SCAN&page=${page}&limit=20`;
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
-            if (selectedUserId) params.append('user_id', selectedUserId);
+            if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
 
             if (params.toString()) {
                 url += `&${params.toString()}`;
             }
 
             const response = await api.get(url);
-            setLayoutHistory(response.data);
+            // El backend ahora devuelve un objeto con data, total, page, totalPages
+            const { data, total, page: respPage, totalPages } = response.data;
+            
+            setLayoutHistory(data || []);
+            setLayoutPage(respPage);
+            setLayoutTotalPages(totalPages);
+            setLayoutTotal(total);
         } catch (err) {
             console.error('Error fetching layout:', err);
             toast.error('Error al cargar el layout');
@@ -190,26 +227,95 @@ const BarcodeControl = () => {
         }
     };
 
-    const fetchHistory = async () => {
+    const fetchHistory = async (page = 1) => {
         setHistoryLoading(true);
         try {
-            let url = '/api/barcode-history';
+            let url = `/api/barcode-history?page=${page}&limit=20`;
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
 
             if (params.toString()) {
-                url += `?${params.toString()}`;
+                url += `&${params.toString()}`;
             }
 
             const response = await api.get(url);
-            setActionHistory(response.data);
+            const { data, total, page: respPage, totalPages } = response.data;
+
+            setActionHistory(data || []);
+            setHistoryPage(respPage);
+            setHistoryTotalPages(totalPages);
+            setHistoryTotal(total);
         } catch (err) {
             console.error('Error fetching history:', err);
             toast.error('Error al cargar el historial');
         } finally {
             setHistoryLoading(false);
         }
+    };
+
+    const renderPagination = (currentPage, totalPages, totalItems, onPageChange) => {
+        if (totalPages <= 1) return null;
+
+        const pages = [];
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+
+        return (
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm animate-fade-in">
+                <div className="text-sm text-gray-500">
+                    Mostrando <span className="font-semibold text-gray-800">{(currentPage - 1) * 20 + 1}</span> a <span className="font-semibold text-gray-800">{Math.min(currentPage * 20, totalItems)}</span> de <span className="font-semibold text-gray-800">{totalItems}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-gray-600"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    
+                    {startPage > 1 && (
+                        <>
+                            <button onClick={() => onPageChange(1)} className="w-9 h-9 rounded-lg text-sm font-medium hover:bg-gray-100 transition-all text-gray-600">1</button>
+                            {startPage > 2 && <span className="text-gray-400 px-1">...</span>}
+                        </>
+                    )}
+
+                        <button
+                            key={p}
+                            onClick={() => onPageChange(p)}
+                            className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${currentPage === p ? 'bg-primary-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                            {p}
+                        </button>
+
+                    {endPage < totalPages && (
+                        <>
+                            {endPage < totalPages - 1 && <span className="text-gray-400 px-1">...</span>}
+                            <button onClick={() => onPageChange(totalPages)} className="w-9 h-9 rounded-lg text-sm font-medium hover:bg-gray-100 transition-all text-gray-600">{totalPages}</button>
+                        </>
+                    )}
+
+                    <button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-gray-600"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+        );
     };
 
     const handleExportExcel = async () => {
@@ -264,7 +370,7 @@ const BarcodeControl = () => {
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
-            if (selectedUserId) params.append('user_id', selectedUserId);
+            if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
 
             const url = `/api/barcode-history/layout-excel?${params.toString()}`;
             
@@ -635,6 +741,54 @@ const BarcodeControl = () => {
             console.error('Link error:', err);
             const msg = err.response?.data?.message || 'Error al vincular el código';
             toast.error(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleToggleHistorySelection = (item) => {
+        setSelectedHistory(prev => {
+            const isSelected = prev.find(i => i.id === item.id);
+            if (isSelected) {
+                return prev.filter(i => i.id !== item.id);
+            } else {
+                return [...prev, item];
+            }
+        });
+    };
+
+    const handleSelectAllHistory = () => {
+        if (selectedHistory.length === actionHistory.length && actionHistory.length > 0) {
+            setSelectedHistory([]);
+        } else {
+            setSelectedHistory([...actionHistory]);
+        }
+    };
+
+    const handleBatchToLayout = async () => {
+        if (selectedHistory.length === 0) return;
+        
+        if (!window.confirm(`¿Estás seguro de que quieres pasar ${selectedHistory.length} productos al Layout?`)) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const itemsToProcess = selectedHistory.map(item => ({
+                action_type: 'SCAN',
+                product_id: item.product_id,
+                product_description: item.product_description,
+                details: item.details,
+                created_at: item.created_at
+            }));
+
+            await api.post('/api/barcode-history/bulk', { items: itemsToProcess });
+            
+            toast.success(`${selectedHistory.length} productos pasados al Layout correctamente`);
+            setSelectedHistory([]);
+        } catch (err) {
+            console.error('Error in batch move to layout:', err);
+            toast.error('Error al pasar productos al Layout');
         } finally {
             setLoading(false);
         }
@@ -1213,7 +1367,7 @@ const BarcodeControl = () => {
                                 </div>
                                 <div className="w-full sm:w-auto flex flex-row gap-2">
                                     <button
-                                        onClick={fetchHistory}
+                                        onClick={() => fetchHistory(1)}
                                         className="flex-1 sm:flex-none btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                                         disabled={historyLoading}
                                     >
@@ -1240,45 +1394,81 @@ const BarcodeControl = () => {
                                         <History className="w-5 h-5 text-gray-500" />
                                         Historial {startDate || endDate ? 'Filtrado' : 'Reciente'}
                                     </h3>
+                                    {actionHistory.length > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={handleSelectAllHistory}
+                                                className="text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-100 transition-colors"
+                                            >
+                                                {selectedHistory.length === actionHistory.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
+                                            </button>
+                                            {selectedHistory.length > 0 && (
+                                                <button
+                                                    onClick={handleBatchToLayout}
+                                                    className="text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                >
+                                                    <ClipboardList className="w-3.5 h-3.5" /> Pasar {selectedHistory.length} al Layout
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="space-y-3">
                                     {actionHistory.map(item => (
-                                        <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow transition-shadow">
-                                            <div>
-                                                <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                    <p className="font-semibold text-gray-800 text-base">{item.product_description}</p>
-                                                    {item.products?.barcode && (
-                                                        <span className="text-xs bg-primary-50 text-primary-700 border border-primary-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
-                                                            <Barcode className="w-3 h-3" /> {item.products.barcode}
-                                                        </span>
-                                                    )}
-                                                    {item.users?.username && (
-                                                        <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                            <User className="w-3 h-3" /> {item.users.username}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="mt-1.5 flex items-center gap-2">
-                                                    {item.action_type === 'edit' ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100 text-blue-700 font-medium text-xs">
-                                                            <Edit className="w-4 h-4" />
-                                                            Editado: {item.details}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-100 text-green-700 font-medium text-xs">
-                                                            <Link className="w-4 h-4" />
-                                                            Vinculado: {item.details}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                        <div 
+                                            key={item.id} 
+                                            className={`bg-gray-50 border ${selectedHistory.find(i => i.id === item.id) ? 'border-primary-400 bg-primary-50/30' : 'border-gray-200'} rounded-lg p-3 sm:p-4 text-sm flex items-center gap-3 shadow-sm hover:shadow transition-all group cursor-pointer`}
+                                            onClick={() => handleToggleHistorySelection(item)}
+                                        >
+                                            <div className="flex-shrink-0 flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!selectedHistory.find(i => i.id === item.id)}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleHistorySelection(item);
+                                                    }}
+                                                    className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                                />
                                             </div>
-                                            <div className="text-xs text-gray-500 flex items-center gap-1.5 sm:justify-end border-t sm:border-t-0 border-gray-200 pt-2 sm:pt-0 shrink-0">
-                                                <Clock className="w-4 h-4" />
-                                                {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                            <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div>
+                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                        <p className="font-semibold text-gray-800 text-base">{item.product_description}</p>
+                                                        {item.products?.barcode && (
+                                                            <span className="text-xs bg-primary-50 text-primary-700 border border-primary-200 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                                                                <Barcode className="w-3 h-3" /> {item.products.barcode}
+                                                            </span>
+                                                        )}
+                                                        {item.users?.username && (
+                                                            <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                <User className="w-3 h-3" /> {item.users.username}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-1.5 flex items-center gap-2">
+                                                        {item.action_type === 'edit' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-100 text-blue-700 font-medium text-xs">
+                                                                <Edit className="w-4 h-4" />
+                                                                Editado: {item.details}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-100 text-green-700 font-medium text-xs">
+                                                                <Link className="w-4 h-4" />
+                                                                Vinculado: {item.details}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="text-xs text-gray-500 flex items-center gap-1.5 sm:justify-end border-t sm:border-t-0 border-gray-200 pt-2 sm:pt-0 shrink-0">
+                                                    <Clock className="w-4 h-4" />
+                                                    {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
+                                {renderPagination(historyPage, historyTotalPages, historyTotal, fetchHistory)}
                             </div>
                         ) : (
                             <div className="text-center py-10 text-gray-500">
@@ -1295,18 +1485,60 @@ const BarcodeControl = () => {
                         {/* Filters */}
                         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
-                                <div className="w-full sm:w-auto flex-1">
-                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Usuario</label>
-                                    <select
-                                        value={selectedUserId}
-                                        onChange={(e) => setSelectedUserId(e.target.value)}
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white"
+                                <div className="w-full sm:w-auto flex-1 relative" ref={userFilterRef}>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Usuarios</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowUserFilter(!showUserFilter)}
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white flex items-center justify-between gap-2 min-h-[38px] transition-all hover:border-primary-400"
                                     >
-                                        <option value="">Todos los usuarios</option>
-                                        {usersList.map(u => (
-                                            <option key={u.id} value={u.id}>{u.username}</option>
-                                        ))}
-                                    </select>
+                                        <span className="truncate">
+                                            {selectedUserIds.length === 0 
+                                                ? 'Todos los usuarios' 
+                                                : selectedUserIds.length === 1 
+                                                    ? usersList.find(u => u.id === selectedUserIds[0])?.username 
+                                                    : `${selectedUserIds.length} seleccionados`}
+                                        </span>
+                                        <ChevronDown className={`w-4 h-4 transition-transform ${showUserFilter ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {showUserFilter && (
+                                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="p-2 border-b sticky top-0 bg-white flex justify-between items-center">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setSelectedUserIds([])}
+                                                    className="text-[10px] font-bold text-primary-600 hover:bg-primary-50 px-2 py-1 rounded transition-colors"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                                <span className="text-[10px] text-gray-400 font-medium">
+                                                    {selectedUserIds.length} seleccionados
+                                                </span>
+                                            </div>
+                                            <div className="p-1">
+                                                {usersList.map(u => (
+                                                    <label 
+                                                        key={u.id} 
+                                                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedUserIds.includes(u.id)}
+                                                            onChange={() => {
+                                                                const newIds = selectedUserIds.includes(u.id)
+                                                                    ? selectedUserIds.filter(id => id !== u.id)
+                                                                    : [...selectedUserIds, u.id];
+                                                                setSelectedUserIds(newIds);
+                                                            }}
+                                                            className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                        />
+                                                        <span className="text-sm text-gray-700 font-medium">{u.username}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="w-full sm:w-auto flex-1">
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha Desde</label>
@@ -1328,7 +1560,7 @@ const BarcodeControl = () => {
                                 </div>
                                 <div className="w-full sm:w-auto flex gap-2">
                                     <button
-                                        onClick={fetchLayout}
+                                        onClick={() => fetchLayout(1)}
                                         className="flex-1 sm:flex-none btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                                         disabled={layoutLoading}
                                     >
@@ -1360,14 +1592,14 @@ const BarcodeControl = () => {
                                         <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors">
                                             <div className="flex items-center gap-3 w-full sm:w-auto">
                                                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
-                                                    {layoutHistory.length - index}
+                                                    {layoutTotal - ((layoutPage - 1) * 20) - index}
                                                 </div>
                                                 <div>
                                                     <p className="font-bold text-gray-900">{item.product_description}</p>
                                                     <div className="flex flex-wrap gap-2 mt-1">
                                                         {item.products?.barcode && (
                                                             <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono flex items-center gap-1 border border-gray-200">
-                                                                <Barcode className="w-3 h-3" /> {item.products.barcode}
+                                                                 <Barcode className="w-3 h-3" /> {item.products.barcode}
                                                             </span>
                                                         )}
                                                         {item.users?.username && (
@@ -1385,6 +1617,7 @@ const BarcodeControl = () => {
                                         </div>
                                     ))}
                                 </div>
+                                {renderPagination(layoutPage, layoutTotalPages, layoutTotal, fetchLayout)}
                             </div>
                         ) : (
                             <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
@@ -1482,13 +1715,34 @@ const BarcodeControl = () => {
 
             {/* Sync Status Badge */}
             <div className="fixed bottom-20 right-4 z-40">
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-400 border-gray-100'}`}>
-                    <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
-                    {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
-                    {!isSyncing && (
-                        <button onClick={() => syncProducts(true)} className="ml-1 hover:text-blue-500" title="Sincronizar ahora" type="button">
-                            <RotateCcw className="w-3 h-3" />
-                        </button>
+                <div
+                    onClick={() => {
+                        const newState = !isSyncBadgeExpanded;
+                        setIsSyncBadgeExpanded(newState);
+                        localStorage.setItem('isSyncBadgeExpanded', newState);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg text-[10px] font-bold border transition-all cursor-pointer ${isSyncing ? 'bg-blue-500 text-white border-blue-400 animate-pulse' : 'bg-white text-gray-400 border-gray-100'}`}
+                >
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSyncing ? 'bg-white' : 'bg-green-500'}`}></div>
+                    {isSyncBadgeExpanded ? (
+                        <>
+                            {isSyncing ? 'SINCRONIZANDO...' : `CATÁLOGO: ${lastSync ? lastSync.toLocaleTimeString([]) : 'PENDIENTE'}`}
+                            {!isSyncing && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        syncProducts(true);
+                                    }}
+                                    className="ml-1 hover:text-blue-500"
+                                    title="Sincronizar ahora"
+                                    type="button"
+                                >
+                                    <RotateCcw className="w-3 h-3" />
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        isSyncing && <span className="ml-1">Sincronizando...</span>
                     )}
                 </div>
             </div>

@@ -440,82 +440,81 @@ const EgresosList = () => {
 
     return (
         <div className="container mx-auto p-4 max-w-lg md:max-w-6xl">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">Egreso de Mercadería</h1>
-                {canUploadPdf && (
-                    <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".pdf"
-                            multiple
-                            onChange={handleFileSelect}
-                            className="hidden"
-                            id="pdf-upload"
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploading}
-                            className="bg-brand-blue hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {uploading ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                    {uploadProgress}
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                    </svg>
-                                    Cargar PDF
-                                </>
-                            )}
-                        </button>
-                        {!folderName ? (
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={connectFolder}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
-                                    title="Conectar una carpeta local y subir PDFs automáticamente"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                                    </svg>
-                                    Carpeta Auto
-                                </button>
-                                <button
-                                    onClick={() => setShowFolderGuide(true)}
-                                    className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold text-sm flex items-center justify-center transition-colors border border-emerald-300"
-                                    title="Ver guía de uso"
-                                >
-                                    !
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={disconnectFolder}
-                                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2.5 px-5 rounded-lg shadow-md transition-colors flex items-center gap-2"
-                                    title="Desconectar carpeta"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6" />
-                                    </svg>
-                                    Desconectar
-                                </button>
-                                <button
-                                    onClick={() => setShowFolderGuide(true)}
-                                    className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-colors border border-gray-300"
-                                    title="Ver guía de uso"
-                                >
-                                    !
-                                </button>
-                            </div>
-                        )}
+            <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="space-y-1">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Egreso de Mercadería</h1>
+                        <p className="text-sm text-gray-500 font-medium">Gestioná tus remitos y cargas automáticas</p>
                     </div>
-                )}
+                    {canUploadPdf && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".pdf"
+                                multiple
+                                onChange={handleFileSelect}
+                                className="hidden"
+                                id="pdf-upload"
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploading}
+                                className="group relative overflow-hidden bg-brand-blue hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 disabled:opacity-50"
+                            >
+                                <div className="absolute inset-0 bg-linear-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                {uploading ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        <span className="truncate max-w-[150px]">{uploadProgress}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                        </svg>
+                                        <span>Cargar PDF</span>
+                                    </>
+                                )}
+                            </button>
+
+                            <div className="relative flex">
+                                {!folderName ? (
+                                    <button
+                                        onClick={connectFolder}
+                                        className="flex-1 group bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 pr-12 rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5"
+                                        title="Conectar una carpeta local y subir PDFs automáticamente"
+                                    >
+                                        <svg className="w-5 h-5 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                        </svg>
+                                        <span>Carpeta Auto</span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={disconnectFolder}
+                                        className="flex-1 group bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 pr-12 rounded-xl shadow-lg shadow-gray-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5"
+                                        title="Desconectar carpeta"
+                                    >
+                                        <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Desconectar</span>
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setShowFolderGuide(true)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors border border-white/10 backdrop-blur-sm"
+                                    title="Ver guía de uso"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Folder guide modal */}
