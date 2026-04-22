@@ -2741,7 +2741,7 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
                         product_id: item.product_id || null,
                         product_description: item.product_description,
                         details: item.details || `Re-escaneo desde historial`,
-                        created_by: req.user.id,
+                        created_by: item.created_by || req.user.id,
                         created_at: item.created_at || new Date().toISOString()
                     });
                     if (item.product_id) seenInThisBatch.add(itemKey);
@@ -2763,7 +2763,12 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
             .select();
 
         if (error) throw error;
-        res.status(201).json(data);
+        res.status(201).json({
+            message: `${recordsToInsert.length} productos agregados.`,
+            processed: recordsToInsert.length,
+            skipped: items.length - recordsToInsert.length,
+            data
+        });
     } catch (error) {
         console.error('Error recording bulk barcode history:', error);
         res.status(500).json({ message: 'Error registrando los cambios en lote' });
@@ -2824,7 +2829,7 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
                         product_id: item.product_id,
                         product_description: item.product_description,
                         details: 'Transferencia masiva desde historial',
-                        created_by: req.user.id,
+                        created_by: item.created_by || req.user.id,
                         created_at: item.created_at // Preservar fecha original
                     });
                     seenInThisProcess.add(itemKey);

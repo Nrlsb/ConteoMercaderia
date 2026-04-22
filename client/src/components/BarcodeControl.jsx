@@ -821,6 +821,7 @@ const BarcodeControl = () => {
                     product_id: item.product_id,
                     product_description: item.product_description,
                     details: item.details || 'Re-escaneo desde historial',
+                    created_by: item.created_by, // Enviar el autor original
                     created_at: item.created_at // Preservar fecha original
                 }));
 
