@@ -2793,12 +2793,17 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
 
         // 1. Agrupar el historial obtenido por día para validación masiva diaria
         const historyByDay = {};
+        const totalCandidates = new Set();
         history.forEach(item => {
             const dateStr = item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
             if (!historyByDay[dateStr]) historyByDay[dateStr] = [];
             historyByDay[dateStr].push(item);
+            if (item.product_id) {
+                totalCandidates.add(`${item.product_id}_${dateStr}`);
+            }
         });
 
+        const totalCandidatesCount = totalCandidates.size;
         const finalProductsToInsert = [];
         const seenInThisProcess = new Set(); // Evitar duplicados dentro de la misma operación
 
@@ -2841,12 +2846,11 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
             return res.status(200).json({ 
                 message: 'No hay productos nuevos para agregar. Todos ya se encuentran en el Layout hoy.',
                 processed: 0,
-                skipped: uniqueProductIds.length 
+                skipped: totalCandidatesCount 
             });
         }
 
         // Insertar en lotes si son muchos para evitar límites de Supabase si fuera necesario
-        // Pero barcode_history suele ser manejable.
         const { data, error } = await supabase
             .from('barcode_history')
             .insert(finalProductsToInsert)
@@ -2857,7 +2861,7 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
         res.status(201).json({
             message: `Sincronización masiva completada: ${finalProductsToInsert.length} productos agregados.`,
             processed: finalProductsToInsert.length,
-            skipped: uniqueProductIds.length - finalProductsToInsert.length,
+            skipped: totalCandidatesCount - finalProductsToInsert.length,
             data
         });
 
