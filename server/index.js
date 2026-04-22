@@ -2424,13 +2424,34 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
     if (oldB === newB) return;
 
     try {
+        const actionType = oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE';
+        const details = oldB ? `De ${oldB} a ${newB || '(vacío)'}` : `Código inicial: ${newB}`;
+
+        // Salvaguarda contra duplicados rápidos (clicks múltiples o reconexiones)
+        // Buscamos si ya se grabó exactamente lo mismo en los últimos 5 segundos
+        const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+        const { data: existing } = await supabase
+            .from('barcode_history')
+            .select('id')
+            .eq('product_id', productId)
+            .eq('action_type', actionType)
+            .eq('details', details)
+            .eq('created_by', userId)
+            .gte('created_at', fiveSecondsAgo)
+            .maybeSingle();
+
+        if (existing) {
+            console.warn(`[HISTORY] Registro duplicado ignorado para producto ${productId} en ventana de 5s.`);
+            return;
+        }
+
         const { error } = await supabase
             .from('barcode_history')
             .insert([{
-                action_type: oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE',
+                action_type: actionType,
                 product_id: productId,
                 product_description: description || 'Sin descripción',
-                details: oldB ? `De ${oldB} a ${newB || '(vacío)'}` : `Código inicial: ${newB}`,
+                details: details,
                 created_by: userId,
                 created_at: new Date().toISOString()
             }]);

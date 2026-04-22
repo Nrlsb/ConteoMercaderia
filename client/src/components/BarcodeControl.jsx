@@ -924,6 +924,7 @@ const BarcodeControl = () => {
                                 onClick={resetView}
                                 className="btn btn-secondary text-sm flex items-center gap-2 w-full sm:w-auto justify-center"
                                 title="Limpiar pantalla"
+                                disabled={loading}
                             >
                                 <RotateCcw className="w-4 h-4" /> Limpiar
                             </button>
@@ -1191,8 +1192,9 @@ const BarcodeControl = () => {
                                             <button
                                                 onClick={handleSaveEdit}
                                                 className="btn btn-primary w-full sm:w-auto"
+                                                disabled={loading}
                                             >
-                                                Guardar Cambios
+                                                {loading ? 'Guardando...' : 'Guardar Cambios'}
                                             </button>
                                         </div>
                                     </div>
@@ -1402,9 +1404,10 @@ const BarcodeControl = () => {
                                                 </button>
                                                 <button
                                                     onClick={() => handleLinkProduct(selectedProductToLink)}
-                                                    className="flex-1 py-2.5 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-all shadow-sm text-sm"
+                                                    className="flex-1 py-2.5 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-all shadow-sm text-sm disabled:opacity-50"
+                                                    disabled={loading}
                                                 >
-                                                    Confirmar
+                                                    {loading ? 'Vinculando...' : 'Confirmar'}
                                                 </button>
                                             </div>
                                         </div>
@@ -1536,6 +1539,7 @@ const BarcodeControl = () => {
                                                 <button
                                                     onClick={handleSelectAllHistory}
                                                     className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
+                                                    disabled={loading}
                                                 >
                                                     {isAllFilteredSelected ? (
                                                         'Deseleccionar TODO el Filtro'
@@ -1548,16 +1552,18 @@ const BarcodeControl = () => {
                                                 {(selectedHistory.length > 0 || isAllFilteredSelected) && (
                                                     <button
                                                         onClick={handleBatchToLayout}
-                                                        className="text-xs font-bold text-white bg-brand-blue hover:bg-brand-blue/90 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                        className="text-xs font-bold text-white bg-brand-blue hover:bg-brand-blue/90 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2 disabled:opacity-50"
+                                                        disabled={loading}
                                                     >
-                                                        <ClipboardList className="w-3.5 h-3.5" /> Pasar {isAllFilteredSelected ? historyTotal : selectedHistory.length} al Layout
+                                                        <ClipboardList className="w-3.5 h-3.5" /> {loading ? 'Procesando...' : `Pasar ${isAllFilteredSelected ? historyTotal : selectedHistory.length} al Layout`}
                                                     </button>
                                                 )}
                                                 {isSuperAdmin && selectedHistory.length > 0 && !isAllFilteredSelected && (
                                                     <button
                                                         onClick={() => handleDeleteBulk(selectedHistory.map(i => i.id), 'Historial')}
-                                                        className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2"
+                                                        className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2 disabled:opacity-50"
                                                         title="Eliminar seleccionados permanentemente"
+                                                        disabled={loading}
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" /> Borrar
                                                     </button>
