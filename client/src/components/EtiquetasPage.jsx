@@ -424,8 +424,8 @@ const EtiquetasPage = () => {
     };
 
     const handleAddMultiProduct = (product) => {
-        if (multiProducts.length >= 6) {
-            toast.error('Límite alcanzado (máx. 6 productos por hoja)');
+        if (multiProducts.length >= 4) {
+            toast.error('Límite alcanzado (máx. 4 productos por hoja)');
             return;
         }
 
@@ -450,7 +450,7 @@ const EtiquetasPage = () => {
 
     const generateMultiProductPDF = async () => {
         const doc = new jsPDF({
-            orientation: 'portrait',
+            orientation: 'landscape',
             unit: 'mm',
             format: 'a4',
             compress: true // Optimización: Activa compresión para envíos múltiples
@@ -460,7 +460,7 @@ const EtiquetasPage = () => {
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const contentWidth = pageWidth - (margin * 2);
-        const labelHeight = (pageHeight - (margin * 2)) / 6; // Aproximadamente 46mm por etiqueta
+        const labelHeight = (pageHeight - (margin * 2)) / 4; // Aproximadamente 47.5mm por etiqueta
 
         let y = margin;
 
@@ -808,7 +808,7 @@ const EtiquetasPage = () => {
                                                                 <Package className="w-5 h-5" />
                                                             </div>
                                                             <div className="flex-grow min-w-0">
-                                                                <div className="font-bold text-gray-900 truncate">{p.description}</div>
+                                                                <div className="font-bold text-gray-900">{p.description}</div>
                                                                 <div className="text-[10px] text-gray-500 font-mono mt-0.5">
                                                                     ID: {p.code} {p.barcode && <span className="ml-2 text-blue-400 font-bold">| {p.barcode}</span>}
                                                                 </div>
@@ -1001,8 +1001,8 @@ const EtiquetasPage = () => {
                                         Añadir productos
                                     </label>
                                     <div className="flex items-center gap-2 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-blue-100 shadow-sm">
-                                        <span className={`text-[10px] sm:text-xs font-black ${multiProducts.length >= 6 ? 'text-red-500' : 'text-blue-600'}`}>
-                                            {multiProducts.length} / 6
+                                        <span className={`text-[10px] sm:text-xs font-black ${multiProducts.length >= 4 ? 'text-red-500' : 'text-blue-600'}`}>
+                                            {multiProducts.length} / 4
                                         </span>
                                     </div>
                                 </div>
@@ -1015,9 +1015,9 @@ const EtiquetasPage = () => {
                                                 type="text"
                                                 value={searchTerm}
                                                 onChange={(e) => handleSearch(e.target.value)}
-                                                placeholder={multiProducts.length >= 6 ? "Límite alcanzado" : "Buscar nombre o código..."}
-                                                disabled={multiProducts.length >= 6}
-                                                className={`w-full px-4 py-3 sm:px-6 sm:py-5 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-base sm:text-lg shadow-sm ${multiProducts.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                placeholder={multiProducts.length >= 4 ? "Límite alcanzado" : "Buscar nombre o código..."}
+                                                disabled={multiProducts.length >= 4}
+                                                className={`w-full px-4 py-3 sm:px-6 sm:py-5 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-base sm:text-lg shadow-sm ${multiProducts.length >= 4 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             />
                                             {searchTerm && (
                                                 <button
@@ -1047,7 +1047,7 @@ const EtiquetasPage = () => {
                                                                 <Package className="w-5 h-5" />
                                                             </div>
                                                             <div className="flex-grow min-w-0">
-                                                                <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors truncate">{p.description}</div>
+                                                                <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">{p.description}</div>
                                                                 <div className="text-[10px] text-gray-500 font-mono flex items-center gap-2">
                                                                     <span className="bg-gray-100 px-1 py-0.5 rounded">COD: {p.code}</span>
                                                                     {p.barcode && <span className="text-blue-400 font-bold">| {p.barcode}</span>}
@@ -1065,16 +1065,16 @@ const EtiquetasPage = () => {
                                     <div className="flex gap-2 w-full">
                                         <button
                                             onClick={handleVoiceSearch}
-                                            disabled={multiProducts.length >= 6}
-                                            className={`flex-1 p-3.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs shadow-sm ${isListening ? 'bg-red-50 border-red-200 text-red-600 active:scale-95' : 'bg-white border-gray-100 text-gray-500 hover:border-blue-500 hover:text-blue-600 active:scale-95'} ${multiProducts.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={multiProducts.length >= 4}
+                                            className={`flex-1 p-3.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs shadow-sm ${isListening ? 'bg-red-50 border-red-200 text-red-600 active:scale-95' : 'bg-white border-gray-100 text-gray-500 hover:border-blue-500 hover:text-blue-600 active:scale-95'} ${multiProducts.length >= 4 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <Mic className={`w-4 h-4 ${isListening ? 'animate-pulse' : ''}`} />
                                             {isListening ? 'Escuchando...' : 'Voz'}
                                         </button>
                                         <button
                                             onClick={() => setIsScanning(true)}
-                                            disabled={multiProducts.length >= 6}
-                                            className={`flex-1 p-3.5 rounded-xl border-2 bg-white border-gray-100 text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-all flex items-center justify-center gap-2 font-bold text-xs shadow-sm active:scale-95 ${multiProducts.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={multiProducts.length >= 4}
+                                            className={`flex-1 p-3.5 rounded-xl border-2 bg-white border-gray-100 text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-all flex items-center justify-center gap-2 font-bold text-xs shadow-sm active:scale-95 ${multiProducts.length >= 4 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <Camera className="w-4 h-4" />
                                             Cámara
@@ -1221,10 +1221,10 @@ const EtiquetasPage = () => {
                                                             {new Date(entry.created_at).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
                                                         </span>
                                                     </div>
-                                                    <p className="font-bold text-gray-900 mt-1 truncate max-w-[250px] sm:max-w-[400px]">
+                                                    <p className="font-bold text-gray-900 mt-1">
                                                         {entry.type === 'individual' 
                                                             ? entry.data.product?.description || 'Sin nombre'
-                                                            : `${entry.data.products?.length || 0} productos (${entry.data.products?.slice(0, 2).map(p => p.description).join(', ')}...)`
+                                                            : `${entry.data.products?.length || 0} productos (${entry.data.products?.map(p => p.description).join(', ')})`
                                                         }
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1">
