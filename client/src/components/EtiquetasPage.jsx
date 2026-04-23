@@ -86,10 +86,32 @@ const EtiquetasPage = () => {
     };
 
     const saveToHistory = async (type, data) => {
+        const historyData = { type, data };
+        
+        // Background sync / Offline support
+        if (!navigator.onLine) {
+            try {
+                await db.pending_syncs.add({
+                    type: 'label_history',
+                    data: historyData,
+                    timestamp: Date.now()
+                });
+                return;
+            } catch (e) { console.error("Error saving label history locally", e); }
+        }
+
         try {
-            await api.post('/api/labels/history', { type, data });
+            await api.post('/api/labels/history', historyData);
         } catch (error) {
             console.error('Error saving history:', error);
+            // Emergency fallback
+            try {
+                await db.pending_syncs.add({
+                    type: 'label_history',
+                    data: historyData,
+                    timestamp: Date.now()
+                });
+            } catch (e) { }
         }
     };
 
@@ -120,9 +142,28 @@ const EtiquetasPage = () => {
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
         searchTimeoutRef.current = setTimeout(async () => {
+            // Local search is always priority
             const results = await searchProductsLocally(value);
             setSuggestions(results);
             setShowSuggestions(results.length > 0);
+
+            // If online and few results, try API in background to enrich
+            if (navigator.onLine && results.length < 3) {
+                try {
+                    const response = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                    if (response.data && response.data.length > 0) {
+                        const apiResults = response.data;
+                        setSuggestions(prev => {
+                            const combined = [...prev];
+                            apiResults.forEach(item => {
+                                if (!combined.some(c => c.id === item.id)) combined.push(item);
+                            });
+                            return combined;
+                        });
+                        setShowSuggestions(true);
+                    }
+                } catch (e) { }
+            }
         }, 300);
     };
 
@@ -190,7 +231,7 @@ const EtiquetasPage = () => {
             return;
         }
 
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        const recognition = new (window.window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'es-AR';
         recognition.onstart = () => setIsListening(true);
         recognition.onresult = (event) => {
@@ -209,18 +250,32 @@ const EtiquetasPage = () => {
             setIsEditingBarcode(true);
             setIsScanning(false);
             setIsScanningForUpdate(false);
-            // Auto-save if scanning for update? Let's do it for better UX
             handleUpdateBarcode(code);
             return;
         }
 
         try {
+            // 1. Priority: Local DB (Instant)
             const results = await searchProductsLocally(code);
             if (results && results.length > 0) {
                 handleSelectProduct(results[0]);
                 toast.success('Producto identificado!');
+                setIsScanning(false);
+                return;
+            }
+
+            // 2. Fallback: API (Secondary)
+            if (navigator.onLine) {
+                toast.info('Buscando en catálogo online...');
+                const response = await api.get(`/api/products/search?q=${encodeURIComponent(code)}`);
+                if (response.data && response.data.length > 0) {
+                    handleSelectProduct(response.data[0]);
+                    toast.success('Producto identificado online');
+                } else {
+                    toast.error(`Código ${code} no encontrado.`);
+                }
             } else {
-                toast.error(`Código ${code} no encontrado.`);
+                toast.error(`Código ${code} no encontrado localmente.`);
             }
         } catch (error) {
             console.error('Scan error:', error);
@@ -236,25 +291,21 @@ const EtiquetasPage = () => {
 
         if (!selectedProduct || !selectedProduct.id) return;
 
-        setIsUpdatingBarcode(true);
+        // Optimistic UI update
+        setSelectedProduct(prev => ({ ...prev, barcode: barcodeToSave }));
+        setTempBarcode(barcodeToSave);
+        setIsEditingBarcode(false);
+
+        // Background update
         try {
-            const response = await api.put(`/api/products/${selectedProduct.id}`, {
+            await api.put(`/api/products/${selectedProduct.id}`, {
                 barcode: barcodeToSave
             });
-
-            // Update local state
-            setSelectedProduct(prev => ({ ...prev, barcode: response.data.barcode }));
-            setTempBarcode(response.data.barcode);
-            setIsEditingBarcode(false);
             toast.success('Código de barras actualizado correctamente');
-
-            // Refresh local sync to keep offline DB updated
             syncProducts();
         } catch (error) {
             console.error('Error updating barcode:', error);
-            toast.error('No se pudo actualizar el código de barras');
-        } finally {
-            setIsUpdatingBarcode(false);
+            toast.error('Error al sincronizar el código con el servidor');
         }
     };
 

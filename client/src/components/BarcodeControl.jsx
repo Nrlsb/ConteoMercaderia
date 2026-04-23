@@ -502,12 +502,12 @@ const BarcodeControl = () => {
             if (productCacheRef.current[code]) {
                 data = productCacheRef.current[code];
             } else {
-                // 1. Try Local DB first
+                // 1. Try Local DB first (INSTANT)
                 const localData = await getProductByCode(code);
                 if (localData) {
                     data = localData;
                 } else {
-                    // 2. Fallback to API
+                    // 2. Fallback to API (ONLY if not found locally)
                     if (navigator.onLine) {
                         const response = await api.get(`/api/products/barcode/${code}`);
                         data = response.data;
@@ -518,45 +518,47 @@ const BarcodeControl = () => {
                 productCacheRef.current[code] = data; // Guardar en caché
             }
 
+            // Liberar loading lo antes posible si ya tenemos la data
+            setLoading(false);
+
             if (Array.isArray(data) && data.length > 1) {
                 setDuplicateProducts(data);
                 setIsDuplicateModalOpen(true);
             } else {
                 const foundProduct = Array.isArray(data) ? data[0] : (data || null);
 
-                // Si la repetición no está permitida, verificar si ya se escaneó en esta "sesión"
-                // Usamos el código o el ID del producto para verificar
                 const productIdentifier = foundProduct?.id || code;
                 if (!allowRepetition && scannedInSession.has(productIdentifier)) {
                     toast.warning('Este producto ya fue escaneado en esta sesión.');
                     selectProduct(foundProduct);
                     if (!data) setError('code_not_found');
+                    setInputBarcode('');
                     return;
                 }
 
                 selectProduct(foundProduct);
                 if (!data) setError('code_not_found');
 
-                // Log the scan (lookup) only if enabled
+                // Registro secundario (por detrás)
                 if (saveToLayout) {
                     logScan(foundProduct, code);
-                    // Agregar a la sesión de escaneados
                     setScannedInSession(prev => new Set(prev).add(productIdentifier));
                 }
             }
         } catch (err) {
             console.error('Lookup error:', err);
+            setLoading(false);
             if (err.response && err.response.status === 404) {
-                setError('code_not_found'); // Special error state
+                setError('code_not_found');
             } else {
                 const msg = err.response?.data?.message || 'Error al buscar el producto';
                 setError(msg);
                 toast.error(msg);
             }
         } finally {
+            // Asegurar que el input se limpie y procese
             setLoading(false);
-            setInputBarcode(''); // clear input for next scan
-            // Only focus if we are not showing the scanner
+            setInputBarcode('');
             if (inputRef.current && !showScanner) inputRef.current.focus();
         }
     };
