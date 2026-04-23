@@ -1337,7 +1337,10 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
             return res.status(400).json({ message: 'No se pudieron extraer productos de los PDFs proporcionados' });
         }
 
-        const remitoNumber = pdfFiles.length > 1 ? `${firstRemitoNumber} (+${pdfFiles.length - 1} PDFS)` : firstRemitoNumber;
+        const manualRemitoNumber = req.body.remitoNumber;
+        const remitoNumber = manualRemitoNumber 
+            ? manualRemitoNumber 
+            : (pdfFiles.length > 1 ? `${firstRemitoNumber} (+${pdfFiles.length - 1} PDFS)` : firstRemitoNumber);
 
         // 2. Check for duplicate to avoid double creation if possible
         const { data: existing } = await supabase

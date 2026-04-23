@@ -108,6 +108,9 @@ const ReceiptsList = () => {
 
         setUploading(true);
         const formData = new FormData();
+        if (newRemitoNumber.trim()) {
+            formData.append('remitoNumber', newRemitoNumber.trim());
+        }
         files.forEach(file => {
             formData.append('pdf', file);
         });
