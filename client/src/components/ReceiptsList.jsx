@@ -116,7 +116,9 @@ const ReceiptsList = () => {
         });
 
         try {
-            const response = await api.post('/api/receipts/upload-overstock', formData);
+            const response = await api.post('/api/receipts/upload-overstock', formData, {
+                timeout: 300000 // 5 minutes for heavy overstock processing
+            });
             const { results, receipt } = response.data;
             
             toast.success(`Ingreso ${receipt.remito_number} creado: ${results.success.length} productos cargados`);

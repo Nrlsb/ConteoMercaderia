@@ -1370,65 +1370,69 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
         if (receiptError) throw receiptError;
 
         // 4. Match items by code and insert
+        // 4. Match items by code and insert in BATCH
         const results = { success: [], failed: [] };
+        const uniqueCodes = allExtractedItems.map(i => i.code);
+        
+        // Fetch all products in one call
+        const { data: foundProducts, error: prodError } = await supabase
+            .from('products')
+            .select('code, description')
+            .in('code', uniqueCodes);
+            
+        if (prodError) throw prodError;
+        
+        const productMap = new Map(foundProducts.map(p => [p.code, p]));
+        const itemsToInsert = [];
+        const historyToInsert = [];
+        
         for (const item of allExtractedItems) {
-            try {
-                // Search by internal code ONLY as requested by user
-                const { data: product } = await supabase
-                    .from('products')
-                    .select('code, description')
-                    .eq('code', item.code)
-                    .maybeSingle();
-
-                if (!product) {
-                    results.failed.push({
-                        code: item.code,
-                        description: item.description,
-                        quantity: item.quantity,
-                        error: 'Producto no encontrado (Código Interno)'
-                    });
-                    continue;
-                }
-
-                // Check if already exists in this receipt (aggregate)
-                const { data: existingItem } = await supabase
-                    .from('receipt_items')
-                    .select('*')
-                    .eq('receipt_id', receipt.id)
-                    .eq('product_code', product.code)
-                    .maybeSingle();
-
-                const newQuantity = existingItem
-                    ? (Number(existingItem.expected_quantity) || 0) + Number(item.quantity)
-                    : Number(item.quantity);
-
-                const { error: itemError } = await supabase
-                    .from('receipt_items')
-                    .upsert({
-                        receipt_id: receipt.id,
-                        product_code: product.code,
-                        expected_quantity: newQuantity,
-                        scanned_quantity: 0
-                    }, { onConflict: 'receipt_id, product_code' });
-
-                if (itemError) throw itemError;
-
-                results.success.push({ code: product.code, description: product.description, quantity: item.quantity });
-
-                // Log history
-                await supabase.from('receipt_items_history').insert({
-                    receipt_id: receipt.id,
-                    user_id: req.user.id,
-                    operation: 'PDF_IMPORT',
-                    product_code: product.code,
-                    new_data: { expected_quantity: newQuantity },
-                    changed_at: new Date().toISOString()
+            const product = productMap.get(item.code);
+            
+            if (!product) {
+                results.failed.push({
+                    code: item.code,
+                    description: item.description,
+                    quantity: item.quantity,
+                    error: 'Producto no encontrado (Código Interno)'
                 });
-
-            } catch (err) {
-                console.error(`Error processing overstock item ${item.code}:`, err);
-                results.failed.push({ ...item, error: err.message });
+                continue;
             }
+
+            // Since it's a new receipt, we can just insert. 
+            // allExtractedItems is already unique-by-code because of the aggregation loop earlier.
+            itemsToInsert.push({
+                receipt_id: receipt.id,
+                product_code: product.code,
+                expected_quantity: item.quantity,
+                scanned_quantity: 0
+            });
+
+            historyToInsert.push({
+                receipt_id: receipt.id,
+                user_id: req.user.id,
+                operation: 'PDF_IMPORT',
+                product_code: product.code,
+                new_data: { expected_quantity: item.quantity },
+                changed_at: new Date().toISOString()
+            });
+
+            results.success.push({ code: product.code, description: product.description, quantity: item.quantity });
+        }
+
+        // Perform bulk inserts
+        if (itemsToInsert.length > 0) {
+            const { error: batchItemError } = await supabase
+                .from('receipt_items')
+                .insert(itemsToInsert);
+            if (batchItemError) throw batchItemError;
+        }
+
+        if (historyToInsert.length > 0) {
+            const { error: batchHistoryError } = await supabase
+                .from('receipt_items_history')
+                .insert(historyToInsert);
+            if (batchHistoryError) throw batchHistoryError;
         }
 
         res.status(201).json({ receipt, results });
