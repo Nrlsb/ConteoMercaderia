@@ -1298,24 +1298,48 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
 });
 
 // Create Overstock Receipt via PDF Upload
-app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer.memoryStorage() }).fields([{ name: 'pdf', maxCount: 1 }, { name: 'file', maxCount: 1 }]), async (req, res) => {
-    const file = (req.files && req.files['pdf'] ? req.files['pdf'][0] : null) || (req.files && req.files['file'] ? req.files['file'][0] : null);
+app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
+    const files = req.files || [];
+    const pdfFiles = files.filter(f => f.fieldname === 'pdf' || f.fieldname === 'file');
 
-    if (!file) {
+    if (pdfFiles.length === 0) {
         return res.status(400).json({ message: 'No se recibió ningún archivo PDF' });
     }
 
     try {
-        // 1. Parse PDF (stopOnCopies = true for ORIGINAL only)
-        const { items, metadata } = await parseRemitoPdf(file.buffer, true);
-        
-        if (!items || items.length === 0) {
-            return res.status(400).json({ message: 'No se pudieron extraer productos del PDF' });
+        let allExtractedItems = [];
+        let firstRemitoNumber = null;
+
+        for (const file of pdfFiles) {
+            try {
+                const { items, metadata } = await parseRemitoPdf(file.buffer, true);
+                if (items && items.length > 0) {
+                    // Aggregate items: sum quantities if code is same
+                    items.forEach(item => {
+                        const existingIdx = allExtractedItems.findIndex(i => i.code === item.code);
+                        if (existingIdx !== -1) {
+                            allExtractedItems[existingIdx].quantity += item.quantity;
+                        } else {
+                            allExtractedItems.push({ ...item });
+                        }
+                    });
+
+                    if (!firstRemitoNumber) {
+                        firstRemitoNumber = metadata?.remitoNumber || file.originalname.replace(/\.pdf$/i, '');
+                    }
+                }
+            } catch (err) {
+                console.error(`Error parsing file ${file.originalname}:`, err);
+            }
         }
 
-        const remitoNumber = metadata?.remitoNumber || file.originalname.replace(/\.pdf$/i, '');
+        if (allExtractedItems.length === 0) {
+            return res.status(400).json({ message: 'No se pudieron extraer productos de los PDFs proporcionados' });
+        }
 
-        // 2. Check for duplicate
+        const remitoNumber = pdfFiles.length > 1 ? `${firstRemitoNumber} (+${pdfFiles.length - 1} PDFS)` : firstRemitoNumber;
+
+        // 2. Check for duplicate to avoid double creation if possible
         const { data: existing } = await supabase
             .from('receipts')
             .select('id')
@@ -1344,7 +1368,7 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
 
         // 4. Match items by code and insert
         const results = { success: [], failed: [] };
-        for (const item of items) {
+        for (const item of allExtractedItems) {
             try {
                 // Search by internal code ONLY as requested by user
                 const { data: product } = await supabase

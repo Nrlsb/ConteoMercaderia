@@ -97,17 +97,20 @@ const ReceiptsList = () => {
     };
 
     const handleOverstockUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
 
-        if (!file.name.toLowerCase().endsWith('.pdf')) {
+        const invalidFiles = files.filter(file => !file.name.toLowerCase().endsWith('.pdf'));
+        if (invalidFiles.length > 0) {
             toast.error('Solo se permiten archivos PDF');
             return;
         }
 
         setUploading(true);
         const formData = new FormData();
-        formData.append('pdf', file);
+        files.forEach(file => {
+            formData.append('pdf', file);
+        });
 
         try {
             const response = await api.post('/api/receipts/upload-overstock', formData);
@@ -184,6 +187,7 @@ const ReceiptsList = () => {
                                     ref={fileInputRef} 
                                     className="hidden" 
                                     accept=".pdf"
+                                    multiple
                                     onChange={handleOverstockUpload}
                                 />
                                 {uploading ? (
