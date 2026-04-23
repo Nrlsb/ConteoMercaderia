@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User } from 'lucide-react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User, Calculator as CalculatorIcon } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
 const Scanner = lazy(() => import('./Scanner'));
+import Calculator from './Calculator';
 
 const EtiquetasPage = () => {
     const { user } = useAuth();
@@ -36,6 +37,10 @@ const EtiquetasPage = () => {
     const [tempBarcode, setTempBarcode] = useState('');
     const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
     const [isScanningForUpdate, setIsScanningForUpdate] = useState(false);
+
+    // Calculator States
+    const [showIndividualCalc, setShowIndividualCalc] = useState(false);
+    const [activeMultiCalcIdx, setActiveMultiCalcIdx] = useState(null);
 
     // Historial States
     const [history, setHistory] = useState([]);
@@ -936,19 +941,37 @@ const EtiquetasPage = () => {
                                     <p className="text-[10px] text-gray-400 mt-2 italic">Opcional. Deja vacío si no aplica.</p>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                        <Package className="w-4 h-4 text-gray-400" />
-                                        Cantidad
-                                    </label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                                            <Package className="w-4 h-4 text-gray-400" />
+                                            Cantidad
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowIndividualCalc(!showIndividualCalc)}
+                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 ${showIndividualCalc ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'}`}
+                                        >
+                                            <CalculatorIcon className="w-3.5 h-3.5" />
+                                            CALC
+                                        </button>
+                                    </div>
                                     <input
                                         type="text"
                                         value={cantidad}
                                         onChange={(e) => setCantidad(e.target.value)}
                                         placeholder="Ej: 50 unidades, 10kg, etc."
-                                        className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                        className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all font-bold"
                                     />
-                                </div>
+                                    {showIndividualCalc && (
+                                        <Calculator 
+                                            onConfirm={(val) => {
+                                                setCantidad(val);
+                                                setShowIndividualCalc(false);
+                                            }}
+                                            onCancel={() => setShowIndividualCalc(false)}
+                                            initialValue={cantidad || '0'}
+                                        />
+                                    )}
 
                                 <div className="pt-4 sm:pt-6 space-y-2 sm:space-y-3">
                                     {/* Botón de Impresión (Principal) */}
@@ -1132,22 +1155,41 @@ const EtiquetasPage = () => {
                                                     </button>
                                                 </div>
 
-                                                <div className="flex items-center gap-3 pt-3 border-t border-gray-50">
-                                                    <div className="flex-grow">
-                                                        <div className="relative">
-                                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                                                <LayoutList className="w-4 h-4" />
-                                                            </div>
-                                                            <input
-                                                                type="text"
-                                                                inputMode="numeric"
-                                                                value={item.labelCantidad}
-                                                                onChange={(e) => handleUpdateMultiQty(idx, e.target.value)}
-                                                                placeholder="Ingresar cantidad..."
-                                                                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:border-blue-500 focus:bg-white outline-none text-sm font-bold transition-all shadow-inner"
-                                                            />
+                                                <div className="flex flex-col gap-3 pt-3 border-t border-gray-50">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2 text-gray-400">
+                                                            <LayoutList className="w-4 h-4" />
+                                                            <span className="text-[10px] font-bold uppercase">Cantidad</span>
                                                         </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveMultiCalcIdx(activeMultiCalcIdx === idx ? null : idx)}
+                                                            className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 ${activeMultiCalcIdx === idx ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'}`}
+                                                        >
+                                                            <CalculatorIcon className="w-3.5 h-3.5" />
+                                                            CALC
+                                                        </button>
                                                     </div>
+                                                    <div className="flex-grow">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            value={item.labelCantidad}
+                                                            onChange={(e) => handleUpdateMultiQty(idx, e.target.value)}
+                                                            placeholder="Ingresar cantidad..."
+                                                            className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl focus:border-blue-500 focus:bg-white outline-none text-sm font-bold transition-all shadow-inner"
+                                                        />
+                                                    </div>
+                                                    {activeMultiCalcIdx === idx && (
+                                                        <Calculator 
+                                                            onConfirm={(val) => {
+                                                                handleUpdateMultiQty(idx, val);
+                                                                setActiveMultiCalcIdx(null);
+                                                            }}
+                                                            onCancel={() => setActiveMultiCalcIdx(null)}
+                                                            initialValue={item.labelCantidad || '0'}
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
