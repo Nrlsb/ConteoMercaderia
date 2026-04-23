@@ -45,6 +45,7 @@ const EtiquetasPage = () => {
 
     const searchTimeoutRef = useRef(null);
     const inputRef = useRef(null);
+    const barcodeCacheRef = useRef(new Map());
 
     useEffect(() => {
         syncProducts();
@@ -310,18 +311,25 @@ const EtiquetasPage = () => {
     };
 
     const generateBarcodeBase64 = async (text) => {
+        // Optimización: Uso de caché para evitar regenerar el mismo código
+        if (barcodeCacheRef.current.has(text)) {
+            return barcodeCacheRef.current.get(text);
+        }
+
         return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
             try {
                 bwipjs.toCanvas(canvas, {
                     bcid: 'code128',       // Barcode type
                     text: text,            // Text to encode
-                    scale: 3,              // 3x scaling factor
+                    scale: 2,              // Optimización: Escala 2 es suficiente para láser y mucho más ligera que 3
                     height: 10,            // Bar height, in millimeters
                     includetext: true,      // Show human-readable text
                     textxalign: 'center',  // Always good to set this
                 });
-                resolve(canvas.toDataURL('image/png'));
+                const dataUrl = canvas.toDataURL('image/png');
+                barcodeCacheRef.current.set(text, dataUrl);
+                resolve(dataUrl);
             } catch (e) {
                 reject(e);
             }
@@ -332,7 +340,8 @@ const EtiquetasPage = () => {
         const doc = new jsPDF({
             orientation: 'landscape',
             unit: 'mm',
-            format: 'a4'
+            format: 'a4',
+            compress: true // Optimización: Activa compresión interna del PDF
         });
 
         const margin = 15;
@@ -389,7 +398,7 @@ const EtiquetasPage = () => {
                 const barcodeX = pageWidth - margin - imgWidth;
                 const barcodeY = 65;
 
-                doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight);
+                doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'italic');
@@ -443,7 +452,8 @@ const EtiquetasPage = () => {
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
-            format: 'a4'
+            format: 'a4',
+            compress: true // Optimización: Activa compresión para envíos múltiples
         });
 
         const margin = 10;
@@ -488,7 +498,7 @@ const EtiquetasPage = () => {
                     const barcodeImg = await generateBarcodeBase64(String(barcodeText));
                     const barcodeWidth = 50;
                     const barcodeHeight = 16;
-                    doc.addImage(barcodeImg, 'PNG', margin + contentWidth - barcodeWidth - 5, y + labelHeight - barcodeHeight - 6, barcodeWidth, barcodeHeight);
+                    doc.addImage(barcodeImg, 'PNG', margin + contentWidth - barcodeWidth - 5, y + labelHeight - barcodeHeight - 6, barcodeWidth, barcodeHeight, undefined, 'FAST');
 
                     doc.setFontSize(8);
                     doc.setFont('helvetica', 'normal');
@@ -543,6 +553,8 @@ const EtiquetasPage = () => {
         }
 
         setPrinting(true);
+        toast.info('Preparando e imprimiendo...'); // Feedback instantáneo
+        
         try {
             const doc = await generateMultiProductPDF();
             const isNative = Capacitor.getPlatform() !== 'web';
@@ -571,7 +583,6 @@ const EtiquetasPage = () => {
                     }, 500);
                 };
             }
-            toast.success('Enviando a impresión...');
             
             // Save to history
             saveToHistory('multiple', {
@@ -635,6 +646,8 @@ const EtiquetasPage = () => {
         setFechaIngresoError(false);
 
         setPrinting(true);
+        toast.info('Preparando e imprimiendo...'); // Feedback instantáneo
+
         try {
             const doc = await generatePDFInstance();
 
@@ -670,7 +683,6 @@ const EtiquetasPage = () => {
                     }, 500);
                 };
             }
-            toast.success('Enviando a la cola de impresión...');
             
             // Save to history
             saveToHistory('individual', {
