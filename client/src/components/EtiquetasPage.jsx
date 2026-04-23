@@ -476,9 +476,9 @@ const EtiquetasPage = () => {
 
             // Descripción (GIGANTE)
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(18);
+            doc.setFontSize(28);
             doc.setTextColor(0);
-            const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 70);
+            const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 85);
             doc.text(descLines, margin + 7, y + 12);
 
             // Cantidad (A la derecha)
