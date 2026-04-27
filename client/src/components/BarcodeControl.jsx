@@ -65,6 +65,7 @@ const BarcodeControl = () => {
     const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [usersList, setUsersList] = useState([]);
     const [productCodeFilter, setProductCodeFilter] = useState('');
+    const [showUnique, setShowUnique] = useState(false);
 
     // History pagination state
     const [historyPage, setHistoryPage] = useState(1);
@@ -223,6 +224,7 @@ const BarcodeControl = () => {
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
             if (productCodeFilter) params.append('productCode', productCodeFilter);
+            if (showUnique) params.append('unique', 'true');
 
             if (params.toString()) {
                 url += `&${params.toString()}`;
@@ -394,6 +396,7 @@ const BarcodeControl = () => {
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
             if (productCodeFilter) params.append('productCode', productCodeFilter);
+            if (showUnique) params.append('unique', 'true');
 
             const url = `/api/barcode-history/layout-excel?${params.toString()}`;
             
@@ -1778,6 +1781,22 @@ const BarcodeControl = () => {
                                     >
                                         <FileSpreadsheet className="w-4 h-4" /> Excel
                                     </button>
+                                </div>
+                                <div className="mt-3 flex items-center gap-2 px-1">
+                                    <label className="relative inline-flex items-center cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            className="sr-only peer"
+                                            checked={showUnique}
+                                            onChange={(e) => {
+                                                setShowUnique(e.target.checked);
+                                                // Trigger fetch immediately when toggled
+                                                setTimeout(() => fetchLayout(1), 0);
+                                            }}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">Mostrar solo únicos (Sin repetidos)</span>
+                                    </label>
                                 </div>
                             </div>
                         </div>

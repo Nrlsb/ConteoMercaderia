@@ -2506,7 +2506,7 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
 
 // Get barcode history
 app.get('/api/barcode-history', verifyToken, async (req, res) => {
-    const { startDate, endDate, user_id, action_type, productCode, page = 1, limit = 50 } = req.query;
+    const { startDate, endDate, user_id, action_type, productCode, page = 1, limit = 50, unique } = req.query;
     try {
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
@@ -2558,13 +2558,38 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
         const { data: history, count, error } = await query.range(from, to);
 
         if (error) throw error;
+
+        let finalData = history;
+        let finalCount = count;
+        let finalTotalPages = Math.ceil((count || 0) / limitNum);
+
+        if (unique === 'true') {
+            // Fetch a larger set to ensure we have enough unique items for the current filters
+            // and filter them by product_id or description
+            const { data: allItems, error: allErr } = await query.range(0, 1999);
+            if (allErr) throw allErr;
+
+            const uniqueMap = new Map();
+            allItems.forEach(item => {
+                // Use product_id if available, otherwise fallback to description
+                const key = item.product_id || item.product_description;
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, item);
+                }
+            });
+
+            const uniqueList = Array.from(uniqueMap.values());
+            finalCount = uniqueList.length;
+            finalTotalPages = Math.ceil(finalCount / limitNum);
+            finalData = uniqueList.slice(from, to + 1);
+        }
         
         res.json({
-            data: history,
-            total: count,
+            data: finalData,
+            total: finalCount,
             page: pageNum,
             limit: limitNum,
-            totalPages: Math.ceil((count || 0) / limitNum)
+            totalPages: finalTotalPages
         });
     } catch (error) {
         console.error('Error fetching barcode history:', error);
@@ -2646,10 +2671,10 @@ app.get('/api/barcode-history/export', verifyToken, async (req, res) => {
 
 // Export layout to Excel file (.xlsx)
 app.get('/api/barcode-history/layout-excel', verifyToken, async (req, res) => {
-    const { startDate, endDate, user_id } = req.query;
+    const { startDate, endDate, user_id, unique } = req.query;
     try {
         // Obtener historial completo usando la función helper
-        const history = await getAllBarcodeHistory({ startDate, endDate, user_id, action_type: 'SCAN' });
+        const history = await getAllBarcodeHistory({ startDate, endDate, user_id, action_type: 'SCAN', unique });
 
         if (!history || history.length === 0) {
             return res.status(404).json({ message: 'No hay datos para exportar en el rango seleccionado' });
@@ -6833,6 +6858,18 @@ async function getAllBarcodeHistory(filters = {}) {
             hasMore = false;
         }
     }
+
+    if (filters.unique === 'true' || filters.unique === true) {
+        const uniqueMap = new Map();
+        allData.forEach(item => {
+            const key = item.product_id || item.product_description;
+            if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, item);
+            }
+        });
+        return Array.from(uniqueMap.values());
+    }
+
     return allData;
 }
 
