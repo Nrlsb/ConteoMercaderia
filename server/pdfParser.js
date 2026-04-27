@@ -196,15 +196,17 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
             // 0. INTENTO SPLIT CODE (Ej: 213 / / DESC 002)
             const matchSplit = line.match(regexSplit);
             if (matchSplit) {
-                const codePrefix = matchSplit[1];
+                const codePartB = matchSplit[1]; // El que está al inicio (ej: 213 o 33)
                 const baseDesc = matchSplit[2].trim();
-                const codeSuffix = matchSplit[3];
+                const codePartA = matchSplit[3]; // El que está al final (ej: 002 o 0018)
                 const quantityStr = matchSplit[4];
-                const code = codePrefix + codeSuffix;
+                
+                // El orden correcto según la DB es Parte Final + Parte Inicial
+                const code = codePartA + codePartB; 
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 
                 if (!isNaN(quantity) && quantity > 0) {
-                    console.log(`[PDF Match Split] ${code} (${codePrefix}+${codeSuffix}) | ${quantity} | ${baseDesc.substring(0, 30)}...`);
+                    console.log(`[PDF Match Split] ${code} (${codePartA}+${codePartB}) | ${quantity} | ${baseDesc.substring(0, 30)}...`);
                     lastItem = pushItem(items, code, baseDesc, quantity);
                     continue;
                 }
