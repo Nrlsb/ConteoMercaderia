@@ -1608,80 +1608,80 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
 
         if (egresoError) throw egresoError;
 
-        // 3. For each parsed item, find product and insert egreso_item
+        // 3. Optimized processing: Bulk operations to avoid timeouts
         const results = { success: [], failed: [] };
         const failedForPersistence = [];
+        
+        const itemCodes = items.map(i => i.code);
+        
+        // 3.1 Bulk Product Lookup
+        const { data: foundProducts, error: productsError } = await supabase
+            .from('products')
+            .select('code, barcode, description')
+            .in('code', itemCodes);
+
+        if (productsError) throw productsError;
+
+        const productMap = new Map(foundProducts.map(p => [p.code, p]));
+        const itemsToInsert = [];
+        const historyEntries = [];
 
         for (const item of items) {
-            try {
-                // Search by internal code only for Egresos
-                const { data: product } = await supabase
-                    .from('products')
-                    .select('code, barcode, description')
-                    .eq('code', item.code)
-                    .maybeSingle();
+            const product = productMap.get(item.code);
 
-                if (!product) {
-                    const failedItem = {
-                        code: item.code,
-                        description: item.description,
-                        quantity: item.quantity,
-                        error: 'Producto no encontrado en la base de datos'
-                    };
-                    results.failed.push(failedItem);
-                    failedForPersistence.push(failedItem);
-                    continue;
-                }
-
-                // Check if item already exists (aggregate)
-                const { data: existingItem } = await supabase
-                    .from('egreso_items')
-                    .select('*')
-                    .eq('egreso_id', egreso.id)
-                    .eq('product_code', product.code)
-                    .maybeSingle();
-
-                const newQuantity = existingItem
-                    ? (Number(existingItem.expected_quantity) || 0) + Number(item.quantity)
-                    : Number(item.quantity);
-
-                const { error: saveError } = await supabase
-                    .from('egreso_items')
-                    .upsert({
-                        egreso_id: egreso.id,
-                        product_code: product.code,
-                        expected_quantity: newQuantity
-                    }, { onConflict: 'egreso_id, product_code' });
-
-                if (saveError) throw saveError;
-
-                results.success.push({
-                    code: product.code,
-                    barcode: product.barcode,
-                    description: product.description,
-                    quantity: item.quantity
-                });
-
-                // Log history
-                await supabase.from('egreso_items_history').insert({
-                    egreso_id: egreso.id,
-                    user_id: req.user.id,
-                    operation: 'PDF_IMPORT',
-                    product_code: product.code,
-                    old_data: { expected_quantity: existingItem ? Number(existingItem.expected_quantity) : 0 },
-                    new_data: { expected_quantity: newQuantity },
-                    changed_at: new Date().toISOString()
-                });
-
-            } catch (itemError) {
-                console.error(`Error processing egreso item ${item.code}:`, itemError);
-                results.failed.push({
+            if (!product) {
+                const failedItem = {
                     code: item.code,
                     description: item.description,
                     quantity: item.quantity,
-                    error: itemError.message
-                });
+                    error: 'Producto no encontrado en la base de datos'
+                };
+                results.failed.push(failedItem);
+                failedForPersistence.push(failedItem);
+                continue;
             }
+
+            const quantity = Number(item.quantity);
+            
+            itemsToInsert.push({
+                egreso_id: egreso.id,
+                product_code: product.code,
+                expected_quantity: quantity
+            });
+
+            historyEntries.push({
+                egreso_id: egreso.id,
+                user_id: req.user.id,
+                operation: 'PDF_IMPORT',
+                product_code: product.code,
+                old_data: { expected_quantity: 0 },
+                new_data: { expected_quantity: quantity },
+                changed_at: new Date().toISOString()
+            });
+
+            results.success.push({
+                code: product.code,
+                barcode: product.barcode,
+                description: product.description,
+                quantity: item.quantity
+            });
+        }
+
+        // 3.2 Bulk Inserts
+        if (itemsToInsert.length > 0) {
+            const { error: itemsInsertError } = await supabase
+                .from('egreso_items')
+                .insert(itemsToInsert);
+            
+            if (itemsInsertError) {
+                console.error('[EGRESO PDF] Bulk items insert error:', itemsInsertError);
+                throw itemsInsertError;
+            }
+
+            // History entries (asynchronous, don't block response)
+            supabase.from('egreso_items_history').insert(historyEntries).then(({ error }) => {
+                if (error) console.error('[EGRESO PDF] History log error:', error.message);
+            });
         }
 
         console.log(`[EGRESO PDF] Created egreso ${egreso.id}: ${results.success.length} items imported, ${results.failed.length} failed`);
