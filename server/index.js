@@ -2576,8 +2576,8 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
 
             const uniqueMap = new Map();
             allItems.forEach(item => {
-                // Use product_id if available, otherwise fallback to description
-                const key = item.product_id || item.product_description;
+                // Prioritize product_description as requested by the user to avoid visual duplicates
+                const key = item.product_description || item.product_id;
                 if (!uniqueMap.has(key)) {
                     uniqueMap.set(key, item);
                 }
@@ -2811,16 +2811,34 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
             const productIds = [...new Set(dayItems.map(i => i.product_id).filter(Boolean))];
             
             let existingIdsOnDay = new Set();
-            if (productIds.length > 0) {
-                const { data: existingScans } = await supabase
+            let existingDescsOnDay = new Set();
+            const descriptions = [...new Set(dayItems.map(i => i.product_description).filter(Boolean))];
+            
+            if (productIds.length > 0 || descriptions.length > 0) {
+                let query = supabase
                     .from('barcode_history')
-                    .select('product_id')
+                    .select('product_id, product_description')
                     .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
-                    .in('product_id', productIds)
                     .gte('created_at', startOfDay)
                     .lte('created_at', endOfDay);
+
+                const orParts = [];
+                if (productIds.length > 0) {
+                    orParts.push(`product_id.in.(${productIds.join(',')})`);
+                }
+                if (descriptions.length > 0) {
+                    const escapedDescs = descriptions.map(d => `"${d.replace(/"/g, '""')}"`).join(',');
+                    orParts.push(`product_description.in.(${escapedDescs})`);
+                }
                 
-                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id) || []);
+                if (orParts.length > 0) {
+                    query = query.or(orParts.join(','));
+                }
+
+                const { data: existingScans } = await query;
+                
+                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id).filter(Boolean) || []);
+                existingDescsOnDay = new Set(existingScans?.map(s => s.product_description).filter(Boolean) || []);
             }
 
             dayItems.forEach(item => {
@@ -2830,7 +2848,7 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
                 // 2. O no tiene product_id (ej: log genérico)
                 // 3. O el producto NO ha sido escaneado ese día según la DB Y no lo hemos procesado ya en este bucle
                 if (
-                    ((item.action_type && item.action_type !== 'SCAN') || !item.product_id || !existingIdsOnDay.has(item.product_id)) &&
+                    ((item.action_type && item.action_type !== 'SCAN') || !item.product_id || (!existingIdsOnDay.has(item.product_id) && !existingDescsOnDay.has(item.product_description))) &&
                     (!item.product_id || !seenInThisBatch.has(itemKey))
                 ) {
                     recordsToInsert.push({
@@ -2911,21 +2929,42 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
             const uniqueProductIdsOnDay = [...new Set(dayItems.map(i => i.product_id).filter(Boolean))];
             
             let existingIdsOnDay = new Set();
-            if (uniqueProductIdsOnDay.length > 0) {
-                const { data: existingScans } = await supabase
+            let existingDescsOnDay = new Set();
+            const descriptions = [...new Set(dayItems.map(i => i.product_description).filter(Boolean))];
+            
+            if (uniqueProductIdsOnDay.length > 0 || descriptions.length > 0) {
+                let query = supabase
                     .from('barcode_history')
-                    .select('product_id')
+                    .select('product_id, product_description')
                     .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
-                    .in('product_id', uniqueProductIdsOnDay)
                     .gte('created_at', startOfDay)
                     .lte('created_at', endOfDay);
+
+                const orParts = [];
+                if (uniqueProductIdsOnDay.length > 0) {
+                    orParts.push(`product_id.in.(${uniqueProductIdsOnDay.join(',')})`);
+                }
+                if (descriptions.length > 0) {
+                    const escapedDescs = descriptions.map(d => `"${d.replace(/"/g, '""')}"`).join(',');
+                    orParts.push(`product_description.in.(${escapedDescs})`);
+                }
                 
-                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id) || []);
+                if (orParts.length > 0) {
+                    query = query.or(orParts.join(','));
+                }
+
+                const { data: existingScans } = await query;
+                
+                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id).filter(Boolean) || []);
+                existingDescsOnDay = new Set(existingScans?.map(s => s.product_description).filter(Boolean) || []);
             }
 
             dayItems.forEach(item => {
                 const itemKey = `${item.product_id}_${day}`;
-                if (item.product_id && !existingIdsOnDay.has(item.product_id) && !seenInThisProcess.has(itemKey)) {
+                const isDuplicate = (item.product_id && existingIdsOnDay.has(item.product_id)) || 
+                                    (item.product_description && existingDescsOnDay.has(item.product_description));
+
+                if (item.product_id && !isDuplicate && !seenInThisProcess.has(itemKey)) {
                     finalProductsToInsert.push({
                         action_type: 'SCAN',
                         product_id: item.product_id,

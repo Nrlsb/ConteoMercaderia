@@ -65,7 +65,7 @@ const BarcodeControl = () => {
     const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [usersList, setUsersList] = useState([]);
     const [productCodeFilter, setProductCodeFilter] = useState('');
-    const [showUnique, setShowUnique] = useState(false);
+    const [showUnique, setShowUnique] = useState(true);
 
     // History pagination state
     const [historyPage, setHistoryPage] = useState(1);
