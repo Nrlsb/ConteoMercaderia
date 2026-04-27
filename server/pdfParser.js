@@ -119,36 +119,43 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
 
         const lines = text.split('\n');
         const items = [];
+        let lastItem = null;
 
         const commonUMs = ['UN', 'CX', 'MT', 'KG', 'LT', 'PACK', 'ROL', 'UNID', 'MT2', 'L', 'PINS', 'MTL', 'BOLS', 'PAR', 'POTE', 'CJ', 'BAL', 'M2', 'KGS', 'LTS', 'UNI'];
         const umPattern = `(?:${commonUMs.join('|')})`;
 
-        // --- REGEX ESTRÍCTOS (Exigen Unidad de Medida y usan búsqueda codiciosa para la descripción) ---
-        // Regex A Strict: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
-        const regexA_Strict = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
-        // Regex B Strict: [/ /] [Espacios] Descripción [Espacios >=1] Código [Espacios >=2] Cantidad [Espacios] [UM]
-        const regexB_Strict = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s+(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
-
-        // --- REGEX ORIGINALES (UM opcional, usados como Fallback) ---
-        const regexA = new RegExp(`^\\s*(\\d{4,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s+(\\d{4,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // --- REGEX ACTUALIZADOS ---
         
-        // Regex Transfer: Similar pero sin slashes y con gaps más grandes
-        const regexTransfer = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{3,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-        const regexTransferAlt = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Regex Split Code: Prefijo [Espacios] [/ /] [Espacios] Descripción [Espacios] Sufijo [Espacios >=2] Cantidad
+        const regexSplit = new RegExp(`^\\s*(\\d+)\\s+(?:/\\s*/)\\s*(.+?)\\s+(\\d{2,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+
+        // Regex A Strict: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexA_Strict = new RegExp(`^\\s*(\\d{3,})\\s+(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
+        
+        // Regex B Strict: [/ /] [Espacios] Descripción [Espacios >=1] Código [Espacios >=2] Cantidad [Espacios] [UM]
+        const regexB_Strict = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s+(\\d{3,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
+
+        // --- REGEX FALLBACKS (UM opcional) ---
+        const regexA = new RegExp(`^\\s*(\\d{3,})\\s+(?:/\\s*/)?\\s*(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexB = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)\\s+(\\d{3,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        
+        const regexTransfer = new RegExp(`^\\s*(\\d{3,})\\s+(.+?)\\s{3,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        const regexTransferAlt = new RegExp(`^\\s*(\\d{3,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
-            if (!trimmedLine || trimmedLine.length < 3) continue;
+            if (!trimmedLine) continue;
 
             const upperLine = trimmedLine.toUpperCase();
-            if (upperLine.includes('/202') || trimmedLine.match(/^\d+$/)) continue;
+            
+            // Ignorar encabezados y datos de cliente conocidos
+            if (upperLine.includes('/202') || (trimmedLine.match(/^\d+$/) && trimmedLine.length < 4)) continue;
             if (upperLine.includes('SR./ ES.:') || upperLine.includes('C.U.I.T.:') || upperLine.includes('TEL:') || upperLine.includes('I.V.A.') || upperLine.includes('ALBERDI') || upperLine.includes('BRUTOS') || upperLine.includes('DOMICILIO')) continue;
             if (upperLine.includes('CÓDIGO') && upperLine.includes('DETALLE') && upperLine.includes('CANTIDAD')) continue;
+            if (upperLine.includes('PÁG') || upperLine.includes('PAGINA') || upperLine.includes('TRANSPORTE:') || upperLine.includes('BULTOS:')) continue;
 
             if (isDevolucion) {
-                // ... (mantener lógica de devolución existente si es necesario, 
-                // pero por ahora nos enfocamos en el remito normal que es el problema reportado)
+                lastItem = null;
                 const codes = [];
                 let codeMatch;
                 const codeRegex = /(\d{4,})/g;
@@ -186,8 +193,24 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 if (codes.length > 0) continue;
             }
 
-            // 1. INTENTO ESTRÍCTO (Con UM obligatoria y descripción greedy)
-            // Este paso evita capturar "0,900" como cantidad si es parte del nombre.
+            // 0. INTENTO SPLIT CODE (Ej: 213 / / DESC 002)
+            const matchSplit = line.match(regexSplit);
+            if (matchSplit) {
+                const codePrefix = matchSplit[1];
+                const baseDesc = matchSplit[2].trim();
+                const codeSuffix = matchSplit[3];
+                const quantityStr = matchSplit[4];
+                const code = codePrefix + codeSuffix;
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match Split] ${code} (${codePrefix}+${codeSuffix}) | ${quantity} | ${baseDesc.substring(0, 30)}...`);
+                    lastItem = pushItem(items, code, baseDesc, quantity);
+                    continue;
+                }
+            }
+
+            // 1. INTENTO ESTRÍCTO A
             const matchA_Strict = line.match(regexA_Strict);
             if (matchA_Strict) {
                 const code = matchA_Strict[1];
@@ -196,7 +219,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match A-Strict] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+                    lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
             }
@@ -209,12 +232,12 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match B-Strict] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+                    lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // 2. FALLBACK A DISEÑO B (Descripción primero, código después, UM opcional)
+            // 2. FALLBACKS
             const matchB = line.match(regexB);
             if (matchB) {
                 const description = matchB[1].trim();
@@ -223,12 +246,11 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match B] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+                    lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // 3. FALLBACK A DISEÑO TRANSFER
             const matchTransfer = line.match(regexTransfer);
             if (matchTransfer) {
                 const code = matchTransfer[1];
@@ -237,12 +259,11 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match Transfer] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+                    lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // TRY LAYOUT TRANSFER ALT
             const matchTransferAlt = line.match(regexTransferAlt);
             if (matchTransferAlt) {
                 const code = matchTransferAlt[1];
@@ -251,12 +272,11 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match TransferAlt] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+                    lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // TRY LAYOUT A (Code first)
             const matchA = line.match(regexA);
             if (matchA) {
                 const code = matchA[1];
@@ -265,51 +285,47 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match A] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+                    lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
             }
 
-            // FALLBACK: Standard item match
-            let match;
-            const itemRegexFallback = new RegExp(`^\\s*(\\d{4,})\\s+(.+?)\\s+(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
-            if ((match = line.match(itemRegexFallback)) !== null) {
-                const code = match[1];
-                const description = match[2].trim();
-                const quantityStr = match[3];
-                const quantity = parseFloat(quantityStr.replace(',', '.'));
-                
-                // Validación extra: si la descripción contiene slashes sospechosos o es muy corta, ignorar o procesar con cuidado
-                if (!isNaN(quantity) && quantity > 0 && description.length > 2) {
-                    console.log(`[PDF Match Fallback] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
-                    pushItem(items, code, description, quantity);
+            // 5. DETECCIÓN DE CONTINUACIÓN DE DESCRIPCIÓN
+            if (lastItem && (line.startsWith(' '.repeat(10)) || trimmedLine.startsWith('/') || trimmedLine.length > 5)) {
+                const cleanedLine = trimmedLine.replace(/\/\s*\//g, '').trim();
+                if (cleanedLine.length > 2 && !cleanedLine.match(/^\d+$/) && !cleanedLine.includes('TOTAL')) {
+                    console.log(`[PDF Join] Añadiendo a ${lastItem.code}: ${cleanedLine}`);
+                    lastItem.description += ' ' + cleanedLine;
                     continue;
                 }
             }
+            
+            lastItem = null;
         }
 
         // Helper to validate and clean codes
         function matchCode(code) {
             if (!code) return null;
-            // Clean common artifacts from PDF extraction
             const clean = code.replace(/\D/g, '');
-            return clean.length >= 4 ? clean : null;
+            return clean.length >= 3 ? clean : null;
         }
 
         // Helper function to aggregate items
         function pushItem(targetArray, code, description, quantity) {
-            // Clean description from common PDF patterns
             let cleanDesc = description
                 .replace(/\/\s*\//g, '')
-                .replace(/\d{6,}/g, '') // Remove long numbers that might be leaked codes
+                .replace(/\d{8,}/g, '') 
                 .replace(/\s+/g, ' ')
                 .trim();
 
             const existingIndex = targetArray.findIndex(i => i.code === code);
             if (existingIndex !== -1) {
                 targetArray[existingIndex].quantity += quantity;
+                return targetArray[existingIndex];
             } else {
-                targetArray.push({ code, description: cleanDesc, quantity });
+                const newItem = { code, description: cleanDesc, quantity };
+                targetArray.push(newItem);
+                return newItem;
             }
         }
 
