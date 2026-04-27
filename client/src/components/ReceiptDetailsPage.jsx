@@ -1384,6 +1384,9 @@ const ReceiptDetailsPage = () => {
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Cód. Prov.</th>
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Controlado</th>
+                                                    {receipt.type === 'sucursal_transfer' && (
+                                                        <th className="px-5 py-3 text-center text-xs font-bold text-red-500 uppercase tracking-widest">Faltante Origen</th>
+                                                    )}
                                                     <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Diferencia</th>
                                                 </tr>
                                             </thead>
@@ -1416,6 +1419,16 @@ const ReceiptDetailsPage = () => {
                                                             <td className="px-5 py-4 text-center text-sm text-gray-600 font-mono">{item.products?.provider_code || '-'}</td>
                                                             <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
                                                             <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
+                                                            {receipt.type === 'sucursal_transfer' && (
+                                                                <td className="px-5 py-4 text-center text-sm font-bold text-red-600">
+                                                                    {Number(item.origin_expected_quantity || 0) > Number(item.expected_quantity || 0) 
+                                                                        ? `-${Number(item.origin_expected_quantity) - Number(item.expected_quantity)}`
+                                                                        : '-'}
+                                                                    {item.origin_shortage_reason && (
+                                                                        <div className="text-[10px] font-normal text-gray-400 mt-0.5">{item.origin_shortage_reason}</div>
+                                                                    )}
+                                                                </td>
+                                                            )}
                                                             <td className="px-5 py-4 text-center">
                                                                 <div className="flex items-center justify-center gap-2">
                                                                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${badgeColor}`}>
@@ -1491,6 +1504,14 @@ const ReceiptDetailsPage = () => {
                                                                 <span className="text-[9px] font-bold text-gray-400 uppercase">Controlado</span>
                                                                 <span className="text-lg font-black text-brand-blue">{item.scanned_quantity}</span>
                                                             </div>
+                                                            {receipt.type === 'sucursal_transfer' && Number(item.origin_expected_quantity || 0) > Number(item.expected_quantity || 0) && (
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] font-bold text-red-400 uppercase">Faltó Origen</span>
+                                                                    <span className="text-lg font-black text-red-600">
+                                                                        -{Number(item.origin_expected_quantity) - Number(item.expected_quantity)}
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <span className={`px-2 py-1 text-xs font-bold rounded-full ${badgeColor}`}>{label}</span>
                                                     </div>
@@ -1512,6 +1533,9 @@ const ReceiptDetailsPage = () => {
                                         <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-widest">Producto</th>
                                         <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Esperado</th>
                                         <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Escaneado</th>
+                                        {receipt.type === 'sucursal_transfer' && (
+                                            <th className="px-5 py-3 text-center text-xs font-bold text-red-500 uppercase tracking-widest">Faltante Origen</th>
+                                        )}
                                         <th className="px-5 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest">Estado</th>
                                     </tr>
                                 </thead>
@@ -1541,6 +1565,13 @@ const ReceiptDetailsPage = () => {
                                                     </td>
                                                     <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
                                                     <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
+                                                    {receipt.type === 'sucursal_transfer' && (
+                                                        <td className="px-5 py-4 text-center text-sm font-bold text-red-600">
+                                                            {Number(item.origin_expected_quantity || 0) > Number(item.expected_quantity || 0) 
+                                                                ? `-${Number(item.origin_expected_quantity) - Number(item.expected_quantity)}`
+                                                                : '-'}
+                                                        </td>
+                                                    )}
                                                     <td className="px-5 py-4 text-center">
                                                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
                                                             {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}

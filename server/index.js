@@ -1714,7 +1714,7 @@ app.get('/api/egresos', verifyToken, async (req, res) => {
     try {
         let query = supabase
             .from('egresos')
-            .select('*')
+            .select('*, sucursales(name)')
             .order('date', { ascending: false });
 
         // Filter by branch for non-admin roles
@@ -1724,7 +1724,14 @@ app.get('/api/egresos', verifyToken, async (req, res) => {
 
         const { data, error } = await query;
         if (error) throw error;
-        res.json(data);
+
+        // Flatten data for frontend
+        const enrichedData = data.map(e => ({
+            ...e,
+            sucursal_name: e.sucursales?.name || 'Deposito'
+        }));
+
+        res.json(enrichedData);
     } catch (error) {
         console.error('Error fetching egresos:', error);
         res.status(500).json({ message: 'Error fetching egresos' });
@@ -2209,11 +2216,13 @@ app.post('/api/branch-transfers/:id/receive', verifyToken, async (req, res) => {
 
         if (receiptError) throw receiptError;
 
-        // 3. Copy items to receipt_items
+        // 3. Copy items to receipt_items, preserving original expected quantity and reason from warehouse
         const receiptItems = egresoItems.map(item => ({
             receipt_id: receipt.id,
             product_code: item.product_code,
-            expected_quantity: item.scanned_quantity,
+            expected_quantity: item.scanned_quantity, // Lo que el depósito dice que mandó
+            origin_expected_quantity: item.expected_quantity, // Lo que se pidió originalmente
+            origin_shortage_reason: item.shortage_reason, // El motivo si hubo faltante
             scanned_quantity: 0
         }));
 
@@ -2497,7 +2506,7 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
 
 // Get barcode history
 app.get('/api/barcode-history', verifyToken, async (req, res) => {
-    const { startDate, endDate, user_id, action_type, page = 1, limit = 50 } = req.query;
+    const { startDate, endDate, user_id, action_type, productCode, page = 1, limit = 50 } = req.query;
     try {
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
@@ -2528,6 +2537,12 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
         }
         if (action_type) {
             query = query.eq('action_type', action_type);
+        }
+        
+        if (productCode) {
+            const pCode = productCode.trim();
+            // Buscar en la descripción local del historial O en el código de la tabla productos vinculada
+            query = query.or(`product_description.ilike.%${pCode}%,products(code).ilike.%${pCode}%`);
         }
 
         // Apply date filters if available
@@ -6789,6 +6804,11 @@ async function getAllBarcodeHistory(filters = {}) {
             if (userIds.length > 0) {
                 query = query.in('created_by', userIds);
             }
+        }
+        
+        if (filters.productCode) {
+            const pCode = filters.productCode.trim();
+            query = query.or(`product_description.ilike.%${pCode}%,products(code).ilike.%${pCode}%`);
         }
         
         if (filters.startDate) {

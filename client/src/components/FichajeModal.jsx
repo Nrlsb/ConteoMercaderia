@@ -49,7 +49,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     // Reset quantity when modal opens or product changes
     useEffect(() => {
         if (isOpen) {
-            setQuantity(isEgreso ? '1' : '');
+            setQuantity('1'); // Siempre por defecto 1
             setIsEditingBarcode(false);
             setBarcodeInput(product?.barcode || '');
             setCurrentBarcode(product?.barcode || '');
@@ -58,7 +58,10 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setIsScanningBarcode(false);
             // Focus input quickly to ensure modal transition initiated
             setTimeout(() => {
-                inputRef.current?.focus();
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.select(); // Seleccionar texto para edición rápida
+                }
             }, 20);
         }
     }, [isOpen, product]);

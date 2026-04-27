@@ -47,6 +47,7 @@ const EgresosList = () => {
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'open', 'finalized'
     const fileInputRef = useRef(null);
 
     // Folder watcher state
@@ -114,10 +115,10 @@ const EgresosList = () => {
         return () => clearInterval(interval);
     }, [fetchEgresos]);
 
-    // Reset visible count when search changes
+    // Reset visible count when search or filter changes
     useEffect(() => {
         setVisibleCount(20);
-    }, [search]);
+    }, [search, statusFilter]);
 
     // Auto-clear cache at 8 PM (20:00)
     useEffect(() => {
@@ -424,17 +425,24 @@ const EgresosList = () => {
     if (!canAccessEgresos) return <Navigate to="/" replace />;
 
     const searchTerms = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    const filteredEgresos = searchTerms.length > 0
-        ? egresos.filter(e => {
-            const ref = (e.reference_number || '').toLowerCase();
-            const pdf = (e.pdf_filename || '').toLowerCase();
-            const createdBy = (e.created_by || '').toLowerCase();
-            const status = e.status === 'finalized' ? 'finalizado' : 'abierto';
-            return searchTerms.every(term =>
-                ref.includes(term) || pdf.includes(term) || createdBy.includes(term) || status.includes(term)
-            );
-        })
-        : egresos;
+    const filteredEgresos = egresos.filter(e => {
+        // First filter by status if not 'all'
+        if (statusFilter === 'open' && e.status === 'finalized') return false;
+        if (statusFilter === 'finalized' && e.status !== 'finalized') return false;
+
+        // Then filter by search terms
+        if (searchTerms.length === 0) return true;
+
+        const ref = (e.reference_number || '').toLowerCase();
+        const pdf = (e.pdf_filename || '').toLowerCase();
+        const createdBy = (e.created_by || '').toLowerCase();
+        const sucursal = (e.sucursal_name || '').toLowerCase();
+        const status = e.status === 'finalized' ? 'finalizado' : 'abierto';
+        
+        return searchTerms.every(term =>
+            ref.includes(term) || pdf.includes(term) || createdBy.includes(term) || status.includes(term) || sucursal.includes(term)
+        );
+    });
 
     const displayedEgresos = filteredEgresos.slice(0, visibleCount);
 
@@ -715,17 +723,57 @@ const EgresosList = () => {
                 </div>
             )}
 
-            {/* Intelligent Search */}
+            {/* Intelligent Search & Filters */}
             {egresos.length > 0 && (
-                <div className="mb-4">
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full text-base p-3 border rounded-xl focus:ring-2 focus:ring-brand-blue outline-none bg-white shadow-sm"
-                        placeholder="Buscar por referencia, PDF, usuario o estado..."
-                        autoComplete="off"
-                    />
+                <div className="mb-6 space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={() => setStatusFilter('all')}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'all' 
+                                ? 'bg-brand-blue text-white shadow-md shadow-blue-200' 
+                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                        >
+                            <span>Todos</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                {egresos.length}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('open')}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'open' 
+                                ? 'bg-yellow-500 text-white shadow-md shadow-yellow-200' 
+                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                        >
+                            <span>Abiertos</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'open' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                {egresos.filter(e => e.status !== 'finalized').length}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('finalized')}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'finalized' 
+                                ? 'bg-green-600 text-white shadow-md shadow-green-200' 
+                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                        >
+                            <span>Finalizados</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'finalized' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                {egresos.filter(e => e.status === 'finalized').length}
+                            </span>
+                        </button>
+                    </div>
+                    <div className="relative group">
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full text-base p-4 pl-12 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue outline-none bg-white shadow-sm transition-all"
+                            placeholder="Buscar por referencia, PDF, usuario o estado..."
+                            autoComplete="off"
+                        />
+                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-brand-blue transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
                 </div>
             )}
 
@@ -771,6 +819,9 @@ const EgresosList = () => {
                                     Estado
                                 </th>
                                 <th className="px-3 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Sucursal
+                                </th>
+                                <th className="px-3 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                     Creado Por
                                 </th>
                                 <th className="px-3 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -809,6 +860,9 @@ const EgresosList = () => {
                                             <span aria-hidden className={`absolute inset-0 ${egreso.status === 'finalized' ? 'bg-green-200' : 'bg-yellow-200'} opacity-50 rounded-full`}></span>
                                             <span className="relative">{egreso.status === 'finalized' ? 'Finalizado' : 'Abierto'}</span>
                                         </span>
+                                    </td>
+                                    <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
+                                        <p className="text-gray-900 font-medium">{egreso.sucursal_name}</p>
                                     </td>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
                                         <p className="text-gray-900 whitespace-no-wrap">{egreso.created_by}</p>
@@ -864,6 +918,9 @@ const EgresosList = () => {
                                 {egreso.pdf_filename && (
                                     <p className="text-xs text-gray-400 mt-0.5">📄 {egreso.pdf_filename}</p>
                                 )}
+                                <p className="text-[10px] mt-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md inline-block font-bold">
+                                    📍 {egreso.sucursal_name}
+                                </p>
                             </div>
                             <span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-full ${egreso.status === 'finalized' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                 {egreso.status === 'finalized' ? 'Finalizado' : 'Abierto'}

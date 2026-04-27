@@ -64,6 +64,7 @@ const BarcodeControl = () => {
     const [layoutLoading, setLayoutLoading] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [usersList, setUsersList] = useState([]);
+    const [productCodeFilter, setProductCodeFilter] = useState('');
 
     // History pagination state
     const [historyPage, setHistoryPage] = useState(1);
@@ -221,6 +222,7 @@ const BarcodeControl = () => {
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
+            if (productCodeFilter) params.append('productCode', productCodeFilter);
 
             if (params.toString()) {
                 url += `&${params.toString()}`;
@@ -250,6 +252,7 @@ const BarcodeControl = () => {
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
+            if (productCodeFilter) params.append('productCode', productCodeFilter);
 
             if (params.toString()) {
                 url += `&${params.toString()}`;
@@ -347,6 +350,7 @@ const BarcodeControl = () => {
             params.append('startDate', startDate);
             params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
+            if (productCodeFilter) params.append('productCode', productCodeFilter);
 
             if (params.toString()) {
                 url += `?${params.toString()}`;
@@ -389,6 +393,7 @@ const BarcodeControl = () => {
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
+            if (productCodeFilter) params.append('productCode', productCodeFilter);
 
             const url = `/api/barcode-history/layout-excel?${params.toString()}`;
             
@@ -1433,6 +1438,17 @@ const BarcodeControl = () => {
                         {/* Date Filters and Export */}
                         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Cód. Interno</label>
+                                    <input
+                                        type="text"
+                                        value={productCodeFilter}
+                                        onChange={(e) => setProductCodeFilter(e.target.value)}
+                                        placeholder="Filtrar por código..."
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        onKeyDown={(e) => e.key === 'Enter' && fetchHistory(1)}
+                                    />
+                                </div>
                                 <div className="w-full sm:w-auto flex-1 relative" ref={userHistoryFilterRef}>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Usuarios</label>
                                     <button
