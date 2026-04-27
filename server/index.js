@@ -2536,7 +2536,12 @@ app.get('/api/barcode-history', verifyToken, async (req, res) => {
             }
         }
         if (action_type) {
-            query = query.eq('action_type', action_type);
+            const types = action_type.split(',').filter(t => t.trim() !== '');
+            if (types.length > 1) {
+                query = query.in('action_type', types);
+            } else if (types.length === 1) {
+                query = query.eq('action_type', types[0]);
+            }
         }
         
         if (productCode) {
@@ -2810,7 +2815,7 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
                 const { data: existingScans } = await supabase
                     .from('barcode_history')
                     .select('product_id')
-                    .eq('action_type', 'SCAN')
+                    .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
                     .in('product_id', productIds)
                     .gte('created_at', startOfDay)
                     .lte('created_at', endOfDay);
@@ -2910,7 +2915,7 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
                 const { data: existingScans } = await supabase
                     .from('barcode_history')
                     .select('product_id')
-                    .eq('action_type', 'SCAN')
+                    .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
                     .in('product_id', uniqueProductIdsOnDay)
                     .gte('created_at', startOfDay)
                     .lte('created_at', endOfDay);

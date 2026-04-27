@@ -218,7 +218,7 @@ const BarcodeControl = () => {
     const fetchLayout = async (page = 1) => {
         setLayoutLoading(true);
         try {
-            let url = `/api/barcode-history?action_type=SCAN&page=${page}&limit=20`;
+            let url = `/api/barcode-history?action_type=SCAN,ADD_BARCODE,UPDATE_BARCODE&page=${page}&limit=20`;
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
@@ -1875,6 +1875,17 @@ const BarcodeControl = () => {
                                                         {item.users?.username && (
                                                             <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded flex items-center gap-1 border border-blue-100">
                                                                 <User className="w-3 h-3" /> {item.users.username}
+                                                            </span>
+                                                        )}
+                                                        {item.action_type !== 'SCAN' && (
+                                                            <span className={`text-[10px] px-2 py-1 rounded font-medium flex items-center gap-1.5 border ${item.action_type === 'edit' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
+                                                                {item.action_type === 'edit' ? <Edit className="w-3 h-3" /> : <Link className="w-3 h-3" />}
+                                                                {item.action_type === 'edit' ? 'Editado' : 'Vinculado'}: {item.details}
+                                                            </span>
+                                                        )}
+                                                        {item.details === 'Transferencia masiva desde historial' && (
+                                                            <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-1 rounded font-medium flex items-center gap-1 border border-amber-100">
+                                                                <ClipboardList className="w-3 h-3" /> Transferido
                                                             </span>
                                                         )}
                                                     </div>
