@@ -2812,34 +2812,18 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
             
             let existingIdsOnDay = new Set();
             let existingDescsOnDay = new Set();
-            const descriptions = [...new Set(dayItems.map(i => i.product_description).filter(Boolean))];
             
-            if (productIds.length > 0 || descriptions.length > 0) {
-                let query = supabase
-                    .from('barcode_history')
-                    .select('product_id, product_description')
-                    .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
-                    .gte('created_at', startOfDay)
-                    .lte('created_at', endOfDay);
-
-                const orParts = [];
-                if (productIds.length > 0) {
-                    orParts.push(`product_id.in.(${productIds.join(',')})`);
-                }
-                if (descriptions.length > 0) {
-                    const escapedDescs = descriptions.map(d => `"${d.replace(/"/g, '""')}"`).join(',');
-                    orParts.push(`product_description.in.(${escapedDescs})`);
-                }
-                
-                if (orParts.length > 0) {
-                    query = query.or(orParts.join(','));
-                }
-
-                const { data: existingScans } = await query;
-                
-                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id).filter(Boolean) || []);
-                existingDescsOnDay = new Set(existingScans?.map(s => s.product_description).filter(Boolean) || []);
-            }
+            // Cargamos todos los registros relevantes del día para validar en memoria
+            // Esto es más seguro que filtrar por una lista gigante de IDs/Descripciones (evita errores de URL larga)
+            const { data: existingScans } = await supabase
+                .from('barcode_history')
+                .select('product_id, product_description')
+                .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay);
+            
+            existingIdsOnDay = new Set(existingScans?.map(s => s.product_id).filter(Boolean) || []);
+            existingDescsOnDay = new Set(existingScans?.map(s => s.product_description).filter(Boolean) || []);
 
             dayItems.forEach(item => {
                 const itemKey = `${item.product_id}_${day}`;
@@ -2847,9 +2831,15 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
                 // 1. No es un SCAN (ej: es un ADD_BARCODE o UPDATE)
                 // 2. O no tiene product_id (ej: log genérico)
                 // 3. O el producto NO ha sido escaneado ese día según la DB Y no lo hemos procesado ya en este bucle
+                const isDuplicate = (item.product_id && existingIdsOnDay.has(item.product_id)) || 
+                                    (item.product_description && existingDescsOnDay.has(item.product_description));
+                
+                // Usamos la descripción como clave de "visto en este lote" para asegurar unicidad total por nombre
+                const batchKey = item.product_description || item.product_id;
+
                 if (
-                    ((item.action_type && item.action_type !== 'SCAN') || !item.product_id || (!existingIdsOnDay.has(item.product_id) && !existingDescsOnDay.has(item.product_description))) &&
-                    (!item.product_id || !seenInThisBatch.has(itemKey))
+                    ((item.action_type && item.action_type !== 'SCAN') || !item.product_id || !isDuplicate) &&
+                    (!batchKey || !seenInThisBatch.has(batchKey))
                 ) {
                     recordsToInsert.push({
                         action_type: item.action_type || 'SCAN',
@@ -2859,7 +2849,7 @@ app.post('/api/barcode-history/bulk', verifyToken, async (req, res) => {
                         created_by: item.created_by || req.user.id,
                         created_at: item.created_at || new Date().toISOString()
                     });
-                    if (item.product_id) seenInThisBatch.add(itemKey);
+                    if (batchKey) seenInThisBatch.add(batchKey);
                 }
             });
         }
@@ -2930,41 +2920,25 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
             
             let existingIdsOnDay = new Set();
             let existingDescsOnDay = new Set();
-            const descriptions = [...new Set(dayItems.map(i => i.product_description).filter(Boolean))];
             
-            if (uniqueProductIdsOnDay.length > 0 || descriptions.length > 0) {
-                let query = supabase
-                    .from('barcode_history')
-                    .select('product_id, product_description')
-                    .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
-                    .gte('created_at', startOfDay)
-                    .lte('created_at', endOfDay);
-
-                const orParts = [];
-                if (uniqueProductIdsOnDay.length > 0) {
-                    orParts.push(`product_id.in.(${uniqueProductIdsOnDay.join(',')})`);
-                }
-                if (descriptions.length > 0) {
-                    const escapedDescs = descriptions.map(d => `"${d.replace(/"/g, '""')}"`).join(',');
-                    orParts.push(`product_description.in.(${escapedDescs})`);
-                }
-                
-                if (orParts.length > 0) {
-                    query = query.or(orParts.join(','));
-                }
-
-                const { data: existingScans } = await query;
-                
-                existingIdsOnDay = new Set(existingScans?.map(s => s.product_id).filter(Boolean) || []);
-                existingDescsOnDay = new Set(existingScans?.map(s => s.product_description).filter(Boolean) || []);
-            }
+            // Cargamos todos los registros relevantes del día una sola vez (eficiente y seguro para lotes grandes)
+            const { data: existingScans } = await supabase
+                .from('barcode_history')
+                .select('product_id, product_description')
+                .in('action_type', ['SCAN', 'ADD_BARCODE', 'UPDATE_BARCODE'])
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay);
+            
+            existingIdsOnDay = new Set(existingScans?.map(s => s.product_id).filter(Boolean) || []);
+            existingDescsOnDay = new Set(existingScans?.map(s => s.product_description).filter(Boolean) || []);
 
             dayItems.forEach(item => {
-                const itemKey = `${item.product_id}_${day}`;
                 const isDuplicate = (item.product_id && existingIdsOnDay.has(item.product_id)) || 
                                     (item.product_description && existingDescsOnDay.has(item.product_description));
 
-                if (item.product_id && !isDuplicate && !seenInThisProcess.has(itemKey)) {
+                const processKey = item.product_description || item.product_id;
+
+                if (item.product_id && !isDuplicate && !seenInThisProcess.has(processKey)) {
                     finalProductsToInsert.push({
                         action_type: 'SCAN',
                         product_id: item.product_id,
@@ -2973,7 +2947,7 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
                         created_by: item.created_by || req.user.id,
                         created_at: item.created_at // Preservar fecha original
                     });
-                    seenInThisProcess.add(itemKey);
+                    seenInThisProcess.add(processKey);
                 }
             });
         }
