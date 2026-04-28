@@ -1313,10 +1313,11 @@ app.post('/api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess(
     }
 });
 
-// Create Overstock Receipt via PDF Upload
-app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
+// Create Receipt via PDF Upload (Handles Normal and Overstock)
+app.post('/api/receipts/upload', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
     const files = req.files || [];
     const pdfFiles = files.filter(f => f.fieldname === 'pdf' || f.fieldname === 'file');
+    const type = req.body.type || 'normal'; // 'normal' or 'overstock'
 
     if (pdfFiles.length === 0) {
         return res.status(400).json({ message: 'No se recibió ningún archivo PDF' });
@@ -1328,7 +1329,101 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
 
         for (const file of pdfFiles) {
             try {
-                const { items, metadata } = await parseRemitoPdf(file.buffer, true);
+                let items = [];
+                let metadata = null;
+
+                // For NORMAL receipts, we use AI PRIORITY as requested
+                if (type === 'normal' && process.env.GEMINI_API_KEY) {
+                    console.log(`[RECEIPT PDF] Processing NORMAL receipt with AI: ${file.originalname}`);
+                    try {
+                        const pdfParts = [{
+                            inlineData: {
+                                data: file.buffer.toString("base64"),
+                                mimeType: "application/pdf"
+                            },
+                        }];
+
+                        const prompt = `
+                            Eres un experto en extracción de datos de remitos de proveedores.
+                            Analiza el PDF adjunto y extrae TODOS los productos listados en la tabla.
+                            
+                            REGLAS CRÍTICAS:
+                            1. Devuelve SOLO un array JSON válido de objetos.
+                            2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
+                            3. El "code" es el código del producto del PROVEEDOR.
+                            4. La "quantity" es la cantidad enviada.
+                            5. La "description" es el nombre del producto tal como figura en el remito.
+                            6. Extrae TODOS los productos.
+                            
+                            Formato esperado:
+                            [
+                              {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+                              ...
+                            ]
+                        `;
+
+                        const aiResult = await model.generateContent([prompt, ...pdfParts]);
+                        const aiResponse = await aiResult.response;
+                        const aiResultText = aiResponse.text();
+
+                        const jsonMatch = aiResultText.match(/\[[\s\S]*\]/);
+                        if (jsonMatch) {
+                            items = JSON.parse(jsonMatch[0]);
+                        }
+                    } catch (aiError) {
+                        console.error('[RECEIPT PDF] AI failed for normal receipt, falling back to regex:', aiError.message);
+                        const result = await parseRemitoPdf(file.buffer, true);
+                        items = result.items;
+                        metadata = result.metadata;
+                    }
+                } else {
+                    // For OVERSTOCK or if AI is unavailable, use Regex + IA Fallback
+                    let result = await parseRemitoPdf(file.buffer, true);
+                    items = result.items;
+                    metadata = result.metadata;
+                    
+                    if ((!items || items.length === 0) && process.env.GEMINI_API_KEY) {
+                        console.log(`[RECEIPT PDF] No items found in ${file.originalname} with regex. Falling back to Gemini AI...`);
+                        try {
+                            const pdfParts = [{
+                                inlineData: {
+                                    data: file.buffer.toString("base64"),
+                                    mimeType: "application/pdf"
+                                },
+                            }];
+
+                            const prompt = `
+                                Eres un experto en extracción de datos de remitos.
+                                Analiza el PDF adjunto y extrae TODOS los productos listados.
+                                
+                                REGLAS CRÍTICAS:
+                                1. Devuelve SOLO un array JSON válido de objetos.
+                                2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
+                                3. El "code" es el código que aparece en el remito (Código Interno si es sobrestock).
+                                4. La "quantity" es la cantidad.
+                                5. La "description" es el nombre del producto.
+                                
+                                Formato esperado:
+                                [
+                                  {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+                                  ...
+                                ]
+                            `;
+
+                            const aiResult = await model.generateContent([prompt, ...pdfParts]);
+                            const aiResponse = await aiResult.response;
+                            const aiResultText = aiResponse.text();
+
+                            const jsonMatch = aiResultText.match(/\[[\s\S]*\]/);
+                            if (jsonMatch) {
+                                items = JSON.parse(jsonMatch[0]);
+                            }
+                        } catch (aiError) {
+                            console.error('[RECEIPT PDF] Gemini fallback failed:', aiError.message);
+                        }
+                    }
+                }
+
                 if (items && items.length > 0) {
                     // Aggregate items: sum quantities if code is same
                     items.forEach(item => {
@@ -1375,7 +1470,7 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
             .from('receipts')
             .insert([{
                 remito_number: remitoNumber,
-                type: 'overstock',
+                type: type,
                 created_by: req.user.username,
                 sucursal_id: req.user.sucursal_id || null,
                 date: new Date()
@@ -1385,28 +1480,48 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
 
         if (receiptError) throw receiptError;
 
-        // 4. Match items by code and insert
-        // 4. Match items by code and insert in BATCH
+        // Product Matching Logic according to Type
         const results = { success: [], failed: [] };
         const uniqueCodes = allExtractedItems.map(i => i.code);
         
-        // Fetch all products in one call
-        const { data: foundProducts, error: prodError } = await supabase
-            .from('products')
-            .select('code, description, provider_description')
-            .in('code', uniqueCodes);
+        let productMap = new Map();
+
+        if (type === 'overstock') {
+            // SOBRESTOCK: Match ONLY by Internal Code
+            const { data: foundProducts, error: prodError } = await supabase
+                .from('products')
+                .select('code, description, provider_description, provider_code')
+                .in('code', uniqueCodes);
             
-        if (prodError) throw prodError;
-        
-        const productMap = new Map(foundProducts.map(p => [p.code, p]));
+            if (prodError) throw prodError;
+            if (foundProducts) foundProducts.forEach(p => productMap.set(p.code, p));
+        } else {
+            // NORMAL: Match by Provider Code first, then handle fallback to description later
+            const { data: foundProducts, error: prodError } = await supabase
+                .from('products')
+                .select('code, description, provider_description, provider_code')
+                .in('provider_code', uniqueCodes);
+            
+            if (prodError) throw prodError;
+            if (foundProducts) foundProducts.forEach(p => productMap.set(p.provider_code, p));
+        }
+
         const itemsToInsert = [];
         const historyToInsert = [];
         
         for (const item of allExtractedItems) {
             let product = productMap.get(item.code);
             
-            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Alta Precisión)
-            if (!product && item.description) {
+            // Try stripping leading zeros if not found (mostly for provider codes)
+            if (!product) {
+                const stripped = item.code.replace(/^0+/, '');
+                if (stripped && stripped !== item.code) {
+                    product = productMap.get(stripped);
+                }
+            }
+            
+            // If NORMAL and still no product, try by provider_description (High Precision match)
+            if (!product && type === 'normal' && item.description) {
                 const cleanDesc = item.description.trim().replace(/\s+/g, ' ');
                 const { data: matches } = await supabase
                     .from('products')
@@ -1639,21 +1754,38 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         const failedForPersistence = [];
         
         const itemCodes = items.map(i => i.code);
-        
-        // 3.1 Bulk Product Lookup
-        const { data: foundProducts, error: productsError } = await supabase
+
+        // 3.1 Bulk Product Lookup (Check both internal code and provider code)
+        const { data: productsByCode, error: prodError1 } = await supabase
             .from('products')
-            .select('code, barcode, description, provider_description')
+            .select('code, barcode, description, provider_description, provider_code')
             .in('code', itemCodes);
 
-        if (productsError) throw productsError;
+        const { data: productsByProvider, error: prodError2 } = await supabase
+            .from('products')
+            .select('code, barcode, description, provider_description, provider_code')
+            .in('provider_code', itemCodes);
 
-        const productMap = new Map(foundProducts.map(p => [p.code, p]));
+        if (prodError1 || prodError2) throw (prodError1 || prodError2);
+
+        // Create a map that indexes products by BOTH code and provider_code
+        const productMap = new Map();
+        if (productsByCode) productsByCode.forEach(p => productMap.set(p.code, p));
+        if (productsByProvider) productsByProvider.forEach(p => productMap.set(p.provider_code, p));
+
         const itemsToInsert = [];
         const historyEntries = [];
 
         for (const item of items) {
             let product = productMap.get(item.code);
+            
+            // Try stripping leading zeros for provider codes if not found initially
+            if (!product) {
+                const stripped = item.code.replace(/^0+/, '');
+                if (stripped && stripped !== item.code) {
+                    product = productMap.get(stripped);
+                }
+            }
 
             // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Alta Precisión)
             if (!product && item.description) {
