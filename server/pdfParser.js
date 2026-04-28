@@ -127,7 +127,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         // --- REGEX ACTUALIZADOS ---
         
         // Regex Split Code: Prefijo [Espacios] [/ /] [Espacios] Descripción [Espacios] Sufijo [Espacios >=2] Cantidad
-        const regexSplit = new RegExp(`^\\s*(\\d+)\\s+(?:/\\s*/)\\s*(.+?)\\s+(\\d{2,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+        // Restringido a prefijos de máximo 4 dígitos para evitar falsos positivos con códigos internos largos
+        const regexSplit = new RegExp(`^\\s*(\\d{1,4})\\s+(?:/\\s*/)\\s*(.+?)\\s+(\\d{2,})\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         // Regex A Strict: Código [Espacios] [/ /] [Espacios] Descripción [Espacios >=2] Cantidad [Espacios] [UM]
         const regexA_Strict = new RegExp(`^\\s*(\\d{3,})\\s+(?:/\\s*/)?\\s*(.+)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s+(${umPattern})`, 'i');
@@ -193,26 +194,7 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 if (codes.length > 0) continue;
             }
 
-            // 0. INTENTO SPLIT CODE (Ej: 213 / / DESC 002)
-            const matchSplit = line.match(regexSplit);
-            if (matchSplit) {
-                const codePartB = matchSplit[1]; // El que está al inicio (ej: 213 o 33)
-                const baseDesc = matchSplit[2].trim();
-                const codePartA = matchSplit[3]; // El que está al final (ej: 002 o 0018)
-                const quantityStr = matchSplit[4];
-                
-                // El orden correcto según la DB es Parte Final + Parte Inicial
-                const code = codePartA + codePartB; 
-                const quantity = parseFloat(quantityStr.replace(',', '.'));
-                
-                if (!isNaN(quantity) && quantity > 0) {
-                    console.log(`[PDF Match Split] ${code} (${codePartA}+${codePartB}) | ${quantity} | ${baseDesc.substring(0, 30)}...`);
-                    lastItem = pushItem(items, code, baseDesc, quantity);
-                    continue;
-                }
-            }
-
-            // 1. INTENTO ESTRÍCTO A
+            // 1. INTENTOS ESTRÍCTOS (Prioridad para evitar falsos positivos en códigos divididos)
             const matchA_Strict = line.match(regexA_Strict);
             if (matchA_Strict) {
                 const code = matchA_Strict[1];
@@ -235,6 +217,26 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match B-Strict] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     lastItem = pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            // 2. INTENTO SPLIT CODE (Ej: 213 / / DESC 002)
+            // Se movió después de los estrictos para que no rompa descripciones que terminan en números (ej: "Producto X 20")
+            const matchSplit = line.match(regexSplit);
+            if (matchSplit) {
+                const codePartB = matchSplit[1]; // El que está al inicio (ej: 213 o 33)
+                const baseDesc = matchSplit[2].trim();
+                const codePartA = matchSplit[3]; // El que está al final (ej: 002 o 0018)
+                const quantityStr = matchSplit[4];
+                
+                // El orden correcto según la DB es Parte Final + Parte Inicial
+                const code = codePartA + codePartB; 
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match Split] ${code} (${codePartA}+${codePartB}) | ${quantity} | ${baseDesc.substring(0, 30)}...`);
+                    lastItem = pushItem(items, code, baseDesc, quantity);
                     continue;
                 }
             }
