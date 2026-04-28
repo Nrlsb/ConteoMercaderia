@@ -325,32 +325,32 @@ async function findProductByAnyCode(inputCode, type = 'any') {
     try {
         // 1. Try exact barcode match
         if (type === 'any' || type === 'barcode') {
-            const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr).maybeSingle();
-            if (pBar) return pBar;
+            const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr).limit(1);
+            if (pBar && pBar.length > 0) return pBar[0];
         }
 
         // 2. Try internal code
         if (type === 'any' || type === 'internal') {
-            const { data: pCode } = await supabase.from('products').select('*').eq('code', codeStr).maybeSingle();
-            if (pCode) return pCode;
+            const { data: pCode } = await supabase.from('products').select('*').eq('code', codeStr).limit(1);
+            if (pCode && pCode.length > 0) return pCode[0];
         }
 
         // 3. Try provider code (with leading-zero tolerance)
         if (type === 'any' || type === 'provider') {
-            const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).maybeSingle();
-            if (pProv) return pProv;
+            const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).limit(1);
+            if (pProv && pProv.length > 0) return pProv[0];
 
             // Try stripping leading zeros (e.g. scanned "012345" → stored "12345")
             const stripped = codeStr.replace(/^0+/, '');
             if (stripped && stripped !== codeStr) {
-                const { data: pStripped } = await supabase.from('products').select('*').eq('provider_code', stripped).maybeSingle();
-                if (pStripped) return pStripped;
+                const { data: pStripped } = await supabase.from('products').select('*').eq('provider_code', stripped).limit(1);
+                if (pStripped && pStripped.length > 0) return pStripped[0];
             }
 
             // Try adding a leading zero (e.g. scanned "12345" → stored "012345")
             const withZero = '0' + codeStr;
-            const { data: pWithZero } = await supabase.from('products').select('*').eq('provider_code', withZero).maybeSingle();
-            if (pWithZero) return pWithZero;
+            const { data: pWithZero } = await supabase.from('products').select('*').eq('provider_code', withZero).limit(1);
+            if (pWithZero && pWithZero.length > 0) return pWithZero[0];
         }
 
         // 4. Try provider description (Case-insensitive & High Precision)
@@ -6064,13 +6064,8 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
             let product = null;
 
             if (hasCode) {
-                // 1. Lookup product by internal code or provider code
-                const { data: found } = await supabase
-                    .from('products')
-                    .select('code, barcode, description, provider_description')
-                    .or(`code.eq."${rawCode}",provider_code.eq."${rawCode}"`)
-                    .maybeSingle();
-                product = found;
+                // 1. Lookup product by internal code or provider code (with tolerance for leading zeros)
+                product = await findProductByAnyCode(rawCode, 'any');
 
                 // PASSIVE LEARNING: If found by code, update provider_description automatically
                 if (product && item.description) {
