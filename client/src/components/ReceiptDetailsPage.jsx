@@ -101,20 +101,31 @@ const ReceiptDetailsPage = () => {
     const isSuperAdmin = user?.role === 'superadmin';
 
     // Pestañas disponibles según permisos
-    const availableTabs = [
-        { id: 'load', name: '1. Cargar', permission: 'view_ingresos_tab_cargar', colorClass: 'text-brand-blue', showIfOpen: true },
-        { id: 'control', name: '2. Controlar', permission: 'view_ingresos_tab_controlar', colorClass: 'text-brand-success', showIfOpen: true },
-        { id: 'diff', name: 'Diferencias', permission: 'view_ingresos_tab_diferencias', colorClass: 'text-red-600', showIfOpen: false },
-        { id: 'history', name: 'Historial', permission: 'view_ingresos_tab_historial', colorClass: 'text-purple-600', showIfOpen: false },
-    ].filter(tab => {
-        if (isSuperAdmin) return true;
-        if (tab.showIfOpen && receipt?.status === 'finalized') return false;
+    const availableTabs = useMemo(() => {
+        const tabs = [
+            { id: 'load', name: '1. Cargar', permission: 'view_ingresos_tab_cargar', colorClass: 'text-brand-blue', showIfOpen: true },
+            { id: 'control', name: '2. Controlar', permission: 'view_ingresos_tab_controlar', colorClass: 'text-brand-success', showIfOpen: true },
+            { 
+                id: 'unlinked', 
+                name: `No Encontrados ${importFailedItems.length > 0 ? `(${importFailedItems.length})` : ''}`, 
+                permission: 'view_ingresos_tab_unlinked', 
+                colorClass: 'text-orange-600', 
+                showIfOpen: true 
+            },
+            { id: 'diff', name: 'Diferencias', permission: 'view_ingresos_tab_diferencias', colorClass: 'text-red-600', showIfOpen: false },
+            { id: 'history', name: 'Historial', permission: 'view_ingresos_tab_historial', colorClass: 'text-purple-600', showIfOpen: false },
+        ];
 
-        // Branch users can see control, diff and history by default
-        if (hasBranchPermission && ['control', 'diff', 'history'].includes(tab.id)) return true;
+        return tabs.filter(tab => {
+            if (isSuperAdmin) return true;
+            if (tab.showIfOpen && receipt?.status === 'finalized') return false;
 
-        return user?.permissions?.includes(tab.permission);
-    });
+            // Branch users can see control, diff and history by default
+            if (hasBranchPermission && ['control', 'diff', 'history', 'unlinked'].includes(tab.id)) return true;
+
+            return user?.permissions?.includes(tab.permission);
+        });
+    }, [isSuperAdmin, receipt?.status, hasBranchPermission, user?.permissions, importFailedItems.length]);
 
     // Asegurar que activeTab sea válida
     useEffect(() => {
@@ -270,6 +281,7 @@ const ReceiptDetailsPage = () => {
             const data = response.data;
             setReceipt(data);
             setItems(data.items || []);
+            setImportFailedItems(data.failed_items || []);
             
             // Default search type remains 'any' as initialized
 
@@ -1041,6 +1053,26 @@ const ReceiptDetailsPage = () => {
         });
     };
 
+    const handleResolveFailed = async (index, productCode) => {
+        if (processing) return;
+        setProcessing(true);
+        try {
+            await api.post(`/api/receipts/${id}/resolve-failed`, {
+                index,
+                productCode
+            });
+
+            toast.success('Producto vinculado correctamente');
+            setLinkingItem(null);
+            await fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error resolving failed item:', error);
+            toast.error(error.response?.data?.message || 'Error al vincular el producto');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     const handleStartLinking = (item) => {
         setLinkingItem(item);
         setLinkingSuggestions([]);
@@ -1512,6 +1544,132 @@ const ReceiptDetailsPage = () => {
                 {/* Content based on Tab */}
                 {activeTab === 'history' ? (
                     <ReceiptHistory receiptId={id} />
+                ) : activeTab === 'unlinked' ? (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {importFailedItems.length === 0 ? (
+                            <div className="bg-white p-12 text-center rounded-2xl border border-dashed border-gray-200 shadow-sm">
+                                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-800">¡Todo vinculado!</h3>
+                                <p className="text-gray-500">No hay productos pendientes de vinculación en este remito.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {importFailedItems.map((item, idx) => (
+                                    <div key={idx} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-orange-200 transition-all">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex-1">
+                                                <input 
+                                                    type="text" 
+                                                    value={item.description}
+                                                    onChange={(e) => handleEditFailedItemDescription(idx, e.target.value)}
+                                                    className="w-full font-bold text-gray-800 border-none p-0 focus:ring-0 bg-transparent text-sm"
+                                                    placeholder="Descripción del proveedor"
+                                                />
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">
+                                                        CÓD: 
+                                                        <input 
+                                                            type="text" 
+                                                            value={item.code || ''}
+                                                            onChange={(e) => handleEditFailedItemCode(idx, e.target.value)}
+                                                            className="inline-block w-24 border-none p-0 focus:ring-0 bg-transparent text-[10px] font-mono ml-1"
+                                                            placeholder="Sin código"
+                                                        />
+                                                    </span>
+                                                    <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold uppercase">
+                                                        CANT: {item.quantity}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+                                                    NO ENCONTRADO
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {linkingItem === item ? (
+                                            <div className="mt-4 p-4 bg-orange-50 rounded-xl border border-orange-100 animate-in zoom-in-95 duration-200">
+                                                <label className="block text-[10px] font-bold text-orange-700 uppercase mb-2 px-1">Buscar en catálogo para vincular</label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        autoFocus
+                                                        placeholder="Escribe nombre, código o barras..."
+                                                        onChange={handleLinkingSearch}
+                                                        className="w-full text-sm p-3 border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none shadow-inner"
+                                                    />
+                                                </div>
+                                                <div className="mt-3 space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                                                    {isLinkingSearching && (
+                                                        <div className="flex items-center justify-center py-4 gap-2">
+                                                            <div className="w-4 h-4 border-2 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div>
+                                                            <span className="text-xs text-orange-600 font-medium">Buscando...</span>
+                                                        </div>
+                                                    )}
+                                                    {linkingSuggestions.map((s, sIdx) => (
+                                                        <button
+                                                            key={sIdx}
+                                                            onClick={() => handleResolveFailed(idx, s.code)}
+                                                            disabled={processing}
+                                                            className="w-full text-left p-3 hover:bg-white rounded-xl border border-transparent hover:border-orange-200 transition-all group flex justify-between items-center"
+                                                        >
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-bold text-xs text-gray-900 truncate group-hover:text-orange-700">{s.description}</div>
+                                                                <div className="text-[10px] text-gray-500 font-mono mt-0.5">INT: {s.code} {s.barcode ? `| BAR: ${s.barcode}` : ''}</div>
+                                                            </div>
+                                                            <svg className="w-4 h-4 text-orange-300 opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                                        </button>
+                                                    ))}
+                                                    {!isLinkingSearching && linkingSuggestions.length === 0 && (
+                                                        <div className="text-center py-6 bg-white/50 rounded-xl border border-dashed border-orange-100">
+                                                            <p className="text-[10px] text-orange-400 font-medium italic">
+                                                                {normalizeText(linkingItem?.description).length > 2 ? 'No se encontraron coincidencias' : 'Ingresa 2 o más caracteres para buscar'}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => setLinkingItem(null)}
+                                                    className="w-full mt-4 py-2 text-xs text-orange-700 font-bold hover:bg-orange-100 rounded-lg transition-colors"
+                                                >
+                                                    Cancelar Búsqueda
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2 mt-4">
+                                                <button
+                                                    onClick={() => handleRetryImport(item, idx)}
+                                                    disabled={processing || (!item.code && !item.description)}
+                                                    className="flex-1 bg-white border-2 border-green-500 text-green-600 py-2.5 rounded-xl text-xs font-bold hover:bg-green-50 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                                    Probar Código
+                                                </button>
+                                                <button
+                                                    onClick={() => handleStartLinking(item)}
+                                                    className="flex-1 bg-orange-600 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-200"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                                    Vincular Manual
+                                                </button>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="mt-4 pt-3 border-t border-gray-50">
+                                            <p className="text-[10px] font-bold text-blue-600 uppercase mb-2 tracking-wider">Sugerencias rápidas:</p>
+                                            <QuickSuggestions 
+                                                description={item.description} 
+                                                onSelect={(product) => handleResolveFailed(idx, product.code)}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 ) : activeTab === 'diff' ? (
                     <div className="mb-6">
                         {/* Search input for diff tab */}
@@ -1882,136 +2040,64 @@ const ReceiptDetailsPage = () => {
                 document.body
             )}
 
-            {importFailedItems.length > 0 && ReactDOM.createPortal(
-                <div className="fixed inset-0 z-[2000] bg-black bg-opacity-75 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl flex flex-col max-w-lg w-full max-h-[90vh]">
-                        <div className="p-4 border-b flex justify-between items-center bg-red-50 rounded-t-2xl">
-                            <h2 className="text-xl font-bold text-red-700 flex items-center gap-2">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                {importFailedItems.length} fallaron al importar
-                            </h2>
-                            <button onClick={() => setImportFailedItems([])} className="text-gray-500 hover:text-gray-900 p-1">
-                                ✕
-                            </button>
-                        </div>
-                        <div className="p-4 overflow-y-auto flex-1">
-                            <p className="text-sm text-gray-600 mb-4">
-                                Los siguientes productos extraídos por la IA no pudieron ser importados, probablemente porque el código no coincide con ningún producto en la base de datos.
-                            </p>
-                            <div className="space-y-3">
-                                {importFailedItems.map((item, idx) => (
-                                    <div key={idx} className="border border-red-100 bg-white p-3 rounded-xl shadow-sm">
-                                        <div className="flex justify-between items-start gap-2 mb-1">
-                                            <div className="font-bold text-gray-900 text-sm">{item.description || 'Sin descripción'}</div>
-                                            <div className="font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs whitespace-nowrap">Cant: {item.quantity}</div>
-                                        </div>
-                                        <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block mb-2">
-                                            Origen: {item.fileName || 'N/A'}
-                                        </div>
-                                        <div className="flex items-center gap-2 mb-2 mt-1">
-                                            <span className="text-xs font-bold text-gray-500 uppercase w-20">Cód. Prov:</span>
-                                            <input
-                                                type="text"
-                                                value={item.code || ''}
-                                                onChange={(e) => handleEditFailedItemCode(idx, e.target.value)}
-                                                className="flex-1 text-xs font-mono font-bold text-gray-700 border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-400 outline-none"
-                                                placeholder="Corregir código..."
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-xs font-bold text-gray-500 uppercase w-20">Desc. Prov:</span>
-                                            <input
-                                                type="text"
-                                                value={item.description || ''}
-                                                onChange={(e) => handleEditFailedItemDescription(idx, e.target.value)}
-                                                className="flex-1 text-xs font-bold text-gray-700 border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-400 outline-none"
-                                                placeholder="Corregir descripción..."
-                                            />
-                                        </div>
-                                        <div className="text-xs text-red-600 bg-red-50 py-1.5 px-2 rounded font-medium border border-red-100 mb-2">
-                                            Error: {item.error}
-                                        </div>
-                                        {!linkingItem && (
-                                            <div className="mt-2 pt-2 border-t border-gray-100">
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 text-blue-600">Sugerencias del catálogo:</p>
-                                                <QuickSuggestions 
-                                                    description={item.description} 
-                                                    onSelect={(product) => {
-                                                        setLinkingItem(item);
-                                                        handleLinkProduct(product);
-                                                    }}
-                                                />
-                                            </div>
-                                         )}
-
-
-                                        {linkingItem === item ? (
-                                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                                <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Buscar Producto en Catálogo</label>
-                                                <input
-                                                    type="text"
-                                                    autoFocus
-                                                    placeholder="Escribe nombre o código..."
-                                                    onChange={handleLinkingSearch}
-                                                    className="w-full text-sm p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-brand-blue outline-none"
-                                                />
-                                                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                                                    {isLinkingSearching && <div className="text-center py-2 text-xs text-blue-400">Buscando...</div>}
-                                                    {linkingSuggestions.map((s, sIdx) => (
-                                                        <button
-                                                            key={sIdx}
-                                                            onClick={() => handleLinkProduct(s)}
-                                                            className="w-full text-left p-2 hover:bg-white rounded border border-transparent hover:border-blue-200 transition-all"
-                                                        >
-                                                            <div className="font-bold text-xs text-gray-900">{s.description}</div>
-                                                            <div className="text-[10px] text-gray-500 font-mono">INT: {s.code} {s.barcode ? `| BAR: ${s.barcode}` : ''}</div>
-                                                        </button>
-                                                    ))}
-                                                    {isLinkingSearching && (
-                                                        <div className="text-center py-2 text-[10px] text-gray-400">Buscando...</div>
-                                                    )}
-                                                    {!isLinkingSearching && linkingSuggestions.length === 0 && (
-                                                        <div className="text-center py-2 text-[10px] text-gray-400">
-                                                            {normalizeText(linkingItem?.description).length > 2 ? 'No se encontraron coincidencias' : 'Ingresa 2 o más caracteres para buscar'}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={() => setLinkingItem(null)}
-                                                    className="w-full mt-2 py-1.5 text-xs text-gray-500 font-bold hover:text-gray-700"
-                                                >
-                                                    Cancelar Búsqueda
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex gap-2 mt-2">
-                                                <button
-                                                    onClick={() => handleRetryImport(item, idx)}
-                                                    disabled={processing || (!item.code && !item.description)}
-                                                    className="flex-1 bg-brand-success text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                                    Probar Código
-                                                </button>
-                                                <button
-                                                    onClick={() => handleStartLinking(item)}
-                                                    className="flex-1 bg-brand-blue text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-                                                    Vincular
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+            {importFailedItems.length > 0 && !['unlinked', 'history', 'diff'].includes(activeTab) && ReactDOM.createPortal(
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/20 animate-in zoom-in-95 duration-300">
+                        <div className="bg-orange-600 p-4 text-white">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                    Productos no encontrados
+                                </h2>
+                                <button 
+                                    onClick={() => setImportFailedItems([])}
+                                    className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
                             </div>
+                            <p className="text-orange-100 text-xs mt-1">
+                                Hemos detectado {importFailedItems.length} productos que no están en el catálogo.
+                                Puedes vincularlos ahora o hacerlo más tarde desde la nueva pestaña.
+                            </p>
                         </div>
-                        <div className="p-4 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+                        
+                        <div className="p-4 max-h-[60vh] overflow-y-auto bg-gray-50 space-y-3">
+                            {importFailedItems.slice(0, 5).map((item, idx) => (
+                                <div key={idx} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="flex-1">
+                                            <div className="font-bold text-sm text-gray-800">{item.description}</div>
+                                            <div className="text-[10px] text-gray-500 font-mono">CÓDIGO: {item.code || 'N/A'} | CANT: {item.quantity}</div>
+                                        </div>
+                                        <button 
+                                            onClick={() => { setActiveTab('unlinked'); }}
+                                            className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 transition-colors uppercase"
+                                        >
+                                            Vincular →
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {importFailedItems.length > 5 && (
+                                <div className="text-center text-xs text-gray-400 py-1">
+                                    Y {importFailedItems.length - 5} productos más...
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 border-t bg-white flex flex-col gap-2">
+                            <button
+                                onClick={() => { setActiveTab('unlinked'); }}
+                                className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold shadow-lg shadow-orange-100 transition-all flex items-center justify-center gap-2"
+                            >
+                                Ir a la pestaña de vinculación
+                            </button>
                             <button
                                 onClick={() => setImportFailedItems([])}
-                                className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-bold shadow-sm transition-colors"
+                                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold transition-all"
                             >
-                                Entendido
+                                Cerrar y continuar
                             </button>
                         </div>
                     </div>

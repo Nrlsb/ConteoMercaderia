@@ -1007,7 +1007,16 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             if (batchHistoryError) throw batchHistoryError;
         }
 
-        res.status(201).json({ receipt, results });
+                // Save failed items for persistence
+        if (results.failed.length > 0) {
+            await supabase
+                .from('receipts')
+                .update({ failed_items: results.failed })
+                .eq('id', receipt.id);
+        }
+
+        res.status(201).json({ receipt: { ...receipt, failed_items: results.failed }, results });
+
     } catch (error) {
         console.error('Error creating overstock receipt:', error);
         res.status(500).json({ message: 'Error al procesar el PDF de sobrestock' });
@@ -1015,5 +1024,89 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
 });
 
 
+
+// Resolve a failed PDF item by linking it to a correct catalog product
+router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+    const { id } = req.params;
+    const { index, productCode } = req.body;
+
+    if (index === undefined || !productCode) {
+        return res.status(400).json({ message: 'Missing index or productCode' });
+    }
+
+    try {
+        // 1. Fetch the receipt to get failed_items
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (receiptError || !receipt) throw receiptError || new Error('Remito no encontrado');
+        if (receipt.status === 'finalized') return res.status(400).json({ message: 'No se puede modificar un remito finalizado' });
+
+        const failedItems = receipt.failed_items || [];
+        if (index < 0 || index >= failedItems.length) {
+            return res.status(404).json({ message: 'Item fallido no encontrado en la lista' });
+        }
+
+        const itemToResolve = failedItems[index];
+
+        // 2. Fetch the correct product
+        const { data: product } = await supabase
+            .from('products')
+            .select('code, description')
+            .eq('code', productCode)
+            .maybeSingle();
+
+        if (!product) return res.status(404).json({ message: 'Producto del catálogo no encontrado' });
+
+        // 3. Insert or update in receipt_items
+        const { data: existingItem } = await supabase
+            .from('receipt_items')
+            .select('*')
+            .eq('receipt_id', id)
+            .eq('product_code', product.code)
+            .maybeSingle();
+
+        const newExpected = (existingItem ? (Number(existingItem.expected_quantity) || 0) : 0) + (Number(itemToResolve.quantity) || 0);
+
+        const { error: saveError } = await supabase
+            .from('receipt_items')
+            .upsert({
+                receipt_id: id,
+                product_code: product.code,
+                expected_quantity: newExpected
+            }, { onConflict: 'receipt_id, product_code' });
+
+        if (saveError) throw saveError;
+
+        // 4. Remove from failed_items
+        const updatedFailedItems = [...failedItems];
+        updatedFailedItems.splice(index, 1);
+
+        const { error: updateReceiptError } = await supabase
+            .from('receipts')
+            .update({ failed_items: updatedFailedItems })
+            .eq('id', id);
+
+        if (updateReceiptError) throw updateReceiptError;
+
+        // 5. Log History
+        await supabase.from('receipt_items_history').insert({
+            receipt_id: id,
+            user_id: req.user.id,
+            operation: 'PDF_IMPORT',
+            product_code: product.code,
+            new_data: { expected_quantity: newExpected },
+            changed_at: new Date().toISOString()
+        });
+
+        res.json({ success: true, message: 'Producto vinculado correctamente' });
+    } catch (error) {
+        console.error('Error resolving failed item:', error);
+        res.status(500).json({ message: 'Error interno al vincular el producto' });
+    }
+});
 
 module.exports = router;
