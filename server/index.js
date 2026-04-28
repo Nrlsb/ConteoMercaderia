@@ -2981,8 +2981,8 @@ app.post('/api/barcode-history/bulk-transfer-filtered', verifyToken, async (req,
     }
 });
 
-// Delete bulk barcode history records (Superadmin only)
-app.delete('/api/barcode-history/bulk', verifyToken, verifySuperAdmin, async (req, res) => {
+// Delete bulk barcode history records (Admins only)
+app.delete('/api/barcode-history/bulk', verifyToken, verifyAdmin, async (req, res) => {
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {

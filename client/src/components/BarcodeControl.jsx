@@ -14,6 +14,7 @@ import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle,
 const BarcodeControl = () => {
     const { user } = useAuth();
     const isSuperAdmin = user?.role === 'superadmin';
+    const isAdmin = ['superadmin', 'admin', 'branch_admin'].includes(user?.role);
     const [scannedBarcode, setScannedBarcode] = useState('');
     const [inputBarcode, setInputBarcode] = useState('');
     const [product, setProduct] = useState(null);
@@ -1579,7 +1580,7 @@ const BarcodeControl = () => {
                                                         <ClipboardList className="w-3.5 h-3.5" /> {loading ? 'Procesando...' : `Pasar ${isAllFilteredSelected ? historyTotal : selectedHistory.length} al Layout`}
                                                     </button>
                                                 )}
-                                                {isSuperAdmin && selectedHistory.length > 0 && !isAllFilteredSelected && (
+                                                {isAdmin && selectedHistory.length > 0 && !isAllFilteredSelected && (
                                                     <button
                                                         onClick={() => handleDeleteBulk(selectedHistory.map(i => i.id), 'Historial')}
                                                         className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-right-2 disabled:opacity-50"
@@ -1812,7 +1813,7 @@ const BarcodeControl = () => {
                                         <ClipboardList className="w-5 h-5 text-primary-500" />
                                         Orden de Escaneo (Layout)
                                     </h3>
-                                    {isSuperAdmin && (
+                                    {isAdmin && (
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => {
@@ -1841,9 +1842,9 @@ const BarcodeControl = () => {
                                     {layoutHistory.map((item, index) => (
                                         <div 
                                             key={item.id} 
-                                            className={`bg-white border ${selectedLayout.includes(item.id) ? 'border-red-300 bg-red-50/10' : 'border-gray-200'} rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors ${isSuperAdmin ? 'cursor-pointer' : ''}`}
+                                            className={`bg-white border ${selectedLayout.includes(item.id) ? 'border-red-300 bg-red-50/10' : 'border-gray-200'} rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors ${isAdmin ? 'cursor-pointer' : ''}`}
                                             onClick={() => {
-                                                if (!isSuperAdmin) return;
+                                                if (!isAdmin) return;
                                                 const newSelected = selectedLayout.includes(item.id)
                                                     ? selectedLayout.filter(id => id !== item.id)
                                                     : [...selectedLayout, item.id];
@@ -1851,7 +1852,7 @@ const BarcodeControl = () => {
                                             }}
                                         >
                                             <div className="flex items-center gap-3 w-full sm:w-auto">
-                                                {isSuperAdmin && (
+                                                {isAdmin && (
                                                     <div className="flex-shrink-0 flex items-center mr-1">
                                                         <input
                                                             type="checkbox"
@@ -1891,9 +1892,23 @@ const BarcodeControl = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100 self-end sm:self-auto">
-                                                <Clock className="w-3.5 h-3.5" />
-                                                {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                                                <div className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                </div>
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteBulk([item.id], 'Layout');
+                                                        }}
+                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Borrar este registro"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
