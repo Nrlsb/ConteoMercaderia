@@ -5983,18 +5983,18 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 REGLAS CRÍTICAS:
                 1. Devuelve SOLO un array JSON válido de objetos.
                 2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
-                3. El "code" es el código del producto (suele estar en la primera o segunda columna).
+                3. El "code" es el código del producto. SI NO HAY CÓDIGO EN EL PAPEL, pon "NO_CODE".
                 4. La "quantity" es la cantidad pedida/enviada.
-                5. La "description" es el nombre del producto.
+                5. La "description" es el nombre del producto (Descripción Completa).
                 6. Extrae TODOS los productos. No te detengas hasta haber procesado toda la tabla.
                 7. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
                 8. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada.
-                9. Sé extremadamente preciso con los códigos numéricos.
+                9. Sé extremadamente preciso con la descripción si no hay códigos.
                 
                 Formato esperado:
                 [
                   {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
-                  ...
+                  {"code": "NO_CODE", "quantity": 5, "description": "PRODUCTO SIN CODIGO"}
                 ]
             `;
 
@@ -6019,20 +6019,42 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
         // Enrich items with barcodes from DB
         const enrichedItems = [];
         for (const item of extractedItems) {
-            const internalCode = String(item.code).trim();
+            const rawCode = String(item.code || '').trim();
+            const hasCode = rawCode !== '' && rawCode !== 'NO_CODE' && rawCode !== 'N/A';
+            
+            let product = null;
 
-            // Lookup product by internal code
-            const { data: product } = await supabase
-                .from('products')
-                .select('barcode, description')
-                .eq('code', internalCode)
-                .maybeSingle();
+            if (hasCode) {
+                // 1. Lookup product by internal code or provider code
+                const { data: found } = await supabase
+                    .from('products')
+                    .select('code, barcode, description')
+                    .or(`code.eq."${rawCode}",provider_code.eq."${rawCode}"`)
+                    .maybeSingle();
+                product = found;
+            }
+
+            // 2. FALLBACK: If no code or not found, try by description
+            if (!product && item.description) {
+                const cleanDesc = item.description.trim();
+                const { data: matches } = await supabase
+                    .from('products')
+                    .select('code, barcode, description')
+                    .ilike('description', `%${cleanDesc}%`)
+                    .limit(1);
+                
+                if (matches && matches.length > 0) {
+                    product = matches[0];
+                    console.log(`[PDF ENRICH] Match found by description: "${cleanDesc}" -> ${product.code}`);
+                }
+            }
 
             enrichedItems.push({
-                code: internalCode,
+                code: product?.code || (hasCode ? rawCode : ''),
                 barcode: product?.barcode || null,
                 quantity: item.quantity,
-                description: product?.description || item.description
+                description: product?.description || item.description,
+                is_unlinked: !product
             });
         }
 

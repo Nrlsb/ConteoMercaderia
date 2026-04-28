@@ -17,6 +17,50 @@ import { Capacitor } from '@capacitor/core';
 import ReceiptHistory from './ReceiptHistory';
 import { normalizeText } from '../utils/textUtils';
 
+const QuickSuggestions = ({ description, onSelect }) => {
+    const [suggestions, setSuggestions] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const { searchProductsLocally } = useProductSync();
+
+    useEffect(() => {
+        if (!description) return;
+        const fetch = async () => {
+            setLoading(true);
+            try {
+                // Buscamos productos que coincidan con la descripción extraída
+                const results = await searchProductsLocally(description);
+                setSuggestions(results.slice(0, 3)); // Solo mostramos los 3 mejores
+            } catch (err) {
+                console.error('Error fetching quick suggestions:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetch();
+    }, [description]);
+
+    if (loading) return <div className="text-[10px] text-blue-400 animate-pulse">Buscando sugerencias...</div>;
+    if (suggestions.length === 0) return null;
+
+    return (
+        <div className="flex flex-col gap-1 mt-1">
+            {suggestions.map((s, idx) => (
+                <button
+                    key={idx}
+                    onClick={() => onSelect(s)}
+                    className="text-left px-2 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all flex justify-between items-center group"
+                >
+                    <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-bold text-blue-900 truncate">{s.description}</div>
+                        <div className="text-[9px] text-blue-500 font-mono">INT: {s.code}</div>
+                    </div>
+                    <svg className="w-3 h-3 text-blue-400 group-hover:text-blue-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                </button>
+            ))}
+        </div>
+    );
+};
+
 const ReceiptDetailsPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -915,20 +959,26 @@ const ReceiptDetailsPage = () => {
 
         for (let i = 0; i < scannedItems.length; i++) {
             const item = scannedItems[i];
+            
+            // Si el item viene marcado como no vinculado desde el servidor, no intentamos el post normal
+            if (item.is_unlinked) {
+                failCount++;
+                failedItemsLog.push({
+                    ...item,
+                    error: 'Producto no encontrado en el catálogo'
+                });
+                setImportProgress({ current: i + 1, total: scannedItems.length });
+                continue;
+            }
+
             try {
                 // For OCR/PDF we use search type based on receipt type
-                await api.post(`/api/receipts/${id}/items`, {
+                await api.post(endpoint, {
                     code: item.code,
                     quantity: item.quantity,
                     searchType: receipt?.type === 'overstock' ? 'internal' : 'provider'
                 });
                 successCount++;
-
-                // Optional: Play sound for each item in control mode (maybe too much for bulk, but consistent)
-                // if (isControlTab) {
-                //     const sound = new Audio('/success-beep.mp3');
-                //     sound.play().catch(e => console.log('Audio error:', e));
-                // }
             } catch (error) {
                 console.error(`Error importing item ${item.code}:`, error);
                 failCount++;
@@ -1846,6 +1896,19 @@ const ReceiptDetailsPage = () => {
                                         <div className="text-xs text-red-600 bg-red-50 py-1.5 px-2 rounded font-medium border border-red-100 mb-2">
                                             Error: {item.error}
                                         </div>
+                                        {!linkingItem && (
+                                            <div className="mt-2 pt-2 border-t border-gray-100">
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 text-blue-600">Sugerencias del catálogo:</p>
+                                                <QuickSuggestions 
+                                                    description={item.description} 
+                                                    onSelect={(product) => {
+                                                        setLinkingItem(item);
+                                                        handleLinkProduct(product);
+                                                    }}
+                                                />
+                                            </div>
+                                         )}
+
 
                                         {linkingItem === item ? (
                                             <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
