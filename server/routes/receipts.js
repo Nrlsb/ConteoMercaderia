@@ -8,6 +8,14 @@ const xlsx = require('xlsx');
 const { fetchProductsByCodes, findProductByAnyCode } = require('../utils/dbHelpers');
 const { parseRemitoPdf } = require('../pdfParser');
 const { parseExcelXml } = require('../xmlParser');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// Initialize Gemini AI model
+let model = null;
+if (process.env.GEMINI_API_KEY) {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+}
 
 
 // --- RECEIPTS ROUTES ---
@@ -756,7 +764,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                 let metadata = null;
 
                 // For NORMAL receipts, we use AI PRIORITY as requested
-                if (type === 'normal' && process.env.GEMINI_API_KEY) {
+                if (type === 'normal' && model) {
                     console.log(`[RECEIPT PDF] Processing NORMAL receipt with AI: ${file.originalname}`);
                     try {
                         const pdfParts = [{
@@ -805,7 +813,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                     items = result.items;
                     metadata = result.metadata;
                     
-                    if ((!items || items.length === 0) && process.env.GEMINI_API_KEY) {
+                    if ((!items || items.length === 0) && model) {
                         console.log(`[RECEIPT PDF] No items found in ${file.originalname} with regex. Falling back to Gemini AI...`);
                         try {
                             const pdfParts = [{

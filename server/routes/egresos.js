@@ -8,6 +8,13 @@ const xlsx = require('xlsx');
 const { fetchProductsByCodes, findProductByAnyCode } = require('../utils/dbHelpers');
 const { parseRemitoPdf } = require('../pdfParser');
 const { parseExcelXml } = require('../xmlParser');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// Initialize Gemini AI model
+let genAI = null;
+if (process.env.GEMINI_API_KEY) {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+}
 
 
 // --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
@@ -35,7 +42,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
         }
         
         // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
-        if ((!items || items.length === 0) && process.env.GEMINI_API_KEY) {
+        if ((!items || items.length === 0) && genAI) {
             // ... (rest of the logic)
             console.log('[EGRESO PDF] No items found with regex. Falling back to Gemini AI...');
             try {
