@@ -6067,10 +6067,24 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 // 1. Lookup product by internal code or provider code
                 const { data: found } = await supabase
                     .from('products')
-                    .select('code, barcode, description')
+                    .select('code, barcode, description, provider_description')
                     .or(`code.eq."${rawCode}",provider_code.eq."${rawCode}"`)
                     .maybeSingle();
                 product = found;
+
+                // PASSIVE LEARNING: If found by code, update provider_description automatically
+                if (product && item.description) {
+                    const newDesc = item.description.trim();
+                    if (newDesc !== product.provider_description) {
+                        // Background update (don't await to keep response fast)
+                        supabase.from('products')
+                            .update({ provider_description: newDesc })
+                            .eq('code', product.code)
+                            .then(({ error }) => {
+                                if (!error) console.log(`[PASSIVE LEARNING] Autolinked description for ${product.code}`);
+                            });
+                    }
+                }
             }
 
             // 2. FALLBACK: If no code or not found, try by description OR provider_description

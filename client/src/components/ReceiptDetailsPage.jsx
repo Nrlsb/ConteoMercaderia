@@ -976,7 +976,7 @@ const ReceiptDetailsPage = () => {
                 await api.post(endpoint, {
                     code: item.code,
                     quantity: item.quantity,
-                    searchType: receipt?.type === 'overstock' ? 'internal' : 'provider'
+                    searchType: 'any'
                 });
                 successCount++;
             } catch (error) {
