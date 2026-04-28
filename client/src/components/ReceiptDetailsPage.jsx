@@ -1026,6 +1026,20 @@ const ReceiptDetailsPage = () => {
         });
     };
 
+    const handleEditFailedItemDescription = (index, newDesc) => {
+        setImportFailedItems(prev => {
+            const updated = prev.map((item, i) =>
+                i === index ? { ...item, description: newDesc } : item
+            );
+
+            if (linkingItem === prev[index]) {
+                setLinkingItem(updated[index]);
+            }
+
+            return updated;
+        });
+    };
+
     const handleStartLinking = (item) => {
         setLinkingItem(item);
         setLinkingSuggestions([]);
@@ -1063,12 +1077,14 @@ const ReceiptDetailsPage = () => {
 
         setProcessing(true);
         try {
-            // 1. Update the product's provider_code in the backend
-            if (linkingItem.code) {
-                await api.put(`/api/products/${product.id}`, {
-                    provider_code: linkingItem.code
-                });
-                toast.info(`Código de proveedor actualizado para: ${product.description}`, { duration: 2000 });
+            // 1. Update the product's provider_code and provider_description in the backend
+            const updatePayload = {};
+            if (linkingItem.code) updatePayload.provider_code = linkingItem.code;
+            if (linkingItem.description) updatePayload.provider_description = linkingItem.description;
+
+            if (Object.keys(updatePayload).length > 0) {
+                await api.put(`/api/products/${product.id}`, updatePayload);
+                toast.info(`Datos de proveedor actualizados para: ${product.description}`, { duration: 2000 });
             }
 
             // 2. Re-import the item with the correct internal code
@@ -1884,13 +1900,23 @@ const ReceiptDetailsPage = () => {
                                             Origen: {item.fileName || 'N/A'}
                                         </div>
                                         <div className="flex items-center gap-2 mb-2 mt-1">
-                                            <span className="text-xs font-bold text-gray-500 uppercase">Cód. Prov:</span>
+                                            <span className="text-xs font-bold text-gray-500 uppercase w-20">Cód. Prov:</span>
                                             <input
                                                 type="text"
                                                 value={item.code || ''}
                                                 onChange={(e) => handleEditFailedItemCode(idx, e.target.value)}
                                                 className="flex-1 text-xs font-mono font-bold text-gray-700 border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-400 outline-none"
                                                 placeholder="Corregir código..."
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-xs font-bold text-gray-500 uppercase w-20">Desc. Prov:</span>
+                                            <input
+                                                type="text"
+                                                value={item.description || ''}
+                                                onChange={(e) => handleEditFailedItemDescription(idx, e.target.value)}
+                                                className="flex-1 text-xs font-bold text-gray-700 border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-400 outline-none"
+                                                placeholder="Corregir descripción..."
                                             />
                                         </div>
                                         <div className="text-xs text-red-600 bg-red-50 py-1.5 px-2 rounded font-medium border border-red-100 mb-2">

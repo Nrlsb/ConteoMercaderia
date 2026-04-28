@@ -1377,7 +1377,7 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
         // Fetch all products in one call
         const { data: foundProducts, error: prodError } = await supabase
             .from('products')
-            .select('code, description')
+            .select('code, description, provider_description')
             .in('code', uniqueCodes);
             
         if (prodError) throw prodError;
@@ -1387,20 +1387,28 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
         const historyToInsert = [];
         
         for (const item of allExtractedItems) {
-            const product = productMap.get(item.code);
+            let product = productMap.get(item.code);
+            
+            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN EXACTA DEL PROVEEDOR
+            if (!product && item.description) {
+                const { data: pDesc } = await supabase
+                    .from('products')
+                    .select('code, description')
+                    .eq('provider_description', item.description.trim())
+                    .maybeSingle();
+                if (pDesc) product = pDesc;
+            }
             
             if (!product) {
                 results.failed.push({
                     code: item.code,
                     description: item.description,
                     quantity: item.quantity,
-                    error: 'Producto no encontrado (Código Interno)'
+                    error: 'Producto no encontrado'
                 });
                 continue;
             }
 
-            // Since it's a new receipt, we can just insert. 
-            // allExtractedItems is already unique-by-code because of the aggregation loop earlier.
             itemsToInsert.push({
                 receipt_id: receipt.id,
                 product_code: product.code,
@@ -1617,7 +1625,7 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         // 3.1 Bulk Product Lookup
         const { data: foundProducts, error: productsError } = await supabase
             .from('products')
-            .select('code, barcode, description')
+            .select('code, barcode, description, provider_description')
             .in('code', itemCodes);
 
         if (productsError) throw productsError;
@@ -1627,14 +1635,24 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         const historyEntries = [];
 
         for (const item of items) {
-            const product = productMap.get(item.code);
+            let product = productMap.get(item.code);
+
+            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN EXACTA DEL PROVEEDOR
+            if (!product && item.description) {
+                const { data: pDesc } = await supabase
+                    .from('products')
+                    .select('code, barcode, description')
+                    .eq('provider_description', item.description.trim())
+                    .maybeSingle();
+                if (pDesc) product = pDesc;
+            }
 
             if (!product) {
                 const failedItem = {
                     code: item.code,
                     description: item.description,
                     quantity: item.quantity,
-                    error: 'Producto no encontrado en la base de datos'
+                    error: 'Producto no encontrado'
                 };
                 results.failed.push(failedItem);
                 failedForPersistence.push(failedItem);
@@ -2351,7 +2369,7 @@ app.get('/api/products/sync', verifyToken, async (req, res) => {
             // Using .range() to overcome the 1000 rows default limit
             const { data, error, count } = await supabase
                 .from('products')
-                .select('id, code, barcode, description, brand, secondary_unit, conversion_factor, conversion_type', { count: 'exact' })
+                .select('id, code, barcode, description, brand, secondary_unit, conversion_factor, conversion_type, provider_description', { count: 'exact' })
                 .order('code', { ascending: true })
                 .range(from, from + step - 1);
 
@@ -2410,7 +2428,7 @@ app.get('/api/products/barcode/:barcode', verifyToken, async (req, res) => {
 // Update product details
 app.put('/api/products/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
-    const { description, code, barcode, provider_code } = req.body;
+    const { description, code, barcode, provider_code, provider_description } = req.body;
 
     try {
         // Fetch current product state before update for history logging
@@ -2429,6 +2447,7 @@ app.put('/api/products/:id', verifyToken, async (req, res) => {
         if (code !== undefined) updateData.code = code;
         if (barcode !== undefined) updateData.barcode = barcode;
         if (provider_code !== undefined) updateData.provider_code = provider_code;
+        if (provider_description !== undefined) updateData.provider_description = provider_description;
 
         const { data, error } = await supabase
             .from('products')

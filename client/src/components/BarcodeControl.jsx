@@ -491,7 +491,8 @@ const BarcodeControl = () => {
             description: productData.description || '',
             code: productData.code || '',
             barcode: productData.barcode || '',
-            provider_code: productData.provider_code || ''
+            provider_code: productData.provider_code || '',
+            provider_description: productData.provider_description || ''
         });
     };
 
@@ -760,7 +761,8 @@ const BarcodeControl = () => {
                 description: updated.description || '',
                 code: updated.code || '',
                 barcode: updated.barcode || '',
-                provider_code: updated.provider_code || ''
+                provider_code: updated.provider_code || '',
+                provider_description: updated.provider_description || ''
             });
             setError(null);
             setSearchQuery('');
@@ -1174,6 +1176,16 @@ const BarcodeControl = () => {
                                                     className="input-field"
                                                 />
                                             </div>
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del Proveedor (según Remito)</label>
+                                                <input
+                                                    type="text"
+                                                    value={editData.provider_description}
+                                                    onChange={(e) => setEditData({ ...editData, provider_description: e.target.value })}
+                                                    className="input-field"
+                                                    placeholder="Ej: Tersuave Latex Interior 20L"
+                                                />
+                                            </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras</label>
                                                 <input
@@ -1193,7 +1205,8 @@ const BarcodeControl = () => {
                                                         description: product.description || '',
                                                         code: product.code || '',
                                                         barcode: product.barcode || '',
-                                                        provider_code: product.provider_code || ''
+                                                        provider_code: product.provider_code || '',
+                                                        provider_description: product.provider_description || ''
                                                     });
                                                 }}
                                                 className="btn btn-secondary w-full sm:w-auto"
@@ -1222,6 +1235,10 @@ const BarcodeControl = () => {
                                         <div>
                                             <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
                                             <p className="text-sm sm:text-base text-gray-900 font-mono bg-gray-50 p-1.5 sm:p-2 rounded inline-block break-all">{product.provider_code || '-'}</p>
+                                        </div>
+                                        <div className="col-span-1 sm:col-span-2">
+                                            <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Descripción del Proveedor (Remito)</p>
+                                            <p className="text-sm sm:text-base text-gray-900 bg-gray-50 p-1.5 sm:p-2 rounded break-all italic">{product.provider_description || 'Sin descripción vinculada'}</p>
                                         </div>
                                         <div className="col-span-1 sm:col-span-2 mt-1 sm:mt-2 pt-2 sm:pt-3 border-t border-gray-100">
                                             <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
