@@ -34,6 +34,7 @@ const ReceiptDetailsPage = () => {
     const [visibleItems, setVisibleItems] = useState(20);
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [diffSearch, setDiffSearch] = useState('');
+    const [scanStatus, setScanStatus] = useState(null);
 
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -632,8 +633,120 @@ const ReceiptDetailsPage = () => {
 
     const handleBarcodeScan = (code) => {
         setScanInput(code);
-        // Trigger the scan processing immediately
-        handleScan(null, code);
+        
+        const mode = localStorage.getItem('scanner_mode');
+        if (mode === 'rapid' && hasBranchPermission) {
+            handleRapidScan(code);
+        } else {
+            // Trigger the scan processing immediately
+            handleScan(null, code);
+        }
+    };
+
+    const handleRapidScan = async (code) => {
+        if (processing) return;
+        setProcessing(true);
+
+        // Limpiar estado previo
+        setScanStatus(null);
+
+        // Find product(s) in current items
+        const matchingItems = productLookupMap.get(code) || [];
+
+        if (matchingItems.length === 1) {
+            const item = matchingItems[0];
+            await handleRapidConfirm(item.product_code, item.products?.description || 'Producto');
+        } else if (matchingItems.length > 1) {
+            setScanStatus({ type: 'error', message: 'Múltiples productos encontrados. Use modo Manual.' });
+            setTimeout(() => setScanStatus(null), 3000);
+        } else {
+            // Check catalog
+            setProcessing(true);
+            try {
+                const localProduct = await getProductByCode(code, searchType);
+                if (localProduct) {
+                    await handleRapidConfirm(localProduct.code, localProduct.description);
+                } else if (navigator.onLine) {
+                    const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
+                    const data = response.data;
+                    if (Array.isArray(data) && data.length > 1) {
+                        setScanStatus({ type: 'error', message: 'Múltiples productos encontrados en catálogo.' });
+                    } else if (data) {
+                        const product = Array.isArray(data) ? data[0] : data;
+                        await handleRapidConfirm(product.code, product.description);
+                    } else {
+                        setScanStatus({ type: 'error', message: `Producto no encontrado: ${code}` });
+                    }
+                } else {
+                    setScanStatus({ type: 'error', message: 'Producto no encontrado (Modo Offline)' });
+                }
+            } catch (error) {
+                setScanStatus({ type: 'error', message: 'Error al buscar producto' });
+            } finally {
+                // No seteamos processing a false aquí, lo hará handleRapidConfirm 
+                // o lo hacemos nosotros si hay error
+                if (scanStatus?.type === 'error') {
+                    setProcessing(false);
+                    setTimeout(() => setScanStatus(null), 3000);
+                }
+            }
+        }
+    };
+
+    const handleRapidConfirm = async (code, description) => {
+        try {
+            const qty = 1;
+            
+            // Optimistic local update
+        setItems(prevItems => {
+            const newItems = [...prevItems];
+            const itemIndex = newItems.findIndex(i => i.product_code === code || i.products?.provider_code === code);
+            if (itemIndex > -1) {
+                const field = activeTab === 'load' ? 'expected_quantity' : 'scanned_quantity';
+                newItems[itemIndex] = {
+                    ...newItems[itemIndex],
+                    [field]: Number(newItems[itemIndex][field] || 0) + Number(qty)
+                };
+            } else if (activeTab === 'load') {
+                newItems.push({
+                    expected_quantity: qty, scanned_quantity: 0,
+                    product_code: code,
+                    products: { description: description }
+                });
+            }
+            return newItems;
+        });
+
+        setScanStatus({ type: 'success', message: `Cargado: ${description}` });
+        const sound = new Audio('/success-beep.mp3');
+        sound.play().catch(e => console.log('Audio error:', e));
+
+        if (activeTab === 'load') {
+            await api.post(`/api/receipts/${id}/items`, { code, quantity: qty, searchType });
+        } else {
+            await api.post(`/api/receipts/${id}/scan`, { code, quantity: qty, searchType });
+        }
+        fetchReceiptDetails();
+        } catch (error) {
+            console.error('Rapid scan error:', error);
+            if (error.response?.status === 404) {
+                setScanStatus({ type: 'error', message: `Error: ${code} no existe` });
+                fetchReceiptDetails();
+            } else {
+                await db.pending_syncs.add({
+                    document_id: id,
+                    type: 'receipt',
+                    data: { code, quantity: qty, type: activeTab },
+                    timestamp: Date.now()
+                });
+                checkPendingSync();
+            }
+        } finally {
+            // Artificial delay to prevent double scan and allow user to move camera
+            setTimeout(() => {
+                setProcessing(false);
+            }, 800);
+        }
     };
 
     const handleFinalize = async () => {
@@ -1664,6 +1777,8 @@ const ReceiptDetailsPage = () => {
                         onCancel={() => setIsBarcodeReaderActive(false)}
                         isEnabled={isBarcodeReaderActive}
                         isPaused={fichajeState.isOpen || processing || isDuplicateModalOpen}
+                        allowRapidMode={hasBranchPermission}
+                        scanStatus={scanStatus}
                     />
                 </div>,
                 document.body

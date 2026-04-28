@@ -49,15 +49,18 @@ const isValidBarcode = (code) => {
     return calculatedCheck === checkDigit;
 };
 
-const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanStatus = null }) => {
+const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanStatus = null, allowRapidMode = false }) => {
     // Shared state
     const [scanMode, setScanMode] = useState(() => {
         const stored = localStorage.getItem('scanner_mode');
-        if (stored && stored !== 'ia') return stored;
+        if (stored && stored !== 'ia') {
+            if (stored === 'rapid' && !allowRapidMode) return 'auto';
+            return stored;
+        }
         return localStorage.getItem('scanner_auto_confirm') === 'true' ? 'auto' : 'manual';
     });
 
-    const isAutoConfirm = scanMode === 'auto';
+    const isAutoConfirm = scanMode === 'auto' || scanMode === 'rapid';
 
     const handleModeChange = async (newMode) => {
         if (scanMode === newMode) return;
@@ -251,7 +254,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                 if (isPausedRef.current) return;
                 if (result.barcode && result.barcode.rawValue) {
                     const code = result.barcode.rawValue;
-                    if (scanModeRef.current === 'auto') {
+                    if (scanModeRef.current === 'auto' || scanModeRef.current === 'rapid') {
                         handleScanSuccess(code);
                     } else {
                         detectedCodeRef.current = code;
@@ -373,7 +376,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                 },
                 (decodedText) => {
                     if (webPausedRef.current || isPausedRef.current) return;
-                    if (scanModeRef.current === 'auto') {
+                    if (scanModeRef.current === 'auto' || scanModeRef.current === 'rapid') {
                         handleScanSuccess(decodedText);
                     } else {
                         // Manual mode: show code, wait for user confirmation
@@ -518,8 +521,11 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const handleScanSuccess = async (code) => {
         if (isPausedRef.current) return;
         const now = Date.now();
-        // Debounce reducido para escaneo más ágil (300ms)
-        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < 300) {
+        // Delay específico para evitar escaneos múltiples del mismo producto
+        // En modo rápido usamos 1.5s, en otros modos 300ms
+        const debounceTime = scanModeRef.current === 'rapid' ? 1500 : 300;
+        
+        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < debounceTime) {
             return;
         }
         lastScannedCodeRef.current = code;
@@ -591,9 +597,12 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
                             </svg>
                         </button>
 
-                        <div className="flex bg-black/60 rounded-full p-1 border border-white/20 w-[140px]">
-                            <button onClick={() => handleModeChange('manual')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'manual' ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}>Manual</button>
-                            <button onClick={() => handleModeChange('auto')} className={`flex-1 text-xs font-bold py-1.5 rounded-full transition ${scanMode === 'auto' ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}>Auto</button>
+                        <div className={`flex bg-black/60 rounded-full p-1 border border-white/20 ${allowRapidMode ? 'w-[190px]' : 'w-[140px]'}`}>
+                            <button onClick={() => handleModeChange('manual')} className={`flex-1 text-[10px] font-bold py-1.5 rounded-full transition ${scanMode === 'manual' ? 'bg-white text-black shadow-sm' : 'text-white/70'}`}>Manual</button>
+                            <button onClick={() => handleModeChange('auto')} className={`flex-1 text-[10px] font-bold py-1.5 rounded-full transition ${scanMode === 'auto' ? 'bg-green-500 text-white shadow-sm' : 'text-white/70'}`}>Auto</button>
+                            {allowRapidMode && (
+                                <button onClick={() => handleModeChange('rapid')} className={`flex-1 text-[10px] font-bold py-1.5 rounded-full transition ${scanMode === 'rapid' ? 'bg-blue-500 text-white shadow-sm' : 'text-white/70'}`}>Rápido</button>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">
