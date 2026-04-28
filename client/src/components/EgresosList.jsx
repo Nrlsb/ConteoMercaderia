@@ -70,6 +70,7 @@ const EgresosList = () => {
     const canAccessEgresos = user?.role === 'superadmin' || user?.role === 'admin' || user?.sucursal_name === 'Deposito' || user?.permissions?.includes('tab_egresos');
     const canUploadPdf = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_egresos');
     const canDelete = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('delete_egresos');
+    const canFinalize = user?.role === 'superadmin' || user?.role === 'admin';
 
     const fetchEgresos = useCallback(async () => {
         try {
@@ -393,6 +394,18 @@ const EgresosList = () => {
             setUploading(false);
             setUploadProgress(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleFinalize = async (id) => {
+        if (!window.confirm('¿Está seguro de que desea dar por finalizado este remito? Todas las cantidades se marcarán como completas.')) return;
+        try {
+            await api.put(`/api/egresos/${id}/finalize`);
+            toast.success('Remito finalizado y cantidades completadas');
+            fetchEgresos();
+        } catch (error) {
+            console.error('Error finalizing egreso:', error);
+            toast.error(error.response?.data?.message || 'Error al finalizar el egreso');
         }
     };
 
@@ -872,6 +885,15 @@ const EgresosList = () => {
                                             <Link to={`/egresos/${egreso.id}`} className="text-blue-600 hover:text-blue-900 font-bold">
                                                 Ver Detalles
                                             </Link>
+                                            {canFinalize && egreso.status !== 'finalized' && (
+                                                <button
+                                                    onClick={() => handleFinalize(egreso.id)}
+                                                    className="text-emerald-600 hover:text-emerald-900 font-bold"
+                                                    title="Marcar todas las cantidades como completas y finalizar"
+                                                >
+                                                    Finalizar
+                                                </button>
+                                            )}
                                             {canDelete && (
                                                 <button
                                                     onClick={() => handleDelete(egreso.id)}
@@ -929,6 +951,14 @@ const EgresosList = () => {
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-600">Por: <span className="font-medium">{egreso.created_by}</span></span>
                             <div className="flex gap-3 items-center">
+                                {canFinalize && egreso.status !== 'finalized' && (
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); handleFinalize(egreso.id); }}
+                                        className="text-emerald-600 hover:text-emerald-900 font-bold"
+                                    >
+                                        Finalizar
+                                    </button>
+                                )}
                                 {canDelete && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); handleDelete(egreso.id); }}

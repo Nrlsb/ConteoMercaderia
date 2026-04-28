@@ -34,6 +34,7 @@ const EgresoDetailsPage = () => {
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_egresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_egresos');
+    const canAdminFinalize = user?.role === 'superadmin' || user?.role === 'admin';
 
     // Intelligent Search State
     const [suggestions, setSuggestions] = useState([]);
@@ -584,6 +585,19 @@ const EgresoDetailsPage = () => {
         }
     };
 
+    const handleAdminFinalize = async () => {
+        if (!window.confirm('¿Está seguro de finalizar este egreso y completar todas las cantidades automáticamente?')) return;
+
+        try {
+            await api.put(`/api/egresos/${id}/finalize`, {});
+            toast.success('Egreso finalizado y cantidades completadas');
+            fetchEgresoDetails();
+        } catch (error) {
+            console.error('Error finalizing:', error);
+            toast.error('Error al finalizar');
+        }
+    };
+
     const handleReopen = async () => {
         if (!window.confirm('¿Está seguro de reabrir este egreso?')) return;
 
@@ -744,14 +758,25 @@ const EgresoDetailsPage = () => {
                             Dif.
                         </button>
                         {egreso.status !== 'finalized' ? (
-                            canClose && (
-                                <button
-                                    onClick={handleFinalize}
-                                    className="bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
-                                >
-                                    Finalizar Egreso
-                                </button>
-                            )
+                            <div className="flex gap-2">
+                                {canAdminFinalize && (
+                                    <button
+                                        onClick={handleAdminFinalize}
+                                        className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-emerald-700 shadow-sm transition-colors"
+                                        title="Finaliza el remito y carga todas las cantidades como completas"
+                                    >
+                                        Finalizar y Completar
+                                    </button>
+                                )}
+                                {canClose && (
+                                    <button
+                                        onClick={handleFinalize}
+                                        className="bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
+                                    >
+                                        Finalizar Egreso
+                                    </button>
+                                )}
+                            </div>
                         ) : (
                             canClose && (
                                 <button

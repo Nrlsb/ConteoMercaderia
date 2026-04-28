@@ -43,7 +43,6 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
         
         // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
         if ((!items || items.length === 0) && genAI) {
-            // ... (rest of the logic)
             console.log('[EGRESO PDF] No items found with regex. Falling back to Gemini AI...');
             try {
                 const pdfParts = [{
@@ -595,6 +594,66 @@ router.put('/:id/reopen', verifyToken, hasPermission('close_egresos'), verifyBra
     }
 });
 
+// Finalize Egreso and set all quantities as complete (Admin only)
+router.put('/:id/finalize', verifyToken, verifyAdmin, verifyBranchAccess('egresos'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        // 1. Fetch current items
+        const { data: items, error: fetchError } = await supabase
+            .from('egreso_items')
+            .select('product_code, expected_quantity, scanned_quantity')
+            .eq('egreso_id', id);
+
+        if (fetchError) throw fetchError;
+
+        // 2. Prepare updates (only for those that aren't already complete)
+        const itemsToUpdate = items.filter(item => Number(item.scanned_quantity) !== Number(item.expected_quantity));
+        
+        if (itemsToUpdate.length > 0) {
+            const updates = itemsToUpdate.map(item => ({
+                egreso_id: id,
+                product_code: item.product_code,
+                scanned_quantity: item.expected_quantity,
+                expected_quantity: item.expected_quantity
+            }));
+
+            const { error: updateItemsError } = await supabase
+                .from('egreso_items')
+                .upsert(updates, { onConflict: 'egreso_id, product_code' });
+
+            if (updateItemsError) throw updateItemsError;
+
+            // 3. Log history for these items
+            const historyEntries = itemsToUpdate.map(item => ({
+                egreso_id: id,
+                user_id: req.user.id,
+                operation: 'ADMIN_FINALIZE',
+                product_code: item.product_code,
+                old_data: { scanned_quantity: item.scanned_quantity },
+                new_data: { scanned_quantity: item.expected_quantity },
+                changed_at: new Date().toISOString()
+            }));
+
+            await supabase.from('egreso_items_history').insert(historyEntries);
+        }
+
+        // 4. Finalize the Egreso status
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .update({ status: 'finalized' })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (egresoError) throw egresoError;
+
+        res.json({ message: 'Egreso finalizado y cantidades completadas', egreso });
+    } catch (error) {
+        console.error('Error finalizing egreso:', error);
+        res.status(500).json({ message: 'Error al finalizar el egreso' });
+    }
+});
+
 // Delete Egreso
 router.delete('/:id', verifyToken, hasPermission('delete_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
@@ -612,7 +671,7 @@ router.delete('/:id', verifyToken, hasPermission('delete_egresos'), verifyBranch
 });
 
 // Get Egreso History
-router.get('/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.get('/:id/history', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: history, error } = await supabase
