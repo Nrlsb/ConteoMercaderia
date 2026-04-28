@@ -6130,6 +6130,8 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
     }
+    const type = req.body.type || 'normal'; // 'normal' or 'overstock'
+    const searchType = type === 'overstock' ? 'internal' : (type === 'normal' ? 'provider' : 'any');
 
     try {
         console.log(`Received PDF upload. Size: ${req.file.size} bytes`);
@@ -6154,7 +6156,7 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 REGLAS CRÍTICAS:
                 1. Devuelve SOLO un array JSON válido de objetos.
                 2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
-                3. El "code" es el código del producto. SI NO HAY CÓDIGO EN EL PAPEL, pon "NO_CODE".
+                3. El "code" es el código del producto (${type === 'normal' ? 'CÓDIGO DEL PROVEEDOR' : 'CÓDIGO INTERNO'}). SI NO HAY CÓDIGO EN EL PAPEL, pon "NO_CODE".
                 4. La "quantity" es la cantidad pedida/enviada.
                 5. La "description" es el nombre del producto (Descripción Completa).
                 6. Extrae TODOS los productos. No te detengas hasta haber procesado toda la tabla.
@@ -6196,8 +6198,8 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
             let product = null;
 
             if (hasCode) {
-                // 1. Lookup product by internal code or provider code (with tolerance for leading zeros)
-                product = await findProductByAnyCode(rawCode, 'any');
+                // 1. Lookup product by internal code or provider code based on type
+                product = await findProductByAnyCode(rawCode, searchType);
 
                 // PASSIVE LEARNING: If found by code, update provider_description automatically
                 if (product && item.description) {

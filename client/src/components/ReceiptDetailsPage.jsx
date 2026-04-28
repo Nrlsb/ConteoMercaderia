@@ -973,10 +973,11 @@ const ReceiptDetailsPage = () => {
 
             try {
                 // For OCR/PDF we use search type based on receipt type
+                const searchTypeToUse = receipt.type === 'overstock' ? 'internal' : (receipt.type === 'normal' ? 'provider' : 'any');
                 await api.post(endpoint, {
                     code: item.code,
                     quantity: item.quantity,
-                    searchType: 'any'
+                    searchType: searchTypeToUse
                 });
                 successCount++;
             } catch (error) {
@@ -1060,7 +1061,7 @@ const ReceiptDetailsPage = () => {
             await api.post(`/api/receipts/${id}/items`, {
                 code: searchCode,
                 quantity: item.quantity,
-                searchType: 'any' // Usamos 'any' para que el servidor busque en todos los campos (incluyendo descripción)
+                searchType: receipt.type === 'overstock' ? 'internal' : (receipt.type === 'normal' ? 'provider' : 'any')
             });
 
             toast.success(`¡Éxito! Producto importado: ${item.description}`);
@@ -1154,6 +1155,7 @@ const ReceiptDetailsPage = () => {
 
                 const formData = new FormData();
                 formData.append('file', file);
+                formData.append('type', receipt.type); // Enviar tipo de remito
 
                 try {
                     const response = await api.post('/api/remitos/upload-pdf', formData);
