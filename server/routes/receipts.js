@@ -13,7 +13,7 @@ const { parseExcelXml } = require('../xmlParser');
 // --- RECEIPTS ROUTES ---
 
 // Create Receipt
-router.post('//api/receipts', verifyToken, async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
     const { remitoNumber, type } = req.body;
     if (!remitoNumber) return res.status(400).json({ message: 'Missing remito number' });
 
@@ -39,7 +39,7 @@ router.post('//api/receipts', verifyToken, async (req, res) => {
 });
 
 // Get Receipts
-router.get('//api/receipts', verifyToken, async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('receipts')
@@ -57,7 +57,7 @@ router.get('//api/receipts', verifyToken, async (req, res) => {
 });
 
 // Get Receipt Details
-router.get('//api/receipts/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: receipt, error: receiptError } = await supabase
@@ -98,7 +98,7 @@ router.get('//api/receipts/:id', verifyToken, verifyBranchAccess('receipts'), as
 
 // Add/Update Expected Item (by Provider Code or Internal Code)
 // mode: 'provider' (default) or 'internal'
-router.post('//api/receipts/:id/items', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.post('/:id/items', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     const { code, quantity } = req.body;
 
@@ -170,7 +170,7 @@ router.post('//api/receipts/:id/items', verifyToken, verifyBranchAccess('receipt
 });
 
 // Increment Scanned Quantity (Control)
-router.post('//api/receipts/:id/scan', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.post('/:id/scan', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     const { code, quantity } = req.body;
 
@@ -247,7 +247,7 @@ router.post('//api/receipts/:id/scan', verifyToken, verifyBranchAccess('receipts
 });
 
 // Close Receipt
-router.put('//api/receipts/:id/close', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
+router.put('/:id/close', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -265,7 +265,7 @@ router.put('//api/receipts/:id/close', verifyToken, hasPermission('close_ingreso
 });
 
 // Reopen Receipt (Admin only)
-router.put('//api/receipts/:id/reopen', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
+router.put('/:id/reopen', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -283,7 +283,7 @@ router.put('//api/receipts/:id/reopen', verifyToken, hasPermission('close_ingres
 });
 
 // Delete Receipt (Admin only)
-router.delete('//api/receipts/:id', verifyToken, hasPermission('delete_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
+router.delete('/:id', verifyToken, hasPermission('delete_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Soft delete receipt
@@ -301,7 +301,7 @@ router.delete('//api/receipts/:id', verifyToken, hasPermission('delete_ingresos'
 });
 
 // Update Receipt Item (Manual override)
-router.put('//api/receipts/:id/items/:itemId', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.put('/:id/items/:itemId', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id, itemId } = req.params;
     const { expected_quantity, scanned_quantity } = req.body;
 
@@ -361,7 +361,7 @@ router.put('//api/receipts/:id/items/:itemId', verifyToken, verifyBranchAccess('
 });
 
 // Update Barcode and log history for a specific receipt
-router.post('//api/receipt-items-history/barcode', verifyToken, async (req, res) => {
+router.post('/barcode', verifyToken, async (req, res) => {
     const { receipt_id, product_code, new_barcode, old_barcode } = req.body;
 
     if (!receipt_id || !product_code || !new_barcode) {
@@ -395,7 +395,7 @@ router.post('//api/receipt-items-history/barcode', verifyToken, async (req, res)
 });
 
 // Get Receipt History
-router.get('//api/receipt-history/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Fetch ALL history for this receipt using pagination to bypass 1000 record limit
@@ -459,7 +459,7 @@ router.get('//api/receipt-history/:id', verifyToken, verifyBranchAccess('receipt
 });
 
 // Export Receipt History to Excel
-router.get('//api/receipt-history/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Fetch ALL history for this receipt using pagination to bypass 1000 record limit
@@ -538,7 +538,7 @@ router.get('//api/receipt-history/:id/export', verifyToken, verifyBranchAccess('
 });
 
 // Export Receipt to Excel
-router.get('//api/receipts/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: receipt, error: receiptError } = await supabase
@@ -591,7 +591,7 @@ router.get('//api/receipts/:id/export', verifyToken, verifyBranchAccess('receipt
 });
 
 // Export Receipt Differences to Excel
-router.get('//api/receipts/:id/export-differences', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id/export-differences', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: receipt, error: receiptError } = await supabase
@@ -658,7 +658,7 @@ router.get('//api/receipts/:id/export-differences', verifyToken, verifyBranchAcc
 });
 
 // Export scanned items from one receipt to another receipt's expected items
-router.post('//api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.post('/:id/export-to-receipt', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     const { targetReceiptId } = req.body;
 
@@ -737,7 +737,7 @@ router.post('//api/receipts/:id/export-to-receipt', verifyToken, verifyBranchAcc
 });
 
 // Create Receipt via PDF Upload (Handles Normal and Overstock)
-router.post('//api/receipts/upload', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
+router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
     const files = req.files || [];
     const pdfFiles = files.filter(f => f.fieldname === 'pdf' || f.fieldname === 'file');
     const type = req.body.type || 'normal'; // 'normal' or 'overstock'

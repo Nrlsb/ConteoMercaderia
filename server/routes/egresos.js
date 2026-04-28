@@ -13,7 +13,7 @@ const { parseExcelXml } = require('../xmlParser');
 // --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
 
 // Create Egreso via PDF Upload (auto-create)
-router.post('//api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).fields([{ name: 'pdf', maxCount: 1 }, { name: 'file', maxCount: 1 }]), async (req, res) => {
+router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).fields([{ name: 'pdf', maxCount: 1 }, { name: 'file', maxCount: 1 }]), async (req, res) => {
     const file = (req.files && req.files['pdf'] ? req.files['pdf'][0] : null) || (req.files && req.files['file'] ? req.files['file'][0] : null);
 
     if (!file) {
@@ -289,7 +289,7 @@ router.post('//api/egresos/upload-pdf', verifyToken, multer({ storage: multer.me
 });
 
 // Get all Egresos
-router.get('//api/egresos', verifyToken, async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
     try {
         let query = supabase
             .from('egresos')
@@ -318,7 +318,7 @@ router.get('//api/egresos', verifyToken, async (req, res) => {
 });
 
 // Get Egreso Details
-router.get('//api/egresos/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.get('/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: egreso, error: egresoError } = await supabase
@@ -353,7 +353,7 @@ router.get('//api/egresos/:id', verifyToken, verifyBranchAccess('egresos'), asyn
 });
 
 // Scan/Control Egreso Item
-router.post('//api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     const { code, quantity } = req.body;
 
@@ -434,7 +434,7 @@ router.post('//api/egresos/:id/scan', verifyToken, verifyBranchAccess('egresos')
 });
 
 // Resolve a failed PDF item by linking it to a correct catalog product
-router.post('//api/egresos/:id/resolve-failed', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     const { index, productCode } = req.body;
 
@@ -520,7 +520,7 @@ router.post('//api/egresos/:id/resolve-failed', verifyToken, verifyBranchAccess(
 });
 
 // Update shortage reason for Egreso Item
-router.put('//api/egresos/:id/items/:productCode/reason', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.put('/:id/items/:productCode/reason', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id, productCode } = req.params;
     const { reason } = req.body;
 
@@ -553,7 +553,7 @@ router.put('//api/egresos/:id/items/:productCode/reason', verifyToken, verifyBra
 });
 
 // Close Egreso
-router.put('//api/egresos/:id/close', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
+router.put('/:id/close', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -571,7 +571,7 @@ router.put('//api/egresos/:id/close', verifyToken, hasPermission('close_egresos'
 });
 
 // Reopen Egreso
-router.put('//api/egresos/:id/reopen', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
+router.put('/:id/reopen', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -589,7 +589,7 @@ router.put('//api/egresos/:id/reopen', verifyToken, hasPermission('close_egresos
 });
 
 // Delete Egreso
-router.delete('//api/egresos/:id', verifyToken, hasPermission('delete_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
+router.delete('/:id', verifyToken, hasPermission('delete_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         await supabase.from('egreso_items_history').delete().eq('egreso_id', id);
@@ -605,7 +605,7 @@ router.delete('//api/egresos/:id', verifyToken, hasPermission('delete_egresos'),
 });
 
 // Get Egreso History
-router.get('//api/egreso-history/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.get('/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: history, error } = await supabase
@@ -642,7 +642,7 @@ router.get('//api/egreso-history/:id', verifyToken, verifyBranchAccess('egresos'
 });
 
 // Export Egreso to Excel
-router.get('//api/egresos/:id/export', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+router.get('/:id/export', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: egreso, error: egresoError } = await supabase
