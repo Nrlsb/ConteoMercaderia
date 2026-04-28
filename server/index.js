@@ -353,6 +353,12 @@ async function findProductByAnyCode(inputCode, type = 'any') {
             if (pWithZero) return pWithZero;
         }
 
+        // 4. Try provider description (Case-insensitive)
+        if (type === 'any' || type === 'provider') {
+            const { data: pDesc } = await supabase.from('products').select('*').ilike('provider_description', codeStr).maybeSingle();
+            if (pDesc) return pDesc;
+        }
+
         return null;
     } catch (error) {
         console.error(`Error resolving product for code ${codeStr}:`, error);
@@ -1389,12 +1395,12 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
         for (const item of allExtractedItems) {
             let product = productMap.get(item.code);
             
-            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN EXACTA DEL PROVEEDOR
+            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Insensible a mayúsculas)
             if (!product && item.description) {
                 const { data: pDesc } = await supabase
                     .from('products')
                     .select('code, description')
-                    .eq('provider_description', item.description.trim())
+                    .ilike('provider_description', item.description.trim())
                     .maybeSingle();
                 if (pDesc) product = pDesc;
             }
@@ -1637,12 +1643,12 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         for (const item of items) {
             let product = productMap.get(item.code);
 
-            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN EXACTA DEL PROVEEDOR
+            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Insensible a mayúsculas)
             if (!product && item.description) {
                 const { data: pDesc } = await supabase
                     .from('products')
                     .select('code, barcode, description')
-                    .eq('provider_description', item.description.trim())
+                    .ilike('provider_description', item.description.trim())
                     .maybeSingle();
                 if (pDesc) product = pDesc;
             }
