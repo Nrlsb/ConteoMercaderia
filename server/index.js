@@ -6073,18 +6073,32 @@ app.post('/api/remitos/upload-pdf', verifyToken, multer({ storage: multer.memory
                 product = found;
             }
 
-            // 2. FALLBACK: If no code or not found, try by description
+            // 2. FALLBACK: If no code or not found, try by description OR provider_description
             if (!product && item.description) {
                 const cleanDesc = item.description.trim();
-                const { data: matches } = await supabase
-                    .from('products')
-                    .select('code, barcode, description')
-                    .ilike('description', `%${cleanDesc}%`)
-                    .limit(1);
                 
-                if (matches && matches.length > 0) {
-                    product = matches[0];
-                    console.log(`[PDF ENRICH] Match found by description: "${cleanDesc}" -> ${product.code}`);
+                // Try exact or partial match in provider_description (High priority for linked products)
+                const { data: provMatches } = await supabase
+                    .from('products')
+                    .select('code, barcode, description, provider_description')
+                    .ilike('provider_description', `%${cleanDesc}%`)
+                    .limit(1);
+
+                if (provMatches && provMatches.length > 0) {
+                    product = provMatches[0];
+                    console.log(`[PDF ENRICH] Match found by provider_description: "${cleanDesc}" -> ${product.code}`);
+                } else {
+                    // Fallback to normal description
+                    const { data: matches } = await supabase
+                        .from('products')
+                        .select('code, barcode, description')
+                        .ilike('description', `%${cleanDesc}%`)
+                        .limit(1);
+                    
+                    if (matches && matches.length > 0) {
+                        product = matches[0];
+                        console.log(`[PDF ENRICH] Match found by description: "${cleanDesc}" -> ${product.code}`);
+                    }
                 }
             }
 
