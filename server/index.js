@@ -1755,23 +1755,17 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         
         const itemCodes = items.map(i => i.code);
 
-        // 3.1 Bulk Product Lookup (Check both internal code and provider code)
-        const { data: productsByCode, error: prodError1 } = await supabase
+        // 3.1 Bulk Product Lookup (Only internal code for Egresos)
+        const { data: productsByCode, error: prodError } = await supabase
             .from('products')
-            .select('code, barcode, description, provider_description, provider_code')
+            .select('code, barcode, description')
             .in('code', itemCodes);
 
-        const { data: productsByProvider, error: prodError2 } = await supabase
-            .from('products')
-            .select('code, barcode, description, provider_description, provider_code')
-            .in('provider_code', itemCodes);
+        if (prodError) throw prodError;
 
-        if (prodError1 || prodError2) throw (prodError1 || prodError2);
-
-        // Create a map that indexes products by BOTH code and provider_code
+        // Create a map that indexes products by internal code
         const productMap = new Map();
         if (productsByCode) productsByCode.forEach(p => productMap.set(p.code, p));
-        if (productsByProvider) productsByProvider.forEach(p => productMap.set(p.provider_code, p));
 
         const itemsToInsert = [];
         const historyEntries = [];
@@ -1779,24 +1773,12 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         for (const item of items) {
             let product = productMap.get(item.code);
             
-            // Try stripping leading zeros for provider codes if not found initially
+            // Try stripping leading zeros for internal codes if not found initially
             if (!product) {
                 const stripped = item.code.replace(/^0+/, '');
                 if (stripped && stripped !== item.code) {
                     product = productMap.get(stripped);
                 }
-            }
-
-            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Alta Precisión)
-            if (!product && item.description) {
-                const cleanDesc = item.description.trim().replace(/\s+/g, ' ');
-                const { data: matches } = await supabase
-                    .from('products')
-                    .select('code, barcode, description')
-                    .ilike('provider_description', `%${cleanDesc}%`)
-                    .limit(1);
-                
-                if (matches && matches.length > 0) product = matches[0];
             }
 
             if (!product) {

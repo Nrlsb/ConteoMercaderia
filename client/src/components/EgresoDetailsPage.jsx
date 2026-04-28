@@ -408,14 +408,14 @@ const EgresoDetailsPage = () => {
             })));
             setShowMatchModal(true);
         } else {
-            // Fallback: Check local catalog to provide better feedback without network delay
-            const localProduct = await getProductByCode(code);
+            // Fallback: Check local catalog (Only internal code or barcode)
+            const localProduct = await getProductByCode(code, 'internal') || await getProductByCode(code, 'barcode');
             if (localProduct) {
                 const errorMsg = `El producto "${localProduct.description}" (${code}) no forma parte de este remito de egreso.`;
                 toast.error(errorMsg, { duration: 4000 });
                 setScanStatus({ type: 'error', message: errorMsg });
             } else {
-                const errorMsg = `El producto "${code}" no fue encontrado en el catálogo local ni en este remito.`;
+                const errorMsg = `El producto "${code}" no fue encontrado como código interno ni barras.`;
                 toast.error(errorMsg, { duration: 4000 });
                 setScanStatus({ type: 'error', message: errorMsg });
             }
@@ -542,9 +542,13 @@ const EgresoDetailsPage = () => {
             return;
         }
 
-        // Search locally in products DB
-        const results = await searchProductsLocally(val);
-        setLinkingState(prev => ({ ...prev, suggestions: results.slice(0, 10) }));
+        // Search locally in products DB (Only internal or barcode)
+        const resultsByCode = await searchProductsLocally(val, 'internal');
+        const resultsByBar = await searchProductsLocally(val, 'barcode');
+        const combined = Array.from(new Set([...resultsByCode, ...resultsByBar].map(p => p.code)))
+            .map(code => [...resultsByCode, ...resultsByBar].find(p => p.code === code));
+
+        setLinkingState(prev => ({ ...prev, suggestions: combined.slice(0, 10) }));
     };
 
     const handleResolveFailed = async (productCode) => {
