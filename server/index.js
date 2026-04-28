@@ -353,10 +353,16 @@ async function findProductByAnyCode(inputCode, type = 'any') {
             if (pWithZero) return pWithZero;
         }
 
-        // 4. Try provider description (Case-insensitive)
+        // 4. Try provider description (Case-insensitive & High Precision)
         if (type === 'any' || type === 'provider') {
-            const { data: pDesc } = await supabase.from('products').select('*').ilike('provider_description', codeStr).maybeSingle();
-            if (pDesc) return pDesc;
+            const cleanDesc = codeStr.trim().replace(/\s+/g, ' ');
+            const { data: matches } = await supabase
+                .from('products')
+                .select('*')
+                .ilike('provider_description', `%${cleanDesc}%`)
+                .limit(1);
+            
+            if (matches && matches.length > 0) return matches[0];
         }
 
         return null;
@@ -678,6 +684,10 @@ app.post('/api/receipts/:id/items', verifyToken, verifyBranchAccess('receipts'),
     try {
         // 1. Find the product first using the unified helper
         const product = await findProductByAnyCode(code, req.body.searchType || 'any');
+
+        if (!product) {
+            return res.status(404).json({ message: 'Producto no encontrado en el catálogo' });
+        }
 
         // 2. Fetch existing item to log history
         const { data: existingItem } = await supabase
@@ -1395,14 +1405,16 @@ app.post('/api/receipts/upload-overstock', verifyToken, multer({ storage: multer
         for (const item of allExtractedItems) {
             let product = productMap.get(item.code);
             
-            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Insensible a mayúsculas)
+            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Alta Precisión)
             if (!product && item.description) {
-                const { data: pDesc } = await supabase
+                const cleanDesc = item.description.trim().replace(/\s+/g, ' ');
+                const { data: matches } = await supabase
                     .from('products')
                     .select('code, description')
-                    .ilike('provider_description', item.description.trim())
-                    .maybeSingle();
-                if (pDesc) product = pDesc;
+                    .ilike('provider_description', `%${cleanDesc}%`)
+                    .limit(1);
+                
+                if (matches && matches.length > 0) product = matches[0];
             }
             
             if (!product) {
@@ -1643,14 +1655,16 @@ app.post('/api/egresos/upload-pdf', verifyToken, multer({ storage: multer.memory
         for (const item of items) {
             let product = productMap.get(item.code);
 
-            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Insensible a mayúsculas)
+            // SI FALLA POR CÓDIGO, INTENTAR POR DESCRIPCIÓN DEL PROVEEDOR (Alta Precisión)
             if (!product && item.description) {
-                const { data: pDesc } = await supabase
+                const cleanDesc = item.description.trim().replace(/\s+/g, ' ');
+                const { data: matches } = await supabase
                     .from('products')
                     .select('code, barcode, description')
-                    .ilike('provider_description', item.description.trim())
-                    .maybeSingle();
-                if (pDesc) product = pDesc;
+                    .ilike('provider_description', `%${cleanDesc}%`)
+                    .limit(1);
+                
+                if (matches && matches.length > 0) product = matches[0];
             }
 
             if (!product) {
