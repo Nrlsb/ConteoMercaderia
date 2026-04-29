@@ -68,8 +68,10 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                         let lastX = 0;
                         for (let item of groupItems) {
                             // Add spaces based on X gap to preserve columns
-                            // Threshold reduced from 5.5 to 4.0 to be more aggressive in separating close text tokens
-                            let gap = Math.max(0, Math.floor((item.x - lastX) / 4.0));
+                            // If there is any gap > 1.5 units, ensure at least one space
+                            let distance = item.x - lastX;
+                            let gap = distance > 1.5 ? Math.max(1, Math.floor(distance / 4.0)) : 0;
+                            
                             lineText += ' '.repeat(gap) + item.str;
                             lastX = item.x + (item.width || (item.str.length * 4.0));
                         }
@@ -142,6 +144,10 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         
         const regexTransfer = new RegExp(`^\\s*(\\d{3,})\\s+(.+?)\\s{3,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
         const regexTransferAlt = new RegExp(`^\\s*(\\d{3,})\\s+(.+?)\\s{2,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
+
+        // Regex Stuck: Para casos donde el código está pegado a la descripción (común en PDFCreator con descripciones largas)
+        // Busca una descripción que termina en 6 dígitos pegados, seguidos de muchos espacios y luego la cantidad
+        const regexStuck = new RegExp(`^\\s*(?:/\\s*/)?\\s*(.+?)(\\d{6})\\s{5,}(\\d+(?:,\\d{1,3})?)\\s*(${umPattern})?`, 'i');
 
         for (const line of lines) {
             const trimmedLine = line.trim();
@@ -276,6 +282,19 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                 const quantity = parseFloat(quantityStr.replace(',', '.'));
                 if (!isNaN(quantity) && quantity > 0) {
                     console.log(`[PDF Match TransferAlt] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
+                    lastItem = pushItem(items, code, description, quantity);
+                    continue;
+                }
+            }
+
+            const matchStuck = line.match(regexStuck);
+            if (matchStuck) {
+                const description = matchStuck[1].trim();
+                const code = matchStuck[2];
+                const quantityStr = matchStuck[3];
+                const quantity = parseFloat(quantityStr.replace(',', '.'));
+                if (!isNaN(quantity) && quantity > 0) {
+                    console.log(`[PDF Match Stuck] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
                     lastItem = pushItem(items, code, description, quantity);
                     continue;
                 }
