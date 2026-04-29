@@ -165,6 +165,11 @@ const ReceiptDetailsPage = () => {
     // Focus management
     const inputRef = useRef(null);
 
+    // Unlinked modal persistence
+    const [hasDismissedUnlinkedModal, setHasDismissedUnlinkedModal] = useState(() => {
+        return localStorage.getItem(`dismissed_unlinked_${id}`) === 'true';
+    });
+
     // Surplus correction state
     const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
     const [correctingItem, setCorrectingItem] = useState(null);
@@ -1018,6 +1023,8 @@ const ReceiptDetailsPage = () => {
         if (failCount > 0) {
             toast.error(`${failCount} fallaron al importar`);
             setImportFailedItems(failedItemsLog);
+            setHasDismissedUnlinkedModal(false);
+            localStorage.removeItem(`dismissed_unlinked_${id}`);
         }
 
         await fetchReceiptDetails();
@@ -2040,7 +2047,7 @@ const ReceiptDetailsPage = () => {
                 document.body
             )}
 
-            {importFailedItems.length > 0 && !['unlinked', 'history', 'diff'].includes(activeTab) && ReactDOM.createPortal(
+            {importFailedItems.length > 0 && !hasDismissedUnlinkedModal && !['unlinked', 'history', 'diff'].includes(activeTab) && ReactDOM.createPortal(
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/20 animate-in zoom-in-95 duration-300">
                         <div className="bg-orange-600 p-4 text-white">
@@ -2050,7 +2057,10 @@ const ReceiptDetailsPage = () => {
                                     Productos no encontrados
                                 </h2>
                                 <button 
-                                    onClick={() => setImportFailedItems([])}
+                                    onClick={() => {
+                                        setHasDismissedUnlinkedModal(true);
+                                        localStorage.setItem(`dismissed_unlinked_${id}`, 'true');
+                                    }}
                                     className="p-1 hover:bg-white/20 rounded-full transition-colors"
                                 >
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -2088,13 +2098,20 @@ const ReceiptDetailsPage = () => {
                         
                         <div className="p-4 border-t bg-white flex flex-col gap-2">
                             <button
-                                onClick={() => { setActiveTab('unlinked'); }}
+                                onClick={() => {
+                                    setActiveTab('unlinked');
+                                    setHasDismissedUnlinkedModal(true);
+                                    localStorage.setItem(`dismissed_unlinked_${id}`, 'true');
+                                }}
                                 className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold shadow-lg shadow-orange-100 transition-all flex items-center justify-center gap-2"
                             >
                                 Ir a la pestaña de vinculación
                             </button>
                             <button
-                                onClick={() => setImportFailedItems([])}
+                                onClick={() => {
+                                    setHasDismissedUnlinkedModal(true);
+                                    localStorage.setItem(`dismissed_unlinked_${id}`, 'true');
+                                }}
                                 className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold transition-all"
                             >
                                 Cerrar y continuar
