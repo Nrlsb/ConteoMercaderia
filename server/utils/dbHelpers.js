@@ -74,7 +74,14 @@ async function getAllBarcodeHistory(filters = {}) {
             `)
             .order('created_at', { ascending: false });
 
-        if (filters.action_type) query = query.eq('action_type', filters.action_type);
+        if (filters.action_type) {
+            const types = filters.action_type.split(',').filter(t => t.trim() !== '');
+            if (types.length > 1) {
+                query = query.in('action_type', types);
+            } else if (types.length === 1) {
+                query = query.eq('action_type', types[0]);
+            }
+        }
         if (filters.user_id) {
             const userIds = Array.isArray(filters.user_id) 
                 ? filters.user_id 

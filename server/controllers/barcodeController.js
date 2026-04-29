@@ -111,6 +111,7 @@ exports.exportBarcodeHistoryCsv = async (req, res) => {
             startDate, 
             endDate,
             user_id,
+            productCode: req.query.productCode,
             action_type: req.query.action_type || null,
             unique: req.query.unique === 'true'
         });
@@ -179,6 +180,7 @@ exports.exportLayoutExcel = async (req, res) => {
             startDate, 
             endDate, 
             user_id, 
+            productCode: req.query.productCode,
             action_type: action_type || 'SCAN', 
             unique: unique === 'true' 
         });
