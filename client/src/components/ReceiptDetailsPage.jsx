@@ -79,6 +79,7 @@ const ReceiptDetailsPage = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [diffSearch, setDiffSearch] = useState('');
     const [scanStatus, setScanStatus] = useState(null);
+    const [importHistory, setImportHistory] = useState([]); // Added for source traceability
 
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -288,8 +289,13 @@ const ReceiptDetailsPage = () => {
             setItems(data.items || []);
             setImportFailedItems(data.failed_items || []);
             
-            // Default search type remains 'any' as initialized
-
+            // Load history for source traceability
+            try {
+                const historyRes = await api.get(`/api/receipts/${id}/history`);
+                setImportHistory(historyRes.data || []);
+            } catch (hErr) {
+                console.error('Error fetching history for load tab:', hErr);
+            }
             
             setLoading(false);
             await db.offline_caches.put({
@@ -1589,6 +1595,12 @@ const ReceiptDetailsPage = () => {
                                                         CANT: {item.quantity}
                                                     </span>
                                                 </div>
+                                                {item.source_doc && (
+                                                    <div className="flex items-center gap-1.5 mt-2 py-1 px-2 bg-blue-50/50 border border-blue-100 rounded-lg w-fit">
+                                                        <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                        <span className="text-[9px] font-bold text-blue-600 truncate max-w-[200px]" title={item.source_doc}>{item.source_doc}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
@@ -1908,29 +1920,58 @@ const ReceiptDetailsPage = () => {
                                             else if (diff > 0) statusColor = 'bg-yellow-100 text-yellow-800';
                                             else if (diff < 0) statusColor = 'bg-orange-100 text-orange-800';
 
+                                            // Get breakdown for load tab
+                                            const productSources = importHistory.filter(h => 
+                                                h.product_code === item.product_code && 
+                                                h.operation === 'PDF_IMPORT' && 
+                                                h.new_data?.source_doc
+                                            );
+
                                             return (
-                                                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-5 py-4">
-                                                        <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
-                                                        <div className="text-xs text-gray-400 font-medium mt-1">
-                                                            INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
-                                                    <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
-                                                    {receipt.type === 'sucursal_transfer' && (
-                                                        <td className="px-5 py-4 text-center text-sm font-bold text-red-600">
-                                                            {Number(item.origin_expected_quantity || 0) > Number(item.expected_quantity || 0) 
-                                                                ? `-${Number(item.origin_expected_quantity) - Number(item.expected_quantity)}`
-                                                                : '-'}
+                                                <React.Fragment key={item.id}>
+                                                    <tr className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-5 py-4">
+                                                            <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
+                                                            <div className="text-xs text-gray-400 font-medium mt-1">
+                                                                INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
+                                                            </div>
                                                         </td>
+                                                        <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
+                                                        <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
+                                                        {receipt.type === 'sucursal_transfer' && (
+                                                            <td className="px-5 py-4 text-center text-sm font-bold text-red-600">
+                                                                {Number(item.origin_expected_quantity || 0) > Number(item.expected_quantity || 0) 
+                                                                    ? `-${Number(item.origin_expected_quantity) - Number(item.expected_quantity)}`
+                                                                    : '-'}
+                                                            </td>
+                                                        )}
+                                                        <td className="px-5 py-4 text-center">
+                                                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
+                                                                {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    {activeTab === 'load' && productSources.length > 0 && (
+                                                        <tr className="bg-blue-50/30">
+                                                            <td colSpan={receipt.type === 'sucursal_transfer' ? 5 : 4} className="px-8 py-2">
+                                                                <div className="flex flex-wrap gap-4">
+                                                                    {productSources.reduce((acc, curr) => {
+                                                                        const existing = acc.find(a => a.doc === curr.new_data.source_doc);
+                                                                        if (existing) existing.qty += Number(curr.new_data.expected_quantity);
+                                                                        else acc.push({ doc: curr.new_data.source_doc, qty: Number(curr.new_data.expected_quantity) });
+                                                                        return acc;
+                                                                    }, []).map((source, sIdx) => (
+                                                                        <div key={sIdx} className="flex items-center gap-2 py-1 px-3 bg-white border border-blue-100 rounded-lg shadow-sm">
+                                                                            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                            <span className="text-[10px] font-bold text-gray-500 uppercase truncate max-w-[150px]" title={source.doc}>{source.doc}</span>
+                                                                            <span className="text-[11px] font-black text-brand-blue">x{source.qty}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
                                                     )}
-                                                    <td className="px-5 py-4 text-center">
-                                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${statusColor}`}>
-                                                            {diff === 0 ? 'COMPLETO' : diff > 0 ? `FALTAN ${diff}` : `SOBRAN ${Math.abs(diff)}`}
-                                                        </span>
-                                                    </td>
-                                                </tr>
+                                                </React.Fragment>
                                             );
                                         })}
                                 </tbody>
@@ -1954,6 +1995,13 @@ const ReceiptDetailsPage = () => {
                                     else if (diff > 0) statusBadge = 'bg-yellow-50 text-yellow-700';
                                     else if (diff < 0) statusBadge = 'bg-orange-50 text-orange-700';
 
+                                    // Get breakdown for load tab
+                                    const productSources = importHistory.filter(h => 
+                                        h.product_code === item.product_code && 
+                                        h.operation === 'PDF_IMPORT' && 
+                                        h.new_data?.source_doc
+                                    );
+
                                     return (
                                         <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:bg-gray-50 transition-all">
                                             <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
@@ -1976,6 +2024,25 @@ const ReceiptDetailsPage = () => {
                                                     {diff === 0 ? 'Completo' : diff > 0 ? `Faltan ${diff}` : `Sobran ${Math.abs(diff)}`}
                                                 </div>
                                             </div>
+
+                                            {activeTab === 'load' && productSources.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-dashed border-gray-100">
+                                                    <div className="text-[9px] font-black text-gray-400 uppercase mb-2">Fuentes de Carga</div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {productSources.reduce((acc, curr) => {
+                                                            const existing = acc.find(a => a.doc === curr.new_data.source_doc);
+                                                            if (existing) existing.qty += Number(curr.new_data.expected_quantity);
+                                                            else acc.push({ doc: curr.new_data.source_doc, qty: Number(curr.new_data.expected_quantity) });
+                                                            return acc;
+                                                        }, []).map((source, sIdx) => (
+                                                            <div key={sIdx} className="flex items-center gap-1.5 py-1 px-2 bg-blue-50/50 border border-blue-100 rounded-lg">
+                                                                <span className="text-[9px] font-bold text-blue-600 truncate max-w-[120px]">{source.doc}</span>
+                                                                <span className="text-[10px] font-black text-brand-blue">x{source.qty}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -2079,6 +2146,12 @@ const ReceiptDetailsPage = () => {
                                         <div className="flex-1">
                                             <div className="font-bold text-sm text-gray-800">{item.description}</div>
                                             <div className="text-[10px] text-gray-500 font-mono">CÓDIGO: {item.code || 'N/A'} | CANT: {item.quantity}</div>
+                                            {item.source_doc && (
+                                                <div className="text-[9px] text-blue-500 font-bold mt-1 flex items-center gap-1">
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                    {item.source_doc}
+                                                </div>
+                                            )}
                                         </div>
                                         <button 
                                             onClick={() => { setActiveTab('unlinked'); }}

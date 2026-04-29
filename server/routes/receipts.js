@@ -736,7 +736,6 @@ router.post('/:id/export-to-receipt', verifyToken, verifyBranchAccess('receipts'
                 });
             }
         }
-
         res.json({ exported: exportedCount, total: sourceItems.length, targetRemito: targetReceipt.remito_number });
     } catch (error) {
         console.error('Error exporting to receipt:', error);
@@ -856,14 +855,12 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                 }
 
                 if (items && items.length > 0) {
-                    // Aggregate items: sum quantities if code is same
+                    // Create detailed items for history with source document reference
                     items.forEach(item => {
-                        const existingIdx = allExtractedItems.findIndex(i => i.code === item.code);
-                        if (existingIdx !== -1) {
-                            allExtractedItems[existingIdx].quantity += item.quantity;
-                        } else {
-                            allExtractedItems.push({ ...item });
-                        }
+                        allExtractedItems.push({ 
+                            ...item, 
+                            source_doc: file.originalname 
+                        });
                     });
 
                     if (!firstRemitoNumber) {
@@ -968,28 +965,43 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                     code: item.code,
                     description: item.description,
                     quantity: item.quantity,
+                    source_doc: item.source_doc,
                     error: 'Producto no encontrado'
                 });
                 continue;
             }
 
-            itemsToInsert.push({
-                receipt_id: receipt.id,
-                product_code: product.code,
-                expected_quantity: item.quantity,
-                scanned_quantity: 0
-            });
+            // For receipt_items table we still need to aggregate to avoid PK violations
+            const existingIdx = itemsToInsert.findIndex(i => i.product_code === product.code);
+            if (existingIdx !== -1) {
+                itemsToInsert[existingIdx].expected_quantity += item.quantity;
+            } else {
+                itemsToInsert.push({
+                    receipt_id: receipt.id,
+                    product_code: product.code,
+                    expected_quantity: item.quantity,
+                    scanned_quantity: 0
+                });
+            }
 
             historyToInsert.push({
                 receipt_id: receipt.id,
                 user_id: req.user.id,
                 operation: 'PDF_IMPORT',
                 product_code: product.code,
-                new_data: { expected_quantity: item.quantity },
+                new_data: { 
+                    expected_quantity: item.quantity,
+                    source_doc: item.source_doc
+                },
                 changed_at: new Date().toISOString()
             });
 
-            results.success.push({ code: product.code, description: product.description, quantity: item.quantity });
+            results.success.push({ 
+                code: product.code, 
+                description: product.description, 
+                quantity: item.quantity,
+                source_doc: item.source_doc 
+            });
         }
 
         // Perform bulk inserts
@@ -1007,7 +1019,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             if (batchHistoryError) throw batchHistoryError;
         }
 
-                // Save failed items for persistence
+        // Save failed items for persistence
         if (results.failed.length > 0) {
             await supabase
                 .from('receipts')
@@ -1023,9 +1035,6 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
     }
 });
 
-
-
-// Resolve a failed PDF item by linking it to a correct catalog product
 router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     const { index, productCode } = req.body;
