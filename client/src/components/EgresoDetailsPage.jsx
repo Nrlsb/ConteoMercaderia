@@ -185,7 +185,7 @@ const EgresoDetailsPage = () => {
     const fetchHistory = async () => {
         setHistoryLoading(true);
         try {
-            const response = await api.get(`/api/egreso-history/${id}`);
+            const response = await api.get(`/api/egresos/${id}/history`);
             setHistory(response.data);
         } catch (error) {
             console.error('Error fetching history:', error);

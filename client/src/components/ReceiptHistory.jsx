@@ -12,7 +12,7 @@ const ReceiptHistory = ({ receiptId }) => {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const response = await api.get(`/api/receipt-history/${receiptId}`);
+                const response = await api.get(`/api/receipts/${receiptId}/history`);
                 setHistory(response.data);
             } catch (err) {
                 console.error('Error fetching history:', err);
@@ -164,7 +164,7 @@ const ReceiptHistory = ({ receiptId }) => {
                         onClick={async () => {
                             try {
                                 toast.promise(
-                                    api.get(`/api/receipt-history/${receiptId}/export`, { responseType: 'blob' }),
+                                    api.get(`/api/receipts/${receiptId}/history/export`, { responseType: 'blob' }),
                                     {
                                         loading: 'Generando Excel...',
                                         success: (response) => {

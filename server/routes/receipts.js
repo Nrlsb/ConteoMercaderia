@@ -403,7 +403,7 @@ router.post('/barcode', verifyToken, async (req, res) => {
 });
 
 // Get Receipt History
-router.get('/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id/history', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Fetch ALL history for this receipt using pagination to bypass 1000 record limit
@@ -467,7 +467,7 @@ router.get('/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res)
 });
 
 // Export Receipt History to Excel
-router.get('/:id/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
+router.get('/:id/history/export', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
         // Fetch ALL history for this receipt using pagination to bypass 1000 record limit

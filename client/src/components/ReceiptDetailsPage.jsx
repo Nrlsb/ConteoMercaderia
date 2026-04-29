@@ -92,11 +92,11 @@ const ReceiptDetailsPage = () => {
     const [isLinkingSearching, setIsLinkingSearching] = useState(false);
     const [searchType, setSearchType] = useState('any'); // 'any', 'barcode', 'provider', 'internal'
 
-    const hasBranchPermission = user?.permissions?.includes('tab_ingreso_sucursal');
+    const hasBranchPermission = Array.isArray(user?.permissions) && user.permissions.includes('tab_ingreso_sucursal');
 
-    const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_ingresos') || hasBranchPermission;
-    const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_ingresos') || hasBranchPermission;
-    const canUpload = (user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('upload_ingresos')) && !hasBranchPermission;
+    const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('use_scanner_ingresos')) || hasBranchPermission;
+    const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('close_ingresos')) || hasBranchPermission;
+    const canUpload = (user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('upload_ingresos'))) && !hasBranchPermission;
 
     const isSuperAdmin = user?.role === 'superadmin';
 
@@ -123,7 +123,7 @@ const ReceiptDetailsPage = () => {
             // Branch users can see control, diff and history by default
             if (hasBranchPermission && ['control', 'diff', 'history', 'unlinked'].includes(tab.id)) return true;
 
-            return user?.permissions?.includes(tab.permission);
+            return Array.isArray(user?.permissions) && user.permissions.includes(tab.permission);
         });
     }, [isSuperAdmin, receipt?.status, hasBranchPermission, user?.permissions, importFailedItems.length]);
 
