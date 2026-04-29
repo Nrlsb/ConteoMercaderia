@@ -94,10 +94,12 @@ const ReceiptDetailsPage = () => {
     const [searchType, setSearchType] = useState('any'); // 'any', 'barcode', 'provider', 'internal'
 
     const hasBranchPermission = Array.isArray(user?.permissions) && user.permissions.includes('tab_ingreso_sucursal');
+    const isSucursalTransfer = receipt?.type === 'sucursal_transfer';
+    const canUseRapidMode = isSucursalTransfer;
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('use_scanner_ingresos')) || hasBranchPermission;
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('close_ingresos')) || hasBranchPermission;
-    const canUpload = (user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('upload_ingresos'))) && !hasBranchPermission;
+    const canUpload = (user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('upload_ingresos'))) && !hasBranchPermission && !isSucursalTransfer;
 
     const isSuperAdmin = user?.role === 'superadmin';
 
@@ -702,7 +704,7 @@ const ReceiptDetailsPage = () => {
         setScanInput(code);
         
         const mode = localStorage.getItem('scanner_mode');
-        if (mode === 'rapid' && hasBranchPermission) {
+        if (mode === 'rapid' && canUseRapidMode) {
             handleRapidScan(code);
         } else {
             // Trigger the scan processing immediately
@@ -1389,12 +1391,12 @@ const ReceiptDetailsPage = () => {
                 </div>
 
                 {/* Modes Tabs */}
-                <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-1">
-                    <div className="flex flex-1 gap-1">
+                <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-2 overflow-hidden">
+                    <div className="flex flex-1 gap-1 overflow-x-auto no-scrollbar pb-0.5 sm:pb-0">
                         {availableTabs.map(tab => (
                             <button
                                 key={tab.id}
-                                className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id ? `bg-white shadow-sm ${tab.colorClass}` : 'text-gray-500'}`}
+                                className={`flex-1 min-w-fit whitespace-nowrap px-3 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id ? `bg-white shadow-sm ${tab.colorClass}` : 'text-gray-500 hover:text-gray-700'}`}
                                 onClick={() => setActiveTab(tab.id)}
                             >
                                 {tab.name}
@@ -1404,7 +1406,7 @@ const ReceiptDetailsPage = () => {
                                         return diff !== 0;
                                     }).length;
                                     return count > 0 ? (
-                                        <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700">{count}</span>
+                                        <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-700">{count}</span>
                                     ) : null;
                                 })()}
                             </button>
@@ -2084,7 +2086,7 @@ const ReceiptDetailsPage = () => {
                         onCancel={() => setIsBarcodeReaderActive(false)}
                         isEnabled={isBarcodeReaderActive}
                         isPaused={fichajeState.isOpen || processing || isDuplicateModalOpen}
-                        allowRapidMode={hasBranchPermission}
+                        allowRapidMode={canUseRapidMode}
                         scanStatus={scanStatus}
                     />
                 </div>,

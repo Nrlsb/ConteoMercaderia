@@ -919,17 +919,17 @@ const EgresosList = () => {
                         key={egreso.id}
                         className="block bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition-colors"
                     >
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="text-lg font-bold text-gray-900">{egreso.reference_number}</h3>
+                        <div className="flex justify-between items-start gap-4 mb-2">
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <h3 className="text-lg font-bold text-gray-900 break-words leading-tight">{egreso.reference_number}</h3>
                                     {egreso.is_devolucion && (
-                                        <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
+                                        <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase shrink-0">
                                             Devolución
                                         </span>
                                     )}
                                     {egreso.is_transferencia && (
-                                        <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-blue-200 uppercase">
+                                        <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-blue-200 uppercase shrink-0">
                                             Transferencia
                                         </span>
                                     )}
@@ -938,23 +938,26 @@ const EgresosList = () => {
                                     {new Date(egreso.date).toLocaleDateString()} - {new Date(egreso.date).toLocaleTimeString()}
                                 </p>
                                 {egreso.pdf_filename && (
-                                    <p className="text-xs text-gray-400 mt-0.5">📄 {egreso.pdf_filename}</p>
+                                    <p className="text-xs text-gray-400 mt-0.5 break-all">📄 {egreso.pdf_filename}</p>
                                 )}
                                 <p className="text-[10px] mt-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md inline-block font-bold">
                                     📍 {egreso.sucursal_name}
                                 </p>
                             </div>
-                            <span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-full ${egreso.status === 'finalized' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            <span className={`shrink-0 inline-block px-2.5 py-1 text-xs font-bold rounded-full ${egreso.status === 'finalized' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                 {egreso.status === 'finalized' ? 'Finalizado' : 'Abierto'}
                             </span>
                         </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Por: <span className="font-medium">{egreso.created_by}</span></span>
-                            <div className="flex gap-3 items-center">
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-xs text-gray-500 whitespace-nowrap">Por:</span>
+                                <span className="text-xs font-bold text-gray-700 truncate">{egreso.created_by}</span>
+                            </div>
+                            <div className="flex items-center gap-4 ml-auto">
                                 {canFinalize && egreso.status !== 'finalized' && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); handleFinalize(egreso.id); }}
-                                        className="text-emerald-600 hover:text-emerald-900 font-bold"
+                                        className="text-emerald-600 hover:text-emerald-700 text-xs font-bold whitespace-nowrap transition-colors"
                                     >
                                         Finalizar
                                     </button>
@@ -962,12 +965,12 @@ const EgresosList = () => {
                                 {canDelete && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); handleDelete(egreso.id); }}
-                                        className="text-red-600 hover:text-red-900 font-bold"
+                                        className="text-red-600 hover:text-red-700 text-xs font-bold whitespace-nowrap transition-colors"
                                     >
                                         Eliminar
                                     </button>
                                 )}
-                                <span className="text-brand-blue font-bold">Ver detalles →</span>
+                                <span className="text-brand-blue font-bold text-sm whitespace-nowrap">Ver detalles →</span>
                             </div>
                         </div>
                     </Link>

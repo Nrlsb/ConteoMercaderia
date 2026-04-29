@@ -29,6 +29,14 @@
     background: linear-gradient(135deg, var(--color-nav-active-grad-start), var(--color-nav-active-grad-end));
     @apply shadow-lg shadow-blue-900/40;
   }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 

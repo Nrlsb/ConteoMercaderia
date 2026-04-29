@@ -329,12 +329,12 @@ const ReceiptsList = () => {
                         key={receipt.id}
                         className="block bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition-colors"
                     >
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-lg font-bold text-gray-900">{receipt.remito_number}</h3>
+                        <div className="flex justify-between items-start gap-4 mb-2">
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <h3 className="text-lg font-bold text-gray-900 break-words leading-tight">{receipt.remito_number}</h3>
                                     {receipt.type === 'overstock' && (
-                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase">
+                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
                                             Sobrestock
                                         </span>
                                     )}
@@ -343,22 +343,25 @@ const ReceiptsList = () => {
                                     {new Date(receipt.date).toLocaleDateString()} - {new Date(receipt.date).toLocaleTimeString()}
                                 </p>
                             </div>
-                            <span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-full ${receipt.status === 'finalized' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            <span className={`shrink-0 inline-block px-2.5 py-1 text-xs font-bold rounded-full ${receipt.status === 'finalized' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                 {receipt.status === 'finalized' ? 'Finalizado' : 'Abierto'}
                             </span>
                         </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Por: <span className="font-medium">{receipt.created_by}</span></span>
-                            <div className="flex gap-3 items-center">
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-xs text-gray-500 whitespace-nowrap">Por:</span>
+                                <span className="text-xs font-bold text-gray-700 truncate">{receipt.created_by}</span>
+                            </div>
+                            <div className="flex items-center gap-4 ml-auto">
                                 {canDelete && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); handleDelete(receipt.id); }}
-                                        className="text-red-600 hover:text-red-900 font-bold"
+                                        className="text-red-600 hover:text-red-700 text-xs font-bold whitespace-nowrap transition-colors"
                                     >
                                         Eliminar
                                     </button>
                                 )}
-                                <span className="text-brand-blue font-bold">Ver detalles →</span>
+                                <span className="text-brand-blue font-bold text-sm whitespace-nowrap">Ver detalles →</span>
                             </div>
                         </div>
                     </Link>
