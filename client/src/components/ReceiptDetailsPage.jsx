@@ -178,6 +178,11 @@ const ReceiptDetailsPage = () => {
     const [correctingItem, setCorrectingItem] = useState(null);
     const [correctionQuantity, setCorrectionQuantity] = useState('');
 
+    // Expected quantity correction state
+    const [isExpectedCorrectionModalOpen, setIsExpectedCorrectionModalOpen] = useState(false);
+    const [editingExpectedItem, setEditingExpectedItem] = useState(null);
+    const [newExpectedQuantity, setNewExpectedQuantity] = useState('');
+
     // Optimized map for item lookups
     const productLookupMap = React.useMemo(() => {
         const map = new Map();
@@ -902,6 +907,35 @@ const ReceiptDetailsPage = () => {
         } catch (error) {
             console.error('Error correcting item:', error);
             toast.error(error.response?.data?.message || 'Error al corregir la cantidad');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleConfirmExpectedCorrection = async () => {
+        if (!editingExpectedItem || processing) return;
+
+        const newQty = parseFloat(newExpectedQuantity);
+        if (isNaN(newQty) || newQty < 0) {
+            toast.error('Cantidad inválida');
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            await api.put(`/api/receipts/${id}/items/${editingExpectedItem.id}`, {
+                expected_quantity: newQty,
+                scanned_quantity: editingExpectedItem.scanned_quantity
+            });
+
+            toast.success('Cantidad esperada actualizada');
+            setIsExpectedCorrectionModalOpen(false);
+            setEditingExpectedItem(null);
+            setNewExpectedQuantity('');
+            await fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error updating expected quantity:', error);
+            toast.error(error.response?.data?.message || 'Error al actualizar');
         } finally {
             setProcessing(false);
         }
@@ -1940,7 +1974,25 @@ const ReceiptDetailsPage = () => {
                                                                 INT: {item.product_code} | PROV: {item.products?.provider_code || '-'}
                                                             </div>
                                                         </td>
-                                                        <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.expected_quantity}</td>
+                                                        <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                {item.expected_quantity}
+                                                                {activeTab === 'load' && receipt.status !== 'finalized' && receipt.type === 'normal' && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingExpectedItem(item);
+                                                                            setNewExpectedQuantity(String(item.expected_quantity));
+                                                                            setIsExpectedCorrectionModalOpen(true);
+                                                                        }}
+                                                                        className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                                        title="Editar cantidad esperada"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+
                                                         <td className="px-5 py-4 text-center text-sm text-gray-900 font-black">{item.scanned_quantity}</td>
                                                         {receipt.type === 'sucursal_transfer' && (
                                                             <td className="px-5 py-4 text-center text-sm font-bold text-red-600">
@@ -2018,6 +2070,19 @@ const ReceiptDetailsPage = () => {
                                                     <div className="flex flex-col">
                                                         <span className="text-[9px] font-bold text-gray-400 uppercase">Esperado</span>
                                                         <span className="text-lg font-black text-gray-700">{item.expected_quantity}</span>
+                                                        {activeTab === 'load' && receipt.status !== 'finalized' && receipt.type === 'normal' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingExpectedItem(item);
+                                                                    setNewExpectedQuantity(String(item.expected_quantity));
+                                                                    setIsExpectedCorrectionModalOpen(true);
+                                                                }}
+                                                                className="ml-2 p-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg shadow-sm active:scale-95 transition-all inline-flex items-center"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                            </button>
+                                                        )}
+
                                                     </div>
                                                     <div className="flex flex-col">
                                                         <span className="text-[9px] font-bold text-gray-400 uppercase">Escaneado</span>
@@ -2444,6 +2509,78 @@ const ReceiptDetailsPage = () => {
                 </div>,
                 document.body
             )}
+
+            {/* Correction Modal for Expected Quantity */}
+            {isExpectedCorrectionModalOpen && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl border border-gray-100">
+                        <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-6 flex items-center gap-4 shadow-lg">
+                            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner text-white">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-white leading-tight uppercase tracking-wide">Editar Cantidad</h2>
+                                <p className="text-blue-50 text-sm font-medium opacity-90">Ajusta lo que esperas recibir</p>
+                            </div>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+                                <h3 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-1">Producto</h3>
+                                <p className="text-gray-900 font-black text-lg">{editingExpectedItem?.products?.description}</p>
+                                <p className="text-xs text-blue-600 font-bold mt-1 uppercase tracking-tighter">CÓDIGO: {editingExpectedItem?.product_code}</p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Nueva Cantidad Esperada</label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={newExpectedQuantity}
+                                        onChange={(e) => setNewExpectedQuantity(e.target.value)}
+                                        className="w-full text-3xl font-black p-5 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                                        placeholder="0.00"
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setIsExpectedCorrectionModalOpen(false);
+                                        setEditingExpectedItem(null);
+                                    }}
+                                    disabled={processing}
+                                    className="flex-1 px-6 py-4 bg-white hover:bg-gray-100 text-gray-500 font-black rounded-2xl border border-gray-200 shadow-sm transition-all active:scale-95 text-sm uppercase tracking-widest disabled:opacity-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleConfirmExpectedCorrection}
+                                    disabled={processing || !newExpectedQuantity}
+                                    className="flex-[2] px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-95 text-sm uppercase tracking-widest flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    {processing ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Guardar Cambio
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
         </div>
     );
 };
