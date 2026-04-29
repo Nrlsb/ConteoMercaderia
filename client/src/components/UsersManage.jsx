@@ -172,6 +172,7 @@ const UsersManage = () => {
                 { id: 'delete_ingresos', name: 'Eliminar Ingresos' },
                 { id: 'view_ingresos_tab_cargar', name: 'Ver Pestaña: 1. Cargar' },
                 { id: 'view_ingresos_tab_controlar', name: 'Ver Pestaña: 2. Controlar' },
+                { id: 'view_ingresos_tab_unlinked', name: 'Ver Pestaña: No Encontrados' },
                 { id: 'view_ingresos_tab_diferencias', name: 'Ver Pestaña: Diferencias' },
                 { id: 'view_ingresos_tab_historial', name: 'Ver Pestaña: Historial' }
             ]
@@ -212,7 +213,7 @@ const UsersManage = () => {
         },
         'operario_ingresos': {
             name: 'Operario Ingresos',
-            permissions: ['tab_ingresos', 'use_scanner_ingresos', 'upload_ingresos', 'view_ingresos_tab_cargar', 'view_ingresos_tab_controlar', 'view_ingresos_tab_diferencias']
+            permissions: ['tab_ingresos', 'use_scanner_ingresos', 'upload_ingresos', 'view_ingresos_tab_cargar', 'view_ingresos_tab_controlar', 'view_ingresos_tab_unlinked', 'view_ingresos_tab_diferencias']
         },
         'operario_egresos': {
             name: 'Operario Egresos',
