@@ -51,7 +51,7 @@ const QuickSuggestions = ({ description, onSelect }) => {
                     className="text-left px-2 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all flex justify-between items-center group"
                 >
                     <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-bold text-blue-900 truncate">{s.description}</div>
+                        <div className="text-[11px] font-bold text-blue-900">{s.description}</div>
                         <div className="text-[9px] text-blue-500 font-mono">INT: {s.code}</div>
                     </div>
                     <svg className="w-3 h-3 text-blue-400 group-hover:text-blue-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
@@ -1640,7 +1640,7 @@ const ReceiptDetailsPage = () => {
                                                             className="w-full text-left p-3 hover:bg-white rounded-xl border border-transparent hover:border-orange-200 transition-all group flex justify-between items-center"
                                                         >
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="font-bold text-xs text-gray-900 truncate group-hover:text-orange-700">{s.description}</div>
+                                                                <div className="font-bold text-xs text-gray-900 group-hover:text-orange-700">{s.description}</div>
                                                                 <div className="text-[10px] text-gray-500 font-mono mt-0.5">INT: {s.code} {s.barcode ? `| BAR: ${s.barcode}` : ''}</div>
                                                             </div>
                                                             <svg className="w-4 h-4 text-orange-300 opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>

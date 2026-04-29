@@ -48,6 +48,8 @@ const EgresosList = () => {
     const [uploadProgress, setUploadProgress] = useState(null);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'open', 'finalized'
+    const [destinationFilter, setDestinationFilter] = useState('all'); // 'all', 'branch', 'client'
+    const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'normal', 'transfer', 'return'
     const fileInputRef = useRef(null);
 
     // Folder watcher state
@@ -119,7 +121,7 @@ const EgresosList = () => {
     // Reset visible count when search or filter changes
     useEffect(() => {
         setVisibleCount(20);
-    }, [search, statusFilter]);
+    }, [search, statusFilter, destinationFilter, typeFilter]);
 
     // Auto-clear cache at 8 PM (20:00)
     useEffect(() => {
@@ -443,6 +445,15 @@ const EgresosList = () => {
         if (statusFilter === 'open' && e.status === 'finalized') return false;
         if (statusFilter === 'finalized' && e.status !== 'finalized') return false;
 
+        // Filter by destination
+        if (destinationFilter === 'branch' && e.sucursal_name === 'Deposito') return false;
+        if (destinationFilter === 'client' && e.sucursal_name !== 'Deposito') return false;
+
+        // Filter by type
+        if (typeFilter === 'normal' && (e.is_transferencia || e.is_devolucion)) return false;
+        if (typeFilter === 'transfer' && !e.is_transferencia) return false;
+        if (typeFilter === 'return' && !e.is_devolucion) return false;
+
         // Then filter by search terms
         if (searchTerms.length === 0) return true;
 
@@ -739,40 +750,108 @@ const EgresosList = () => {
             {/* Intelligent Search & Filters */}
             {egresos.length > 0 && (
                 <div className="mb-6 space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            onClick={() => setStatusFilter('all')}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'all' 
-                                ? 'bg-brand-blue text-white shadow-md shadow-blue-200' 
-                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                        >
-                            <span>Todos</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                {egresos.length}
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('open')}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'open' 
-                                ? 'bg-yellow-500 text-white shadow-md shadow-yellow-200' 
-                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                        >
-                            <span>Abiertos</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'open' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                {egresos.filter(e => e.status !== 'finalized').length}
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('finalized')}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'finalized' 
-                                ? 'bg-green-600 text-white shadow-md shadow-green-200' 
-                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                        >
-                            <span>Finalizados</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'finalized' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                {egresos.filter(e => e.status === 'finalized').length}
-                            </span>
-                        </button>
+                    <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setStatusFilter('all')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'all' 
+                                    ? 'bg-brand-blue text-white shadow-md shadow-blue-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                <span>Todos</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                    {egresos.length}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setStatusFilter('open')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'open' 
+                                    ? 'bg-yellow-500 text-white shadow-md shadow-yellow-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                <span>Abiertos</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'open' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                    {egresos.filter(e => e.status !== 'finalized').length}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setStatusFilter('finalized')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'finalized' 
+                                    ? 'bg-green-600 text-white shadow-md shadow-green-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                <span>Finalizados</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'finalized' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                    {egresos.filter(e => e.status === 'finalized').length}
+                                </span>
+                            </button>
+                        </div>
+
+                        <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
+
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setDestinationFilter('all')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${destinationFilter === 'all' 
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Destino: Todos
+                            </button>
+                            <button
+                                onClick={() => setDestinationFilter('branch')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${destinationFilter === 'branch' 
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Sucursales
+                            </button>
+                            <button
+                                onClick={() => setDestinationFilter('client')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${destinationFilter === 'client' 
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Clientes
+                            </button>
+                        </div>
+
+                        <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
+
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setTypeFilter('all')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'all' 
+                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Tipo: Todos
+                            </button>
+                            <button
+                                onClick={() => setTypeFilter('normal')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'normal' 
+                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Normales
+                            </button>
+                            <button
+                                onClick={() => setTypeFilter('transfer')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'transfer' 
+                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Transferencias
+                            </button>
+                            <button
+                                onClick={() => setTypeFilter('return')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'return' 
+                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                            >
+                                Devoluciones
+                            </button>
+                        </div>
                     </div>
                     <div className="relative group">
                         <input
