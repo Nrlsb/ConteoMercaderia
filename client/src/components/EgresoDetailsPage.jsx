@@ -363,11 +363,28 @@ const EgresoDetailsPage = () => {
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
-        setProcessing(true);
         const lowerCode = code.toLowerCase();
 
-        // 1. Optimized search in current items Map
+        // 1. Optimized search in current items Map (O(1) lookup)
         let matchingItems = productLookupMap.get(lowerCode) || [];
+
+        // Ruta rápida: match directo sin setProcessing para evitar re-render intermedio
+        if (matchingItems.length === 1) {
+            setScanInput('');
+            processProductSelection({
+                code: matchingItems[0].product_code,
+                description: matchingItems[0].products?.description || 'Producto',
+                barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || '',
+                secondary_unit: matchingItems[0].products?.secondary_unit || null,
+                primary_unit: matchingItems[0].products?.primary_unit || null,
+                conversion_factor: matchingItems[0].products?.conversion_factor || null,
+                conversion_type: matchingItems[0].products?.conversion_type || null,
+            });
+            return;
+        }
+
+        // Ruta lenta: necesita búsqueda adicional
+        setProcessing(true);
 
         // 2. Intelligent Search (If no exact match, search by terms - Fallback)
         if (matchingItems.length === 0) {
@@ -520,8 +537,7 @@ const EgresoDetailsPage = () => {
     };
 
     const handleBarcodeScan = (code) => {
-        setScanInput(code);
-        // Trigger the scan processing immediately
+        // Buscar directamente sin setScanInput previo para evitar re-render intermedio
         handleScan(null, code);
     };
 

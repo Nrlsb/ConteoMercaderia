@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import Login from './components/Login';
 import Register from './components/Register';
 import Navigation from './components/Navigation';
@@ -117,6 +118,20 @@ const AppContent = () => {
       'egreso_list_cache' // just in case
     ];
     oldCaches.forEach(key => localStorage.removeItem(key));
+
+    // Pre-calentar módulo ML Kit para eliminar delay en la primera apertura del escáner
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      import('@capacitor-mlkit/barcode-scanning').then(({ BarcodeScanner }) => {
+        BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
+          .then(({ available }) => {
+            if (!available) {
+              console.info('[App] Pre-instalando módulo Google Barcode Scanner...');
+              BarcodeScanner.installGoogleBarcodeScannerModule();
+            }
+          })
+          .catch(() => {});
+      }).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {

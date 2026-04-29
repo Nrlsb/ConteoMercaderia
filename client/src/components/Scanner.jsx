@@ -49,7 +49,7 @@ const isValidBarcode = (code) => {
     return calculatedCheck === checkDigit;
 };
 
-const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanStatus = null, allowRapidMode = false }) => {
+const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = false, scanStatus = null, allowRapidMode = false }) => {
     // Shared state
     const [scanMode, setScanMode] = useState(() => {
         const stored = localStorage.getItem('scanner_mode');
@@ -127,6 +127,17 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const isEnabledRef = useRef(isEnabled);
     const isPausedRef = useRef(isPaused);
     const restartTimerRef = useRef(null);
+
+    // Pre-calentar AudioContext al primer toque del usuario para eliminar latencia del beep
+    useEffect(() => {
+        const warmUp = () => {
+            if (!audioCtxRef.current) {
+                audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        };
+        document.addEventListener('touchstart', warmUp, { once: true });
+        return () => document.removeEventListener('touchstart', warmUp);
+    }, []);
 
     useEffect(() => {
         isEnabledRef.current = isEnabled;
@@ -521,11 +532,14 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
     const handleScanSuccess = async (code) => {
         if (isPausedRef.current) return;
         const now = Date.now();
-        // Delay específico para evitar escaneos múltiples del mismo producto
-        // En modo rápido usamos 1.5s, en otros modos 300ms
-        const debounceTime = scanModeRef.current === 'rapid' ? 1500 : 300;
+        // Debounce inteligente: mismo código usa delay largo para evitar duplicados,
+        // diferente código usa delay mínimo (solo evita doble-fire del mismo frame)
+        const isSameCode = code === lastScannedCodeRef.current;
+        const debounceTime = isSameCode 
+            ? (scanModeRef.current === 'rapid' ? 1500 : 2000) 
+            : 100;
         
-        if (code === lastScannedCodeRef.current && (now - lastScannedTimeRef.current) < debounceTime) {
+        if ((now - lastScannedTimeRef.current) < debounceTime) {
             return;
         }
         lastScannedCodeRef.current = code;
@@ -713,6 +727,7 @@ const Scanner = ({ onScan, onCancel, isEnabled = true, isPaused = false, scanSta
             )}
         </>
     );
-};
+});
 
+Scanner.displayName = 'Scanner';
 export default Scanner;

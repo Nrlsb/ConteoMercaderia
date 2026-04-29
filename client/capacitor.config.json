@@ -1,5 +1,13 @@
 {
   "appId": "com.mercadocentral.conteo",
   "appName": "ConteoMercaderia",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "BarcodeScanner": {
+      "lensFacing": "back"
+    }
+  },
+  "android": {
+    "backgroundColor": "#00000000"
+  }
 }

@@ -56,13 +56,13 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setShowCalc(false);
             setSelectedUnit('primary');
             setIsScanningBarcode(false);
-            // Focus input quickly to ensure modal transition initiated
-            setTimeout(() => {
+            // Focus input inmediatamente en el siguiente frame de pintura
+            requestAnimationFrame(() => {
                 if (inputRef.current) {
                     inputRef.current.focus();
-                    inputRef.current.select(); // Seleccionar texto para edición rápida
+                    inputRef.current.select();
                 }
-            }, 20);
+            });
         }
     }, [isOpen, product]);
 
@@ -167,7 +167,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     return ReactDOM.createPortal(
         <div
             ref={overlayRef}
-            className={`fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4 pb-8 sm:pb-4 ${isScanningBarcode ? 'bg-transparent' : 'bg-black/60 backdrop-blur-sm'}`}
+            className={`fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4 pb-8 sm:pb-4 ${isScanningBarcode ? 'bg-transparent' : 'bg-black/60'}`}
             style={{ 
                 height: `${viewportHeight}px`,
                 top: `${viewportOffset}px`,
@@ -175,7 +175,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             }}
         >
             <div 
-                className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col ${isScanningBarcode ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible'}`}
+                className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transition-transform duration-150 ease-out ${isScanningBarcode ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible animate-[slideUp_150ms_ease-out]'}`}
                 style={{ maxHeight: viewportHeight < 500 ? '85vh' : `${viewportHeight * 0.95}px` }}
             >
                 {/* Header */}

@@ -488,12 +488,14 @@ const ReceiptDetailsPage = () => {
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
-        // Find product(s) in current items using optimized Map
+        // Find product(s) in current items using optimized Map (O(1) lookup)
         const matchingItems = productLookupMap.get(code) || [];
 
-
+        // Ruta rápida: match directo sin re-renders intermedios
         if (matchingItems.length === 1) {
             const existingItem = matchingItems[0];
+            // Abrir modal INMEDIATAMENTE sin pasar por setProcessing
+            setScanInput('');
             openModal({
                 code: existingItem.product_code,
                 description: existingItem.products?.description || 'Producto',
@@ -503,6 +505,7 @@ const ReceiptDetailsPage = () => {
                 conversion_factor: existingItem.products?.conversion_factor || null,
                 conversion_type: existingItem.products?.conversion_type || null,
             }, existingItem.expected_quantity, existingItem.scanned_quantity);
+            return;
         } else if (matchingItems.length > 1) {
             setDuplicateProducts(matchingItems.map(item => ({
                 code: item.product_code,
@@ -701,13 +704,12 @@ const ReceiptDetailsPage = () => {
     };
 
     const handleBarcodeScan = (code) => {
-        setScanInput(code);
-        
         const mode = localStorage.getItem('scanner_mode');
         if (mode === 'rapid' && canUseRapidMode) {
+            setScanInput(code);
             handleRapidScan(code);
         } else {
-            // Trigger the scan processing immediately
+            // Buscar directamente sin setScanInput previo para evitar re-render intermedio
             handleScan(null, code);
         }
     };
