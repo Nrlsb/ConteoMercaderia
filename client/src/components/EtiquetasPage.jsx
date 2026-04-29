@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User, Calculator as CalculatorIcon } from 'lucide-react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User, Calculator as CalculatorIcon, Copy } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
@@ -18,8 +18,13 @@ const EtiquetasPage = () => {
     const { user } = useAuth();
     const { syncProducts, searchProductsLocally, isSyncing } = useProductSync();
 
-    const [activeTab, setActiveTab] = useState('individual'); // 'individual' | 'multiple'
+    const [activeTab, setActiveTab] = useState('individual'); // 'individual' | 'doble' | 'multiple' | 'historial'
     const [multiProducts, setMultiProducts] = useState([]);
+    const [doubleProducts, setDoubleProducts] = useState([
+        { product: null, fechaIngreso: new Date().toISOString().split('T')[0], fechaVencimiento: '', cantidad: '' },
+        { product: null, fechaIngreso: new Date().toISOString().split('T')[0], fechaVencimiento: '', cantidad: '' }
+    ]);
+    const [activeDoubleSlot, setActiveDoubleSlot] = useState(0);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState([]);
@@ -134,6 +139,10 @@ const EtiquetasPage = () => {
             setMultiProducts(entry.data.products);
             setActiveTab('multiple');
             toast.info('Pliego cargado en pestaña Múltiple');
+        } else if (entry.type === 'doble') {
+            setDoubleProducts(entry.data.products);
+            setActiveTab('doble');
+            toast.info('Etiquetas dobles cargadas');
         }
     };
 
@@ -176,6 +185,18 @@ const EtiquetasPage = () => {
     const handleSelectProduct = (product) => {
         if (activeTab === 'multiple') {
             handleAddMultiProduct(product);
+            return;
+        }
+        if (activeTab === 'doble') {
+            setDoubleProducts(prev => {
+                const newList = [...prev];
+                newList[activeDoubleSlot] = { ...newList[activeDoubleSlot], product };
+                return newList;
+            });
+            setSearchTerm('');
+            setSuggestions([]);
+            setShowSuggestions(false);
+            setIsScanning(false);
             return;
         }
         setSelectedProduct(product);
@@ -704,6 +725,150 @@ const EtiquetasPage = () => {
         }
     };
 
+    const generateDoublePDFInstance = async () => {
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+            compress: true
+        });
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        const contentWidth = pageWidth - (margin * 2);
+        const labelHeight = (pageHeight - (margin * 2)) / 2;
+
+        for (let i = 0; i < 2; i++) {
+            const item = doubleProducts[i];
+            if (!item.product) continue;
+
+            const yOffset = margin + (i * labelHeight);
+            
+            // Dibujar recuadro de la etiqueta (opcional, para visualización)
+            doc.setDrawColor(240);
+            doc.setLineWidth(0.1);
+            doc.roundedRect(margin, yOffset, contentWidth, labelHeight - 5, 2, 2, 'S');
+
+            // DESCRIPCIÓN
+            doc.setTextColor(0);
+            doc.setFontSize(35);
+            doc.setFont('helvetica', 'bold');
+            const splitDesc = doc.splitTextToSize(item.product.description || 'Sin descripción', contentWidth - 40);
+            doc.text(splitDesc, margin + 5, yOffset + 15);
+
+            // CANTIDAD
+            if (item.cantidad) {
+                doc.setFontSize(14);
+                doc.text('Cant:', pageWidth - margin - 5, yOffset + 10, { align: 'right' });
+                doc.setFontSize(45);
+                doc.text(item.cantidad, pageWidth - margin - 5, yOffset + 25, { align: 'right' });
+            }
+
+            // FECHAS
+            const dateY = yOffset + 40 + (splitDesc.length > 1 ? 15 : 0);
+            doc.setFillColor(252, 252, 252);
+            doc.roundedRect(margin + 5, dateY, contentWidth - 10, 45, 2, 2, 'FD');
+
+            doc.setFontSize(35);
+            doc.setFont('helvetica', 'bold');
+            doc.text('INGRESO:', margin + 10, dateY + 15);
+            doc.setFont('helvetica', 'normal');
+            doc.text(item.fechaIngreso || '-', margin + 85, dateY + 15);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text('VENCE:', margin + 10, dateY + 35);
+            doc.setFont('helvetica', 'normal');
+            doc.text(item.fechaVencimiento || 'N/A', margin + 85, dateY + 35);
+
+            // Código de Barras
+            const barcodeText = item.product.barcode || item.product.code;
+            if (barcodeText) {
+                try {
+                    const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                    const imgWidth = 50;
+                    const imgHeight = 18;
+                    const barcodeX = pageWidth - margin - imgWidth - 10;
+                    const barcodeY = dateY + 50;
+
+                    doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
+                    doc.setFontSize(8);
+                    doc.setTextColor(150);
+                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
+                } catch (err) { }
+            }
+
+            // Pie de etiqueta
+            doc.setFontSize(7);
+            doc.setTextColor(180);
+            doc.text(`Generado: ${new Date().toLocaleString()} | Usuario: ${user?.nombre_completo || user?.username || 'Admin'}`, margin + 10, yOffset + labelHeight - 10);
+        }
+
+        return doc;
+    };
+
+    const handleGenerateDoublePDF = async () => {
+        if (!doubleProducts[0].product && !doubleProducts[1].product) {
+            toast.error('Carga al menos un producto');
+            return;
+        }
+
+        setGenerating(true);
+        try {
+            const doc = await generateDoublePDFInstance();
+            doc.save('Etiquetas_Dobles.pdf');
+            toast.success('PDF generado correctamente');
+            saveToHistory('doble', { products: doubleProducts });
+        } catch (error) {
+            toast.error('Error al generar el PDF');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handlePrintDoublePDF = async () => {
+        if (!doubleProducts[0].product && !doubleProducts[1].product) {
+            toast.error('Carga al menos un producto');
+            return;
+        }
+
+        setPrinting(true);
+        try {
+            const doc = await generateDoublePDFInstance();
+            const isNative = Capacitor.getPlatform() !== 'web';
+
+            if (isNative) {
+                const pdfBase64 = doc.output('datauristring').split(',')[1];
+                await Printer.printBase64({
+                    name: `Etiquetas_Dobles`,
+                    data: pdfBase64,
+                    mimeType: 'application/pdf'
+                });
+            } else {
+                const pdfBlob = doc.output('blob');
+                const url = URL.createObjectURL(pdfBlob);
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = url;
+                document.body.appendChild(iframe);
+                iframe.onload = () => {
+                    setTimeout(() => {
+                        iframe.contentWindow.print();
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                            URL.revokeObjectURL(url);
+                        }, 1000);
+                    }, 500);
+                };
+            }
+            saveToHistory('doble', { products: doubleProducts });
+        } catch (error) {
+            toast.error('Error al imprimir');
+        } finally {
+            setPrinting(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto p-2 sm:p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
@@ -728,6 +893,13 @@ const EtiquetasPage = () => {
                     >
                         <Tags className="w-3.5 h-3.5 sm:w-4 h-4" />
                         Individual
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('doble')}
+                        className={`flex-1 py-3 sm:py-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'doble' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        <Copy className="w-3.5 h-3.5 sm:w-4 h-4" />
+                        Doble
                     </button>
                     <button
                         onClick={() => setActiveTab('multiple')}
@@ -1012,6 +1184,151 @@ const EtiquetasPage = () => {
                                         <p className="text-center text-xs text-red-500 mt-3 font-medium animate-pulse">Debes elegir un producto primero</p>
                                     )}
                                 </div>
+                            </div>
+                        </div>
+                    ) : activeTab === 'doble' ? (
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            {/* Buscador para el slot activo */}
+                            <div className="bg-blue-50/30 border-2 border-blue-100 rounded-2xl p-4 sm:p-6 mb-6">
+                                <label className="block text-xs font-bold text-blue-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <Search className="w-4 h-4" />
+                                    {activeDoubleSlot === 0 ? "Buscando para Etiqueta Superior" : "Buscando para Etiqueta Inferior"}
+                                </label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-grow">
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => handleSearch(e.target.value)}
+                                            placeholder="Nombre o código..."
+                                            className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                        />
+                                        {showSuggestions && (
+                                            <div className="absolute z-[60] left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto">
+                                                {suggestions.map((p) => (
+                                                    <button
+                                                        key={p.code}
+                                                        onClick={() => handleSelectProduct(p)}
+                                                        className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+                                                    >
+                                                        <Package className="w-5 h-5 text-blue-500" />
+                                                        <div>
+                                                            <div className="font-bold text-gray-900">{p.description}</div>
+                                                            <div className="text-[10px] text-gray-500">COD: {p.code}</div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setIsScanning(true)} className="p-3 bg-white border-2 border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-500 transition-all">
+                                        <Camera className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-6">
+                                {[0, 1].map((idx) => (
+                                    <div 
+                                        key={idx}
+                                        onClick={() => setActiveDoubleSlot(idx)}
+                                        className={`relative bg-white border-2 rounded-2xl p-4 transition-all cursor-pointer ${activeDoubleSlot === idx ? 'border-blue-500 ring-4 ring-blue-50 shadow-lg' : 'border-gray-100 hover:border-blue-200'}`}
+                                    >
+                                        <div className={`absolute -left-1 top-4 bottom-4 w-1.5 rounded-full ${activeDoubleSlot === idx ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${activeDoubleSlot === idx ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                                {idx === 0 ? "Etiqueta Superior" : "Etiqueta Inferior"}
+                                            </span>
+                                            {doubleProducts[idx].product && (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDoubleProducts(prev => {
+                                                            const nl = [...prev];
+                                                            nl[idx] = { ...nl[idx], product: null };
+                                                            return nl;
+                                                        });
+                                                    }}
+                                                    className="text-gray-300 hover:text-red-500 transition-colors"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {!doubleProducts[idx].product ? (
+                                            <div className="py-8 text-center text-gray-400 italic text-sm">
+                                                Haz clic aquí para buscar un producto
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
+                                                <h3 className="text-base font-black text-blue-900 uppercase">{doubleProducts[idx].product.description}</h3>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ingreso</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={doubleProducts[idx].fechaIngreso}
+                                                            onChange={(e) => setDoubleProducts(prev => {
+                                                                const nl = [...prev];
+                                                                nl[idx].fechaIngreso = e.target.value;
+                                                                return nl;
+                                                            })}
+                                                            className="w-full text-xs font-bold p-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Vence</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={doubleProducts[idx].fechaVencimiento}
+                                                            onChange={(e) => setDoubleProducts(prev => {
+                                                                const nl = [...prev];
+                                                                nl[idx].fechaVencimiento = e.target.value;
+                                                                return nl;
+                                                            })}
+                                                            className="w-full text-xs font-bold p-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Cantidad</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ej: 50"
+                                                            value={doubleProducts[idx].cantidad}
+                                                            onChange={(e) => setDoubleProducts(prev => {
+                                                                const nl = [...prev];
+                                                                nl[idx].cantidad = e.target.value;
+                                                                return nl;
+                                                            })}
+                                                            className="w-full text-xs font-bold p-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
+                                <button
+                                    onClick={handlePrintDoublePDF}
+                                    disabled={printing || generating}
+                                    className="py-4 bg-blue-600 text-white rounded-2xl font-black text-base flex items-center justify-center gap-3 hover:bg-blue-700 shadow-xl shadow-blue-100 active:scale-95 disabled:opacity-50"
+                                >
+                                    {printing ? <Loader2 className="w-5 h-5 animate-spin" /> : <PrinterIcon className="w-5 h-5" />}
+                                    IMPRIMIR DOBLE
+                                </button>
+                                <button
+                                    onClick={handleGenerateDoublePDF}
+                                    disabled={generating || printing}
+                                    className="py-4 border-2 border-blue-600 text-blue-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-50 active:scale-95 disabled:opacity-50"
+                                >
+                                    {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                    DESCARGAR PDF
+                                </button>
                             </div>
                         </div>
                     ) : activeTab === 'multiple' ? (
