@@ -111,7 +111,8 @@ exports.exportBarcodeHistoryCsv = async (req, res) => {
             startDate, 
             endDate,
             user_id,
-            action_type: null // Para exportación CSV genérica
+            action_type: req.query.action_type || null,
+            unique: req.query.unique === 'true'
         });
 
         if (!history || history.length === 0) {
@@ -171,10 +172,16 @@ exports.exportBarcodeHistoryCsv = async (req, res) => {
 };
 
 exports.exportLayoutExcel = async (req, res) => {
-    const { startDate, endDate, user_id, unique } = req.query;
+    const { startDate, endDate, user_id, unique, action_type } = req.query;
     try {
         // Obtener historial completo usando la función helper
-        const history = await getAllBarcodeHistory({ startDate, endDate, user_id, action_type: 'SCAN', unique });
+        const history = await getAllBarcodeHistory({ 
+            startDate, 
+            endDate, 
+            user_id, 
+            action_type: action_type || 'SCAN', 
+            unique: unique === 'true' 
+        });
 
         if (!history || history.length === 0) {
             return res.status(404).json({ message: 'No hay datos para exportar en el rango seleccionado' });

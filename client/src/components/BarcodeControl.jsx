@@ -341,7 +341,7 @@ const BarcodeControl = () => {
         );
     };
 
-    const handleExportExcel = async () => {
+    const handleExportCsv = async (isLayout = false) => {
         try {
             if (!startDate || !endDate) {
                 toast.error('Debe seleccionar Fecha Desde y Fecha Hasta para exportar.');
@@ -354,6 +354,11 @@ const BarcodeControl = () => {
             params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
             if (productCodeFilter) params.append('productCode', productCodeFilter);
+            
+            if (isLayout) {
+                params.append('action_type', 'SCAN,ADD_BARCODE,UPDATE_BARCODE');
+                if (showUnique) params.append('unique', 'true');
+            }
 
             if (params.toString()) {
                 url += `?${params.toString()}`;
@@ -375,7 +380,7 @@ const BarcodeControl = () => {
                         window.URL.revokeObjectURL(downloadUrl);
                     }, index * 500); // Slight delay for multiple downloads
                 });
-                toast.success(`Exportación generada: ${response.data.files.length} archivo(s) CSV`);
+                toast.success(`Exportación generada: ${response.data.files.length} archivo(s) CSV (bloques de 300)`);
             }
         } catch (err) {
             console.error('Error exporting history:', err);
@@ -389,15 +394,19 @@ const BarcodeControl = () => {
         }
     };
 
-    const handleExportLayoutExcel = async () => {
-        setLayoutLoading(true);
+    const handleExportExcel = async (isLayout = false) => {
+        setLoading(true);
         try {
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
             if (productCodeFilter) params.append('productCode', productCodeFilter);
-            if (showUnique) params.append('unique', 'true');
+            
+            if (isLayout) {
+                params.append('action_type', 'SCAN,ADD_BARCODE,UPDATE_BARCODE');
+                if (showUnique) params.append('unique', 'true');
+            }
 
             const url = `/api/barcode-history/layout-excel?${params.toString()}`;
             
@@ -407,22 +416,22 @@ const BarcodeControl = () => {
             const downloadUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = `Layout_${startDate || 'completo'}_al_${endDate || 'hoy'}.xlsx`;
+            link.download = `${isLayout ? 'Layout' : 'Historial'}_${startDate || 'completo'}_al_${endDate || 'hoy'}.xlsx`;
             document.body.appendChild(link);
             link.click();
             link.remove();
             window.URL.revokeObjectURL(downloadUrl);
             
-            toast.success('Excel del Layout descargado correctamente');
+            toast.success(`Excel del ${isLayout ? 'Layout' : 'Historial'} descargado correctamente`);
         } catch (err) {
-            console.error('Error exporting layout to excel:', err);
+            console.error('Error exporting to excel:', err);
             if (err.response && err.response.status === 404) {
                 toast.error('No hay datos para exportar en el rango seleccionado');
             } else {
-                toast.error('Error al descargar el Excel del Layout');
+                toast.error('Error al descargar el Excel');
             }
         } finally {
-            setLayoutLoading(false);
+            setLoading(false);
         }
     };
 
@@ -1543,20 +1552,29 @@ const BarcodeControl = () => {
                                         className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
-                                <div className="w-full sm:w-auto flex flex-row gap-2">
+                                <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
                                     <button
                                         onClick={() => fetchHistory(1)}
-                                        className="flex-1 sm:flex-none btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        className="btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                                         disabled={historyLoading}
                                     >
                                         <Filter className="w-4 h-4" /> Filtrar
                                     </button>
-                                    <button
-                                        onClick={handleExportExcel}
-                                        className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
-                                    >
-                                        <Download className="w-4 h-4" /> Exportar
-                                    </button>
+                                    <div className="flex gap-2 w-full sm:w-auto">
+                                        <button
+                                            onClick={() => handleExportCsv(false)}
+                                            className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                            title="Exportar en CSV (bloques de 300)"
+                                        >
+                                            <Download className="w-4 h-4" /> CSV
+                                        </button>
+                                        <button
+                                            onClick={() => handleExportExcel(false)}
+                                            className="flex-1 sm:flex-none btn bg-blue-600 hover:bg-blue-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4" /> Excel
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1784,21 +1802,30 @@ const BarcodeControl = () => {
                                         className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
-                                <div className="w-full sm:w-auto flex gap-2">
+                                <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
                                     <button
                                         onClick={() => fetchLayout(1)}
-                                        className="flex-1 sm:flex-none btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                        className="btn btn-primary py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                                         disabled={layoutLoading}
                                     >
                                         <Filter className="w-4 h-4" /> Filtrar
                                     </button>
-                                    <button
-                                        onClick={handleExportLayoutExcel}
-                                        className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
-                                        disabled={layoutLoading}
-                                    >
-                                        <FileSpreadsheet className="w-4 h-4" /> Excel
-                                    </button>
+                                    <div className="flex gap-2 w-full sm:w-auto">
+                                        <button
+                                            onClick={() => handleExportCsv(true)}
+                                            className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                            title="Exportar en CSV (bloques de 300)"
+                                        >
+                                            <Download className="w-4 h-4" /> CSV
+                                        </button>
+                                        <button
+                                            onClick={() => handleExportExcel(true)}
+                                            className="flex-1 sm:flex-none btn bg-blue-600 hover:bg-blue-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                            disabled={layoutLoading}
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4" /> Excel
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="mt-3 flex items-center gap-2 px-1">
                                     <label className="relative inline-flex items-center cursor-pointer group">

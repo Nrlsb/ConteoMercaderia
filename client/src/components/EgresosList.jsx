@@ -50,6 +50,7 @@ const EgresosList = () => {
     const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'open', 'finalized'
     const [destinationFilter, setDestinationFilter] = useState('all'); // 'all', 'branch', 'client'
     const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'normal', 'transfer', 'return'
+    const [showFilters, setShowFilters] = useState(false);
     const fileInputRef = useRef(null);
 
     // Folder watcher state
@@ -470,6 +471,11 @@ const EgresosList = () => {
 
     const displayedEgresos = filteredEgresos.slice(0, visibleCount);
 
+    const activeFiltersCount = 
+        (statusFilter !== 'all' ? 1 : 0) + 
+        (destinationFilter !== 'all' ? 1 : 0) + 
+        (typeFilter !== 'all' ? 1 : 0);
+
     return (
         <div className="container mx-auto p-4 max-w-lg md:max-w-6xl">
             <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm mb-6">
@@ -750,121 +756,164 @@ const EgresosList = () => {
             {/* Intelligent Search & Filters */}
             {egresos.length > 0 && (
                 <div className="mb-6 space-y-4">
-                    <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setStatusFilter('all')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'all' 
-                                    ? 'bg-brand-blue text-white shadow-md shadow-blue-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                <span>Todos</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                    {egresos.length}
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setStatusFilter('open')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'open' 
-                                    ? 'bg-yellow-500 text-white shadow-md shadow-yellow-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                <span>Abiertos</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'open' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                    {egresos.filter(e => e.status !== 'finalized').length}
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setStatusFilter('finalized')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${statusFilter === 'finalized' 
-                                    ? 'bg-green-600 text-white shadow-md shadow-green-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                <span>Finalizados</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'finalized' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                    {egresos.filter(e => e.status === 'finalized').length}
-                                </span>
-                            </button>
+                    <div className="flex flex-col md:flex-row gap-3">
+                        <div className="relative flex-1 group">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="w-full text-base p-3.5 pl-12 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue outline-none bg-white shadow-sm transition-all"
+                                placeholder="Buscar por referencia, PDF, usuario o estado..."
+                                autoComplete="off"
+                            />
+                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-brand-blue transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
                         </div>
-
-                        <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
-
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setDestinationFilter('all')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${destinationFilter === 'all' 
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Destino: Todos
-                            </button>
-                            <button
-                                onClick={() => setDestinationFilter('branch')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${destinationFilter === 'branch' 
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Sucursales
-                            </button>
-                            <button
-                                onClick={() => setDestinationFilter('client')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${destinationFilter === 'client' 
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Clientes
-                            </button>
-                        </div>
-
-                        <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
-
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setTypeFilter('all')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'all' 
-                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Tipo: Todos
-                            </button>
-                            <button
-                                onClick={() => setTypeFilter('normal')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'normal' 
-                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Normales
-                            </button>
-                            <button
-                                onClick={() => setTypeFilter('transfer')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'transfer' 
-                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Transferencias
-                            </button>
-                            <button
-                                onClick={() => setTypeFilter('return')}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${typeFilter === 'return' 
-                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
-                            >
-                                Devoluciones
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border font-bold transition-all active:scale-[0.98] ${showFilters || activeFiltersCount > 0 
+                                ? 'bg-brand-blue text-white border-brand-blue shadow-lg shadow-blue-900/20' 
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                            <span className={showFilters ? '' : 'hidden md:inline'}>Filtros</span>
+                            {activeFiltersCount > 0 && (
+                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${showFilters || activeFiltersCount > 0 ? 'bg-white text-brand-blue' : 'bg-brand-blue text-white'}`}>
+                                    {activeFiltersCount}
+                                </span>
+                            )}
+                        </button>
                     </div>
-                    <div className="relative group">
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="w-full text-base p-4 pl-12 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue outline-none bg-white shadow-sm transition-all"
-                            placeholder="Buscar por referencia, PDF, usuario o estado..."
-                            autoComplete="off"
-                        />
-                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-brand-blue transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
+
+                    <div className={`${showFilters ? 'grid animate-in fade-in duration-300' : 'hidden'} md:grid grid-cols-1 md:grid-cols-3 gap-6 p-5 bg-gray-50/50 rounded-2xl border border-gray-100`}>
+                        <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Estado del Remito</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => setStatusFilter('all')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${statusFilter === 'all' 
+                                        ? 'bg-brand-blue text-white shadow-md shadow-blue-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    <span>Todos</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                        {egresos.length}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => setStatusFilter('open')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${statusFilter === 'open' 
+                                        ? 'bg-yellow-500 text-white shadow-md shadow-yellow-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    <span>Abiertos</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'open' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                        {egresos.filter(e => e.status !== 'finalized').length}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => setStatusFilter('finalized')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${statusFilter === 'finalized' 
+                                        ? 'bg-green-600 text-white shadow-md shadow-green-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    <span>Finalizados</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusFilter === 'finalized' ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                        {egresos.filter(e => e.status === 'finalized').length}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Destino</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => setDestinationFilter('all')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${destinationFilter === 'all' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Todos los Destinos
+                                </button>
+                                <button
+                                    onClick={() => setDestinationFilter('branch')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${destinationFilter === 'branch' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Sucursales
+                                </button>
+                                <button
+                                    onClick={() => setDestinationFilter('client')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${destinationFilter === 'client' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Clientes
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tipo de Operación</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => setTypeFilter('all')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${typeFilter === 'all' 
+                                        ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Todos
+                                </button>
+                                <button
+                                    onClick={() => setTypeFilter('normal')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${typeFilter === 'normal' 
+                                        ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Normales
+                                </button>
+                                <button
+                                    onClick={() => setTypeFilter('transfer')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${typeFilter === 'transfer' 
+                                        ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Transferencias
+                                </button>
+                                <button
+                                    onClick={() => setTypeFilter('return')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${typeFilter === 'return' 
+                                        ? 'bg-rose-600 text-white shadow-md shadow-rose-200' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+                                >
+                                    Devoluciones
+                                </button>
+                            </div>
+                        </div>
+
+                        {(activeFiltersCount > 0 || search) && (
+                            <div className="md:col-span-3 flex justify-end pt-2">
+                                <button 
+                                    onClick={() => {
+                                        setStatusFilter('all');
+                                        setDestinationFilter('all');
+                                        setTypeFilter('all');
+                                        setSearch('');
+                                    }}
+                                    className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors flex items-center gap-1"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Limpiar todos los filtros
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
