@@ -182,6 +182,12 @@ const ReceiptDetailsPage = () => {
     const [isExpectedCorrectionModalOpen, setIsExpectedCorrectionModalOpen] = useState(false);
     const [editingExpectedItem, setEditingExpectedItem] = useState(null);
     const [newExpectedQuantity, setNewExpectedQuantity] = useState('');
+    
+    // Attach transfer state
+    const [showAttachModal, setShowAttachModal] = useState(false);
+    const [pendingTransfers, setPendingTransfers] = useState([]);
+    const [loadingPending, setLoadingPending] = useState(false);
+    const [isAttaching, setIsAttaching] = useState(false);
 
     // Optimized map for item lookups
     const productLookupMap = React.useMemo(() => {
@@ -322,6 +328,37 @@ const ReceiptDetailsPage = () => {
                 toast.error('Error al cargar los detalles');
                 setLoading(false);
             }
+        }
+    };
+
+    const handleAttachTransfer = async (transfer) => {
+        if (!window.confirm(`¿Desea adjuntar el remito ${transfer.reference_number} a este control? Los productos se sumarán a los esperados.`)) return;
+
+        setIsAttaching(true);
+        try {
+            await api.post(`/api/branch-transfers/${id}/attach-transfer`, { transferId: transfer.id });
+            toast.success('Remito adjuntado correctamente');
+            setShowAttachModal(false);
+            fetchReceiptDetails();
+        } catch (error) {
+            console.error('Error attaching transfer:', error);
+            toast.error(error.response?.data?.message || 'Error al adjuntar el remito');
+        } finally {
+            setIsAttaching(false);
+        }
+    };
+
+    const openAttachModal = async () => {
+        setShowAttachModal(true);
+        setLoadingPending(true);
+        try {
+            const response = await api.get('/api/branch-transfers/pending?limit=50');
+            setPendingTransfers(response.data.data || []);
+        } catch (error) {
+            console.error('Error fetching pending transfers:', error);
+            toast.error('Error al cargar transferencias pendientes');
+        } finally {
+            setLoadingPending(false);
         }
     };
 
@@ -1390,6 +1427,15 @@ const ReceiptDetailsPage = () => {
                             <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                             Exportar a Ingreso
                         </button>
+                        {isSucursalTransfer && receipt.status !== 'finalized' && (
+                            <button
+                                onClick={openAttachModal}
+                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition-all"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path></svg>
+                                Adjuntar Remito
+                            </button>
+                        )}
                         {receipt.status !== 'finalized' ? (
                             canClose && (
                                 <button
@@ -2581,6 +2627,64 @@ const ReceiptDetailsPage = () => {
                 document.body
             )}
 
+            {/* Attach Transfer Modal */}
+            {showAttachModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white">
+                            <div>
+                                <h3 className="text-xl font-black text-gray-900">Adjuntar Remito</h3>
+                                <p className="text-xs text-gray-500 font-medium">Selecciona una transferencia pendiente</p>
+                            </div>
+                            <button onClick={() => setShowAttachModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <div className="p-4 max-h-[60vh] overflow-y-auto">
+                            {loadingPending ? (
+                                <div className="flex flex-col items-center py-10">
+                                    <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                                    <span className="mt-3 text-sm text-gray-500 font-medium">Buscando pendientes...</span>
+                                </div>
+                            ) : pendingTransfers.length === 0 ? (
+                                <div className="text-center py-10">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                                    </div>
+                                    <p className="text-gray-500 font-bold">No hay transferencias pendientes</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {pendingTransfers.map(t => (
+                                        <button
+                                            key={t.id}
+                                            disabled={isAttaching}
+                                            onClick={() => handleAttachTransfer(t)}
+                                            className="w-full text-left p-4 rounded-2xl border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all flex justify-between items-center group active:scale-[0.98]"
+                                        >
+                                            <div>
+                                                <p className="font-black text-gray-900 group-hover:text-blue-700">{t.reference_number}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{new Date(t.date).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="bg-blue-100 p-2 rounded-xl group-hover:bg-blue-600 transition-colors">
+                                                <svg className="w-5 h-5 text-blue-600 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
+                            <button
+                                onClick={() => setShowAttachModal(false)}
+                                className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

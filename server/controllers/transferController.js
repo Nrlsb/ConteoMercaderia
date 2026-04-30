@@ -276,3 +276,101 @@ exports.receiveMultipleTransfers = async (req, res) => {
         res.status(500).json({ message: 'Error al procesar la recepción múltiple' });
     }
 };
+
+exports.attachTransferToReceipt = async (req, res) => {
+    const { receiptId } = req.params;
+    const { transferId } = req.body;
+
+    if (!receiptId || !transferId) {
+        return res.status(400).json({ message: 'Faltan parámetros (receiptId, transferId)' });
+    }
+
+    try {
+        // 1. Get receipt
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .select('*')
+            .eq('id', receiptId)
+            .single();
+
+        if (receiptError || !receipt) return res.status(404).json({ message: 'Ingreso no encontrado' });
+        if (receipt.status === 'finalized') return res.status(400).json({ message: 'El ingreso ya está finalizado' });
+
+        // 2. Get transfer (egreso)
+        const { data: egreso, error: egresoError } = await supabase
+            .from('egresos')
+            .select('*')
+            .eq('id', transferId)
+            .single();
+
+        if (egresoError || !egreso) return res.status(404).json({ message: 'Transferencia no encontrada' });
+        if (egreso.receipt_id) return res.status(400).json({ message: 'Esta transferencia ya ha sido recibida' });
+
+        // 3. Get items from transfer
+        const { data: egresoItems, error: itemsError } = await supabase
+            .from('egreso_items')
+            .select('*')
+            .eq('egreso_id', transferId)
+            .gt('scanned_quantity', 0);
+
+        if (itemsError) throw itemsError;
+
+        // 4. Merge items into receipt_items
+        for (const item of egresoItems) {
+            const { data: existing } = await supabase
+                .from('receipt_items')
+                .select('*')
+                .eq('receipt_id', receiptId)
+                .eq('product_code', item.product_code)
+                .maybeSingle();
+
+            const newExpected = (Number(existing?.expected_quantity) || 0) + Number(item.scanned_quantity);
+            const newScanned = (Number(existing?.scanned_quantity) || 0);
+
+            await supabase
+                .from('receipt_items')
+                .upsert({
+                    receipt_id: receiptId,
+                    product_code: item.product_code,
+                    expected_quantity: newExpected,
+                    scanned_quantity: newScanned
+                }, { onConflict: 'receipt_id, product_code' });
+
+            // Log history
+            await supabase.from('receipt_items_history').insert({
+                receipt_id: receiptId,
+                user_id: req.user.id,
+                operation: 'TRANSFER_IMPORT',
+                product_code: item.product_code,
+                new_data: { expected_quantity: newExpected },
+                changed_at: new Date().toISOString()
+            });
+        }
+
+        // 5. Update receipt remito_number (append new ref)
+        let newRemitoNumber = receipt.remito_number;
+        if (!newRemitoNumber.includes(egreso.reference_number)) {
+            newRemitoNumber = `${newRemitoNumber}, ${egreso.reference_number}`;
+            if (newRemitoNumber.length > 255) {
+                newRemitoNumber = newRemitoNumber.substring(0, 252) + '...';
+            }
+        }
+
+        await supabase
+            .from('receipts')
+            .update({ remito_number: newRemitoNumber })
+            .eq('id', receiptId);
+
+        // 6. Link egreso to receipt
+        await supabase
+            .from('egresos')
+            .update({ receipt_id: receiptId })
+            .eq('id', transferId);
+
+        res.json({ message: 'Transferencia adjuntada correctamente', remito_number: newRemitoNumber });
+
+    } catch (error) {
+        console.error('Error attaching transfer:', error);
+        res.status(500).json({ message: 'Error al adjuntar la transferencia' });
+    }
+};

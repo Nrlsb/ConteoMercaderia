@@ -6,6 +6,7 @@ const { verifyToken } = require('../middleware/auth');
 router.get('/pending', verifyToken, transferController.getPendingTransfers);
 router.post('/:id/receive', verifyToken, transferController.receiveTransfer);
 router.post('/receive-multiple', verifyToken, transferController.receiveMultipleTransfers);
+router.post('/:receiptId/attach-transfer', verifyToken, transferController.attachTransferToReceipt);
 router.get('/receipts', verifyToken, transferController.getTransferReceipts);
 
 module.exports = router;
