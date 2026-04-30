@@ -336,8 +336,14 @@ const ReceiptDetailsPage = () => {
 
         setIsAttaching(true);
         try {
-            await api.post(`/api/branch-transfers/${id}/attach-transfer`, { transferId: transfer.id });
+            const response = await api.post(`/api/branch-transfers/${id}/attach-transfer`, { transferId: transfer.id });
             toast.success('Remito adjuntado correctamente');
+            
+            // Actualización optimista del número de remito para feedback instantáneo
+            if (response.data.remito_number) {
+                setReceipt(prev => ({ ...prev, remito_number: response.data.remito_number }));
+            }
+            
             setShowAttachModal(false);
             fetchReceiptDetails();
         } catch (error) {
@@ -2660,14 +2666,18 @@ const ReceiptDetailsPage = () => {
                                             key={t.id}
                                             disabled={isAttaching}
                                             onClick={() => handleAttachTransfer(t)}
-                                            className="w-full text-left p-4 rounded-2xl border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all flex justify-between items-center group active:scale-[0.98]"
+                                            className={`w-full text-left p-4 rounded-2xl border transition-all flex justify-between items-center group active:scale-[0.98] ${isAttaching ? 'opacity-50 cursor-not-allowed' : 'border-gray-100 hover:border-blue-300 hover:bg-blue-50'}`}
                                         >
                                             <div>
                                                 <p className="font-black text-gray-900 group-hover:text-blue-700">{t.reference_number}</p>
                                                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{new Date(t.date).toLocaleDateString()}</p>
                                             </div>
                                             <div className="bg-blue-100 p-2 rounded-xl group-hover:bg-blue-600 transition-colors">
-                                                <svg className="w-5 h-5 text-blue-600 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
+                                                {isAttaching ? (
+                                                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <svg className="w-5 h-5 text-blue-600 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
+                                                )}
                                             </div>
                                         </button>
                                     ))}
