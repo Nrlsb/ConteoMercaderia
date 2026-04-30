@@ -142,6 +142,25 @@ const ReceiptDetailsPage = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeoutRef = useRef(null);
     const productCacheRef = useRef(new Map()); // Client-side product cache
+    const successAudioRef = useRef(null);
+    const fetchTimeoutRef = useRef(null);
+
+    // Pre-cargar audio de éxito
+    useEffect(() => {
+        successAudioRef.current = new Audio('/success-beep.mp3');
+        successAudioRef.current.load();
+        return () => {
+            if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        };
+    }, []);
+
+    // Función para refrescar datos con debounce (evita re-renders masivos constantes)
+    const debouncedFetch = useCallback(() => {
+        if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = setTimeout(() => {
+            fetchReceiptDetails();
+        }, 5000); // Refrescar realidad del servidor cada 5 segs después del último cambio
+    }, [id]);
 
     // Fichaje Modal State
     const [fichajeState, setFichajeState] = useState({
@@ -728,10 +747,12 @@ const ReceiptDetailsPage = () => {
                 await api.post(`/api/receipts/${id}/items`, { code, quantity: qty, searchType });
             } else {
                 await api.post(`/api/receipts/${id}/scan`, { code, quantity: qty, searchType });
-                const sound = new Audio('/success-beep.mp3');
-                sound.play().catch(e => console.log('Audio error:', e));
+                if (successAudioRef.current) {
+                    successAudioRef.current.currentTime = 0;
+                    successAudioRef.current.play().catch(() => {});
+                }
             }
-            fetchReceiptDetails();
+            debouncedFetch(); // Refresco inteligente en background
         } catch (error) {
             console.error('Scan error:', error);
             if (error.response?.status === 404) {
@@ -837,15 +858,17 @@ const ReceiptDetailsPage = () => {
         });
 
         setScanStatus({ type: 'success', message: `Cargado: ${description}` });
-        const sound = new Audio('/success-beep.mp3');
-        sound.play().catch(e => console.log('Audio error:', e));
+        if (successAudioRef.current) {
+            successAudioRef.current.currentTime = 0;
+            successAudioRef.current.play().catch(() => {});
+        }
 
         if (activeTab === 'load') {
             await api.post(`/api/receipts/${id}/items`, { code, quantity: qty, searchType });
         } else {
             await api.post(`/api/receipts/${id}/scan`, { code, quantity: qty, searchType });
         }
-        fetchReceiptDetails();
+        debouncedFetch();
         } catch (error) {
             console.error('Rapid scan error:', error);
             if (error.response?.status === 404) {
@@ -864,7 +887,7 @@ const ReceiptDetailsPage = () => {
             // Artificial delay to prevent double scan and allow user to move camera
             setTimeout(() => {
                 setProcessing(false);
-            }, 800);
+            }, 400);
         }
     };
 

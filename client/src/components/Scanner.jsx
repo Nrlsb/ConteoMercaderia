@@ -665,7 +665,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
                             <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-white rounded-tr-lg"></div>
                             <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-white rounded-bl-lg"></div>
                             <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-white rounded-br-lg"></div>
-                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${(isNative ? detectedCode : webDetectedCode) ? 'via-green-400' : 'via-white'} to-transparent opacity-70 animate-scan-line`}></div>
+                            <div className={`absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent ${(isNative ? detectedCode : webDetectedCode) ? 'via-green-400' : 'via-white'} to-transparent opacity-70 ${isPaused ? '' : 'animate-scan-line'}`}></div>
                             {showFocusHint && !detectedCode && isNative && (
                                 <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
                                     <div className="bg-black/40 backdrop-blur-sm border border-white/20 text-white px-4 py-3 rounded-2xl text-center shadow-xl animate-pulse">
