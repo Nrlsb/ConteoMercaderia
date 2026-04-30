@@ -35,6 +35,7 @@ const EgresoDetailsPage = () => {
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_egresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_egresos');
     const canAdminFinalize = user?.role === 'superadmin' || user?.role === 'admin';
+    const canUseRapidMode = true; // Habilitado según solicitud
 
     // Intelligent Search State
     const [suggestions, setSuggestions] = useState([]);
@@ -95,6 +96,22 @@ const EgresoDetailsPage = () => {
 
     const inputRef = useRef(null);
     const productCacheRef = useRef(new Map());
+    const successAudioRef = useRef(new Audio('/success-beep.mp3'));
+    const fetchTimeoutRef = useRef(null);
+
+    // Función para refrescar datos con debounce (evita re-renders masivos constantes)
+    const debouncedFetch = React.useCallback(() => {
+        if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = setTimeout(() => {
+            fetchEgresoDetails();
+        }, 5000); // Refrescar realidad del servidor cada 5 segs después del último cambio
+    }, [id]);
+
+    useEffect(() => {
+        return () => {
+            if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        };
+    }, []);
 
     useEffect(() => {
         fetchEgresoDetails();
@@ -557,8 +574,98 @@ const EgresoDetailsPage = () => {
     };
 
     const handleBarcodeScan = (code) => {
-        // Buscar directamente sin setScanInput previo para evitar re-render intermedio
-        handleScan(null, code);
+        const mode = localStorage.getItem('scanner_mode');
+        if (mode === 'rapid' && canUseRapidMode) {
+            setScanInput(code);
+            handleRapidScan(code);
+        } else {
+            // Buscar directamente sin setScanInput previo para evitar re-render intermedio
+            handleScan(null, code);
+        }
+    };
+
+    const handleRapidScan = async (code) => {
+        if (processing) return;
+        setProcessing(true);
+
+        // Limpiar estado previo
+        setScanStatus(null);
+
+        // Find product(s) in current items
+        const matchingItems = productLookupMap.get(code.toLowerCase()) || [];
+
+        if (matchingItems.length === 1) {
+            const item = matchingItems[0];
+            await handleRapidConfirm(item.product_code, item.products?.description || 'Producto');
+        } else if (matchingItems.length > 1) {
+            setScanStatus({ type: 'error', message: 'Múltiples productos encontrados. Use modo Manual.' });
+            setTimeout(() => setScanStatus(null), 3000);
+            setProcessing(false);
+        } else {
+            // Check catalog
+            try {
+                const localProduct = await getProductByCode(code);
+                if (localProduct) {
+                    // Verificar si está en el egreso
+                    const inEgreso = items.find(i => i.product_code === localProduct.code);
+                    if (inEgreso) {
+                        await handleRapidConfirm(localProduct.code, localProduct.description);
+                    } else {
+                        setScanStatus({ type: 'error', message: `Producto no forma parte de este egreso.` });
+                        setTimeout(() => setScanStatus(null), 3000);
+                        setProcessing(false);
+                    }
+                } else {
+                    setScanStatus({ type: 'error', message: `Producto no encontrado: ${code}` });
+                    setTimeout(() => setScanStatus(null), 3000);
+                    setProcessing(false);
+                }
+            } catch (error) {
+                setScanStatus({ type: 'error', message: 'Error al buscar producto' });
+                setProcessing(false);
+            }
+        }
+    };
+
+    const handleRapidConfirm = async (code, description) => {
+        try {
+            const qty = 1;
+            
+            // Optimistic local update
+            setItems(prevItems => prevItems.map(item => {
+                if (item.product_code === code) {
+                    return { ...item, scanned_quantity: Number(item.scanned_quantity) + qty };
+                }
+                return item;
+            }));
+
+            setScanStatus({ type: 'success', message: `Controlado: ${description}` });
+            if (successAudioRef.current) {
+                successAudioRef.current.currentTime = 0;
+                successAudioRef.current.play().catch(() => {});
+            }
+
+            if (!navigator.onLine) {
+                await db.pending_syncs.add({
+                    document_id: id,
+                    type: 'egreso',
+                    data: { code, quantity: qty },
+                    timestamp: Date.now()
+                });
+                checkPendingSync();
+            } else {
+                await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
+            }
+            debouncedFetch();
+        } catch (error) {
+            console.error('Rapid scan error:', error);
+            toast.error('Error al procesar escaneo rápido');
+        } finally {
+            // Artificial delay to prevent double scan and allow user to move camera
+            setTimeout(() => {
+                setProcessing(false);
+            }, 400);
+        }
     };
 
     const handleOpenLinkModal = (item, index) => {
@@ -1370,7 +1477,8 @@ const EgresoDetailsPage = () => {
                         onScan={handleBarcodeScan}
                         onCancel={() => setIsBarcodeReaderActive(false)}
                         isEnabled={isBarcodeReaderActive}
-                        isPaused={fichajeState.isOpen || showMatchModal}
+                        isPaused={fichajeState.isOpen || showMatchModal || processing}
+                        allowRapidMode={canUseRapidMode}
                         scanStatus={scanStatus}
                     />
                 </div>,

@@ -94,7 +94,7 @@ const ReceiptDetailsPage = () => {
 
     const hasBranchPermission = Array.isArray(user?.permissions) && user.permissions.includes('tab_ingreso_sucursal');
     const isSucursalTransfer = receipt?.type === 'sucursal_transfer';
-    const canUseRapidMode = isSucursalTransfer;
+    const canUseRapidMode = true; // Habilitado para todos los ingresos según solicitud
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('use_scanner_ingresos')) || hasBranchPermission;
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || (Array.isArray(user?.permissions) && user.permissions.includes('close_ingresos')) || hasBranchPermission;
