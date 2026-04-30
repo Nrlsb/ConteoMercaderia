@@ -290,7 +290,7 @@ const BarcodeControl = () => {
     const fetchHistory = async (page = 1) => {
         setHistoryLoading(true);
         try {
-            let url = `/api/barcode-history?page=${page}&limit=20`;
+            let url = `/api/barcode-history?page=${page}&limit=50`;
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
@@ -329,7 +329,7 @@ const BarcodeControl = () => {
         }
     };
 
-    const renderPagination = (currentPage, totalPages, totalItems, onPageChange) => {
+    const renderPagination = (currentPage, totalPages, totalItems, onPageChange, itemsPerPage = 50) => {
         if (totalPages <= 1) return null;
 
         const pages = [];
@@ -348,7 +348,7 @@ const BarcodeControl = () => {
         return (
             <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm animate-fade-in">
                 <div className="text-sm text-gray-500">
-                    Mostrando <span className="font-semibold text-gray-800">{(currentPage - 1) * 20 + 1}</span> a <span className="font-semibold text-gray-800">{Math.min(currentPage * 20, totalItems)}</span> de <span className="font-semibold text-gray-800">{totalItems}</span>
+                    Mostrando <span className="font-semibold text-gray-800">{(currentPage - 1) * itemsPerPage + 1}</span> a <span className="font-semibold text-gray-800">{Math.min(currentPage * itemsPerPage, totalItems)}</span> de <span className="font-semibold text-gray-800">{totalItems}</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <button
@@ -1877,7 +1877,7 @@ const BarcodeControl = () => {
                                         </div>
                                     ))}
                                 </div>
-                                {renderPagination(historyPage, historyTotalPages, historyTotal, fetchHistory)}
+                                {renderPagination(historyPage, historyTotalPages, historyTotal, fetchHistory, 50)}
                             </div>
                         ) : (
                             <div className="text-center py-10 text-gray-500">
@@ -2172,15 +2172,15 @@ const BarcodeControl = () => {
                                                             />
                                                         </div>
                                                     )}
-                                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full ${item.isContext ? 'bg-gray-200 text-gray-500' : 'bg-primary-100 text-primary-700'} flex items-center justify-center font-bold text-sm`}>
-                                                        {item.isContext ? 'S' : layoutTotal - ((layoutPage - 1) * 20) - index}
+                                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full ${item.isContext ? (item.contextType === 'after' ? 'bg-purple-100 text-purple-600' : 'bg-amber-100 text-amber-600') : 'bg-primary-100 text-primary-700'} flex items-center justify-center font-bold text-xs`}>
+                                                        {item.isContext ? (item.contextType === 'after' ? 'P' : 'A') : layoutTotal - ((layoutPage - 1) * 50) - index}
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center gap-2">
-                                                            <p className={`font-bold ${item.isContext ? 'text-gray-500' : 'text-gray-900'}`}>{item.product_description}</p>
+                                                            <p className={`font-bold ${item.isContext ? 'text-gray-600' : 'text-gray-900'}`}>{item.product_description}</p>
                                                             {item.isContext && (
-                                                                <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider border border-gray-200">
-                                                                    Siguiente
+                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-wider border ${item.contextType === 'after' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                                                    {item.contextType === 'after' ? 'POSTERIOR' : 'ANTERIOR'}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2253,7 +2253,7 @@ const BarcodeControl = () => {
                                         </div>
                                     )}
                                 </div>
-                                {renderPagination(layoutPage, layoutTotalPages, layoutTotal, fetchLayout)}
+                                {renderPagination(layoutPage, layoutTotalPages, layoutTotal, fetchLayout, 50)}
                             </div>
                         ) : (
                             <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">

@@ -103,56 +103,81 @@ exports.getBarcodeHistory = async (req, res) => {
             finalTotalPages = Math.ceil((count || 0) / limitNum);
         }
 
-        // Logic for including context (the item that follows each match in the filtered layout)
+        // Logic for including surrounding context (3 items before and 3 items after)
         if (req.query.includeContext === 'true' && productCode && finalData.length > 0) {
             const dataWithContext = [];
-            const seenIds = new Set(finalData.map(item => item.id));
+            const seenIds = new Set();
+            const matchesIds = new Set(finalData.map(item => item.id));
+
+            const selectFields = `
+                id,
+                action_type,
+                product_id,
+                product_description,
+                details,
+                created_by,
+                created_at,
+                users:created_by (username),
+                products:product_id (barcode)
+            `;
 
             for (const item of finalData) {
-                dataWithContext.push(item);
-                
-                let contextQuery = supabase
+                // Fetch 3 items scanned AFTER (greater created_at)
+                let afterQuery = supabase
                     .from('barcode_history')
-                    .select(`
-                        id,
-                        action_type,
-                        product_id,
-                        product_description,
-                        details,
-                        created_by,
-                        created_at,
-                        users:created_by (username),
-                        products:product_id (barcode)
-                    `)
+                    .select(selectFields)
+                    .gt('created_at', item.created_at)
+                    .order('created_at', { ascending: true })
+                    .limit(3);
+                
+                // Fetch 3 items scanned BEFORE (lesser created_at)
+                let beforeQuery = supabase
+                    .from('barcode_history')
+                    .select(selectFields)
                     .lt('created_at', item.created_at)
                     .order('created_at', { ascending: false })
-                    .limit(1);
+                    .limit(3);
                 
-                // Apply the SAME filters to context so it's "the next in the current view"
-                if (user_id) {
-                    const userIds = user_id.split(',').filter(id => id.trim() !== '');
-                    if (userIds.length > 0) contextQuery = contextQuery.in('created_by', userIds);
-                }
-                if (action_type) {
-                    const types = action_type.split(',').filter(t => t.trim() !== '');
-                    if (types.length > 0) contextQuery = contextQuery.in('action_type', types);
-                }
-                if (startDate) {
-                    contextQuery = contextQuery.gte('created_at', `${startDate}T00:00:00.000Z`);
-                }
-                if (endDate) {
-                    contextQuery = contextQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
-                }
-
-                const { data: contextData } = await contextQuery;
-
-                if (contextData && contextData.length > 0) {
-                    const contextItem = contextData[0];
-                    if (!seenIds.has(contextItem.id)) {
-                        dataWithContext.push({ ...contextItem, isContext: true });
-                        seenIds.add(contextItem.id);
+                // Apply the SAME filters to both queries
+                [afterQuery, beforeQuery].forEach(q => {
+                    if (user_id) {
+                        const userIds = user_id.split(',').filter(id => id.trim() !== '');
+                        if (userIds.length > 0) q.in('created_by', userIds);
                     }
+                    if (action_type) {
+                        const types = action_type.split(',').filter(t => t.trim() !== '');
+                        if (types.length > 0) q.in('action_type', types);
+                    }
+                    if (startDate) q.gte('created_at', `${startDate}T00:00:00.000Z`);
+                    if (endDate) q.lte('created_at', `${endDate}T23:59:59.999Z`);
+                });
+
+                const [afterRes, beforeRes] = await Promise.all([afterQuery, beforeQuery]);
+                
+                const itemsAfter = (afterRes.data || []).reverse(); // Reverse so they are in DESC order for the UI (newest top)
+                const itemsBefore = beforeRes.data || [];
+
+                // Add "After" context (items scanned later, so they appear ABOVE in the DESC list)
+                itemsAfter.forEach(ctx => {
+                    if (!seenIds.has(ctx.id) && !matchesIds.has(ctx.id)) {
+                        dataWithContext.push({ ...ctx, isContext: true, contextType: 'after' });
+                        seenIds.add(ctx.id);
+                    }
+                });
+
+                // Add the actual MATCH if not already added
+                if (!seenIds.has(item.id)) {
+                    dataWithContext.push(item);
+                    seenIds.add(item.id);
                 }
+
+                // Add "Before" context (items scanned earlier, so they appear BELOW in the DESC list)
+                itemsBefore.forEach(ctx => {
+                    if (!seenIds.has(ctx.id) && !matchesIds.has(ctx.id)) {
+                        dataWithContext.push({ ...ctx, isContext: true, contextType: 'before' });
+                        seenIds.add(ctx.id);
+                    }
+                });
             }
             finalData = dataWithContext;
         }
