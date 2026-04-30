@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const barcodeController = require('../controllers/barcodeController');
 const { verifyToken, verifyAdmin } = require('../middleware/auth');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 
 router.get('/', verifyToken, barcodeController.getBarcodeHistory);
 router.get('/missing', verifyToken, barcodeController.getMissingLayoutProducts);
