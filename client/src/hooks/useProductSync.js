@@ -152,29 +152,63 @@ export const useProductSync = () => {
             }
         }
 
-        // 3. Refinar todos los resultados encontrados para asegurar que CUMPLEN con TODOS los términos ingresados (Normalizado)
-        return results.filter(p => {
+        // 3. Refinar y puntuar resultados
+        return results.map(p => {
             const desc = normalizeText(p.description);
             const code = normalizeText(p.code);
             const barcode = normalizeText(p.barcode || '');
             const provCode = normalizeText(p.provider_code || '');
             const brand = normalizeText(p.brand || '');
 
-            return terms.every(term => {
-                // Si el tipo es específico, el término debe coincidir con ese campo ESPECÍFICO para que sea válido?
-                // O el filtro global simplemente ayuda a encontrar candidatos?
-                // Lo más coherente es que si el usuario eligió "Proveedor", el primer término DEBIERA estar en el código de proveedor.
-                if (type === 'barcode') return barcode.includes(term);
-                if (type === 'internal') return code.includes(term);
-                if (type === 'provider') return provCode.includes(term);
+            let score = 0;
+            let matchesAll = true;
 
-                return desc.includes(term) ||
-                    code.includes(term) ||
-                    barcode.includes(term) ||
-                    provCode.includes(term) ||
-                    brand.includes(term);
-            });
-        }).slice(0, 50);
+            for (const term of terms) {
+                let termMatched = false;
+                
+                // Prioridad 1: Descripción (Puntaje alto)
+                if (desc.includes(term)) {
+                    score += 100;
+                    termMatched = true;
+                    // Extra por coincidencia de palabra completa (especialmente para números como "20")
+                    const wordRegex = new RegExp(`\\b${term}\\b`, 'i');
+                    if (wordRegex.test(desc)) score += 50;
+                }
+                
+                // Prioridad 2: Marca
+                if (brand.includes(term)) {
+                    score += 30;
+                    termMatched = true;
+                }
+
+                // Prioridad 3: Códigos (Puntaje bajo para evitar ruido de barras)
+                if (code.includes(term)) {
+                    score += 10;
+                    termMatched = true;
+                    if (code === term) score += 40;
+                }
+                if (barcode.includes(term)) {
+                    score += 5;
+                    termMatched = true;
+                    if (barcode === term) score += 45;
+                }
+                if (provCode.includes(term)) {
+                    score += 10;
+                    termMatched = true;
+                }
+
+                if (!termMatched) {
+                    matchesAll = false;
+                    break;
+                }
+            }
+
+            return { product: p, score, matchesAll };
+        })
+        .filter(r => r.matchesAll)
+        .sort((a, b) => b.score - a.score)
+        .map(r => r.product)
+        .slice(0, 50);
     }, []);
 
     /**
