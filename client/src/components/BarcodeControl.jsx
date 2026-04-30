@@ -9,7 +9,7 @@ import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
 import { useProductSync } from '../hooks/useProductSync';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, Trash2, Plus } from 'lucide-react';
 
 const BarcodeControl = () => {
     const { user } = useAuth();
@@ -91,6 +91,13 @@ const BarcodeControl = () => {
     
     // Selection state for Layout (Superadmin only)
     const [selectedLayout, setSelectedLayout] = useState([]);
+
+    // Insertion state
+    const [showInsertModal, setShowInsertModal] = useState(false);
+    const [insertReference, setInsertReference] = useState({ prev: null, next: null });
+    const [insertProductSearch, setInsertProductSearch] = useState('');
+    const [insertSearchResults, setInsertSearchResults] = useState([]);
+    const [insertLoading, setInsertLoading] = useState(false);
 
 
     const [saveToLayout, setSaveToLayout] = useState(() => {
@@ -224,7 +231,10 @@ const BarcodeControl = () => {
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
             if (selectedUserIds.length > 0) params.append('user_id', selectedUserIds.join(','));
-            if (productCodeFilter) params.append('productCode', productCodeFilter);
+            if (productCodeFilter) {
+                params.append('productCode', productCodeFilter);
+                params.append('includeContext', 'true');
+            }
             if (showUnique) params.append('unique', 'true');
 
             if (params.toString()) {
@@ -915,6 +925,71 @@ const BarcodeControl = () => {
         setShowScanner(false);
         setScannedBarcode(code);
         await lookupProduct(code);
+    };
+
+    const handleOpenInsertModal = (prevItem, nextItem) => {
+        setInsertReference({ prev: prevItem, next: nextItem });
+        setInsertProductSearch('');
+        setInsertSearchResults([]);
+        setShowInsertModal(true);
+    };
+
+    const handleExecuteInsertSearch = async (query) => {
+        if (!query.trim()) return;
+        setInsertLoading(true);
+        try {
+            const results = await searchProductsLocally(query);
+            setInsertSearchResults(results);
+        } catch (error) {
+            console.error('Error searching for insertion:', error);
+        } finally {
+            setInsertLoading(false);
+        }
+    };
+
+    const handleConfirmInsertion = async (selectedProd) => {
+        setLoading(true);
+        try {
+            let targetTime;
+            const now = new Date().toISOString();
+            
+            if (insertReference.prev && insertReference.next) {
+                // Interpolar entre dos tiempos
+                const timePrev = new Date(insertReference.prev.created_at).getTime();
+                const timeNext = new Date(insertReference.next.created_at).getTime();
+                targetTime = new Date((timePrev + timeNext) / 2).toISOString();
+            } else if (insertReference.prev) {
+                // Insertar al principio (arriba de prev)
+                // Como es DESC, arriba de prev significa un tiempo mayor
+                const timePrev = new Date(insertReference.prev.created_at).getTime();
+                targetTime = new Date(timePrev + 1000).toISOString(); // 1 segundo después
+            } else if (insertReference.next) {
+                // Insertar al final (debajo de next)
+                // Como es DESC, debajo de next significa un tiempo menor
+                const timeNext = new Date(insertReference.next.created_at).getTime();
+                targetTime = new Date(timeNext - 1000).toISOString(); // 1 segundo antes
+            } else {
+                targetTime = now;
+            }
+
+            const scanData = {
+                action_type: 'SCAN',
+                product_id: selectedProd.id,
+                product_description: selectedProd.description,
+                details: 'Inserción manual en layout',
+                created_at: targetTime
+            };
+
+            await api.post('/api/barcode-history', scanData);
+            toast.success('Producto insertado correctamente');
+            setShowInsertModal(false);
+            fetchLayout(layoutPage);
+        } catch (err) {
+            console.error('Error inserting product:', err);
+            toast.error('Error al insertar el producto');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -1883,79 +1958,121 @@ const BarcodeControl = () => {
                                     )}
                                 </div>
                                 <div className="space-y-3">
-                                    {layoutHistory.map((item, index) => (
-                                        <div 
-                                            key={item.id} 
-                                            className={`bg-white border ${selectedLayout.includes(item.id) ? 'border-red-300 bg-red-50/10' : 'border-gray-200'} rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors ${isAdmin ? 'cursor-pointer' : ''}`}
-                                            onClick={() => {
-                                                if (!isAdmin) return;
-                                                const newSelected = selectedLayout.includes(item.id)
-                                                    ? selectedLayout.filter(id => id !== item.id)
-                                                    : [...selectedLayout, item.id];
-                                                setSelectedLayout(newSelected);
-                                            }}
-                                        >
-                                            <div className="flex items-center gap-3 w-full sm:w-auto">
-                                                {isAdmin && (
-                                                    <div className="flex-shrink-0 flex items-center mr-1">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedLayout.includes(item.id)}
-                                                            onChange={() => {}} // Manejado por el onClick del contenedor
-                                                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
-                                                        />
-                                                    </div>
-                                                )}
-                                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
-                                                    {layoutTotal - ((layoutPage - 1) * 20) - index}
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-gray-900">{item.product_description}</p>
-                                                    <div className="flex flex-wrap gap-2 mt-1">
-                                                        {item.products?.barcode && (
-                                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono flex items-center gap-1 border border-gray-200">
-                                                                 <Barcode className="w-3 h-3" /> {item.products.barcode}
-                                                            </span>
-                                                        )}
-                                                        {item.users?.username && (
-                                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded flex items-center gap-1 border border-blue-100">
-                                                                <User className="w-3 h-3" /> {item.users.username}
-                                                            </span>
-                                                        )}
-                                                        {item.action_type !== 'SCAN' && (
-                                                            <span className={`text-[10px] px-2 py-1 rounded font-medium flex items-center gap-1.5 border ${item.action_type === 'edit' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
-                                                                {item.action_type === 'edit' ? <Edit className="w-3 h-3" /> : <Link className="w-3 h-3" />}
-                                                                {item.action_type === 'edit' ? 'Editado' : 'Vinculado'}: {item.details}
-                                                            </span>
-                                                        )}
-                                                        {item.details === 'Transferencia masiva desde historial' && (
-                                                            <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-1 rounded font-medium flex items-center gap-1 border border-amber-100">
-                                                                <ClipboardList className="w-3 h-3" /> Transferido
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2 self-end sm:self-auto">
-                                                <div className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                                                    <Clock className="w-3.5 h-3.5" />
-                                                    {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                                                </div>
-                                                {isAdmin && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeleteBulk([item.id], 'Layout');
-                                                        }}
-                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Borrar este registro"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
+                                    {/* Botón para insertar al principio (arriba de todo) */}
+                                    {layoutHistory.length > 0 && (
+                                        <div className="flex justify-center -mb-4 relative z-10 group/insert">
+                                            <button
+                                                onClick={() => handleOpenInsertModal(null, layoutHistory[0])}
+                                                className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:scale-110 transition-all opacity-0 group-hover/insert:opacity-100 focus:opacity-100"
+                                                title="Insertar al principio"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </button>
                                         </div>
+                                    )}
+                                    {layoutHistory.map((item, index) => (
+                                        <React.Fragment key={item.id}>
+                                            <div 
+                                                className={`bg-white border ${item.isContext ? 'border-dashed border-gray-300 bg-gray-50/50 opacity-80' : selectedLayout.includes(item.id) ? 'border-red-300 bg-red-50/10' : 'border-gray-200'} rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-primary-200 transition-colors ${isAdmin && !item.isContext ? 'cursor-pointer' : ''}`}
+                                                onClick={() => {
+                                                    if (!isAdmin || item.isContext) return;
+                                                    const newSelected = selectedLayout.includes(item.id)
+                                                        ? selectedLayout.filter(id => id !== item.id)
+                                                        : [...selectedLayout, item.id];
+                                                    setSelectedLayout(newSelected);
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                    {isAdmin && !item.isContext && (
+                                                        <div className="flex-shrink-0 flex items-center mr-1">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedLayout.includes(item.id)}
+                                                                onChange={() => {}} // Manejado por el onClick del contenedor
+                                                                className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full ${item.isContext ? 'bg-gray-200 text-gray-500' : 'bg-primary-100 text-primary-700'} flex items-center justify-center font-bold text-sm`}>
+                                                        {item.isContext ? 'S' : layoutTotal - ((layoutPage - 1) * 20) - index}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className={`font-bold ${item.isContext ? 'text-gray-500' : 'text-gray-900'}`}>{item.product_description}</p>
+                                                            {item.isContext && (
+                                                                <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider border border-gray-200">
+                                                                    Siguiente
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2 mt-1">
+                                                            {item.products?.barcode && (
+                                                                <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono flex items-center gap-1 border border-gray-200">
+                                                                     <Barcode className="w-3 h-3" /> {item.products.barcode}
+                                                                </span>
+                                                            )}
+                                                            {item.users?.username && (
+                                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded flex items-center gap-1 border border-blue-100">
+                                                                    <User className="w-3 h-3" /> {item.users.username}
+                                                                </span>
+                                                            )}
+                                                            {item.action_type !== 'SCAN' && (
+                                                                <span className={`text-[10px] px-2 py-1 rounded font-medium flex items-center gap-1.5 border ${item.action_type === 'edit' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
+                                                                    {item.action_type === 'edit' ? <Edit className="w-3 h-3" /> : <Link className="w-3 h-3" />}
+                                                                    {item.action_type === 'edit' ? 'Editado' : 'Vinculado'}: {item.details}
+                                                                </span>
+                                                            )}
+                                                            {item.details === 'Transferencia masiva desde historial' && (
+                                                                <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-1 rounded font-medium flex items-center gap-1 border border-amber-100">
+                                                                    <ClipboardList className="w-3 h-3" /> Transferido
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                                    <div className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                                        <Clock className="w-3.5 h-3.5" />
+                                                        {new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                    </div>
+                                                    {isAdmin && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteBulk([item.id], 'Layout');
+                                                            }}
+                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Borrar este registro"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {/* Botón de inserción entre filas */}
+                                            <div className="flex justify-center -my-1.5 relative z-10 group/insert">
+                                                <button
+                                                    onClick={() => handleOpenInsertModal(item, layoutHistory[index + 1])}
+                                                    className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:scale-110 transition-all opacity-0 group-hover/insert:opacity-100 focus:opacity-100"
+                                                    title="Insertar producto aquí"
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </React.Fragment>
                                     ))}
+                                    {/* Botón para insertar al final (debajo de todo) */}
+                                    {layoutHistory.length > 0 && (
+                                        <div className="flex justify-center -mt-1.5 relative z-10 group/insert">
+                                            <button
+                                                onClick={() => handleOpenInsertModal(layoutHistory[layoutHistory.length - 1], null)}
+                                                className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:scale-110 transition-all opacity-0 group-hover/insert:opacity-100 focus:opacity-100"
+                                                title="Insertar al final"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 {renderPagination(layoutPage, layoutTotalPages, layoutTotal, fetchLayout)}
                             </div>
@@ -2160,6 +2277,105 @@ const BarcodeControl = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal de Inserción Manual */}
+            {showInsertModal && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl border border-gray-100 animate-in zoom-in duration-200">
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 flex items-center gap-4">
+                            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                                <Plus className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-white uppercase tracking-tight">Insertar Producto</h2>
+                                <p className="text-blue-100 text-xs">Se ubicará entre los dos productos seleccionados</p>
+                            </div>
+                            <button onClick={() => setShowInsertModal(false)} className="ml-auto text-white/70 hover:text-white">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs space-y-2">
+                                <div className="flex justify-between items-center opacity-60">
+                                    <span className="font-semibold uppercase text-[10px]">Arriba:</span>
+                                    <span className="truncate max-w-[200px] italic">{insertReference.prev?.product_description || 'Inicio de lista'}</span>
+                                </div>
+                                <div className="flex justify-center">
+                                    <div className="h-4 border-l-2 border-dashed border-blue-300"></div>
+                                </div>
+                                <div className="flex justify-between items-center text-blue-600 font-bold">
+                                    <span className="uppercase text-[10px]">NUEVO PRODUCTO AQUÍ</span>
+                                </div>
+                                <div className="flex justify-center">
+                                    <div className="h-4 border-l-2 border-dashed border-blue-300"></div>
+                                </div>
+                                <div className="flex justify-between items-center opacity-60">
+                                    <span className="font-semibold uppercase text-[10px]">Abajo:</span>
+                                    <span className="truncate max-w-[200px] italic">{insertReference.next?.product_description || 'Fin de lista'}</span>
+                                </div>
+                            </div>
+
+                            <form 
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleExecuteInsertSearch(insertProductSearch);
+                                }}
+                                className="relative"
+                            >
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={insertProductSearch}
+                                    onChange={(e) => {
+                                        setInsertProductSearch(e.target.value);
+                                        // Búsqueda en tiempo real
+                                        if (e.target.value.length > 2) {
+                                            handleExecuteInsertSearch(e.target.value);
+                                        }
+                                    }}
+                                    placeholder="Buscar producto por nombre o código..."
+                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:bg-white outline-none transition-all text-sm"
+                                    autoFocus
+                                />
+                            </form>
+
+                            <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                {insertLoading && (
+                                    <div className="flex justify-center py-4">
+                                        <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                                    </div>
+                                )}
+                                
+                                {insertSearchResults.map(prod => (
+                                    <button
+                                        key={prod.id}
+                                        onClick={() => handleConfirmInsertion(prod)}
+                                        className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all group flex flex-col gap-1"
+                                    >
+                                        <span className="font-bold text-gray-800 text-sm group-hover:text-blue-700">{prod.description}</span>
+                                        <span className="text-[10px] text-gray-500 font-mono">INT: {prod.code} {prod.barcode ? `• BAR: ${prod.barcode}` : ''}</span>
+                                    </button>
+                                ))}
+
+                                {!insertLoading && insertProductSearch.length > 2 && insertSearchResults.length === 0 && (
+                                    <p className="text-center py-4 text-gray-400 text-xs">No se encontraron productos</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                            <button
+                                onClick={() => setShowInsertModal(false)}
+                                className="px-6 py-2 text-gray-500 font-bold hover:text-gray-700 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
