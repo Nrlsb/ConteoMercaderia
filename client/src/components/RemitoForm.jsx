@@ -29,6 +29,7 @@ const RemitoForm = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0); // Offline Support
     const [isForcingUnexpected, setIsForcingUnexpected] = useState(false); // New state for adding items not in pre-remito list
     const isForcingUnexpectedRef = React.useRef(false);
+    const [scanStatus, setScanStatus] = useState(null);
 
     // Pre-remito state
     const [selectedPreRemitos, setSelectedPreRemitos] = useState([]);
@@ -50,6 +51,13 @@ const RemitoForm = () => {
     useEffect(() => {
         syncProducts();
     }, []);
+
+    useEffect(() => {
+        if (scanStatus) {
+            const timer = setTimeout(() => setScanStatus(null), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [scanStatus]);
 
     // Pre-warm in-memory cache from localStorage on mount
     useEffect(() => {
@@ -2320,13 +2328,15 @@ const RemitoForm = () => {
                                     </button>
                                 )}
 
-                                {isScanning && !fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isDuplicateModalOpen && ReactDOM.createPortal(
+                                {isScanning && ReactDOM.createPortal(
                                     <div className="fixed inset-0 z-[2000] bg-transparent">
                                         <Suspense fallback={null}>
                                             <Scanner
                                                 onScan={handleScan}
                                                 onCancel={() => setIsScanning(false)}
-                                                isEnabled={!fichajeState.isOpen && !modalConfig.isOpen && !showClarificationModal && !isProcessingScan}
+                                                isEnabled={isScanning}
+                                                isPaused={fichajeState.isOpen || modalConfig.isOpen || showClarificationModal || isDuplicateModalOpen || isProcessingScan}
+                                                scanStatus={scanStatus}
                                             />
                                         </Suspense>
                                     </div>,

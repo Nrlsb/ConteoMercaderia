@@ -17,8 +17,9 @@ const BranchIncomingsList = () => {
     const [receiptHistory, setReceiptHistory] = useState([]);
     const [paginationHistory, setPaginationHistory] = useState({ page: 1, totalPages: 1, total: 0 });
     const [loadingHistory, setLoadingHistory] = useState(true);
-
+    const [selectedTransfers, setSelectedTransfers] = useState([]);
     const [processingId, setProcessingId] = useState(null);
+    const [processingMultiple, setProcessingMultiple] = useState(false);
 
     const fetchTransfers = useCallback(async (page = 1) => {
         setLoadingPending(true);
@@ -75,6 +76,38 @@ const BranchIncomingsList = () => {
             toast.error(msg);
         } finally {
             setProcessingId(null);
+        }
+    };
+
+    const handleReceiveMultiple = async () => {
+        if (selectedTransfers.length === 0) return;
+        if (!window.confirm(`¿Desea iniciar la recepción de los ${selectedTransfers.length} remitos seleccionados? Se consolidarán en un solo control de ingreso.`)) return;
+
+        setProcessingMultiple(true);
+        try {
+            const response = await api.post('/api/branch-transfers/receive-multiple', { ids: selectedTransfers });
+            toast.success('Control consolidado creado correctamente');
+            navigate(`/receipts/${response.data.id}`);
+        } catch (error) {
+            console.error('Error receiving multiple transfers:', error);
+            const msg = error.response?.data?.message || 'Error al iniciar la recepción múltiple';
+            toast.error(msg);
+        } finally {
+            setProcessingMultiple(false);
+        }
+    };
+
+    const toggleSelection = (id) => {
+        setSelectedTransfers(prev => 
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const toggleAllTransfers = () => {
+        if (selectedTransfers.length === transfers.length) {
+            setSelectedTransfers([]);
+        } else {
+            setSelectedTransfers(transfers.map(t => t.id));
         }
     };
 
@@ -208,6 +241,14 @@ const BranchIncomingsList = () => {
                                     <table className="min-w-full">
                                         <thead>
                                             <tr className="bg-gray-50/50 border-b border-gray-100">
+                                                <th className="px-6 py-4 text-left w-12">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                                                        checked={selectedTransfers.length === transfers.length && transfers.length > 0}
+                                                        onChange={toggleAllTransfers}
+                                                    />
+                                                </th>
                                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Referencia / Remito</th>
                                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Destino</th>
                                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Fecha Envío</th>
@@ -216,7 +257,15 @@ const BranchIncomingsList = () => {
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
                                             {transfers.map(transfer => (
-                                                <tr key={transfer.id} className="hover:bg-blue-50/30 transition-colors group">
+                                                <tr key={transfer.id} className={`hover:bg-blue-50/30 transition-colors group ${selectedTransfers.includes(transfer.id) ? 'bg-blue-50/50' : ''}`}>
+                                                    <td className="px-6 py-5">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                                                            checked={selectedTransfers.includes(transfer.id)}
+                                                            onChange={() => toggleSelection(transfer.id)}
+                                                        />
+                                                    </td>
                                                     <td className="px-6 py-5">
                                                         <div className="flex flex-col">
                                                             <p className="text-gray-900 font-black text-base group-hover:text-brand-blue transition-colors">{transfer.reference_number}</p>
@@ -244,7 +293,7 @@ const BranchIncomingsList = () => {
                                                     <td className="px-6 py-5 text-right">
                                                         <button
                                                             onClick={() => handleReceive(transfer.id)}
-                                                            disabled={processingId === transfer.id}
+                                                            disabled={processingId === transfer.id || processingMultiple}
                                                             className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-2 px-5 rounded-xl shadow-lg shadow-emerald-100 transition-all disabled:opacity-50 disabled:active:scale-100"
                                                         >
                                                             {processingId === transfer.id ? (
@@ -266,26 +315,36 @@ const BranchIncomingsList = () => {
                                 {/* Mobile View */}
                                 <div className="md:hidden space-y-4">
                                     {transfers.map(transfer => (
-                                        <div key={transfer.id} className="bg-white p-5 rounded-2xl shadow-md border border-gray-100 relative group overflow-hidden">
+                                        <div key={transfer.id} className={`bg-white p-5 rounded-2xl shadow-md border transition-all relative group overflow-hidden ${selectedTransfers.includes(transfer.id) ? 'border-brand-blue ring-1 ring-brand-blue' : 'border-gray-100'}`}>
                                             <div className="absolute top-0 right-0 w-1 h-full bg-emerald-500"></div>
                                             <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <h3 className="text-lg font-black text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-1">{transfer.reference_number}</h3>
-                                                    <div className="flex gap-2 items-center mt-2 flex-wrap">
-                                                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-black uppercase tracking-wide">
-                                                            {transfer.sucursal?.name || 'Destinatario'}
-                                                        </span>
-                                                        <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
-                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            {new Date(transfer.date).toLocaleDateString()}
-                                                        </p>
+                                                <div className="flex gap-3">
+                                                    <div className="pt-1">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="w-5 h-5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                                                            checked={selectedTransfers.includes(transfer.id)}
+                                                            onChange={() => toggleSelection(transfer.id)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-lg font-black text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-1">{transfer.reference_number}</h3>
+                                                        <div className="flex gap-2 items-center mt-2 flex-wrap">
+                                                            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-black uppercase tracking-wide">
+                                                                {transfer.sucursal?.name || 'Destinatario'}
+                                                            </span>
+                                                            <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
+                                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                                {new Date(transfer.date).toLocaleDateString()}
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleReceive(transfer.id)}
-                                                    disabled={processingId === transfer.id}
+                                                    disabled={processingId === transfer.id || processingMultiple}
                                                     className="bg-emerald-600 hover:bg-emerald-700 active:scale-90 text-white font-black py-2.5 px-4 rounded-xl text-sm shadow-md transition-all disabled:opacity-50"
                                                 >
                                                     {processingId === transfer.id ? '...' : 'Recibir'}
@@ -307,6 +366,31 @@ const BranchIncomingsList = () => {
                                         </div>
                                     ))}
                                 </div>
+
+                                {/* Floating Action Button for Multiple Selection */}
+                                {selectedTransfers.length > 0 && (
+                                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-300">
+                                        <button
+                                            onClick={handleReceiveMultiple}
+                                            disabled={processingMultiple}
+                                            className="bg-brand-blue hover:bg-blue-700 text-white font-black py-4 px-8 rounded-2xl shadow-2xl shadow-brand-blue/30 flex items-center gap-3 active:scale-95 transition-all disabled:opacity-50"
+                                        >
+                                            {processingMultiple ? (
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            ) : (
+                                                <div className="relative">
+                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                    </svg>
+                                                    <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-blue font-bold">
+                                                        {selectedTransfers.length}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <span className="text-lg">Recibir Seleccionados</span>
+                                        </button>
+                                    </div>
+                                )}
 
                                 <PaginationControls 
                                     pagination={paginationPending} 

@@ -42,12 +42,21 @@ const InventoryPage = () => {
     }, [expectedItems]);
 
     // Modal State
+    const [scanStatus, setScanStatus] = useState(null);
+
     const [fichajeState, setFichajeState] = useState({
         isOpen: false,
         product: null,
         existingQuantity: 0,
         expectedQuantity: null
     });
+
+    useEffect(() => {
+        if (scanStatus) {
+            const timer = setTimeout(() => setScanStatus(null), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [scanStatus]);
 
     // Load available orders
     useEffect(() => {
@@ -101,7 +110,9 @@ const InventoryPage = () => {
         const expected = productLookup.get(trimmedCode);
 
         if (!expected) {
-            toast.error('Producto no encontrado en el pedido (Modo Estricto)');
+            const msg = 'Producto no encontrado en el pedido (Modo Estricto)';
+            toast.error(msg);
+            setScanStatus({ type: 'error', message: msg });
             return;
         }
 
@@ -468,9 +479,15 @@ const InventoryPage = () => {
             </div>
 
             {/* FULLSCREEN TRANSPARENT NATIVE SCANNER OVERLAY */}
-            {isScanning && !fichajeState.isOpen && ReactDOM.createPortal(
+            {isScanning && ReactDOM.createPortal(
                 <div className="fixed inset-0 z-[2000] bg-transparent">
-                    <Scanner onScan={handleScan} onCancel={() => setIsScanning(false)} isEnabled={!fichajeState.isOpen} />
+                    <Scanner
+                        onScan={handleScan}
+                        onCancel={() => setIsScanning(false)}
+                        isEnabled={isScanning}
+                        isPaused={fichajeState.isOpen}
+                        scanStatus={scanStatus}
+                    />
                 </div>,
                 document.body
             )}

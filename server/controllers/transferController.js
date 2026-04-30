@@ -163,3 +163,116 @@ exports.getTransferReceipts = async (req, res) => {
         res.status(500).json({ message: 'Error al obtener los ingresos de sucursal' });
     }
 };
+
+exports.receiveMultipleTransfers = async (req, res) => {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: 'No se enviaron IDs de transferencias' });
+    }
+
+    try {
+        // 1. Get all egresos
+        const { data: egresos, error: egresosError } = await supabase
+            .from('egresos')
+            .select('*')
+            .in('id', ids);
+
+        if (egresosError) throw egresosError;
+        if (!egresos || egresos.length === 0) {
+            return res.status(404).json({ message: 'Egresos no encontrados' });
+        }
+
+        // Validate all are finalized and not received
+        for (const egreso of egresos) {
+            if (egreso.status !== 'finalized') {
+                return res.status(400).json({ message: `El egreso ${egreso.reference_number} no está finalizado` });
+            }
+            if (egreso.receipt_id) {
+                return res.status(400).json({ message: `El egreso ${egreso.reference_number} ya ha sido recibido` });
+            }
+        }
+
+        // 2. Get all items for these egresos
+        const { data: egresoItems, error: itemsError } = await supabase
+            .from('egreso_items')
+            .select('*')
+            .in('egreso_id', ids)
+            .gt('scanned_quantity', 0);
+
+        if (itemsError) throw itemsError;
+        if (!egresoItems || egresoItems.length === 0) {
+            return res.status(400).json({ message: 'Los egresos seleccionados no tienen productos para recibir' });
+        }
+
+        // 3. Aggregate items by product_code
+        const aggregatedItems = {};
+        egresoItems.forEach(item => {
+            if (!aggregatedItems[item.product_code]) {
+                aggregatedItems[item.product_code] = {
+                    product_code: item.product_code,
+                    expected_quantity: 0
+                };
+            }
+            aggregatedItems[item.product_code].expected_quantity += item.scanned_quantity;
+        });
+
+        // 4. Create new receipt
+        // Create a combined reference string
+        const combinedReference = egresos.map(e => e.reference_number).join(', ');
+        const truncatedRef = combinedReference.length > 50 ? combinedReference.substring(0, 47) + '...' : combinedReference;
+
+        const { data: receipt, error: receiptError } = await supabase
+            .from('receipts')
+            .insert([{
+                remito_number: `MULTI-${truncatedRef}`,
+                type: 'sucursal_transfer',
+                created_by: req.user.username,
+                sucursal_id: req.user.sucursal_id || egresos[0].sucursal_id,
+                date: new Date()
+            }])
+            .select()
+            .single();
+
+        if (receiptError) throw receiptError;
+
+        // 5. Insert aggregated items
+        const receiptItems = Object.values(aggregatedItems).map(item => ({
+            receipt_id: receipt.id,
+            product_code: item.product_code,
+            expected_quantity: item.expected_quantity,
+            scanned_quantity: 0
+        }));
+
+        const { error: batchError } = await supabase
+            .from('receipt_items')
+            .insert(receiptItems);
+
+        if (batchError) throw batchError;
+
+        // 6. Link all egresos to receipt
+        const { error: updateError } = await supabase
+            .from('egresos')
+            .update({ receipt_id: receipt.id })
+            .in('id', ids);
+
+        if (updateError) throw updateError;
+
+        // 7. Log history
+        for (const item of receiptItems) {
+            await supabase.from('receipt_items_history').insert({
+                receipt_id: receipt.id,
+                user_id: req.user.id,
+                operation: 'TRANSFER_IMPORT',
+                product_code: item.product_code,
+                new_data: { expected_quantity: item.expected_quantity },
+                changed_at: new Date().toISOString()
+            });
+        }
+
+        res.status(201).json(receipt);
+
+    } catch (error) {
+        console.error('Error receiving multiple transfers:', error);
+        res.status(500).json({ message: 'Error al procesar la recepción múltiple' });
+    }
+};
