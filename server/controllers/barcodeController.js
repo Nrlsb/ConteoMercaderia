@@ -685,25 +685,44 @@ exports.getMissingLayoutProducts = async (req, res) => {
         });
 
         // 3. Filter out products that are already in the layout (barcode_history)
-        // We'll check for products scanned/added today to consider them "in layout"
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // We'll check for products scanned/added in the last 30 days to consider them "in layout"
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
         
         const { data: existingInHistory } = await supabase
             .from('barcode_history')
             .select('product_id, product_description')
-            .gte('created_at', today.toISOString());
+            .gte('created_at', thirtyDaysAgo.toISOString());
 
         const existingIds = new Set(existingInHistory?.map(h => h.product_id).filter(Boolean) || []);
         const existingDescs = new Set(existingInHistory?.map(h => h.product_description).filter(Boolean) || []);
 
-        const finalMissingProducts = enrichedProducts.filter(p => {
-            // Filter by ID if it was matched in DB, otherwise by description
-            if (p.id) return !existingIds.has(p.id);
-            return !existingDescs.has(p.description);
-        });
+        // 4. Apply search filter if provided
+        const query = (req.query.q || '').toLowerCase();
+        const filteredBySearch = query 
+            ? finalMissingProducts.filter(p => 
+                p.description.toLowerCase().includes(query) || 
+                p.code.toLowerCase().includes(query) ||
+                (p.barcode && p.barcode.toLowerCase().includes(query))
+            )
+            : finalMissingProducts;
 
-        res.json({ data: finalMissingProducts });
+        // 5. Apply pagination
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const startIndex = (page - 1) * limit;
+        const endIndex = page * limit;
+        
+        const paginatedProducts = filteredBySearch.slice(startIndex, endIndex);
+
+        res.json({ 
+            data: paginatedProducts,
+            total: filteredBySearch.length,
+            page,
+            limit,
+            totalPages: Math.ceil(filteredBySearch.length / limit)
+        });
 
     } catch (error) {
         console.error('Error in getMissingLayoutProducts:', error);

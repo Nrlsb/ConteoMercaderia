@@ -107,6 +107,9 @@ const BarcodeControl = () => {
     const [missingSearchQuery, setMissingSearchQuery] = useState('');
     const [missingSuggestions, setMissingSuggestions] = useState([]);
     const [showMissingSuggestions, setShowMissingSuggestions] = useState(false);
+    const [missingPage, setMissingPage] = useState(1);
+    const [missingTotalPages, setMissingTotalPages] = useState(1);
+    const [missingTotal, setMissingTotal] = useState(0);
 
     // Layout search suggestions
     const [layoutSuggestions, setLayoutSuggestions] = useState([]);
@@ -181,7 +184,7 @@ const BarcodeControl = () => {
             fetchLayout(1);
             fetchUsersForFilter();
         } else if (activeTab === 'missing') {
-            fetchMissingProducts();
+            fetchMissingProducts(1);
         }
 
         window.addEventListener('online', syncOfflineLayoutData);
@@ -316,11 +319,16 @@ const BarcodeControl = () => {
         }
     };
 
-    const fetchMissingProducts = async () => {
+    const fetchMissingProducts = async (page = 1, query = null) => {
+        const searchQuery = query !== null ? query : missingSearchQuery;
         setMissingLoading(true);
         try {
-            const response = await api.get('/api/barcode-history/missing');
-            setMissingProducts(response.data.data || []);
+            const response = await api.get(`/api/barcode-history/missing?page=${page}&limit=50&q=${searchQuery}`);
+            const { data, total, page: respPage, totalPages } = response.data;
+            setMissingProducts(data || []);
+            setMissingPage(respPage);
+            setMissingTotalPages(totalPages);
+            setMissingTotal(total);
         } catch (err) {
             console.error('Error fetching missing products:', err);
             toast.error('Error al cargar productos faltantes del Excel');
@@ -2298,6 +2306,12 @@ const BarcodeControl = () => {
                                 }}
                                 placeholder="Descripción, código o barras..."
                                 className="w-full pl-10 pr-12 py-2.5 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all shadow-sm"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        fetchMissingProducts(1, missingSearchQuery);
+                                        setShowMissingSuggestions(false);
+                                    }
+                                }}
                                 onFocus={() => {
                                     if (missingSearchQuery.length > 2 && missingSuggestions.length > 0) {
                                         setShowMissingSuggestions(true);
@@ -2314,6 +2328,7 @@ const BarcodeControl = () => {
                                             onClick={() => {
                                                 setMissingSearchQuery(prod.description);
                                                 setShowMissingSuggestions(false);
+                                                fetchMissingProducts(1, prod.description);
                                             }}
                                         >
                                             <span className="font-bold text-gray-800 text-sm">{prod.description}</span>
@@ -2344,11 +2359,7 @@ const BarcodeControl = () => {
                             </div>
                         ) : missingProducts.length > 0 ? (
                             <div className="space-y-2">
-                                {missingProducts
-                                    .filter(p => !missingSearchQuery || 
-                                        p.description.toLowerCase().includes(missingSearchQuery.toLowerCase()) || 
-                                        p.code.toLowerCase().includes(missingSearchQuery.toLowerCase()))
-                                    .map((p, idx) => (
+                                {missingProducts.map((p, idx) => (
                                     <div key={`${p.code}-${idx}`} className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:shadow transition-all group">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-1">
@@ -2377,6 +2388,7 @@ const BarcodeControl = () => {
                                         </button>
                                     </div>
                                 ))}
+                                {renderPagination(missingPage, missingTotalPages, missingTotal, fetchMissingProducts, 50)}
                             </div>
                         ) : (
                             <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
