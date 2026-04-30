@@ -94,6 +94,7 @@ const EgresoDetailsPage = () => {
     }, [items]);
 
     const inputRef = useRef(null);
+    const productCacheRef = useRef(new Map());
 
     useEffect(() => {
         fetchEgresoDetails();
@@ -122,10 +123,9 @@ const EgresoDetailsPage = () => {
         toast.info(`Sincronizando ${queue.length} registros offline...`, { id: 'sync' });
 
         try {
-            for (const scan of queue) {
-                await api.post(`/api/egresos/${id}/scan`, { code: scan.data.code, quantity: scan.data.quantity });
-                await db.pending_syncs.delete(scan.id);
-            }
+            const scans = queue.map(s => ({ code: s.data.code, quantity: s.data.quantity }));
+            await api.post(`/api/egresos/${id}/scan/batch`, { scans });
+            await db.pending_syncs.bulkDelete(queue.map(s => s.id));
             checkPendingSync();
             toast.success('Sincronización completada exitosamente', { id: 'sync' });
             fetchEgresoDetails();
@@ -153,6 +153,21 @@ const EgresoDetailsPage = () => {
             return () => clearTimeout(timer);
         }
     }, [scanStatus]);
+
+    // Pre-warm in-memory cache from localStorage on mount
+    useEffect(() => {
+        const prefix = 'pbc_';
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(prefix)) {
+                try {
+                    const code = key.slice(prefix.length);
+                    const data = JSON.parse(localStorage.getItem(key));
+                    if (data) productCacheRef.current.set(code, data);
+                } catch (e) { }
+            }
+        }
+    }, []);
 
     const fetchEgresoDetails = async () => {
         try {
@@ -426,8 +441,13 @@ const EgresoDetailsPage = () => {
             })));
             setShowMatchModal(true);
         } else {
-            // Fallback: Check local catalog (Only internal code or barcode)
-            const localProduct = await getProductByCode(code, 'internal') || await getProductByCode(code, 'barcode');
+            // Fallback: Check local catalog — cache first, then smart single IndexedDB call
+            const lowerFallback = code.toLowerCase();
+            let localProduct = productCacheRef.current.get(lowerFallback);
+            if (!localProduct) {
+                localProduct = await getProductByCode(code);
+                if (localProduct) productCacheRef.current.set(lowerFallback, localProduct);
+            }
             if (localProduct) {
                 const errorMsg = `El producto "${localProduct.description}" (${code}) no forma parte de este remito de egreso.`;
                 toast.error(errorMsg, { duration: 4000 });
@@ -488,7 +508,7 @@ const EgresoDetailsPage = () => {
         // API call + refresh in background
         try {
             await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
-            fetchEgresoDetails();
+            // optimistic update already applied, no re-fetch needed
         } catch (error) {
             console.error('Scan error:', error);
             
@@ -1349,7 +1369,8 @@ const EgresoDetailsPage = () => {
                     <Scanner
                         onScan={handleBarcodeScan}
                         onCancel={() => setIsBarcodeReaderActive(false)}
-                        isEnabled={isBarcodeReaderActive && !fichajeState.isOpen && !showMatchModal}
+                        isEnabled={isBarcodeReaderActive}
+                        isPaused={fichajeState.isOpen || showMatchModal}
                         scanStatus={scanStatus}
                     />
                 </div>,

@@ -51,6 +51,21 @@ const RemitoForm = () => {
         syncProducts();
     }, []);
 
+    // Pre-warm in-memory cache from localStorage on mount
+    useEffect(() => {
+        const prefix = 'pbc_';
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(prefix)) {
+                try {
+                    const code = key.slice(prefix.length);
+                    const data = JSON.parse(localStorage.getItem(key));
+                    if (data) productCacheRef.current.set(code, data);
+                } catch (e) { }
+            }
+        }
+    }, []);
+
 
     // Report State
     const [reportConfig, setReportConfig] = useState({
@@ -995,18 +1010,17 @@ const RemitoForm = () => {
     };
 
     // Persistent product cache (localStorage) — allows offline lookup of previously scanned products
-    const LS_PRODUCT_CACHE_KEY = 'conteo_product_barcode_cache';
+    // Per-key storage (O(1) r/w) instead of single blob (O(n))
+    const LS_PRODUCT_CACHE_PREFIX = 'pbc_';
     const saveProductToLocalStorage = (code, productData) => {
         try {
-            const cache = JSON.parse(localStorage.getItem(LS_PRODUCT_CACHE_KEY) || '{}');
-            cache[code] = productData;
-            localStorage.setItem(LS_PRODUCT_CACHE_KEY, JSON.stringify(cache));
+            localStorage.setItem(LS_PRODUCT_CACHE_PREFIX + code, JSON.stringify(productData));
         } catch (e) { }
     };
     const getProductFromLocalStorage = (code) => {
         try {
-            const cache = JSON.parse(localStorage.getItem(LS_PRODUCT_CACHE_KEY) || '{}');
-            return cache[code] || null;
+            const raw = localStorage.getItem(LS_PRODUCT_CACHE_PREFIX + code);
+            return raw ? JSON.parse(raw) : null;
         } catch (e) { return null; }
     };
 

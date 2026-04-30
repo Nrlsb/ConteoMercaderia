@@ -70,22 +70,26 @@ export const useProductSync = () => {
     const getProductByCode = useCallback(async (code, type = 'any') => {
         if (!code) return null;
         const normalized = code.trim().toLowerCase();
+        const original = code.trim();
 
-        // Si es 'any', mantiene el comportamiento original agregando provider_code
-        if (type === 'any') {
-            return await db.products
-                .where('code').equalsIgnoreCase(normalized)
-                .or('barcode').equalsIgnoreCase(normalized)
-                .or('provider_code').equalsIgnoreCase(normalized)
-                .first();
-        }
-
-        // Búsquedas específicas por índice
         if (type === 'barcode') return await db.products.where('barcode').equalsIgnoreCase(normalized).first();
         if (type === 'internal') return await db.products.where('code').equalsIgnoreCase(normalized).first();
         if (type === 'provider') return await db.products.where('provider_code').equalsIgnoreCase(normalized).first();
 
-        return null;
+        // Barcodes de scanner/cámara son todos dígitos >= 6. Probar índice correcto primero.
+        const looksLikeBarcode = /^\d{6,}$/.test(original);
+        if (looksLikeBarcode) {
+            const byBarcode = await db.products.where('barcode').equalsIgnoreCase(normalized).first();
+            if (byBarcode) return byBarcode;
+            return await db.products.where('code').equalsIgnoreCase(normalized).first();
+        }
+
+        // Código alfanumérico: probar code → barcode → provider_code
+        const byCode = await db.products.where('code').equalsIgnoreCase(normalized).first();
+        if (byCode) return byCode;
+        const byBarcode = await db.products.where('barcode').equalsIgnoreCase(normalized).first();
+        if (byBarcode) return byBarcode;
+        return await db.products.where('provider_code').equalsIgnoreCase(normalized).first();
     }, []);
 
     const searchProductsLocally = useCallback(async (query, type = 'any') => {
