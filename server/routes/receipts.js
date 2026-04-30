@@ -971,6 +971,18 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                 continue;
             }
 
+            // Auto-update provider info if missing in catalog
+            const needsUpdate = (item.code && !product.provider_code) || (item.description && !product.provider_description);
+            if (needsUpdate && type === 'normal') {
+                const updateData = {};
+                if (item.code && !product.provider_code) updateData.provider_code = item.code;
+                if (item.description && !product.provider_description) updateData.provider_description = item.description;
+                
+                if (Object.keys(updateData).length > 0) {
+                    await supabase.from('products').update(updateData).eq('code', product.code);
+                }
+            }
+
             // For receipt_items table we still need to aggregate to avoid PK violations
             const existingIdx = itemsToInsert.findIndex(i => i.product_code === product.code);
             if (existingIdx !== -1) {
@@ -1089,6 +1101,18 @@ router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('receipts'), 
             }, { onConflict: 'receipt_id, product_code' });
 
         if (saveError) throw saveError;
+
+        // 3.5 Update product with provider info if missing
+        const updateProductData = {};
+        if (itemToResolve.code) updateProductData.provider_code = itemToResolve.code;
+        if (itemToResolve.description) updateProductData.provider_description = itemToResolve.description;
+
+        if (Object.keys(updateProductData).length > 0) {
+            await supabase
+                .from('products')
+                .update(updateProductData)
+                .eq('code', product.code);
+        }
 
         // 4. Remove from failed_items
         const updatedFailedItems = [...failedItems];
