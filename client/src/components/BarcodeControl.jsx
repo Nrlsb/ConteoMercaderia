@@ -98,6 +98,12 @@ const BarcodeControl = () => {
     const [insertProductSearch, setInsertProductSearch] = useState('');
     const [insertSearchResults, setInsertSearchResults] = useState([]);
     const [insertLoading, setInsertLoading] = useState(false);
+    
+    // Missing products state
+    const [missingProducts, setMissingProducts] = useState([]);
+    const [missingLoading, setMissingLoading] = useState(false);
+    const [pendingInsertionProduct, setPendingInsertionProduct] = useState(null);
+    const [missingSearchQuery, setMissingSearchQuery] = useState('');
 
 
     const [saveToLayout, setSaveToLayout] = useState(() => {
@@ -152,6 +158,8 @@ const BarcodeControl = () => {
             syncOfflineLayoutData(); // Intentar sincronizar al entrar a layout
             fetchLayout(1);
             fetchUsersForFilter();
+        } else if (activeTab === 'missing') {
+            fetchMissingProducts();
         }
 
         window.addEventListener('online', syncOfflineLayoutData);
@@ -283,6 +291,19 @@ const BarcodeControl = () => {
             toast.error('Error al cargar el historial');
         } finally {
             setHistoryLoading(false);
+        }
+    };
+
+    const fetchMissingProducts = async () => {
+        setMissingLoading(true);
+        try {
+            const response = await api.get('/api/barcode-history/missing');
+            setMissingProducts(response.data.data || []);
+        } catch (err) {
+            console.error('Error fetching missing products:', err);
+            toast.error('Error al cargar productos faltantes del Excel');
+        } finally {
+            setMissingLoading(false);
         }
     };
 
@@ -928,10 +949,21 @@ const BarcodeControl = () => {
     };
 
     const handleOpenInsertModal = (prevItem, nextItem) => {
+        if (pendingInsertionProduct) {
+            // Si hay un producto pendiente de los faltantes del Excel
+            handleConfirmInsertion(pendingInsertionProduct, { prev: prevItem, next: nextItem });
+            return;
+        }
         setInsertReference({ prev: prevItem, next: nextItem });
         setInsertProductSearch('');
         setInsertSearchResults([]);
         setShowInsertModal(true);
+    };
+
+    const handlePrepareInsertion = (product) => {
+        setPendingInsertionProduct(product);
+        setActiveTab('layout');
+        toast.info(`Producto "${product.description}" seleccionado. Ahora elegí el lugar en el Layout donde querés insertarlo.`, { duration: 5000 });
     };
 
     const handleExecuteInsertSearch = async (query) => {
@@ -947,26 +979,27 @@ const BarcodeControl = () => {
         }
     };
 
-    const handleConfirmInsertion = async (selectedProd) => {
+    const handleConfirmInsertion = async (selectedProd, reference = null) => {
         setLoading(true);
         try {
+            const ref = reference || insertReference;
             let targetTime;
             const now = new Date().toISOString();
             
-            if (insertReference.prev && insertReference.next) {
+            if (ref.prev && ref.next) {
                 // Interpolar entre dos tiempos
-                const timePrev = new Date(insertReference.prev.created_at).getTime();
-                const timeNext = new Date(insertReference.next.created_at).getTime();
+                const timePrev = new Date(ref.prev.created_at).getTime();
+                const timeNext = new Date(ref.next.created_at).getTime();
                 targetTime = new Date((timePrev + timeNext) / 2).toISOString();
-            } else if (insertReference.prev) {
+            } else if (ref.prev) {
                 // Insertar al principio (arriba de prev)
                 // Como es DESC, arriba de prev significa un tiempo mayor
-                const timePrev = new Date(insertReference.prev.created_at).getTime();
+                const timePrev = new Date(ref.prev.created_at).getTime();
                 targetTime = new Date(timePrev + 1000).toISOString(); // 1 segundo después
-            } else if (insertReference.next) {
+            } else if (ref.next) {
                 // Insertar al final (debajo de next)
                 // Como es DESC, debajo de next significa un tiempo menor
-                const timeNext = new Date(insertReference.next.created_at).getTime();
+                const timeNext = new Date(ref.next.created_at).getTime();
                 targetTime = new Date(timeNext - 1000).toISOString(); // 1 segundo antes
             } else {
                 targetTime = now;
@@ -983,6 +1016,7 @@ const BarcodeControl = () => {
             await api.post('/api/barcode-history', scanData);
             toast.success('Producto insertado correctamente');
             setShowInsertModal(false);
+            setPendingInsertionProduct(null);
             fetchLayout(layoutPage);
         } catch (err) {
             console.error('Error inserting product:', err);
@@ -1125,6 +1159,15 @@ const BarcodeControl = () => {
                         <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Layout
                         {layoutHistory.length > 0 && (
                             <span className="ml-1.5 sm:ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs border border-gray-200">{layoutHistory.length}</span>
+                        )}
+                    </button>
+                    <button
+                        className={`flex-1 py-3 px-2 sm:px-4 text-center font-medium text-sm sm:text-base transition-colors border-b-2 ${activeTab === 'missing' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        onClick={() => setActiveTab('missing')}
+                    >
+                        <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Faltantes
+                        {missingProducts.length > 0 && (
+                            <span className="ml-1.5 sm:ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs border border-gray-200">{missingProducts.length}</span>
                         )}
                     </button>
                 </div>
@@ -1801,6 +1844,26 @@ const BarcodeControl = () => {
                 {/* Layout Section */}
                 {activeTab === 'layout' && (
                     <div className="animate-fade-in pt-2">
+                        {pendingInsertionProduct && (
+                            <div className="bg-amber-100 border-2 border-amber-400 p-4 rounded-xl mb-4 flex items-center justify-between animate-pulse">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-amber-400 p-2 rounded-full">
+                                        <Plus className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-amber-900">Modo Ubicación Activo</p>
+                                        <p className="text-amber-800 text-sm">Hacé clic en los botones <strong>+</strong> del layout para insertar: <strong>{pendingInsertionProduct.description}</strong></p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setPendingInsertionProduct(null)}
+                                    className="bg-white/50 hover:bg-white p-2 rounded-lg text-amber-700 transition-colors"
+                                    title="Cancelar ubicación"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
                         {/* Filters */}
                         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
@@ -2081,6 +2144,79 @@ const BarcodeControl = () => {
                                 <Package className="w-12 h-12 mb-3 text-gray-300 mx-auto" />
                                 <p className="text-gray-500 font-medium">No hay escaneos registrados para los criterios seleccionados.</p>
                                 <p className="text-xs text-gray-400 mt-1">Comienza a escanear productos en la pestaña principal.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Missing Products Section */}
+                {activeTab === 'missing' && (
+                    <div className="animate-fade-in pt-2">
+                        <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4 text-blue-800 text-sm">
+                            <div className="flex gap-3">
+                                <FileSpreadsheet className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                <div>
+                                    <p className="font-bold mb-1">Productos faltantes en el Layout</p>
+                                    <p>Esta lista proviene de las hojas <strong>DepositoConStock</strong> y <strong>DepositoSinStock</strong> del Excel Layout.xlsx. Podés vincularlos al orden del layout seleccionando uno y luego marcando dónde iría.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative mb-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                value={missingSearchQuery}
+                                onChange={(e) => setMissingSearchQuery(e.target.value)}
+                                placeholder="Buscar en productos faltantes..."
+                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all shadow-sm"
+                            />
+                        </div>
+
+                        {missingLoading ? (
+                            <div className="flex justify-center py-10">
+                                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                            </div>
+                        ) : missingProducts.length > 0 ? (
+                            <div className="space-y-2">
+                                {missingProducts
+                                    .filter(p => !missingSearchQuery || 
+                                        p.description.toLowerCase().includes(missingSearchQuery.toLowerCase()) || 
+                                        p.code.toLowerCase().includes(missingSearchQuery.toLowerCase()))
+                                    .map((p, idx) => (
+                                    <div key={`${p.code}-${idx}`} className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:shadow transition-all group">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h4 className="font-bold text-gray-800">{p.description}</h4>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${p.source === 'DepositoConStock' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    {p.source === 'DepositoConStock' ? 'Con Stock' : 'Sin Stock'}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 text-xs">
+                                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono border border-gray-100">
+                                                    INT: {p.code}
+                                                </span>
+                                                {p.barcode && (
+                                                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono border border-blue-100 flex items-center gap-1">
+                                                        <Barcode className="w-3 h-3" /> {p.barcode}
+                                                    </span>
+                                                )}
+                                                {p.brand && <span className="text-gray-400 italic">• {p.brand}</span>}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handlePrepareInsertion(p)}
+                                            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center gap-2"
+                                        >
+                                            <Link className="w-4 h-4" /> Vincular al Layout
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                                <CheckCircle2 className="w-12 h-12 mb-3 text-green-300 mx-auto" />
+                                <p className="text-gray-500 font-medium">No se encontraron productos faltantes en el Excel.</p>
                             </div>
                         )}
                     </div>

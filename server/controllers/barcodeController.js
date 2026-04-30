@@ -567,3 +567,79 @@ exports.deleteBulkBarcodeHistory = async (req, res) => {
         res.status(500).json({ message: 'Error al eliminar los registros' });
     }
 };
+
+exports.getMissingLayoutProducts = async (req, res) => {
+    try {
+        const path = require('path');
+        const filePath = path.resolve(__dirname, '../Layout.xlsx');
+        
+        const workbook = xlsx.readFile(filePath);
+        const sheetsToRead = ['DepositoConStock', 'DepositoSinStock'];
+        let allMissingProducts = [];
+
+        sheetsToRead.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+                const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+                // Skip header (Row 0)
+                const dataRows = rows.slice(1);
+                
+                dataRows.forEach(row => {
+                    if (row[0] && row[1]) {
+                        allMissingProducts.push({
+                            code: String(row[0]).trim(),
+                            description: String(row[1]).trim(),
+                            brand: row[2] ? String(row[2]).trim() : '',
+                            source: sheetName
+                        });
+                    }
+                });
+            }
+        });
+
+        if (allMissingProducts.length === 0) {
+            return res.json({ data: [] });
+        }
+
+        // Try to enrich with database info (id and barcode)
+        const codes = allMissingProducts.map(p => p.code);
+        
+        // Fetch products from DB in chunks to avoid large query errors
+        const dbProducts = [];
+        const chunkSize = 200;
+        for (let i = 0; i < codes.length; i += chunkSize) {
+            const chunk = codes.slice(i, i + chunkSize);
+            const { data, error } = await supabase
+                .from('products')
+                .select('id, code, barcode')
+                .in('code', chunk);
+            
+            if (error) {
+                console.error('Error fetching chunk from Supabase:', error);
+            } else if (data) {
+                dbProducts.push(...data);
+            }
+        }
+
+        // Map DB info back to Excel products
+        const dbMap = new Map();
+        dbProducts.forEach(p => {
+            if (!dbMap.has(p.code)) dbMap.set(p.code, p);
+        });
+
+        const enrichedProducts = allMissingProducts.map(p => {
+            const dbInfo = dbMap.get(p.code);
+            return {
+                ...p,
+                id: dbInfo?.id || null,
+                barcode: dbInfo?.barcode || null
+            };
+        });
+
+        res.json({ data: enrichedProducts });
+
+    } catch (error) {
+        console.error('Error in getMissingLayoutProducts:', error);
+        res.status(500).json({ message: 'Error al obtener productos faltantes del Excel' });
+    }
+};

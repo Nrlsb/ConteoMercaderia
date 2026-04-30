@@ -4,6 +4,7 @@ const barcodeController = require('../controllers/barcodeController');
 const { verifyToken, verifyAdmin } = require('../middleware/auth');
 
 router.get('/', verifyToken, barcodeController.getBarcodeHistory);
+router.get('/missing', verifyToken, barcodeController.getMissingLayoutProducts);
 router.get('/export', verifyToken, barcodeController.exportBarcodeHistoryCsv);
 router.get('/layout-excel', verifyToken, barcodeController.exportLayoutExcel);
 router.post('/', verifyToken, barcodeController.addBarcodeHistory);
