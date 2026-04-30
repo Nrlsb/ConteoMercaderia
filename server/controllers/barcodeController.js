@@ -45,8 +45,24 @@ exports.getBarcodeHistory = async (req, res) => {
         
         if (productCode) {
             const pCode = productCode.trim();
-            // Buscar en la descripción local del historial, código o código de barras
-            query = query.or(`product_description.ilike.%${pCode}%,products(code).ilike.%${pCode}%,products(barcode).ilike.%${pCode}%`);
+            
+            // Step 1: Find products that match by code or barcode
+            const { data: matchedProducts } = await supabase
+                .from('products')
+                .select('id')
+                .or(`code.ilike.%${pCode}%,barcode.ilike.%${pCode}%`);
+            
+            const productIds = matchedProducts?.map(p => p.id) || [];
+            
+            // Step 2: Build the OR filter for the history table
+            // We search by description OR by any of the matched product IDs
+            let orFilter = `product_description.ilike.%${pCode}%`;
+            if (productIds.length > 0) {
+                // Construct: product_description.ilike.%...%,product_id.in.(uuid1,uuid2,...)
+                orFilter += `,product_id.in.(${productIds.join(',')})`;
+            }
+            
+            query = query.or(orFilter);
         }
 
         // Apply date filters if available
