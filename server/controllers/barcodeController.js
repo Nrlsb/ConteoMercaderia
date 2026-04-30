@@ -79,7 +79,6 @@ exports.getBarcodeHistory = async (req, res) => {
 
         if (unique === 'true') {
             // Fetch a larger set to ensure we have enough unique items for the current filters
-            // and filter them by product_id or description
             const { data: allItems, error: allErr } = await query.order('created_at', { ascending: false }).range(0, 1999);
             if (allErr) throw allErr;
 
@@ -102,50 +101,60 @@ exports.getBarcodeHistory = async (req, res) => {
             finalData = history;
             finalCount = count;
             finalTotalPages = Math.ceil((count || 0) / limitNum);
+        }
 
-            // Logic for including context (the item that follows each match)
-            if (req.query.includeContext === 'true' && productCode && history.length > 0) {
-                const historyWithContext = [];
-                const seenIds = new Set(history.map(item => item.id));
+        // Logic for including context (the item that follows each match in the filtered layout)
+        if (req.query.includeContext === 'true' && productCode && finalData.length > 0) {
+            const dataWithContext = [];
+            const seenIds = new Set(finalData.map(item => item.id));
 
-                for (const item of history) {
-                    historyWithContext.push(item);
-                    
-                    let contextQuery = supabase
-                        .from('barcode_history')
-                        .select(`
-                            id,
-                            action_type,
-                            product_id,
-                            product_description,
-                            details,
-                            created_by,
-                            created_at,
-                            users:created_by (username),
-                            products:product_id (barcode)
-                        `)
-                        .lt('created_at', item.created_at)
-                        .order('created_at', { ascending: false })
-                        .limit(1);
-                    
-                    if (action_type) {
-                        const types = action_type.split(',').filter(t => t.trim() !== '');
-                        if (types.length > 1) contextQuery = contextQuery.in('action_type', types);
-                        else if (types.length === 1) contextQuery = contextQuery.eq('action_type', types[0]);
-                    }
+            for (const item of finalData) {
+                dataWithContext.push(item);
+                
+                let contextQuery = supabase
+                    .from('barcode_history')
+                    .select(`
+                        id,
+                        action_type,
+                        product_id,
+                        product_description,
+                        details,
+                        created_by,
+                        created_at,
+                        users:created_by (username),
+                        products:product_id (barcode)
+                    `)
+                    .lt('created_at', item.created_at)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                
+                // Apply the SAME filters to context so it's "the next in the current view"
+                if (user_id) {
+                    const userIds = user_id.split(',').filter(id => id.trim() !== '');
+                    if (userIds.length > 0) contextQuery = contextQuery.in('created_by', userIds);
+                }
+                if (action_type) {
+                    const types = action_type.split(',').filter(t => t.trim() !== '');
+                    if (types.length > 0) contextQuery = contextQuery.in('action_type', types);
+                }
+                if (startDate) {
+                    contextQuery = contextQuery.gte('created_at', `${startDate}T00:00:00.000Z`);
+                }
+                if (endDate) {
+                    contextQuery = contextQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
+                }
 
-                    const { data: contextData } = await contextQuery;
+                const { data: contextData } = await contextQuery;
 
-                    if (contextData && contextData.length > 0) {
-                        const contextItem = contextData[0];
-                        if (!seenIds.has(contextItem.id)) {
-                            historyWithContext.push({ ...contextItem, isContext: true });
-                            seenIds.add(contextItem.id);
-                        }
+                if (contextData && contextData.length > 0) {
+                    const contextItem = contextData[0];
+                    if (!seenIds.has(contextItem.id)) {
+                        dataWithContext.push({ ...contextItem, isContext: true });
+                        seenIds.add(contextItem.id);
                     }
                 }
-                finalData = historyWithContext;
             }
+            finalData = dataWithContext;
         }
         
         res.json({
