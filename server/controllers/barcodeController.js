@@ -376,6 +376,23 @@ exports.addBarcodeHistory = async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Marcar como encontrado en layout_missing si tenemos el product_id
+        if (product_id) {
+            const { data: prod } = await supabase
+                .from('products')
+                .select('code')
+                .eq('id', product_id)
+                .single();
+            
+            if (prod?.code) {
+                await supabase
+                    .from('layout_missing')
+                    .update({ is_found: true })
+                    .eq('code', prod.code);
+            }
+        }
+
         res.status(201).json(data);
     } catch (error) {
         console.error('Error recording barcode history:', error);
@@ -467,6 +484,24 @@ exports.addBulkBarcodeHistory = async (req, res) => {
             .select();
 
         if (error) throw error;
+
+        // Marcar como encontrados en layout_missing
+        const productIds = [...new Set(recordsToInsert.map(i => i.product_id).filter(Boolean))];
+        if (productIds.length > 0) {
+            const { data: prods } = await supabase
+                .from('products')
+                .select('code')
+                .in('id', productIds);
+            
+            const codes = prods?.map(p => p.code).filter(Boolean) || [];
+            if (codes.length > 0) {
+                await supabase
+                    .from('layout_missing')
+                    .update({ is_found: true })
+                    .in('code', codes);
+            }
+        }
+
         res.status(201).json({
             message: `${recordsToInsert.length} productos agregados.`,
             processed: recordsToInsert.length,
@@ -567,6 +602,23 @@ exports.bulkTransferFiltered = async (req, res) => {
 
         if (error) throw error;
 
+        // Marcar como encontrados en layout_missing
+        const productIds = [...new Set(finalProductsToInsert.map(i => i.product_id).filter(Boolean))];
+        if (productIds.length > 0) {
+            const { data: prods } = await supabase
+                .from('products')
+                .select('code')
+                .in('id', productIds);
+            
+            const codes = prods?.map(p => p.code).filter(Boolean) || [];
+            if (codes.length > 0) {
+                await supabase
+                    .from('layout_missing')
+                    .update({ is_found: true })
+                    .in('code', codes);
+            }
+        }
+
         res.status(201).json({
             message: `Sincronización masiva completada: ${finalProductsToInsert.length} productos agregados.`,
             processed: finalProductsToInsert.length,
@@ -631,7 +683,8 @@ exports.getMissingLayoutProducts = async (req, res) => {
         
         let { data: missingFromDb, error: dbError } = await supabase
             .from('layout_missing')
-            .select('*');
+            .select('*')
+            .eq('is_found', false);
 
         if (dbError) throw dbError;
 
@@ -639,7 +692,7 @@ exports.getMissingLayoutProducts = async (req, res) => {
             return res.json({ data: [], total: 0, page, limit, totalPages: 0 });
         }
 
-        // 2. Filter out products that are already in the layout (barcode_history)
+        // 2. Auto-discovery: Check history to see if any remaining "missing" items were actually scanned recently
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         thirtyDaysAgo.setHours(0, 0, 0, 0);
@@ -649,16 +702,27 @@ exports.getMissingLayoutProducts = async (req, res) => {
             .select('product_id, product_description, products:product_id (code)')
             .gte('created_at', thirtyDaysAgo.toISOString());
 
-        const existingIds = new Set(existingInHistory?.map(h => h.product_id).filter(Boolean) || []);
         const existingDescs = new Set(existingInHistory?.map(h => h.product_description?.trim().toLowerCase()).filter(Boolean) || []);
         const existingCodes = new Set(existingInHistory?.map(h => h.products?.code?.trim()).filter(Boolean) || []);
 
+        const itemsToMarkFound = [];
         const filteredMissing = missingFromDb.filter(p => {
             const pDesc = p.description?.trim().toLowerCase();
             const pCode = p.code?.trim();
-            // Match by exact ID (if we had it), or by description, or by internal code
-            return !existingDescs.has(pDesc) && !existingCodes.has(pCode);
+            const isFound = existingDescs.has(pDesc) || existingCodes.has(pCode);
+            if (isFound) itemsToMarkFound.push(p.id);
+            return !isFound;
         });
+
+        // Update DB in background if we found new items already in layout
+        if (itemsToMarkFound.length > 0) {
+            supabase.from('layout_missing')
+                .update({ is_found: true })
+                .in('id', itemsToMarkFound)
+                .then(({ error }) => {
+                    if (error) console.error('Error auto-marking missing items as found:', error);
+                });
+        }
 
         // 3. Apply search filter
         const filteredBySearch = query 
