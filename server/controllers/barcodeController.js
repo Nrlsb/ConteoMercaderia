@@ -1,5 +1,6 @@
 const supabase = require('../services/supabaseClient');
 const xlsx = require('xlsx');
+const path = require('path');
 const { getAllBarcodeHistory } = require('../utils/dbHelpers');
 
 exports.getBarcodeHistory = async (req, res) => {
@@ -10,7 +11,7 @@ exports.getBarcodeHistory = async (req, res) => {
         const from = (pageNum - 1) * limitNum;
         const to = from + limitNum - 1;
 
-        let query = supabase
+        const baseQuery = supabase
             .from('barcode_history')
             .select(`
                 id,
@@ -22,8 +23,9 @@ exports.getBarcodeHistory = async (req, res) => {
                 created_at,
                 users:created_by (username),
                 products:product_id (barcode)
-            `, { count: 'exact' })
-            .order('created_at', { ascending: false });
+            `, { count: 'exact' });
+
+        let query = baseQuery;
 
         // Apply filters
         if (user_id) {
@@ -57,70 +59,16 @@ exports.getBarcodeHistory = async (req, res) => {
             query = query.lte('created_at', endStr);
         }
 
-        const { data: history, count, error } = await query.range(from, to);
-
-        if (error) throw error;
-
-        let finalData = history;
-        let finalCount = count;
-        let finalTotalPages = Math.ceil((count || 0) / limitNum);
-
-        // Logic for including context (the item that follows each match)
-        if (req.query.includeContext === 'true' && productCode && history.length > 0) {
-            const historyWithContext = [];
-            const seenIds = new Set(history.map(item => item.id));
-
-            for (const item of history) {
-                historyWithContext.push(item);
-                
-                // Fetch the item that follows this one in the layout (the next one in time, created_at < item.created_at)
-                let contextQuery = supabase
-                    .from('barcode_history')
-                    .select(`
-                        id,
-                        action_type,
-                        product_id,
-                        product_description,
-                        details,
-                        created_by,
-                        created_at,
-                        users:created_by (username),
-                        products:product_id (barcode)
-                    `)
-                    .lt('created_at', item.created_at)
-                    .order('created_at', { ascending: false })
-                    .limit(1);
-                
-                // Apply same filters for action type if provided to stay in the same "stream"
-                if (action_type) {
-                    const types = action_type.split(',').filter(t => t.trim() !== '');
-                    if (types.length > 1) contextQuery = contextQuery.in('action_type', types);
-                    else if (types.length === 1) contextQuery = contextQuery.eq('action_type', types[0]);
-                }
-
-                const { data: contextData } = await contextQuery;
-
-                if (contextData && contextData.length > 0) {
-                    const contextItem = contextData[0];
-                    // Avoid duplicating if the next item is already a match in the current page
-                    if (!seenIds.has(contextItem.id)) {
-                        historyWithContext.push({ ...contextItem, isContext: true });
-                        seenIds.add(contextItem.id);
-                    }
-                }
-            }
-            finalData = historyWithContext;
-        }
+        let finalData, finalCount, finalTotalPages;
 
         if (unique === 'true') {
             // Fetch a larger set to ensure we have enough unique items for the current filters
             // and filter them by product_id or description
-            const { data: allItems, error: allErr } = await query.range(0, 1999);
+            const { data: allItems, error: allErr } = await query.order('created_at', { ascending: false }).range(0, 1999);
             if (allErr) throw allErr;
 
             const uniqueMap = new Map();
             allItems.forEach(item => {
-                // Prioritize product_description as requested by the user to avoid visual duplicates
                 const key = item.product_description || item.product_id;
                 if (!uniqueMap.has(key)) {
                     uniqueMap.set(key, item);
@@ -131,6 +79,57 @@ exports.getBarcodeHistory = async (req, res) => {
             finalCount = uniqueList.length;
             finalTotalPages = Math.ceil(finalCount / limitNum);
             finalData = uniqueList.slice(from, to + 1);
+        } else {
+            const { data: history, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
+            if (error) throw error;
+
+            finalData = history;
+            finalCount = count;
+            finalTotalPages = Math.ceil((count || 0) / limitNum);
+
+            // Logic for including context (the item that follows each match)
+            if (req.query.includeContext === 'true' && productCode && history.length > 0) {
+                const historyWithContext = [];
+                const seenIds = new Set(history.map(item => item.id));
+
+                for (const item of history) {
+                    historyWithContext.push(item);
+                    
+                    let contextQuery = supabase
+                        .from('barcode_history')
+                        .select(`
+                            id,
+                            action_type,
+                            product_id,
+                            product_description,
+                            details,
+                            created_by,
+                            created_at,
+                            users:created_by (username),
+                            products:product_id (barcode)
+                        `)
+                        .lt('created_at', item.created_at)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                    
+                    if (action_type) {
+                        const types = action_type.split(',').filter(t => t.trim() !== '');
+                        if (types.length > 1) contextQuery = contextQuery.in('action_type', types);
+                        else if (types.length === 1) contextQuery = contextQuery.eq('action_type', types[0]);
+                    }
+
+                    const { data: contextData } = await contextQuery;
+
+                    if (contextData && contextData.length > 0) {
+                        const contextItem = contextData[0];
+                        if (!seenIds.has(contextItem.id)) {
+                            historyWithContext.push({ ...contextItem, isContext: true });
+                            seenIds.add(contextItem.id);
+                        }
+                    }
+                }
+                finalData = historyWithContext;
+            }
         }
         
         res.json({
@@ -570,7 +569,6 @@ exports.deleteBulkBarcodeHistory = async (req, res) => {
 
 exports.getMissingLayoutProducts = async (req, res) => {
     try {
-        const path = require('path');
         const filePath = path.resolve(__dirname, '../Layout.xlsx');
         
         const workbook = xlsx.readFile(filePath);

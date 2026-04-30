@@ -235,7 +235,7 @@ const BarcodeControl = () => {
     const fetchLayout = async (page = 1) => {
         setLayoutLoading(true);
         try {
-            let url = `/api/barcode-history?action_type=SCAN,ADD_BARCODE,UPDATE_BARCODE&page=${page}&limit=20`;
+            let url = `/api/barcode-history?action_type=SCAN,ADD_BARCODE,UPDATE_BARCODE&page=${page}&limit=50`;
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
