@@ -646,16 +646,18 @@ exports.getMissingLayoutProducts = async (req, res) => {
         
         const { data: existingInHistory } = await supabase
             .from('barcode_history')
-            .select('product_id, product_description')
+            .select('product_id, product_description, products:product_id (code)')
             .gte('created_at', thirtyDaysAgo.toISOString());
 
         const existingIds = new Set(existingInHistory?.map(h => h.product_id).filter(Boolean) || []);
-        const existingDescs = new Set(existingInHistory?.map(h => h.product_description).filter(Boolean) || []);
+        const existingDescs = new Set(existingInHistory?.map(h => h.product_description?.trim().toLowerCase()).filter(Boolean) || []);
+        const existingCodes = new Set(existingInHistory?.map(h => h.products?.code?.trim()).filter(Boolean) || []);
 
         const filteredMissing = missingFromDb.filter(p => {
-            // We don't have product_id in layout_missing yet, but we can match by description or code later
-            // For now, let's assume we enriched them or match by description
-            return !existingDescs.has(p.description);
+            const pDesc = p.description?.trim().toLowerCase();
+            const pCode = p.code?.trim();
+            // Match by exact ID (if we had it), or by description, or by internal code
+            return !existingDescs.has(pDesc) && !existingCodes.has(pCode);
         });
 
         // 3. Apply search filter
