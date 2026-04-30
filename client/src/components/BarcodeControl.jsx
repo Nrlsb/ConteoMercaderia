@@ -1051,6 +1051,7 @@ const BarcodeControl = () => {
             setShowInsertModal(false);
             setPendingInsertionProduct(null);
             fetchLayout(layoutPage);
+            fetchMissingProducts();
         } catch (err) {
             console.error('Error inserting product:', err);
             toast.error('Error al insertar el producto');

@@ -649,7 +649,7 @@ exports.getMissingLayoutProducts = async (req, res) => {
             return res.json({ data: [] });
         }
 
-        // Try to enrich with database info (id and barcode)
+        // 2. Try to enrich with database info (id and barcode)
         const codes = allMissingProducts.map(p => p.code);
         
         // Fetch products from DB in chunks to avoid large query errors
@@ -684,7 +684,26 @@ exports.getMissingLayoutProducts = async (req, res) => {
             };
         });
 
-        res.json({ data: enrichedProducts });
+        // 3. Filter out products that are already in the layout (barcode_history)
+        // We'll check for products scanned/added today to consider them "in layout"
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const { data: existingInHistory } = await supabase
+            .from('barcode_history')
+            .select('product_id, product_description')
+            .gte('created_at', today.toISOString());
+
+        const existingIds = new Set(existingInHistory?.map(h => h.product_id).filter(Boolean) || []);
+        const existingDescs = new Set(existingInHistory?.map(h => h.product_description).filter(Boolean) || []);
+
+        const finalMissingProducts = enrichedProducts.filter(p => {
+            // Filter by ID if it was matched in DB, otherwise by description
+            if (p.id) return !existingIds.has(p.id);
+            return !existingDescs.has(p.description);
+        });
+
+        res.json({ data: finalMissingProducts });
 
     } catch (error) {
         console.error('Error in getMissingLayoutProducts:', error);
