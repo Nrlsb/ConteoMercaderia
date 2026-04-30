@@ -105,6 +105,13 @@ const BarcodeControl = () => {
     const [missingLoading, setMissingLoading] = useState(false);
     const [pendingInsertionProduct, setPendingInsertionProduct] = useState(null);
     const [missingSearchQuery, setMissingSearchQuery] = useState('');
+    const [missingSuggestions, setMissingSuggestions] = useState([]);
+    const [showMissingSuggestions, setShowMissingSuggestions] = useState(false);
+
+    // Layout search suggestions
+    const [layoutSuggestions, setLayoutSuggestions] = useState([]);
+    const [showLayoutSuggestions, setShowLayoutSuggestions] = useState(false);
+    const [isSearchingLayout, setIsSearchingLayout] = useState(false);
 
 
     const [saveToLayout, setSaveToLayout] = useState(() => {
@@ -134,6 +141,20 @@ const BarcodeControl = () => {
             }
             if (userHistoryFilterRef.current && !userHistoryFilterRef.current.contains(event.target)) {
                 setShowHistoryUserFilter(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Layout suggestions click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (!event.target.closest('.layout-search-container')) {
+                setShowLayoutSuggestions(false);
+            }
+            if (!event.target.closest('.missing-search-container')) {
+                setShowMissingSuggestions(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -1895,16 +1916,60 @@ const BarcodeControl = () => {
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
                                 <div className="w-full sm:w-auto flex-1">
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Buscar Producto</label>
-                                    <div className="relative">
+                                    <div className="relative layout-search-container">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                         <input
                                             type="text"
                                             value={productCodeFilter}
-                                            onChange={(e) => setProductCodeFilter(e.target.value)}
+                                            onChange={async (e) => {
+                                                const val = e.target.value;
+                                                setProductCodeFilter(val);
+                                                if (val.length > 2) {
+                                                    const results = await searchProductsLocally(val);
+                                                    setLayoutSuggestions(results);
+                                                    setShowLayoutSuggestions(true);
+                                                } else {
+                                                    setLayoutSuggestions([]);
+                                                    setShowLayoutSuggestions(false);
+                                                }
+                                            }}
                                             placeholder="Descripción, código o barras..."
                                             className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all hover:border-blue-400"
-                                            onKeyDown={(e) => e.key === 'Enter' && fetchLayout(1)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    fetchLayout(1);
+                                                    setShowLayoutSuggestions(false);
+                                                }
+                                            }}
+                                            onFocus={() => {
+                                                if (productCodeFilter.length > 2 && layoutSuggestions.length > 0) {
+                                                    setShowLayoutSuggestions(true);
+                                                }
+                                            }}
                                         />
+                                        
+                                        {showLayoutSuggestions && layoutSuggestions.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 z-[100] mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                                                {layoutSuggestions.map((prod) => (
+                                                    <button
+                                                        key={prod.id}
+                                                        className="w-full text-left p-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 flex flex-col gap-0.5"
+                                                        onClick={() => {
+                                                            setProductCodeFilter(prod.description);
+                                                            setShowLayoutSuggestions(false);
+                                                            // Trigger search immediately
+                                                            setTimeout(() => fetchLayout(1), 0);
+                                                        }}
+                                                    >
+                                                        <span className="font-bold text-gray-800 text-sm">{prod.description}</span>
+                                                        <span className="text-[10px] text-gray-500 font-mono">
+                                                            {prod.code} {prod.barcode ? `• ${prod.barcode}` : ''}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <button 
                                             type="button"
                                             onClick={() => {
@@ -2213,15 +2278,52 @@ const BarcodeControl = () => {
                             </div>
                         </div>
 
-                        <div className="relative mb-4">
+                        <div className="relative mb-4 missing-search-container">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input
                                 type="text"
                                 value={missingSearchQuery}
-                                onChange={(e) => setMissingSearchQuery(e.target.value)}
+                                onChange={async (e) => {
+                                    const val = e.target.value;
+                                    setMissingSearchQuery(val);
+                                    if (val.length > 2) {
+                                        const results = await searchProductsLocally(val);
+                                        setMissingSuggestions(results);
+                                        setShowMissingSuggestions(true);
+                                    } else {
+                                        setMissingSuggestions([]);
+                                        setShowMissingSuggestions(false);
+                                    }
+                                }}
                                 placeholder="Descripción, código o barras..."
                                 className="w-full pl-10 pr-12 py-2.5 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all shadow-sm"
+                                onFocus={() => {
+                                    if (missingSearchQuery.length > 2 && missingSuggestions.length > 0) {
+                                        setShowMissingSuggestions(true);
+                                    }
+                                }}
                             />
+
+                            {showMissingSuggestions && missingSuggestions.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 z-[100] mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                                    {missingSuggestions.map((prod) => (
+                                        <button
+                                            key={prod.id}
+                                            className="w-full text-left p-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 flex flex-col gap-0.5"
+                                            onClick={() => {
+                                                setMissingSearchQuery(prod.description);
+                                                setShowMissingSuggestions(false);
+                                            }}
+                                        >
+                                            <span className="font-bold text-gray-800 text-sm">{prod.description}</span>
+                                            <span className="text-[10px] text-gray-500 font-mono">
+                                                {prod.code} {prod.barcode ? `• ${prod.barcode}` : ''}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
                             <button 
                                 type="button"
                                 onClick={() => {
