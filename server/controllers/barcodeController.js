@@ -43,8 +43,8 @@ exports.getBarcodeHistory = async (req, res) => {
         
         if (productCode) {
             const pCode = productCode.trim();
-            // Buscar en la descripción local del historial O en el código de la tabla productos vinculada
-            query = query.or(`product_description.ilike.%${pCode}%,products(code).ilike.%${pCode}%`);
+            // Buscar en la descripción local del historial, código o código de barras
+            query = query.or(`product_description.ilike.%${pCode}%,products(code).ilike.%${pCode}%,products(barcode).ilike.%${pCode}%`);
         }
 
         // Apply date filters if available

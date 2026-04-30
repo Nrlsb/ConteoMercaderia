@@ -66,6 +66,7 @@ const BarcodeControl = () => {
     const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [usersList, setUsersList] = useState([]);
     const [productCodeFilter, setProductCodeFilter] = useState('');
+    const [isScanningFilter, setIsScanningFilter] = useState(false);
     const [showUnique, setShowUnique] = useState(true);
 
     // History pagination state
@@ -944,6 +945,17 @@ const BarcodeControl = () => {
 
     const onScannerDecode = async (code) => {
         setShowScanner(false);
+        if (isScanningFilter) {
+            if (activeTab === 'missing') {
+                setMissingSearchQuery(code);
+            } else {
+                setProductCodeFilter(code);
+                if (activeTab === 'layout') fetchLayout(1);
+                else if (activeTab === 'history') fetchHistory(1);
+            }
+            setIsScanningFilter(false);
+            return;
+        }
         setScannedBarcode(code);
         await lookupProduct(code);
     };
@@ -1587,15 +1599,29 @@ const BarcodeControl = () => {
                         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
                                 <div className="w-full sm:w-auto flex-1">
-                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Cód. Interno</label>
-                                    <input
-                                        type="text"
-                                        value={productCodeFilter}
-                                        onChange={(e) => setProductCodeFilter(e.target.value)}
-                                        placeholder="Filtrar por código..."
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        onKeyDown={(e) => e.key === 'Enter' && fetchHistory(1)}
-                                    />
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Buscar Producto</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={productCodeFilter}
+                                            onChange={(e) => setProductCodeFilter(e.target.value)}
+                                            placeholder="Descripción, código o barras..."
+                                            className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all hover:border-blue-400"
+                                            onKeyDown={(e) => e.key === 'Enter' && fetchHistory(1)}
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setIsScanningFilter(true);
+                                                setShowScanner(true);
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                            title="Escanear código de barras para filtrar"
+                                        >
+                                            <Camera className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="w-full sm:w-auto flex-1 relative" ref={userHistoryFilterRef}>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Usuarios</label>
@@ -1867,6 +1893,31 @@ const BarcodeControl = () => {
                         {/* Filters */}
                         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="w-full sm:w-auto flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">Buscar Producto</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={productCodeFilter}
+                                            onChange={(e) => setProductCodeFilter(e.target.value)}
+                                            placeholder="Descripción, código o barras..."
+                                            className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all hover:border-blue-400"
+                                            onKeyDown={(e) => e.key === 'Enter' && fetchLayout(1)}
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setIsScanningFilter(true);
+                                                setShowScanner(true);
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                            title="Escanear código de barras para filtrar"
+                                        >
+                                            <Camera className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="w-full sm:w-auto flex-1 relative" ref={userFilterRef}>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1">Usuarios</label>
                                     <button
@@ -2168,9 +2219,20 @@ const BarcodeControl = () => {
                                 type="text"
                                 value={missingSearchQuery}
                                 onChange={(e) => setMissingSearchQuery(e.target.value)}
-                                placeholder="Buscar en productos faltantes..."
-                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all shadow-sm"
+                                placeholder="Descripción, código o barras..."
+                                className="w-full pl-10 pr-12 py-2.5 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all shadow-sm"
                             />
+                            <button 
+                                type="button"
+                                onClick={() => {
+                                    setIsScanningFilter(true);
+                                    setShowScanner(true);
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                title="Escanear código de barras para filtrar"
+                            >
+                                <Camera className="w-5 h-5" />
+                            </button>
                         </div>
 
                         {missingLoading ? (
