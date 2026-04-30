@@ -12,4 +12,7 @@ router.post('/bulk', verifyToken, barcodeController.addBulkBarcodeHistory);
 router.post('/bulk-transfer-filtered', verifyToken, barcodeController.bulkTransferFiltered);
 router.delete('/bulk', verifyToken, verifyAdmin, barcodeController.deleteBulkBarcodeHistory);
 
+// Import missing products from Excel to DB
+router.post('/missing/sync', upload.single('file'), barcodeController.syncMissingProducts);
+
 module.exports = router;

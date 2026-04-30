@@ -9,7 +9,7 @@ import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
 import { useProductSync } from '../hooks/useProductSync';
-import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, Trash2, Plus } from 'lucide-react';
+import { RotateCcw, Barcode, History, Camera, CheckCircle2, Edit, AlertTriangle, Search, Package, X, Mic, Loader2, Link, Clock, User, ClipboardList, Download, Filter, FileSpreadsheet, RefreshCcw, ChevronLeft, ChevronRight, ChevronDown, Trash2, Plus, Upload } from 'lucide-react';
 
 const BarcodeControl = () => {
     const { user } = useAuth();
@@ -331,9 +331,32 @@ const BarcodeControl = () => {
             setMissingTotal(total);
         } catch (err) {
             console.error('Error fetching missing products:', err);
-            toast.error('Error al cargar productos faltantes del Excel');
+            toast.error('Error al cargar productos faltantes');
         } finally {
             setMissingLoading(false);
+        }
+    };
+
+    const handleSyncMissingExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setMissingLoading(true);
+        try {
+            await api.post('/api/barcode-history/missing/sync', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success('Sincronización exitosa');
+            fetchMissingProducts(1);
+        } catch (err) {
+            console.error('Error syncing missing excel:', err);
+            toast.error('Error al sincronizar el Excel');
+        } finally {
+            setMissingLoading(false);
+            e.target.value = ''; // Reset input
         }
     };
 
@@ -2346,11 +2369,21 @@ const BarcodeControl = () => {
                                     setIsScanningFilter(true);
                                     setShowScanner(true);
                                 }}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                className="absolute right-12 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                                 title="Escanear código de barras para filtrar"
                             >
                                 <Camera className="w-5 h-5" />
                             </button>
+                            <label className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors cursor-pointer" title="Sincronizar Excel con Base de Datos">
+                                <Upload className="w-5 h-5" />
+                                <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept=".xlsx, .xls"
+                                    onChange={handleSyncMissingExcel}
+                                    disabled={missingLoading}
+                                />
+                            </label>
                         </div>
 
                         {missingLoading ? (

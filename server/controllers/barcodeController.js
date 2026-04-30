@@ -619,9 +619,93 @@ exports.deleteBulkBarcodeHistory = async (req, res) => {
 
 exports.getMissingLayoutProducts = async (req, res) => {
     try {
-        const filePath = path.resolve(__dirname, '../Layout.xlsx');
+        const query = (req.query.q || '').toLowerCase();
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const startIndex = (page - 1) * limit;
+
+        // 1. Fetch from layout_missing table joined with products to get current barcodes
+        // Note: Since Supabase JS client doesn't support complex joins easily without RPC, 
+        // we'll fetch missing products and then enrich them or use a view if available.
+        // For now, we'll fetch missing products from DB.
         
-        const workbook = xlsx.readFile(filePath);
+        let { data: missingFromDb, error: dbError } = await supabase
+            .from('layout_missing')
+            .select('*');
+
+        if (dbError) throw dbError;
+
+        if (!missingFromDb || missingFromDb.length === 0) {
+            return res.json({ data: [], total: 0, page, limit, totalPages: 0 });
+        }
+
+        // 2. Filter out products that are already in the layout (barcode_history)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
+        
+        const { data: existingInHistory } = await supabase
+            .from('barcode_history')
+            .select('product_id, product_description')
+            .gte('created_at', thirtyDaysAgo.toISOString());
+
+        const existingIds = new Set(existingInHistory?.map(h => h.product_id).filter(Boolean) || []);
+        const existingDescs = new Set(existingInHistory?.map(h => h.product_description).filter(Boolean) || []);
+
+        const filteredMissing = missingFromDb.filter(p => {
+            // We don't have product_id in layout_missing yet, but we can match by description or code later
+            // For now, let's assume we enriched them or match by description
+            return !existingDescs.has(p.description);
+        });
+
+        // 3. Apply search filter
+        const filteredBySearch = query 
+            ? filteredMissing.filter(p => 
+                p.description.toLowerCase().includes(query) || 
+                p.code.toLowerCase().includes(query)
+            )
+            : filteredMissing;
+
+        // 4. Enrich with current barcodes from products table (efficiently)
+        const codes = filteredBySearch.slice(startIndex, startIndex + limit).map(p => p.code);
+        const { data: dbProducts } = await supabase
+            .from('products')
+            .select('id, code, barcode')
+            .in('code', codes);
+
+        const dbMap = new Map();
+        dbProducts?.forEach(p => dbMap.set(p.code, p));
+
+        const paginatedProducts = filteredBySearch.slice(startIndex, startIndex + limit).map(p => {
+            const dbInfo = dbMap.get(p.code);
+            return {
+                ...p,
+                id: dbInfo?.id || null,
+                barcode: dbInfo?.barcode || null
+            };
+        });
+
+        res.json({ 
+            data: paginatedProducts,
+            total: filteredBySearch.length,
+            page,
+            limit,
+            totalPages: Math.ceil(filteredBySearch.length / limit)
+        });
+
+    } catch (error) {
+        console.error('Error in getMissingLayoutProducts:', error);
+        res.status(500).json({ message: 'Error al obtener productos faltantes' });
+    }
+};
+
+exports.syncMissingProducts = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No se subió ningún archivo' });
+        }
+
+        const workbook = xlsx.readFile(req.file.path);
         const sheetsToRead = ['DepositoConStock', 'DepositoSinStock'];
         let allMissingProducts = [];
 
@@ -629,9 +713,7 @@ exports.getMissingLayoutProducts = async (req, res) => {
             const sheet = workbook.Sheets[sheetName];
             if (sheet) {
                 const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-                // Skip header (Row 0)
                 const dataRows = rows.slice(1);
-                
                 dataRows.forEach(row => {
                     if (row[0] && row[1]) {
                         allMissingProducts.push({
@@ -645,87 +727,32 @@ exports.getMissingLayoutProducts = async (req, res) => {
             }
         });
 
-        if (allMissingProducts.length === 0) {
-            return res.json({ data: [] });
-        }
+        // Delete old records
+        const { error: deleteError } = await supabase
+            .from('layout_missing')
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete everything
 
-        // 2. Try to enrich with database info (id and barcode)
-        const codes = allMissingProducts.map(p => p.code);
-        
-        // Fetch products from DB in chunks to avoid large query errors
-        const dbProducts = [];
+        if (deleteError) throw deleteError;
+
+        // Insert new records in chunks
         const chunkSize = 200;
-        for (let i = 0; i < codes.length; i += chunkSize) {
-            const chunk = codes.slice(i, i + chunkSize);
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, code, barcode')
-                .in('code', chunk);
-            
-            if (error) {
-                console.error('Error fetching chunk from Supabase:', error);
-            } else if (data) {
-                dbProducts.push(...data);
-            }
+        for (let i = 0; i < allMissingProducts.length; i += chunkSize) {
+            const chunk = allMissingProducts.slice(i, i + chunkSize);
+            const { error: insertError } = await supabase
+                .from('layout_missing')
+                .insert(chunk);
+            if (insertError) throw insertError;
         }
 
-        // Map DB info back to Excel products
-        const dbMap = new Map();
-        dbProducts.forEach(p => {
-            if (!dbMap.has(p.code)) dbMap.set(p.code, p);
-        });
+        // Clean up temp file
+        const fs = require('fs');
+        fs.unlinkSync(req.file.path);
 
-        const enrichedProducts = allMissingProducts.map(p => {
-            const dbInfo = dbMap.get(p.code);
-            return {
-                ...p,
-                id: dbInfo?.id || null,
-                barcode: dbInfo?.barcode || null
-            };
-        });
-
-        // 3. Filter out products that are already in the layout (barcode_history)
-        // We'll check for products scanned/added in the last 30 days to consider them "in layout"
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        thirtyDaysAgo.setHours(0, 0, 0, 0);
-        
-        const { data: existingInHistory } = await supabase
-            .from('barcode_history')
-            .select('product_id, product_description')
-            .gte('created_at', thirtyDaysAgo.toISOString());
-
-        const existingIds = new Set(existingInHistory?.map(h => h.product_id).filter(Boolean) || []);
-        const existingDescs = new Set(existingInHistory?.map(h => h.product_description).filter(Boolean) || []);
-
-        // 4. Apply search filter if provided
-        const query = (req.query.q || '').toLowerCase();
-        const filteredBySearch = query 
-            ? finalMissingProducts.filter(p => 
-                p.description.toLowerCase().includes(query) || 
-                p.code.toLowerCase().includes(query) ||
-                (p.barcode && p.barcode.toLowerCase().includes(query))
-            )
-            : finalMissingProducts;
-
-        // 5. Apply pagination
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
-        const startIndex = (page - 1) * limit;
-        const endIndex = page * limit;
-        
-        const paginatedProducts = filteredBySearch.slice(startIndex, endIndex);
-
-        res.json({ 
-            data: paginatedProducts,
-            total: filteredBySearch.length,
-            page,
-            limit,
-            totalPages: Math.ceil(filteredBySearch.length / limit)
-        });
+        res.json({ message: 'Sincronización completada', count: allMissingProducts.length });
 
     } catch (error) {
-        console.error('Error in getMissingLayoutProducts:', error);
-        res.status(500).json({ message: 'Error al obtener productos faltantes del Excel' });
+        console.error('Error syncing missing products:', error);
+        res.status(500).json({ message: 'Error al sincronizar productos faltantes' });
     }
 };
