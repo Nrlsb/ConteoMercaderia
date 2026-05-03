@@ -49,16 +49,28 @@ const HelpPage = () => {
                 </button>
             </div>
 
-            {/* Print Header */}
-            <div className="hidden print:block mb-8 border-b pb-4">
-                <h1 className="text-3xl font-bold text-gray-900">Manual de Usuario - App de Mercadería</h1>
-                <p className="text-gray-600 mt-2">Generado para el usuario: {user?.username} ({user?.role})</p>
+            {/* Print Cover Page */}
+            <div className="hidden print:flex flex-col items-center justify-center h-screen break-after-page text-center">
+                <div className="w-full max-w-2xl mx-auto space-y-8">
+                    <div className="w-32 h-32 bg-blue-600 rounded-full mx-auto flex items-center justify-center shadow-lg">
+                        <BookOpen className="w-16 h-16 text-white" />
+                    </div>
+                    <h1 className="text-5xl font-extrabold text-gray-900 tracking-tight">Manual de Funciones</h1>
+                    <div className="w-24 h-2 bg-blue-600 mx-auto rounded-full"></div>
+                    <h2 className="text-2xl font-medium text-gray-600">Sistema de Gestión de Mercadería</h2>
+                    
+                    <div className="mt-24 p-6 bg-gray-50 border border-gray-200 rounded-xl">
+                        <p className="text-lg text-gray-700"><strong>Generado para:</strong> {user?.username}</p>
+                        <p className="text-lg text-gray-700"><strong>Perfil de Acceso:</strong> {user?.role}</p>
+                        <p className="text-md text-gray-500 mt-4">Solo se incluyen los módulos autorizados para este usuario.</p>
+                    </div>
+                </div>
             </div>
 
-            <div className="space-y-8 print:space-y-6">
+            <div className="space-y-8 print:space-y-8">
                 {showNuevoConteo && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">1</span>
                             Nuevo Conteo (Inventario)
                         </h2>
@@ -74,8 +86,8 @@ const HelpPage = () => {
                 )}
 
                 {showHistorial && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">2</span>
                             Historial
                         </h2>
@@ -91,8 +103,8 @@ const HelpPage = () => {
                 )}
 
                 {showIngresos && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">3</span>
                             Ingresos (Proveedores)
                         </h2>
@@ -108,8 +120,8 @@ const HelpPage = () => {
                 )}
 
                 {showIngresoSucursal && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">4</span>
                             Ingreso Sucursal
                         </h2>
@@ -124,8 +136,8 @@ const HelpPage = () => {
                 )}
 
                 {showEgresos && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">5</span>
                             Egresos
                         </h2>
@@ -140,8 +152,8 @@ const HelpPage = () => {
                 )}
 
                 {showControlCodigos && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">6</span>
                             Control Códigos / Layout
                         </h2>
@@ -158,8 +170,8 @@ const HelpPage = () => {
                 )}
 
                 {showEtiquetas && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">7</span>
                             Etiquetas
                         </h2>
@@ -173,8 +185,8 @@ const HelpPage = () => {
                 )}
 
                 {showImportarAdmin && (
-                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-2 print:border-blue-100 print:p-6 print:rounded-2xl print:break-inside-avoid">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-blue-500 flex items-center gap-2 print:text-blue-800 print:text-2xl">
                             <span className="bg-blue-100 text-blue-800 text-sm w-6 h-6 rounded-full flex items-center justify-center font-bold">8</span>
                             Administración
                         </h2>
