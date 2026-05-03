@@ -110,6 +110,7 @@ const Navigation = () => {
                             {showEtiquetas && (
                                 <Link to="/etiquetas" className={getLinkClass('/etiquetas')}>Etiquetas</Link>
                             )}
+                            <Link to="/ayuda" className={getLinkClass('/ayuda')}>Ayuda</Link>
                         </div>
                     </div>
                     {/* Desktop Right Side - Hidden on Mobile */}
@@ -191,6 +192,7 @@ const Navigation = () => {
                         {showEtiquetas && (
                             <Link to="/etiquetas" className={getMobileLinkClass('/etiquetas')} onClick={() => setIsOpen(false)}>Etiquetas</Link>
                         )}
+                        <Link to="/ayuda" className={getMobileLinkClass('/ayuda')} onClick={() => setIsOpen(false)}>Ayuda</Link>
 
                         <button
                             onClick={() => {
