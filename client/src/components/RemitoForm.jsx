@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 const Scanner = lazy(() => import('./Scanner'));
 const ReportModal = lazy(() => import('./ReportModal'));
 const BranchCountList = lazy(() => import('./BranchCountList'));
+const GuideModal = lazy(() => import('./GuideModal'));
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import FichajeModal from './FichajeModal';
@@ -12,6 +13,7 @@ import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useProductSync } from '../hooks/useProductSync';
+import { HelpCircle } from 'lucide-react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 
@@ -84,6 +86,9 @@ const RemitoForm = () => {
 
     // Sync Badge Expansion State
     const [isSyncBadgeExpanded, setIsSyncBadgeExpanded] = useState(() => localStorage.getItem('isSyncBadgeExpanded') !== 'false');
+
+    // Guide Modal State
+    const [isGuideOpen, setIsGuideOpen] = useState(false);
 
     // --- HELPER FUNCTIONS (Defined early to avoid TDZ) ---
     const fetchItemsByOrders = async (orderNumbers) => {
@@ -1596,6 +1601,13 @@ const RemitoForm = () => {
                 />
             </Suspense>
 
+            <Suspense fallback={null}>
+                <GuideModal
+                    isOpen={isGuideOpen}
+                    onClose={() => setIsGuideOpen(false)}
+                />
+            </Suspense>
+
             {/* Clarification Modal */}
             {showClarificationModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -1716,7 +1728,19 @@ const RemitoForm = () => {
 
             <div className="max-w-5xl mx-auto bg-white md:p-8 p-4 rounded-xl shadow-none md:shadow-xl my-0 md:my-8 border-none md:border border-gray-200 relative min-h-screen md:min-h-0">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 border-b border-gray-100 pb-4 gap-2">
-                    <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
+                        <button
+                            onClick={() => setIsGuideOpen(true)}
+                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-all duration-200 group relative"
+                            title="Guía de uso"
+                        >
+                            <HelpCircle className="w-6 h-6 md:w-7 md:h-7" />
+                            <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium shadow-xl border border-gray-700">
+                                ¿Cómo usar?
+                            </span>
+                        </button>
+                    </div>
                     <div className="text-sm text-brand-gray">
                         {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     </div>
