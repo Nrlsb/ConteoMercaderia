@@ -102,7 +102,7 @@ exports.parseImage = async (req, res) => {
                 });
 
             if (uploadError) {
-                console.error('[STORAGE ERROR]', uploadError);
+                console.error('[AI IMAGE PARSER] Error detallado de Supabase Storage:', uploadError);
             } else {
                 const { data: { publicUrl } } = supabase.storage
                     .from('receipt-documents')

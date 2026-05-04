@@ -1304,6 +1304,7 @@ const ReceiptDetailsPage = () => {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('type', receipt.type); // Enviar tipo de remito
+                formData.append('existingReceiptId', receipt.id); // Enviar ID del remito actual
 
                 try {
                     const response = await api.post('/api/receipts/upload', formData);

@@ -905,37 +905,56 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             return res.status(400).json({ message: 'No se pudieron extraer productos de los PDFs proporcionados' });
         }
 
-        const manualRemitoNumber = req.body.remitoNumber;
-        const remitoNumber = manualRemitoNumber 
-            ? manualRemitoNumber 
-            : (pdfFiles.length > 1 ? `${firstRemitoNumber} (+${pdfFiles.length - 1} PDFS)` : firstRemitoNumber);
+        let receipt = null;
+        const existingReceiptId = req.body.existingReceiptId;
 
-        // 2. Check for duplicate to avoid double creation if possible
-        const { data: existing } = await supabase
-            .from('receipts')
-            .select('id')
-            .eq('remito_number', remitoNumber)
-            .is('deleted_at', null)
-            .maybeSingle();
+        if (existingReceiptId) {
+            // Si se proporciona un ID existente, lo usamos directamente
+            const { data: found, error: findError } = await supabase
+                .from('receipts')
+                .select('*')
+                .eq('id', existingReceiptId)
+                .single();
+            
+            if (findError || !found) {
+                return res.status(404).json({ message: 'El remito de destino no existe.' });
+            }
+            receipt = found;
+            console.log(`[RECEIPT PDF] Usando remito existente ID: ${receipt.id} para asociar PDF`);
+        } else {
+            // 2. Check for duplicate to avoid double creation if possible
+            const manualRemitoNumber = req.body.remitoNumber;
+            const remitoNumber = manualRemitoNumber 
+                ? manualRemitoNumber 
+                : (pdfFiles.length > 1 ? `${firstRemitoNumber} (+${pdfFiles.length - 1} PDFS)` : firstRemitoNumber);
 
-        if (existing) {
-            return res.status(400).json({ message: `El remito ${remitoNumber} ya existe.` });
+            const { data: existing } = await supabase
+                .from('receipts')
+                .select('id')
+                .eq('remito_number', remitoNumber)
+                .is('deleted_at', null)
+                .maybeSingle();
+
+            if (existing) {
+                return res.status(400).json({ message: `El remito ${remitoNumber} ya existe.` });
+            }
+
+            // 3. Create Receipt
+            const { data: newReceipt, error: receiptError } = await supabase
+                .from('receipts')
+                .insert([{
+                    remito_number: remitoNumber,
+                    type: type,
+                    created_by: req.user.username,
+                    sucursal_id: req.user.sucursal_id || null,
+                    date: new Date()
+                }])
+                .select()
+                .single();
+
+            if (receiptError) throw receiptError;
+            receipt = newReceipt;
         }
-
-        // 3. Create Receipt
-        const { data: receipt, error: receiptError } = await supabase
-            .from('receipts')
-            .insert([{
-                remito_number: remitoNumber,
-                type: type,
-                created_by: req.user.username,
-                sucursal_id: req.user.sucursal_id || null,
-                date: new Date()
-            }])
-            .select()
-            .single();
-
-        if (receiptError) throw receiptError;
 
         // 3.5 Opcionalmente guardar el primer PDF en Storage para referencia
         if (pdfFiles.length > 0) {
@@ -963,6 +982,8 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                         .eq('id', receipt.id);
                     
                     console.log(`[RECEIPT PDF] Documento guardado en Storage: ${publicUrl}`);
+                } else {
+                    console.error('[RECEIPT PDF] Error detallado de Supabase Storage:', uploadError);
                 }
             } catch (err) {
                 console.error('[RECEIPT PDF] Error al guardar PDF en Storage:', err);
