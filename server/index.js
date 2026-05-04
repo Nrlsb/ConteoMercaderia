@@ -16,7 +16,7 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
     'https://conteo-mercaderia.vercel.app',
-    'https://conteomercaderia.onrender.com',
+    'https://conteomercaderia-wu8o.onrender.com',
     'https://conteo-mercaderia-khtxajjex-luksbs-projects.vercel.app',
     'capacitor://localhost',
     'http://localhost',
@@ -102,9 +102,9 @@ app.post('/api/reports', verifyToken, async (req, res) => {
             .single();
 
         if (error) throw error;
-        
+
         console.log(`[BUG REPORT] Nuevo reporte de ${req.user.username}: ${description?.substring(0, 50)}...`);
-        
+
         res.status(201).json({ message: 'Reporte enviado con éxito', data });
     } catch (error) {
         console.error('Error saving bug report:', error);
