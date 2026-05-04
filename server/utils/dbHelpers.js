@@ -1,7 +1,7 @@
 const supabase = require('../services/supabaseClient');
 
 // Helper to record barcode history
-async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, description = 'Actualización de producto') {
+async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, description = 'Actualización de producto', customActionType = null) {
     // Treat empty strings or dashes as null/empty
     const normalize = (val) => (val && val.trim() !== '' && !/^[-_]+$/.test(val.trim())) ? val.trim() : null;
 
@@ -11,7 +11,7 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
     if (oldB === newB) return;
 
     try {
-        const actionType = oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE';
+        const actionType = customActionType || (oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE');
         const details = oldB ? `De ${oldB} a ${newB || '(vacío)'}` : `Código inicial: ${newB}`;
 
         // Salvaguarda contra duplicados rápidos (clicks múltiples o reconexiones)

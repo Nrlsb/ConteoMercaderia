@@ -114,3 +114,8 @@ html.barcode-scanner-active body {
 .duration-700 {
   animation-duration: 700ms;
 }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}

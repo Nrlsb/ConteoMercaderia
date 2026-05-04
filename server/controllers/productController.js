@@ -530,7 +530,7 @@ exports.updateBarcodeSecondary = async (req, res) => {
 
         // Log Barcode History
         if (currentProduct) {
-            await recordBarcodeHistory(currentProduct.id, currentProduct.barcode_secondary, barcode_secondary, req.user.id, currentProduct.description);
+            await recordBarcodeHistory(currentProduct.id, currentProduct.barcode_secondary, barcode_secondary, req.user.id, currentProduct.description, 'UPDATE_SECONDARY_BARCODE');
         }
 
         res.json({ message: 'Barcode secondary updated successfully', product: data[0] });
