@@ -20,6 +20,9 @@ router.put('/:id', verifyToken, productController.updateProduct);
 // Update product barcode by code
 router.put('/:code/barcode', verifyToken, productController.updateBarcode);
 
+// Update product secondary barcode by code
+router.put('/:code/barcode-secondary', verifyToken, productController.updateBarcodeSecondary);
+
 // Get product by barcode/code with unified search (catch-all for products)
 router.get('/:barcode', verifyToken, productController.getProductByCode);
 

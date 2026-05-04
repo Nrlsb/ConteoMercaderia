@@ -169,10 +169,15 @@ async function findProductByAnyCode(inputCode, type = 'any') {
     const codeStr = String(inputCode).trim();
 
     try {
-        // 1. Try exact barcode match
+        // 1. Try exact barcode match (Primary and Secondary)
         if (type === 'any' || type === 'barcode') {
+            // Check primary barcode
             const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr).limit(1);
             if (pBar && pBar.length > 0) return pBar[0];
+
+            // Check secondary barcode
+            const { data: pBarSec } = await supabase.from('products').select('*').eq('barcode_secondary', codeStr).limit(1);
+            if (pBarSec && pBarSec.length > 0) return pBarSec[0];
         }
 
         // 2. Try internal code

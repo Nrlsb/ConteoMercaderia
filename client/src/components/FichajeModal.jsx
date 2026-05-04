@@ -17,9 +17,15 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const [viewportOffset, setViewportOffset] = useState(0);
     const [showCalc, setShowCalc] = useState(false);
     const [isScanningBarcode, setIsScanningBarcode] = useState(false);
+    const [isEditingSecondaryBarcode, setIsEditingSecondaryBarcode] = useState(false);
+    const [secondaryBarcodeInput, setSecondaryBarcodeInput] = useState('');
+    const [currentSecondaryBarcode, setCurrentSecondaryBarcode] = useState('');
+    const [isUpdatingSecondaryBarcode, setIsUpdatingSecondaryBarcode] = useState(false);
+    const [isScanningSecondaryBarcode, setIsScanningSecondaryBarcode] = useState(false);
 
     const inputRef = useRef(null);
     const barcodeRef = useRef(null);
+    const secondaryBarcodeRef = useRef(null);
     const overlayRef = useRef(null);
 
     // Listen to visualViewport to detect keyboard open/close
@@ -53,9 +59,13 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setIsEditingBarcode(false);
             setBarcodeInput(product?.barcode || '');
             setCurrentBarcode(product?.barcode || '');
+            setSecondaryBarcodeInput(product?.barcode_secondary || '');
+            setCurrentSecondaryBarcode(product?.barcode_secondary || '');
+            setIsEditingSecondaryBarcode(false);
             setShowCalc(false);
             setSelectedUnit('primary');
             setIsScanningBarcode(false);
+            setIsScanningSecondaryBarcode(false);
             // Focus input inmediatamente en el siguiente frame de pintura
             requestAnimationFrame(() => {
                 if (inputRef.current) {
@@ -126,6 +136,44 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
         }
     };
 
+    const handleUpdateSecondaryBarcode = async () => {
+        if (!secondaryBarcodeInput.trim()) {
+            toast.error("El código secundario no puede estar vacío.");
+            return;
+        }
+
+        setIsUpdatingSecondaryBarcode(true);
+        try {
+            const response = await api.put(`/api/products/${product.code}/barcode-secondary`, {
+                barcode_secondary: secondaryBarcodeInput.trim()
+            });
+            setCurrentSecondaryBarcode(secondaryBarcodeInput.trim());
+            setIsEditingSecondaryBarcode(false);
+            product.barcode_secondary = secondaryBarcodeInput.trim();
+            toast.success("Código secundario actualizado.");
+
+            // Log history
+            try {
+                const pId = response.data?.id || product.id || product.product_id;
+                if (pId) {
+                    await api.post('/api/barcode-history', {
+                        action_type: 'edit_secondary',
+                        product_id: pId,
+                        product_description: product.description || product.name || 'Producto sin descripción',
+                        details: `Cód Secundario modificado a: ${secondaryBarcodeInput.trim()}`
+                    });
+                }
+            } catch (err) { console.error(err); }
+
+            setTimeout(() => { inputRef.current?.focus(); }, 100);
+        } catch (error) {
+            console.error('Error updating secondary barcode:', error);
+            toast.error(error.response?.data?.message || 'Error al actualizar el código secundario');
+        } finally {
+            setIsUpdatingSecondaryBarcode(false);
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         if (isSubmitting) return; // Guard
@@ -167,7 +215,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     return ReactDOM.createPortal(
         <div
             ref={overlayRef}
-            className={`fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4 pb-8 sm:pb-4 ${isScanningBarcode ? 'bg-transparent' : 'bg-black/60'}`}
+            className={`fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4 pb-8 sm:pb-4 ${(isScanningBarcode || isScanningSecondaryBarcode) ? 'bg-transparent' : 'bg-black/60'}`}
             style={{ 
                 height: `${viewportHeight}px`,
                 top: `${viewportOffset}px`,
@@ -175,7 +223,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             }}
         >
             <div 
-                className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transition-transform duration-150 ease-out ${isScanningBarcode ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible animate-[slideUp_150ms_ease-out]'}`}
+                className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transition-transform duration-150 ease-out ${(isScanningBarcode || isScanningSecondaryBarcode) ? 'opacity-0 invisible pointer-events-none' : 'opacity-100 visible animate-[slideUp_150ms_ease-out]'}`}
                 style={{ maxHeight: viewportHeight < 500 ? '85vh' : `${viewportHeight * 0.95}px` }}
             >
                 {/* Header */}
@@ -260,6 +308,73 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                             }}
                                             className="p-1.5 text-brand-blue hover:bg-blue-50 rounded-md transition-colors"
                                             title="Editar código de barras"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            {/* Secondary Barcode Edit Section */}
+                            <div className="mt-2 p-3 bg-blue-50/30 rounded-lg border border-blue-100">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Código Secundario (Bulto/Caja)</label>
+
+                                {isEditingSecondaryBarcode ? (
+                                    <div className="flex gap-2">
+                                        <input
+                                            ref={secondaryBarcodeRef}
+                                            type="text"
+                                            value={secondaryBarcodeInput}
+                                            onChange={(e) => setSecondaryBarcodeInput(e.target.value)}
+                                            className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none text-sm"
+                                            placeholder="Escanear bulto..."
+                                            disabled={isUpdatingSecondaryBarcode}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsScanningSecondaryBarcode(true)}
+                                            disabled={isUpdatingSecondaryBarcode}
+                                            className="p-2 bg-brand-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleUpdateSecondaryBarcode}
+                                            disabled={isUpdatingSecondaryBarcode}
+                                            className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                        >
+                                            {isUpdatingSecondaryBarcode ? '...' : 'Guardar'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsEditingSecondaryBarcode(false);
+                                                setSecondaryBarcodeInput(currentSecondaryBarcode);
+                                            }}
+                                            disabled={isUpdatingSecondaryBarcode}
+                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm font-bold text-gray-900 font-mono">
+                                            {currentSecondaryBarcode ? currentSecondaryBarcode : <span className="text-gray-400 italic">No asociado</span>}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsEditingSecondaryBarcode(true);
+                                                setTimeout(() => secondaryBarcodeRef.current?.focus(), 50);
+                                            }}
+                                            className="p-1.5 text-brand-blue hover:bg-blue-100 rounded-md transition-colors"
+                                            title="Editar código secundario"
                                         >
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -408,6 +523,21 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                 toast.success("Código escaneado correctamente");
                             }}
                             onCancel={() => setIsScanningBarcode(false)}
+                        />
+                    </div>
+                </div>
+            )}
+            {/* Barcode Scanner Overlay (Secondary) */}
+            {isScanningSecondaryBarcode && (
+                <div className="fixed inset-0 z-[2100] bg-transparent flex flex-col">
+                    <div className="flex-1 relative">
+                        <Scanner
+                            onScan={(code) => {
+                                setSecondaryBarcodeInput(code);
+                                setIsScanningSecondaryBarcode(false);
+                                toast.success("Código secundario escaneado");
+                            }}
+                            onCancel={() => setIsScanningSecondaryBarcode(false)}
                         />
                     </div>
                 </div>

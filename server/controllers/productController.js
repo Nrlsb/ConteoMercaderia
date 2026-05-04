@@ -22,7 +22,7 @@ exports.searchProducts = async (req, res) => {
 
         // Overall OR: either it matches all words in description, OR it matches the exact code or provider_code
         const exactMatchTerm = `%${q.trim()}%`;
-        const orString = `and(${descAnds}),code.ilike.${exactMatchTerm},provider_code.ilike.${exactMatchTerm}`;
+        const orString = `and(${descAnds}),code.ilike.${exactMatchTerm},provider_code.ilike.${exactMatchTerm},barcode_secondary.ilike.${exactMatchTerm}`;
 
         const { data, error } = await supabase
             .from('products')
@@ -51,7 +51,7 @@ exports.syncProducts = async (req, res) => {
         while (hasMore) {
             const { data, error, count } = await supabase
                 .from('products')
-                .select('id, code, barcode, description, brand, primary_unit, secondary_unit, conversion_factor, conversion_type, provider_description, provider_code', { count: 'exact' })
+                .select('id, code, barcode, barcode_secondary, description, brand, primary_unit, secondary_unit, conversion_factor, conversion_type, provider_description, provider_code', { count: 'exact' })
                 .order('code', { ascending: true })
                 .range(from, from + step - 1);
 
@@ -107,7 +107,7 @@ exports.getByBarcode = async (req, res) => {
 // Update product details
 exports.updateProduct = async (req, res) => {
     const { id } = req.params;
-    const { description, code, barcode, provider_code, provider_description } = req.body;
+    const { description, code, barcode, barcode_secondary, provider_code, provider_description } = req.body;
 
     try {
         // Fetch current product state before update for history logging
@@ -125,6 +125,7 @@ exports.updateProduct = async (req, res) => {
         if (description !== undefined) updateData.description = description;
         if (code !== undefined) updateData.code = code;
         if (barcode !== undefined) updateData.barcode = barcode;
+        if (barcode_secondary !== undefined) updateData.barcode_secondary = barcode_secondary;
         if (provider_code !== undefined) updateData.provider_code = provider_code;
         if (provider_description !== undefined) updateData.provider_description = provider_description;
 
@@ -499,5 +500,42 @@ exports.updateBarcode = async (req, res) => {
     } catch (error) {
         console.error('Error updating barcode:', error);
         res.status(500).json({ message: 'Error updating barcode' });
+    }
+};
+
+// Update product secondary barcode
+exports.updateBarcodeSecondary = async (req, res) => {
+    const { code } = req.params;
+    const { barcode_secondary } = req.body;
+
+    try {
+        // Fetch current product for history logging
+        const { data: currentProduct } = await supabase
+            .from('products')
+            .select('id, barcode_secondary, description')
+            .eq('code', code)
+            .maybeSingle();
+
+        const { data, error } = await supabase
+            .from('products')
+            .update({ barcode_secondary: barcode_secondary || null })
+            .eq('code', code)
+            .select();
+
+        if (error) throw error;
+
+        if (data.length === 0) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Log Barcode History
+        if (currentProduct) {
+            await recordBarcodeHistory(currentProduct.id, currentProduct.barcode_secondary, barcode_secondary, req.user.id, currentProduct.description);
+        }
+
+        res.json({ message: 'Barcode secondary updated successfully', product: data[0] });
+    } catch (error) {
+        console.error('Error updating secondary barcode:', error);
+        res.status(500).json({ message: 'Error updating secondary barcode' });
     }
 };
