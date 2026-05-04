@@ -20,24 +20,44 @@ if (process.env.GEMINI_API_KEY) {
 // --- EGRESOS (OUTGOING MERCHANDISE) ROUTES ---
 
 // Create Egreso via PDF Upload (auto-create)
-router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).fields([{ name: 'pdf', maxCount: 1 }, { name: 'file', maxCount: 1 }]), async (req, res) => {
-    const file = (req.files && req.files['pdf'] ? req.files['pdf'][0] : null) || (req.files && req.files['file'] ? req.files['file'][0] : null);
+router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
+    const files = req.files || [];
+    const pdfFiles = files.filter(f => f.fieldname === 'pdf' || f.fieldname === 'file');
+    const firstPdf = pdfFiles.length > 0 ? pdfFiles[0] : null;
 
-    if (!file) {
+    if (!firstPdf) {
         console.error('[EGRESO PDF] No se recibió ningún archivo. Fields received:', Object.keys(req.files || {}));
         return res.status(400).json({ message: 'No se recibió ningún archivo PDF (esperado campo "pdf" o "file")' });
     }
 
     try {
         // 1. Parse PDF
-        let { items, metadata, textSnippet, isDevolucion, isTransferencia, isRemito } = await parseRemitoPdf(file.buffer);
+        let items = [];
+        let metadata = null;
+        let textSnippet = '';
+        let isDevolucion = false;
+        let isTransferencia = false;
+        let isRemito = false;
+
+        // Si es una subida a un egreso existente, solo procesamos los archivos para el storage
+        // pero NO extraemos items si ya existen.
+        // Sin embargo, para mantener la compatibilidad, procesamos el primero para el referenceNumber si es nuevo.
+        if (firstPdf) {
+            const parsed = await parseRemitoPdf(firstPdf.buffer);
+            items = parsed.items;
+            metadata = parsed.metadata;
+            textSnippet = parsed.textSnippet;
+            isDevolucion = parsed.isDevolucion;
+            isTransferencia = parsed.isTransferencia;
+            isRemito = parsed.isRemito;
+        }
 
         // Stricter validation for 14-digit system files: Must contain the word "REMITO"
-        const nameWithoutExt = file.originalname.replace(/\.pdf$/i, '');
+        const nameWithoutExt = firstPdf.originalname.replace(/\.pdf$/i, '');
         if (/^\d{14}$/.test(nameWithoutExt) && !isRemito) {
-            console.log(`[EGRESO PDF] Documento omitido por seguridad (Nombre de 14 dígitos sin la palabra REMITO): ${file.originalname}`);
+            console.log(`[EGRESO PDF] Documento omitido por seguridad (Nombre de 14 dígitos sin la palabra REMITO): ${firstPdf.originalname}`);
             return res.status(400).json({
-                message: `El archivo "${file.originalname}" no parece ser un remito válido (formato genérico y sin la palabra REMITO).`
+                message: `El archivo "${firstPdf.originalname}" no parece ser un remito válido (formato genérico y sin la palabra REMITO).`
             });
         }
 
@@ -47,7 +67,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
             try {
                 const pdfParts = [{
                     inlineData: {
-                        data: file.buffer.toString("base64"),
+                        data: firstPdf.buffer.toString("base64"),
                         mimeType: "application/pdf"
                     },
                 }];
@@ -93,10 +113,10 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
         }
 
         if (!items || items.length === 0) {
-            console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
+            console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', firstPdf.originalname);
             const errorMsg = !isRemito
-                ? `El archivo "${file.originalname}" no parece ser un remito válido (no contiene la palabra "REMITO").`
-                : `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`;
+                ? `El archivo "${firstPdf.originalname}" no parece ser un remito válido (no contiene la palabra "REMITO").`
+                : `No se pudieron extraer productos del PDF (${firstPdf.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`;
 
             return res.status(400).json({
                 message: errorMsg,
@@ -112,8 +132,8 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
         let referenceNumber = '';
         if (metadata && metadata.clientName && metadata.remitoNumber) {
             referenceNumber = `${metadata.clientName} ${metadata.remitoNumber}`;
-        } else {
-            referenceNumber = file.originalname.replace('.pdf', '').replace('.PDF', '');
+        } else if (firstPdf) {
+            referenceNumber = firstPdf.originalname.replace('.pdf', '').replace('.PDF', '');
         }
 
         let sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
@@ -166,46 +186,83 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
             });
         }
 
-        const { data: egreso, error: egresoError } = await supabase
-            .from('egresos')
-            .insert([{
-                reference_number: referenceNumber,
-                pdf_filename: file.originalname,
-                created_by: req.user.username,
-                sucursal_id: sucursalId,
-                is_devolucion: isDevolucion || false,
-                is_transferencia: isTransferencia || false,
-                date: new Date()
-            }])
-            .select()
-            .single();
+        let egreso = null;
+        const existingEgresoId = req.body.existingEgresoId;
 
-        if (egresoError) throw egresoError;
+        if (existingEgresoId) {
+            const { data: found, error: findError } = await supabase
+                .from('egresos')
+                .select('*')
+                .eq('id', existingEgresoId)
+                .single();
+            
+            if (findError || !found) {
+                return res.status(404).json({ message: 'El egreso de destino no existe.' });
+            }
+            egreso = found;
+            console.log(`[EGRESO PDF] Usando egreso existente ID: ${egreso.id} para asociar PDF`);
+        } else {
+            const { data: newEgreso, error: egresoError } = await supabase
+                .from('egresos')
+                .insert([{
+                    reference_number: referenceNumber,
+                    pdf_filename: firstPdf.originalname,
+                    created_by: req.user.username,
+                    sucursal_id: sucursalId,
+                    is_devolucion: isDevolucion || false,
+                    is_transferencia: isTransferencia || false,
+                    date: new Date()
+                }])
+                .select()
+                .single();
 
-        // 2.5 Guardar el PDF en Storage para referencia
+            if (egresoError) throw egresoError;
+            egreso = newEgreso;
+        }
+
+        // 2.5 Guardar TODOS los PDFs en Storage para referencia
         try {
-            const fileExt = 'pdf';
-            const fileName = `${egreso.id}/${Date.now()}.${fileExt}`;
-            const filePath = `egresos/${fileName}`;
+            const newUrls = [];
+            for (const file of pdfFiles) {
+                const fileExt = 'pdf';
+                const fileName = `${egreso.id}/${Date.now()}_${file.originalname}`;
+                const filePath = `egresos/${fileName}`;
 
-            const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('receipt-documents')
-                .upload(filePath, file.buffer, {
-                    contentType: 'application/pdf',
-                    upsert: true
-                });
-
-            if (!uploadError) {
-                const { data: { publicUrl } } = supabase.storage
+                const { data: uploadData, error: uploadError } = await supabase.storage
                     .from('receipt-documents')
-                    .getPublicUrl(filePath);
+                    .upload(filePath, file.buffer, {
+                        contentType: 'application/pdf',
+                        upsert: true
+                    });
+
+                if (!uploadError) {
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('receipt-documents')
+                        .getPublicUrl(filePath);
+                    
+                    newUrls.push(publicUrl);
+                    console.log(`[EGRESO PDF] Documento guardado: ${publicUrl}`);
+                } else {
+                    console.error('[EGRESO PDF] Error al subir archivo:', file.originalname, uploadError);
+                }
+            }
+
+            if (newUrls.length > 0) {
+                let finalUrls = [];
+                if (egreso.document_url) {
+                    try {
+                        const existing = JSON.parse(egreso.document_url);
+                        finalUrls = Array.isArray(existing) ? existing : [egreso.document_url];
+                    } catch (e) {
+                        finalUrls = [egreso.document_url];
+                    }
+                }
+                finalUrls = [...finalUrls, ...newUrls];
 
                 await supabase
                     .from('egresos')
-                    .update({ document_url: publicUrl })
+                    .update({ document_url: JSON.stringify(finalUrls) })
                     .eq('id', egreso.id);
-
-                console.log(`[EGRESO PDF] Documento guardado en Storage: ${publicUrl}`);
             }
         } catch (err) {
             console.error('[EGRESO PDF] Error al guardar PDF en Storage:', err);

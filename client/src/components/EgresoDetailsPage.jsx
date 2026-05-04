@@ -32,6 +32,8 @@ const EgresoDetailsPage = () => {
     const [showScanner, setShowScanner] = useState(false);
     const [isBulkImporting, setIsBulkImporting] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+    const [uploadingPdf, setUploadingPdf] = useState(false);
+    const pdfInputRef = useRef(null);
 
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -189,6 +191,33 @@ const EgresoDetailsPage = () => {
             }
         }
     }, []);
+
+    const handlePdfUpload = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        setUploadingPdf(true);
+        const toastId = toast.loading('Subiendo documentos...');
+
+        try {
+            const formData = new FormData();
+            files.forEach(file => {
+                formData.append('pdf', file);
+            });
+            formData.append('existingEgresoId', id);
+
+            await api.post('/api/egresos/upload-pdf', formData);
+            
+            toast.success('Documentos vinculados correctamente', { id: toastId });
+            await fetchEgresoDetails();
+        } catch (error) {
+            console.error('Error uploading PDF:', error);
+            toast.error(error.response?.data?.message || 'Error al subir los archivos', { id: toastId });
+        } finally {
+            setUploadingPdf(false);
+            if (pdfInputRef.current) pdfInputRef.current.value = '';
+        }
+    };
 
     const fetchEgresoDetails = async () => {
         try {
@@ -853,15 +882,39 @@ const EgresoDetailsPage = () => {
                                 </span>
                             </span>
                             {egreso.document_url && (
-                                <a 
-                                    href={egreso.document_url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-0.5 rounded ml-2"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                    Ver Documento
-                                </a>
+                                <div className="flex flex-wrap gap-2 ml-2">
+                                    {(() => {
+                                        try {
+                                            const docs = JSON.parse(egreso.document_url);
+                                            if (Array.isArray(docs)) {
+                                                return docs.map((url, idx) => (
+                                                    <a 
+                                                        key={idx}
+                                                        href={url} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-0.5 rounded text-xs"
+                                                    >
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                        PDF {idx + 1}
+                                                    </a>
+                                                ));
+                                            }
+                                        } catch (e) {
+                                            return (
+                                                <a 
+                                                    href={egreso.document_url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-0.5 rounded text-xs"
+                                                >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    Ver Documento
+                                                </a>
+                                            );
+                                        }
+                                    })()}
+                                </div>
                             )}
                             {egreso.is_devolucion && (
                                 <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 uppercase">
@@ -950,13 +1003,31 @@ const EgresoDetailsPage = () => {
                             Dif.
                         </button>
                         {egreso.status !== 'finalized' && (
-                            <button
-                                onClick={() => setShowScanner(true)}
-                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition-all"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                Escanear Remito
-                            </button>
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <input
+                                    type="file"
+                                    accept=".pdf"
+                                    multiple
+                                    className="hidden"
+                                    ref={pdfInputRef}
+                                    onChange={handlePdfUpload}
+                                />
+                                <button
+                                    onClick={() => pdfInputRef.current.click()}
+                                    disabled={uploadingPdf}
+                                    className="flex-1 sm:flex-none px-6 py-2.5 bg-white border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    {uploadingPdf ? 'Subiendo...' : 'Subir PDF'}
+                                </button>
+                                <button
+                                    onClick={() => setShowScanner(true)}
+                                    className="flex-1 sm:flex-none px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition-all"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    Escanear
+                                </button>
+                            </div>
                         )}
                         {egreso.status !== 'finalized' ? (
                             <div className="flex gap-2">

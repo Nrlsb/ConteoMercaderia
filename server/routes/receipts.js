@@ -956,37 +956,55 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             receipt = newReceipt;
         }
 
-        // 3.5 Opcionalmente guardar el primer PDF en Storage para referencia
+        // 3.5 Guardar TODOS los PDFs en Storage para referencia
         if (pdfFiles.length > 0) {
             try {
-                const firstPdf = pdfFiles[0];
-                const fileExt = 'pdf';
-                const fileName = `${receipt.id}/${Date.now()}.${fileExt}`;
-                const filePath = `uploads/${fileName}`;
+                const newUrls = [];
+                for (const file of pdfFiles) {
+                    const fileExt = 'pdf';
+                    const fileName = `${receipt.id}/${Date.now()}_${file.originalname}`;
+                    const filePath = `uploads/${fileName}`;
 
-                const { data: uploadData, error: uploadError } = await supabase.storage
-                    .from('receipt-documents')
-                    .upload(filePath, firstPdf.buffer, {
-                        contentType: 'application/pdf',
-                        upsert: true
-                    });
-
-                if (!uploadError) {
-                    const { data: { publicUrl } } = supabase.storage
+                    const { data: uploadData, error: uploadError } = await supabase.storage
                         .from('receipt-documents')
-                        .getPublicUrl(filePath);
+                        .upload(filePath, file.buffer, {
+                            contentType: 'application/pdf',
+                            upsert: true
+                        });
+
+                    if (!uploadError) {
+                        const { data: { publicUrl } } = supabase.storage
+                            .from('receipt-documents')
+                            .getPublicUrl(filePath);
+                        newUrls.push(publicUrl);
+                        console.log(`[RECEIPT PDF] Documento guardado: ${publicUrl}`);
+                    } else {
+                        console.error('[RECEIPT PDF] Error al subir archivo:', file.originalname, uploadError);
+                    }
+                }
+
+                if (newUrls.length > 0) {
+                    // Obtener URLs existentes para no pisarlas
+                    let finalUrls = [];
+                    if (receipt.document_url) {
+                        try {
+                            const existing = JSON.parse(receipt.document_url);
+                            finalUrls = Array.isArray(existing) ? existing : [receipt.document_url];
+                        } catch (e) {
+                            finalUrls = [receipt.document_url];
+                        }
+                    }
+                    
+                    // Combinar con las nuevas
+                    finalUrls = [...finalUrls, ...newUrls];
                     
                     await supabase
                         .from('receipts')
-                        .update({ document_url: publicUrl })
+                        .update({ document_url: JSON.stringify(finalUrls) })
                         .eq('id', receipt.id);
-                    
-                    console.log(`[RECEIPT PDF] Documento guardado en Storage: ${publicUrl}`);
-                } else {
-                    console.error('[RECEIPT PDF] Error detallado de Supabase Storage:', uploadError);
                 }
             } catch (err) {
-                console.error('[RECEIPT PDF] Error al guardar PDF en Storage:', err);
+                console.error('[RECEIPT PDF] Error crítico en proceso de subida:', err);
             }
         }
 
