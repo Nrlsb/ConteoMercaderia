@@ -25,21 +25,32 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
+        // Permitir peticiones sin origen (como apps móviles o curl)
         if (!origin) return callback(null, true);
 
         const isAllowed = allowedOrigins.indexOf(origin) !== -1 ||
             (origin.endsWith('.vercel.app') && origin.includes('conteo-mercaderia'));
 
         if (!isAllowed) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            console.error('BLOCKED BY CORS:', origin);
-            return callback(new Error(msg), false);
+            console.error('BLOQUEADO POR CORS:', origin);
+            // En lugar de devolver error, devolvemos null para que el navegador maneje el bloqueo
+            return callback(null, false);
         }
         return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'x-auth-token', 
+        'Accept', 
+        'X-Requested-With', 
+        'Origin',
+        'Cache-Control',
+        'Pragma'
+    ],
+    optionsSuccessStatus: 200
 }));
 app.use(express.json());
 app.use((req, res, next) => {
@@ -134,6 +145,13 @@ app.get(/(.*)/, (req, res) => {
 
 // --- Global Error Handler ---
 app.use((err, req, res, next) => {
+    // Asegurar que las cabeceras CORS estén presentes incluso en errores
+    const origin = req.headers.origin;
+    if (origin && (allowedOrigins.includes(origin) || (origin.endsWith('.vercel.app') && origin.includes('conteo-mercaderia')))) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
     if (err.name === 'MulterError') {
         return res.status(400).json({ message: `Error al subir archivo: ${err.message}` });
     }
