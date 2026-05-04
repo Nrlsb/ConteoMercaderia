@@ -79,8 +79,46 @@ exports.parseImage = async (req, res) => {
         return res.status(503).json({ message: 'AI Parsing not configured (Missing API Key)' });
     }
 
+    const { receiptId, egresoId } = req.body;
+
     try {
         console.log(`[AI IMAGE PARSER] Procesando imagen. Tamaño: ${req.file.size} bytes`);
+
+        // 1. Opcionalmente guardar en Supabase Storage si hay receiptId o egresoId
+        let documentUrl = null;
+        if (receiptId || egresoId) {
+            const supabase = require('../services/supabaseClient');
+            const fileExt = req.file.mimetype.split('/')[1];
+            const entityId = receiptId || egresoId;
+            const tableName = receiptId ? 'receipts' : 'egresos';
+            const fileName = `${entityId}/${Date.now()}.${fileExt}`;
+            const filePath = `scans/${fileName}`;
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('receipt-documents')
+                .upload(filePath, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: true
+                });
+
+            if (uploadError) {
+                console.error('[STORAGE ERROR]', uploadError);
+            } else {
+                const { data: { publicUrl } } = supabase.storage
+                    .from('receipt-documents')
+                    .getPublicUrl(filePath);
+                
+                documentUrl = publicUrl;
+
+                // Actualizar el registro con la URL del documento
+                await supabase
+                    .from(tableName)
+                    .update({ document_url: documentUrl })
+                    .eq('id', entityId);
+                
+                console.log(`[AI IMAGE PARSER] Imagen guardada en Storage (${tableName}): ${documentUrl}`);
+            }
+        }
 
         const imageParts = [
             {
@@ -130,7 +168,7 @@ exports.parseImage = async (req, res) => {
         }
 
         console.log(`[AI IMAGE PARSER] Extracción exitosa: ${parsedItems.length} items encontrados`);
-        res.json(parsedItems);
+        res.json({ items: parsedItems, documentUrl });
 
     } catch (error) {
         console.error('CRITICAL ERROR in AI image parsing:', error);

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { downloadFile } from '../utils/downloadUtils';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
+import ReceiptScanner from './ReceiptScanner';
 
 const EgresoDetailsPage = () => {
     const { id } = useParams();
@@ -28,6 +29,9 @@ const EgresoDetailsPage = () => {
     const [activeTab, setActiveTab] = useState('control');
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [scanStatus, setScanStatus] = useState(null);
+    const [showScanner, setShowScanner] = useState(false);
+    const [isBulkImporting, setIsBulkImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -754,6 +758,40 @@ const EgresoDetailsPage = () => {
         }
     };
 
+    const handleScanComplete = async (scannedItems) => {
+        setIsBulkImporting(true);
+        setImportProgress({ current: 0, total: scannedItems.length });
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < scannedItems.length; i++) {
+            const item = scannedItems[i];
+            try {
+                await api.post(`/api/egresos/${id}/scan`, {
+                    code: item.code,
+                    quantity: item.quantity
+                });
+                successCount++;
+            } catch (error) {
+                console.error(`Error importing egreso item ${item.code}:`, error);
+                failCount++;
+            }
+            setImportProgress({ current: i + 1, total: scannedItems.length });
+        }
+
+        if (successCount > 0) {
+            toast.success(`¡Listo! ${successCount} productos controlados.`);
+        }
+
+        if (failCount > 0) {
+            toast.error(`${failCount} fallaron al importar (posiblemente no están en el remito o exceden cantidad)`);
+        }
+
+        await fetchEgresoDetails();
+        setIsBulkImporting(false);
+        setShowScanner(false);
+    };
+
     const handlePrintDifferences = () => {
         const hasDifferences = items.some(item => {
             const diff = (Number(item.expected_quantity) || 0) - (Number(item.scanned_quantity) || 0);
@@ -814,6 +852,17 @@ const EgresoDetailsPage = () => {
                                     {egreso.status === 'finalized' ? 'FINALIZADO' : 'ABIERTO'}
                                 </span>
                             </span>
+                            {egreso.document_url && (
+                                <a 
+                                    href={egreso.document_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-0.5 rounded ml-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                    Ver Documento
+                                </a>
+                            )}
                             {egreso.is_devolucion && (
                                 <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 uppercase">
                                     Remito de Devolución
@@ -900,6 +949,15 @@ const EgresoDetailsPage = () => {
                             <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                             Dif.
                         </button>
+                        {egreso.status !== 'finalized' && (
+                            <button
+                                onClick={() => setShowScanner(true)}
+                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition-all"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                Escanear Remito
+                            </button>
+                        )}
                         {egreso.status !== 'finalized' ? (
                             <div className="flex gap-2">
                                 {canAdminFinalize && (
@@ -1607,6 +1665,34 @@ const EgresoDetailsPage = () => {
                             >
                                 Cancelar
                             </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {showScanner && (
+                <ReceiptScanner
+                    onClose={() => setShowScanner(false)}
+                    onScanComplete={handleScanComplete}
+                    egresoId={id}
+                />
+            )}
+
+            {isBulkImporting && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] bg-black bg-opacity-75 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full text-center">
+                        <div className="w-16 h-16 border-4 border-blue-100 border-t-brand-blue rounded-full animate-spin mb-6"></div>
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">Cargando Productos</h2>
+                        <p className="text-sm text-gray-500 mb-6">
+                            Por favor espera, guardando en la base de datos...<br />
+                            ({importProgress.current} de {importProgress.total})
+                        </p>
+                        <div className="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden">
+                            <div
+                                className="bg-brand-blue h-full rounded-full transition-all duration-300"
+                                style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                            ></div>
                         </div>
                     </div>
                 </div>,

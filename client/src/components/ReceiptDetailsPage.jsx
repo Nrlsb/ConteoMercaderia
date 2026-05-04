@@ -1306,8 +1306,8 @@ const ReceiptDetailsPage = () => {
                 formData.append('type', receipt.type); // Enviar tipo de remito
 
                 try {
-                    const response = await api.post('/api/remitos/upload-pdf', formData);
-                    const items = response.data.items;
+                    const response = await api.post('/api/receipts/upload', formData);
+                    const items = response.data.results?.success || response.data.items || [];
                     if (items && items.length > 0) {
                         const itemsWithFileName = items.map(item => ({
                             ...item,
@@ -1391,10 +1391,23 @@ const ReceiptDetailsPage = () => {
                 <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 leading-tight">Remito: {receipt.remito_number}</h1>
-                        <div className="text-sm mt-1">
-                            Estado: <span className={receipt.status === 'finalized' ? 'text-green-600 font-bold' : 'text-yellow-600 font-bold'}>
-                                {receipt.status === 'finalized' ? 'FINALIZADO' : 'ABIERTO'}
+                        <div className="text-sm mt-1 flex items-center gap-3">
+                            <span>
+                                Estado: <span className={receipt.status === 'finalized' ? 'text-green-600 font-bold' : 'text-yellow-600 font-bold'}>
+                                    {receipt.status === 'finalized' ? 'FINALIZADO' : 'ABIERTO'}
+                                </span>
                             </span>
+                            {receipt.document_url && (
+                                <a 
+                                    href={receipt.document_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-0.5 rounded"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                    Ver Documento
+                                </a>
+                            )}
                         </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -2216,6 +2229,7 @@ const ReceiptDetailsPage = () => {
                 <ReceiptScanner
                     onClose={() => setShowScanner(false)}
                     onScanComplete={handleScanComplete}
+                    receiptId={id}
                 />
             )}
 

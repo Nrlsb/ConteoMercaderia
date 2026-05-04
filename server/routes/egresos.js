@@ -31,16 +31,16 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
     try {
         // 1. Parse PDF
         let { items, metadata, textSnippet, isDevolucion, isTransferencia, isRemito } = await parseRemitoPdf(file.buffer);
-        
+
         // Stricter validation for 14-digit system files: Must contain the word "REMITO"
         const nameWithoutExt = file.originalname.replace(/\.pdf$/i, '');
         if (/^\d{14}$/.test(nameWithoutExt) && !isRemito) {
             console.log(`[EGRESO PDF] Documento omitido por seguridad (Nombre de 14 dígitos sin la palabra REMITO): ${file.originalname}`);
-            return res.status(400).json({ 
-                message: `El archivo "${file.originalname}" no parece ser un remito válido (formato genérico y sin la palabra REMITO).` 
+            return res.status(400).json({
+                message: `El archivo "${file.originalname}" no parece ser un remito válido (formato genérico y sin la palabra REMITO).`
             });
         }
-        
+
         // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
         if ((!items || items.length === 0) && genAI) {
             console.log('[EGRESO PDF] No items found with regex. Falling back to Gemini AI...');
@@ -94,10 +94,10 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
 
         if (!items || items.length === 0) {
             console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', file.originalname);
-            const errorMsg = !isRemito 
+            const errorMsg = !isRemito
                 ? `El archivo "${file.originalname}" no parece ser un remito válido (no contiene la palabra "REMITO").`
                 : `No se pudieron extraer productos del PDF (${file.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`;
-            
+
             return res.status(400).json({
                 message: errorMsg,
                 debug: {
@@ -125,7 +125,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
                 .select('id, name')
                 .ilike('name', metadata.clientName)
                 .maybeSingle();
-            
+
             if (branchMatch) {
                 console.log(`[EGRESO PDF] Destino detectado: ${branchMatch.name} (ID: ${branchMatch.id})`);
                 sucursalId = branchMatch.id;
@@ -133,9 +133,9 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
                 // Intento secundario: buscar coincidencias parciales
                 const { data: allBranches } = await supabase.from('sucursales').select('id, name');
                 if (allBranches) {
-                    const bestMatch = allBranches.find(b => 
+                    const bestMatch = allBranches.find(b =>
                         b.name !== 'Deposito' && (
-                            metadata.clientName.toLowerCase().includes(b.name.toLowerCase()) || 
+                            metadata.clientName.toLowerCase().includes(b.name.toLowerCase()) ||
                             b.name.toLowerCase().includes(metadata.clientName.toLowerCase())
                         )
                     );
@@ -182,10 +182,39 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
 
         if (egresoError) throw egresoError;
 
+        // 2.5 Guardar el PDF en Storage para referencia
+        try {
+            const fileExt = 'pdf';
+            const fileName = `${egreso.id}/${Date.now()}.${fileExt}`;
+            const filePath = `egresos/${fileName}`;
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('receipt-documents')
+                .upload(filePath, file.buffer, {
+                    contentType: 'application/pdf',
+                    upsert: true
+                });
+
+            if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage
+                    .from('receipt-documents')
+                    .getPublicUrl(filePath);
+
+                await supabase
+                    .from('egresos')
+                    .update({ document_url: publicUrl })
+                    .eq('id', egreso.id);
+
+                console.log(`[EGRESO PDF] Documento guardado en Storage: ${publicUrl}`);
+            }
+        } catch (err) {
+            console.error('[EGRESO PDF] Error al guardar PDF en Storage:', err);
+        }
+
         // 3. Optimized processing: Bulk operations to avoid timeouts
         const results = { success: [], failed: [] };
         const failedForPersistence = [];
-        
+
         const itemCodes = items.map(i => i.code);
 
         // 3.1 Bulk Product Lookup (Only internal code for Egresos)
@@ -205,7 +234,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
 
         for (const item of items) {
             let product = productMap.get(item.code);
-            
+
             // Try stripping leading zeros for internal codes if not found initially
             if (!product) {
                 const stripped = item.code.replace(/^0+/, '');
@@ -227,7 +256,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
             }
 
             const quantity = Number(item.quantity);
-            
+
             itemsToInsert.push({
                 egreso_id: egreso.id,
                 product_code: product.code,
@@ -257,7 +286,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
             const { error: itemsInsertError } = await supabase
                 .from('egreso_items')
                 .insert(itemsToInsert);
-            
+
             if (itemsInsertError) {
                 console.error('[EGRESO PDF] Bulk items insert error:', itemsInsertError);
                 throw itemsInsertError;
@@ -400,8 +429,8 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req,
 
         // Validation: Cannot exceed expected quantity for Egresos
         if (newScanned > currentExpected) {
-            return res.status(400).json({ 
-                message: `No se puede exceder la cantidad esperada. Máximo permitido: ${currentExpected - oldScanned}` 
+            return res.status(400).json({
+                message: `No se puede exceder la cantidad esperada. Máximo permitido: ${currentExpected - oldScanned}`
             });
         }
 
@@ -562,9 +591,32 @@ router.put('/:id/items/:productCode/reason', verifyToken, verifyBranchAccess('eg
 router.put('/:id/close', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
+        // 1. Borrar documento del Storage si existe
+        const { data: egresoData } = await supabase
+            .from('egresos')
+            .select('document_url')
+            .eq('id', id)
+            .single();
+
+        if (egresoData?.document_url) {
+            try {
+                const urlParts = egresoData.document_url.split('/receipt-documents/');
+                if (urlParts.length > 1) {
+                    const filePath = urlParts[1];
+                    await supabase.storage.from('receipt-documents').remove([filePath]);
+                    console.log(`[STORAGE] Archivo de egreso eliminado: ${filePath}`);
+                }
+            } catch (err) {
+                console.error('[STORAGE DELETE FAIL]', err);
+            }
+        }
+
         const { data, error } = await supabase
             .from('egresos')
-            .update({ status: 'finalized' })
+            .update({
+                status: 'finalized',
+                document_url: null
+            })
             .eq('id', id)
             .select();
 
@@ -608,7 +660,7 @@ router.put('/:id/finalize', verifyToken, verifyAdmin, verifyBranchAccess('egreso
 
         // 2. Prepare updates (only for those that aren't already complete)
         const itemsToUpdate = items.filter(item => Number(item.scanned_quantity) !== Number(item.expected_quantity));
-        
+
         if (itemsToUpdate.length > 0) {
             const updates = itemsToUpdate.map(item => ({
                 egreso_id: id,
@@ -646,6 +698,22 @@ router.put('/:id/finalize', verifyToken, verifyAdmin, verifyBranchAccess('egreso
             .single();
 
         if (egresoError) throw egresoError;
+
+        // 5. Borrar documento del Storage si existe
+        if (egreso.document_url) {
+            try {
+                const urlParts = egreso.document_url.split('/receipt-documents/');
+                if (urlParts.length > 1) {
+                    const filePath = urlParts[1];
+                    await supabase.storage.from('receipt-documents').remove([filePath]);
+                    console.log(`[STORAGE] Archivo de egreso eliminado tras finalizar: ${filePath}`);
+                }
+                // Limpiar la URL en la BD
+                await supabase.from('egresos').update({ document_url: null }).eq('id', id);
+            } catch (err) {
+                console.error('[STORAGE DELETE FAIL]', err);
+            }
+        }
 
         res.json({ message: 'Egreso finalizado y cantidades completadas', egreso });
     } catch (error) {

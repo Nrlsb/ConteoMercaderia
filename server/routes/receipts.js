@@ -258,9 +258,38 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('receipts'), async (req
 router.put('/:id/close', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
+        // 1. Obtener la URL del documento antes de finalizar para borrarlo
+        const { data: receipt } = await supabase
+            .from('receipts')
+            .select('document_url')
+            .eq('id', id)
+            .single();
+
+        if (receipt?.document_url) {
+            try {
+                // Extraer el path del bucket desde la URL
+                // Ejemplo URL: https://.../storage/v1/object/public/receipt-documents/scans/ID/TIME.pdf
+                const urlParts = receipt.document_url.split('/receipt-documents/');
+                if (urlParts.length > 1) {
+                    const filePath = urlParts[1];
+                    const { error: deleteError } = await supabase.storage
+                        .from('receipt-documents')
+                        .remove([filePath]);
+                    
+                    if (deleteError) console.error('[STORAGE DELETE ERROR]', deleteError);
+                    else console.log(`[STORAGE] Archivo eliminado: ${filePath}`);
+                }
+            } catch (err) {
+                console.error('[STORAGE DELETE FAIL]', err);
+            }
+        }
+
         const { data, error } = await supabase
             .from('receipts')
-            .update({ status: 'finalized' })
+            .update({ 
+                status: 'finalized',
+                document_url: null // Limpiar la URL una vez borrado el archivo
+            })
             .eq('id', id)
             .select();
 
@@ -907,6 +936,38 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             .single();
 
         if (receiptError) throw receiptError;
+
+        // 3.5 Opcionalmente guardar el primer PDF en Storage para referencia
+        if (pdfFiles.length > 0) {
+            try {
+                const firstPdf = pdfFiles[0];
+                const fileExt = 'pdf';
+                const fileName = `${receipt.id}/${Date.now()}.${fileExt}`;
+                const filePath = `uploads/${fileName}`;
+
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('receipt-documents')
+                    .upload(filePath, firstPdf.buffer, {
+                        contentType: 'application/pdf',
+                        upsert: true
+                    });
+
+                if (!uploadError) {
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('receipt-documents')
+                        .getPublicUrl(filePath);
+                    
+                    await supabase
+                        .from('receipts')
+                        .update({ document_url: publicUrl })
+                        .eq('id', receipt.id);
+                    
+                    console.log(`[RECEIPT PDF] Documento guardado en Storage: ${publicUrl}`);
+                }
+            } catch (err) {
+                console.error('[RECEIPT PDF] Error al guardar PDF en Storage:', err);
+            }
+        }
 
         // Product Matching Logic according to Type
         const results = { success: [], failed: [] };

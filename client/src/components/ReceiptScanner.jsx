@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { toast } from 'sonner';
 
-const ReceiptScanner = ({ onScanComplete, onClose }) => {
+const ReceiptScanner = ({ onScanComplete, onClose, receiptId }) => {
     const [capturedImages, setCapturedImages] = useState([]); // Array of { base64, format }
     const [parsedItems, setParsedItems] = useState([]);
     const [isScanning, setIsScanning] = useState(false);
@@ -108,13 +108,16 @@ const ReceiptScanner = ({ onScanComplete, onClose }) => {
                 const blob = await (await fetch(`data:image/${img.format};base64,${img.base64}`)).blob();
                 const formData = new FormData();
                 formData.append('image', blob, `página_${i + 1}.${img.format}`);
+                if (receiptId) formData.append('receiptId', receiptId);
 
                 const response = await api.post('/api/ai/parse-image', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
-                if (response.data && response.data.length > 0) {
-                    const itemsWithSource = response.data.map(item => ({
+                const data = response.data.items || response.data; // Compatibilidad con cambio en backend
+
+                if (data && data.length > 0) {
+                    const itemsWithSource = data.map(item => ({
                         ...item,
                         fileName: img.isGallery ? 'Galería' : 'Cámara'
                     }));
