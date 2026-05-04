@@ -648,7 +648,7 @@ router.put('/:id/items/:productCode/reason', verifyToken, verifyBranchAccess('eg
 router.put('/:id/close', verifyToken, hasPermission('close_egresos'), verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
     try {
-        // 1. Borrar documento del Storage si existe
+        // 1. Borrar documentos del Storage si existen
         const { data: egresoData } = await supabase
             .from('egresos')
             .select('document_url')
@@ -657,11 +657,21 @@ router.put('/:id/close', verifyToken, hasPermission('close_egresos'), verifyBran
 
         if (egresoData?.document_url) {
             try {
-                const urlParts = egresoData.document_url.split('/receipt-documents/');
-                if (urlParts.length > 1) {
-                    const filePath = urlParts[1];
-                    await supabase.storage.from('receipt-documents').remove([filePath]);
-                    console.log(`[STORAGE] Archivo de egreso eliminado: ${filePath}`);
+                let urls = [];
+                try {
+                    const parsed = JSON.parse(egresoData.document_url);
+                    urls = Array.isArray(parsed) ? parsed : [egresoData.document_url];
+                } catch (e) {
+                    urls = [egresoData.document_url];
+                }
+
+                for (const url of urls) {
+                    const urlParts = url.split('/receipt-documents/');
+                    if (urlParts.length > 1) {
+                        const filePath = urlParts[1];
+                        await supabase.storage.from('receipt-documents').remove([filePath]);
+                        console.log(`[STORAGE] Archivo de egreso eliminado: ${filePath}`);
+                    }
                 }
             } catch (err) {
                 console.error('[STORAGE DELETE FAIL]', err);
@@ -756,14 +766,24 @@ router.put('/:id/finalize', verifyToken, verifyAdmin, verifyBranchAccess('egreso
 
         if (egresoError) throw egresoError;
 
-        // 5. Borrar documento del Storage si existe
+        // 5. Borrar documentos del Storage si existen
         if (egreso.document_url) {
             try {
-                const urlParts = egreso.document_url.split('/receipt-documents/');
-                if (urlParts.length > 1) {
-                    const filePath = urlParts[1];
-                    await supabase.storage.from('receipt-documents').remove([filePath]);
-                    console.log(`[STORAGE] Archivo de egreso eliminado tras finalizar: ${filePath}`);
+                let urls = [];
+                try {
+                    const parsed = JSON.parse(egreso.document_url);
+                    urls = Array.isArray(parsed) ? parsed : [egreso.document_url];
+                } catch (e) {
+                    urls = [egreso.document_url];
+                }
+
+                for (const url of urls) {
+                    const urlParts = url.split('/receipt-documents/');
+                    if (urlParts.length > 1) {
+                        const filePath = urlParts[1];
+                        await supabase.storage.from('receipt-documents').remove([filePath]);
+                        console.log(`[STORAGE] Archivo de egreso eliminado tras finalizar: ${filePath}`);
+                    }
                 }
                 // Limpiar la URL en la BD
                 await supabase.from('egresos').update({ document_url: null }).eq('id', id);

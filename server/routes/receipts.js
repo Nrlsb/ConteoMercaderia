@@ -258,7 +258,7 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('receipts'), async (req
 router.put('/:id/close', verifyToken, hasPermission('close_ingresos'), verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
     try {
-        // 1. Obtener la URL del documento antes de finalizar para borrarlo
+        // 1. Borrar documentos del Storage si existen
         const { data: receipt } = await supabase
             .from('receipts')
             .select('document_url')
@@ -267,17 +267,25 @@ router.put('/:id/close', verifyToken, hasPermission('close_ingresos'), verifyBra
 
         if (receipt?.document_url) {
             try {
-                // Extraer el path del bucket desde la URL
-                // Ejemplo URL: https://.../storage/v1/object/public/receipt-documents/scans/ID/TIME.pdf
-                const urlParts = receipt.document_url.split('/receipt-documents/');
-                if (urlParts.length > 1) {
-                    const filePath = urlParts[1];
-                    const { error: deleteError } = await supabase.storage
-                        .from('receipt-documents')
-                        .remove([filePath]);
-                    
-                    if (deleteError) console.error('[STORAGE DELETE ERROR]', deleteError);
-                    else console.log(`[STORAGE] Archivo eliminado: ${filePath}`);
+                let urls = [];
+                try {
+                    const parsed = JSON.parse(receipt.document_url);
+                    urls = Array.isArray(parsed) ? parsed : [receipt.document_url];
+                } catch (e) {
+                    urls = [receipt.document_url];
+                }
+
+                for (const url of urls) {
+                    const urlParts = url.split('/receipt-documents/');
+                    if (urlParts.length > 1) {
+                        const filePath = urlParts[1];
+                        const { error: deleteError } = await supabase.storage
+                            .from('receipt-documents')
+                            .remove([filePath]);
+                        
+                        if (deleteError) console.error('[STORAGE DELETE ERROR]', deleteError);
+                        else console.log(`[STORAGE] Archivo eliminado: ${filePath}`);
+                    }
                 }
             } catch (err) {
                 console.error('[STORAGE DELETE FAIL]', err);
