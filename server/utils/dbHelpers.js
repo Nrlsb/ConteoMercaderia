@@ -1,7 +1,7 @@
 const supabase = require('../services/supabaseClient');
 
 // Helper to record barcode history
-async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, description = 'Actualización de producto', customActionType = null) {
+async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, description = 'Actualización de producto') {
     // Treat empty strings or dashes as null/empty
     const normalize = (val) => (val && val.trim() !== '' && !/^[-_]+$/.test(val.trim())) ? val.trim() : null;
 
@@ -11,7 +11,7 @@ async function recordBarcodeHistory(productId, oldBarcode, newBarcode, userId, d
     if (oldB === newB) return;
 
     try {
-        const actionType = customActionType || (oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE');
+        const actionType = oldB ? 'UPDATE_BARCODE' : 'ADD_BARCODE';
         const details = oldB ? `De ${oldB} a ${newB || '(vacío)'}` : `Código inicial: ${newB}`;
 
         // Salvaguarda contra duplicados rápidos (clicks múltiples o reconexiones)
@@ -83,22 +83,22 @@ async function getAllBarcodeHistory(filters = {}) {
             }
         }
         if (filters.user_id) {
-            const userIds = Array.isArray(filters.user_id) 
-                ? filters.user_id 
-                : typeof filters.user_id === 'string' 
+            const userIds = Array.isArray(filters.user_id)
+                ? filters.user_id
+                : typeof filters.user_id === 'string'
                     ? filters.user_id.split(',').filter(id => id.trim() !== '')
                     : [filters.user_id];
-            
+
             if (userIds.length > 0) {
                 query = query.in('created_by', userIds);
             }
         }
-        
+
         if (filters.productCode) {
             const pCode = filters.productCode.trim();
             query = query.or(`product_description.ilike.%${pCode}%,products(code).ilike.%${pCode}%`);
         }
-        
+
         if (filters.startDate) {
             query = query.gte('created_at', `${filters.startDate}T00:00:00.000Z`);
         }
@@ -107,7 +107,7 @@ async function getAllBarcodeHistory(filters = {}) {
         }
 
         const { data, error } = await query.range(from, from + step - 1);
-        
+
         if (error) {
             console.error('Error in getAllBarcodeHistory batch:', error);
             throw error;
@@ -141,17 +141,17 @@ async function getAllBarcodeHistory(filters = {}) {
  */
 async function fetchProductsByCodes(codes) {
     if (!codes || codes.length === 0) return [];
-    
+
     let allData = [];
     const chunkSize = 500; // conservative chunk size for .in() filters
-    
+
     for (let i = 0; i < codes.length; i += chunkSize) {
         const chunk = codes.slice(i, i + chunkSize);
         const { data, error } = await supabase
             .from('products')
             .select('code, description, excel_order, provider_code')
             .in('code', chunk);
-            
+
         if (error) throw error;
         if (data) allData = allData.concat(data);
     }
@@ -212,7 +212,7 @@ async function findProductByAnyCode(inputCode, type = 'any') {
                 .select('*')
                 .ilike('provider_description', `%${cleanDesc}%`)
                 .limit(1);
-            
+
             if (matches && matches.length > 0) return matches[0];
         }
 

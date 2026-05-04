@@ -24,7 +24,7 @@
   .glass-nav {
     @apply backdrop-blur-md bg-nav-glass border-b border-white/10;
   }
-  
+
   .nav-item-active {
     background: linear-gradient(135deg, var(--color-nav-active-grad-start), var(--color-nav-active-grad-end));
     @apply shadow-lg shadow-blue-900/40;
@@ -33,6 +33,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -94,13 +95,27 @@ html.barcode-scanner-active body {
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-in {
@@ -113,9 +128,4 @@ html.barcode-scanner-active body {
 
 .duration-700 {
   animation-duration: 700ms;
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(10px); }
-  to { opacity: 1; transform: translateX(0); }
 }
