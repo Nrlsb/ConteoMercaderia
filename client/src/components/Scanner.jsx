@@ -115,6 +115,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     const moduleCheckedRef = useRef(false);
     const nativeScanActiveRef = useRef(false);
     const nativeListenerRef = useRef(null);
+    const isStoppingRef = useRef(false);
 
     // Ref to always have the latest onScan prop available inside stale callbacks
     const onScanRef = useRef(onScan);
@@ -147,15 +148,21 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     useEffect(() => {
         isPausedRef.current = isPaused;
         
-        // Auto-restart if unpaused and scanner was stopped by a sub-component
-        if (!isPaused && isEnabled) {
-            if (isNative && !nativeScanActiveRef.current) {
-                startScanning();
-            } else if (!isNative && scannerRef.current && scannerRef.current.getState && scannerRef.current.getState() !== 2) {
-                // html5-qrcode state 2 means SCANNING
+        const manageCamera = async () => {
+            if (isPaused) {
+                // Si se pausa, detenemos la cámara pero conservamos el estado de "isScanning" 
+                // para saber que debemos reanudar luego.
+                // Sin embargo, para evitar conflictos de hardware, detenemos el proceso nativo.
+                if (nativeScanActiveRef.current || (scannerRef.current && scannerRef.current.isScanning)) {
+                    await stopScanning(false); // Limpiar CSS para que la app se vea sólida detrás del modal
+                }
+            } else if (isEnabled && !isScanning && !isStoppingRef.current) {
+                // Si se despausa y debería estar escaneando, reiniciamos.
                 startScanning();
             }
-        }
+        };
+
+        manageCamera();
     }, [isPaused, isEnabled, isNative]);
 
     // --- EFFECT: Lifecycle Management ---
@@ -193,6 +200,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     // --- FUNCTION: Stop Scanning ---
     // skipCSSCleanup: si es true, NO limpia las clases CSS (se delegará al useEffect cleanup)
     const stopScanning = async (skipCSSCleanup = false) => {
+        isStoppingRef.current = true;
         setIsScanning(false);
         setDetectedCode(null);
         detectedCodeRef.current = null;
@@ -237,6 +245,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
         if (!skipCSSCleanup) {
             cleanupScannerCSS();
         }
+        isStoppingRef.current = false;
     };
 
     // --- STRATEGY: Native (Capacitor ML Kit) con startScan() ---
@@ -294,7 +303,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
             // 6. Iniciar escaneo continuo (la cámara se ve detrás de la WebView)
             await BarcodeScanner.startScan({
                 formats: [
-                    'EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E', 'CODE_39'
+                    'EAN_13', 'EAN_8', 'CODE_128', 'UPC_A', 'UPC_E', 'CODE_39', 'ITF', 'CODE_93'
                 ]
             });
 
@@ -353,6 +362,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
         // y el useEffect cleanup se encargará de limpiar las clases CSS.
         // Esto evita que la envoltoria del padre (con fondo negro/blanco) se muestre
         // brevemente antes de desmontarse.
+        isStoppingRef.current = true;
         try {
             if (nativeListenerRef.current) {
                 await nativeListenerRef.current.remove();
@@ -619,7 +629,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
                 )}
             </div>
 
-            {isScanning && !isPaused && ReactDOM.createPortal(
+            {isScanning && ReactDOM.createPortal(
                 <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 2000 }}>
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button

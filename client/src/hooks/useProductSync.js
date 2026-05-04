@@ -72,7 +72,7 @@ export const useProductSync = () => {
         const normalized = code.trim().toLowerCase();
         const original = code.trim();
 
-        if (type === 'barcode') return await db.products.where('barcode').equalsIgnoreCase(normalized).first();
+        if (type === 'barcode') return await db.products.where('barcode').equalsIgnoreCase(normalized).first() || await db.products.where('barcode_secondary').equalsIgnoreCase(normalized).first();
         if (type === 'internal') return await db.products.where('code').equalsIgnoreCase(normalized).first();
         if (type === 'provider') return await db.products.where('provider_code').equalsIgnoreCase(normalized).first();
 
@@ -81,6 +81,8 @@ export const useProductSync = () => {
         if (looksLikeBarcode) {
             const byBarcode = await db.products.where('barcode').equalsIgnoreCase(normalized).first();
             if (byBarcode) return byBarcode;
+            const bySecondary = await db.products.where('barcode_secondary').equalsIgnoreCase(normalized).first();
+            if (bySecondary) return bySecondary;
             return await db.products.where('code').equalsIgnoreCase(normalized).first();
         }
 
@@ -89,6 +91,8 @@ export const useProductSync = () => {
         if (byCode) return byCode;
         const byBarcode = await db.products.where('barcode').equalsIgnoreCase(normalized).first();
         if (byBarcode) return byBarcode;
+        const bySecondary = await db.products.where('barcode_secondary').equalsIgnoreCase(normalized).first();
+        if (bySecondary) return bySecondary;
         return await db.products.where('provider_code').equalsIgnoreCase(normalized).first();
     }, []);
 
@@ -110,7 +114,8 @@ export const useProductSync = () => {
             }
             if (type === 'any' || type === 'barcode') {
                 const inner = await collection.where('barcode').startsWithIgnoreCase(firstTerm).limit(50).toArray();
-                results = [...results, ...inner];
+                const secondary = await collection.where('barcode_secondary').startsWithIgnoreCase(firstTerm).limit(50).toArray();
+                results = [...results, ...inner, ...secondary];
             }
             if (type === 'any' || type === 'provider') {
                 const inner = await collection.where('provider_code').startsWithIgnoreCase(firstTerm).limit(50).toArray();
@@ -191,6 +196,12 @@ export const useProductSync = () => {
                     score += 5;
                     termMatched = true;
                     if (barcode === term) score += 45;
+                }
+                const barcodeSec = normalizeText(p.barcode_secondary || '');
+                if (barcodeSec.includes(term)) {
+                    score += 5;
+                    termMatched = true;
+                    if (barcodeSec === term) score += 45;
                 }
                 if (provCode.includes(term)) {
                     score += 10;

@@ -22,6 +22,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
     const [currentSecondaryBarcode, setCurrentSecondaryBarcode] = useState('');
     const [isUpdatingSecondaryBarcode, setIsUpdatingSecondaryBarcode] = useState(false);
     const [isScanningSecondaryBarcode, setIsScanningSecondaryBarcode] = useState(false);
+    const [showBarcodes, setShowBarcodes] = useState(false);
 
     const inputRef = useRef(null);
     const barcodeRef = useRef(null);
@@ -66,6 +67,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
             setSelectedUnit('primary');
             setIsScanningBarcode(false);
             setIsScanningSecondaryBarcode(false);
+            setShowBarcodes(false);
             // Focus input inmediatamente en el siguiente frame de pintura
             requestAnimationFrame(() => {
                 if (inputRef.current) {
@@ -248,138 +250,162 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                     <span className="text-sm text-gray-700 font-mono bg-gray-100 inline-block px-2 py-0.5 rounded">{product.code}</span>
                                 </div>
 
-                                {/* Barcode Edit Section */}
-                                <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Código de Barras (Escaneable)</label>
+                                {/* Barcode Collapsible Section */}
+                                <div className="mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBarcodes(!showBarcodes)}
+                                        className="flex items-center justify-between w-full p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <svg className={`w-4 h-4 text-brand-blue transition-transform duration-200 ${showBarcodes ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Gestión de Códigos</span>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            {currentBarcode && <span className="w-2 h-2 rounded-full bg-brand-success shadow-[0_0_5px_rgba(16,185,129,0.5)]"></span>}
+                                            {currentSecondaryBarcode && <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"></span>}
+                                        </div>
+                                    </button>
 
-                                    {isEditingBarcode ? (
-                                        <div className="flex gap-2">
-                                            <input
-                                                ref={barcodeRef}
-                                                type="text"
-                                                value={barcodeInput}
-                                                onChange={(e) => setBarcodeInput(e.target.value)}
-                                                className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none text-sm"
-                                                placeholder="Escanear o tipear código..."
-                                                disabled={isUpdatingBarcode}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsScanningBarcode(true)}
-                                                disabled={isUpdatingBarcode}
-                                                className="p-2 bg-brand-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                                                title="Escanear con cámara"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleUpdateBarcode}
-                                                disabled={isUpdatingBarcode}
-                                                className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
-                                            >
-                                                {isUpdatingBarcode ? '...' : 'Guardar'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setIsEditingBarcode(false);
-                                                    setBarcodeInput(currentBarcode);
-                                                }}
-                                                disabled={isUpdatingBarcode}
-                                                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors"
-                                            >
-                                                Cancelar
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between">
-                                            <div className="text-sm font-bold text-gray-900 font-mono">
-                                                {currentBarcode ? currentBarcode : <span className="text-gray-400 italic">Sin código de barras</span>}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setIsEditingBarcode(true);
-                                                    setTimeout(() => barcodeRef.current?.focus(), 50);
-                                                }}
-                                                className="p-1.5 text-brand-blue hover:bg-blue-50 rounded-md transition-colors"
-                                                title="Editar código de barras"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                {/* Secondary Barcode Edit Section */}
-                                <div className="mt-2 p-3 bg-blue-50/30 rounded-lg border border-blue-100">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Código Secundario (Bulto/Caja)</label>
+                                    {showBarcodes && (
+                                        <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {/* Barcode Edit Section */}
+                                            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Código de Barras (Escaneable)</label>
 
-                                    {isEditingSecondaryBarcode ? (
-                                        <div className="flex gap-2">
-                                            <input
-                                                ref={secondaryBarcodeRef}
-                                                type="text"
-                                                value={secondaryBarcodeInput}
-                                                onChange={(e) => setSecondaryBarcodeInput(e.target.value)}
-                                                className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none text-sm"
-                                                placeholder="Escanear bulto..."
-                                                disabled={isUpdatingSecondaryBarcode}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsScanningSecondaryBarcode(true)}
-                                                disabled={isUpdatingSecondaryBarcode}
-                                                className="p-2 bg-brand-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleUpdateSecondaryBarcode}
-                                                disabled={isUpdatingSecondaryBarcode}
-                                                className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
-                                            >
-                                                {isUpdatingSecondaryBarcode ? '...' : 'Guardar'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setIsEditingSecondaryBarcode(false);
-                                                    setSecondaryBarcodeInput(currentSecondaryBarcode);
-                                                }}
-                                                disabled={isUpdatingSecondaryBarcode}
-                                                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between">
-                                            <div className="text-sm font-bold text-gray-900 font-mono">
-                                                {currentSecondaryBarcode ? currentSecondaryBarcode : <span className="text-gray-400 italic">No asociado</span>}
+                                                {isEditingBarcode ? (
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            ref={barcodeRef}
+                                                            type="text"
+                                                            value={barcodeInput}
+                                                            onChange={(e) => setBarcodeInput(e.target.value)}
+                                                            className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none text-sm"
+                                                            placeholder="Escanear o tipear código..."
+                                                            disabled={isUpdatingBarcode}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsScanningBarcode(true)}
+                                                            disabled={isUpdatingBarcode}
+                                                            className="p-2 bg-brand-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                                            title="Escanear con cámara"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleUpdateBarcode}
+                                                            disabled={isUpdatingBarcode}
+                                                            className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {isUpdatingBarcode ? '...' : 'Guardar'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingBarcode(false);
+                                                                setBarcodeInput(currentBarcode);
+                                                            }}
+                                                            disabled={isUpdatingBarcode}
+                                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="text-sm font-bold text-gray-900 font-mono">
+                                                            {currentBarcode ? currentBarcode : <span className="text-gray-400 italic">Sin código de barras</span>}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingBarcode(true);
+                                                                setTimeout(() => barcodeRef.current?.focus(), 50);
+                                                            }}
+                                                            className="p-1.5 text-brand-blue hover:bg-blue-50 rounded-md transition-colors"
+                                                            title="Editar código de barras"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setIsEditingSecondaryBarcode(true);
-                                                    setTimeout(() => secondaryBarcodeRef.current?.focus(), 50);
-                                                }}
-                                                className="p-1.5 text-brand-blue hover:bg-blue-100 rounded-md transition-colors"
-                                                title="Editar código secundario"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                </svg>
-                                            </button>
+                                            {/* Secondary Barcode Edit Section */}
+                                            <div className="p-3 bg-blue-50/30 rounded-lg border border-blue-100">
+                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Código Secundario (Bulto/Caja)</label>
+
+                                                {isEditingSecondaryBarcode ? (
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            ref={secondaryBarcodeRef}
+                                                            type="text"
+                                                            value={secondaryBarcodeInput}
+                                                            onChange={(e) => setSecondaryBarcodeInput(e.target.value)}
+                                                            className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none text-sm"
+                                                            placeholder="Escanear bulto..."
+                                                            disabled={isUpdatingSecondaryBarcode}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsScanningSecondaryBarcode(true)}
+                                                            disabled={isUpdatingSecondaryBarcode}
+                                                            className="p-2 bg-brand-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleUpdateSecondaryBarcode}
+                                                            disabled={isUpdatingSecondaryBarcode}
+                                                            className="px-3 py-2 bg-brand-success text-white rounded-lg text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {isUpdatingSecondaryBarcode ? '...' : 'Guardar'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingSecondaryBarcode(false);
+                                                                setSecondaryBarcodeInput(currentSecondaryBarcode);
+                                                            }}
+                                                            disabled={isUpdatingSecondaryBarcode}
+                                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="text-sm font-bold text-gray-900 font-mono">
+                                                            {currentSecondaryBarcode ? currentSecondaryBarcode : <span className="text-gray-400 italic">No asociado</span>}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingSecondaryBarcode(true);
+                                                                setTimeout(() => secondaryBarcodeRef.current?.focus(), 50);
+                                                            }}
+                                                            className="p-1.5 text-brand-blue hover:bg-blue-100 rounded-md transition-colors"
+                                                            title="Editar código secundario"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -514,7 +540,7 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
 
             {/* Barcode Scanner Overlay */}
             {isScanningBarcode && (
-                <div className="fixed inset-0 z-[100] bg-transparent flex flex-col">
+                <div className="fixed inset-0 z-[2100] bg-transparent flex flex-col">
                     <div className="flex-1 relative">
                         <Scanner
                             onScan={(code) => {

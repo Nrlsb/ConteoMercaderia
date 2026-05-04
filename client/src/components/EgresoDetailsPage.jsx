@@ -83,6 +83,7 @@ const EgresoDetailsPage = () => {
 
             const code = (item.product_code || '').toLowerCase();
             const barcode = (item.products?.barcode || item.barcode || '').toLowerCase();
+            const barcodeSec = (item.products?.barcode_secondary || '').toLowerCase();
 
             if (code) {
                 if (!map.has(code)) map.set(code, []);
@@ -91,6 +92,10 @@ const EgresoDetailsPage = () => {
             if (barcode && barcode !== code) {
                 if (!map.has(barcode)) map.set(barcode, []);
                 map.get(barcode).push(item);
+            }
+            if (barcodeSec && barcodeSec !== code && barcodeSec !== barcode) {
+                if (!map.has(barcodeSec)) map.set(barcodeSec, []);
+                map.get(barcodeSec).push(item);
             }
         });
         return map;
@@ -422,65 +427,72 @@ const EgresoDetailsPage = () => {
         // Ruta lenta: necesita búsqueda adicional
         setProcessing(true);
 
-        // 2. Intelligent Search (If no exact match, search by terms - Fallback)
-        if (matchingItems.length === 0) {
-            const searchTerms = lowerCode.split(/\s+/);
-            matchingItems = items.filter(i => {
-                if (!(Number(i.expected_quantity) > 0)) return false;
+        try {
+            // 2. Intelligent Search (If no exact match, search by terms - Fallback)
+            if (matchingItems.length === 0) {
+                const searchTerms = lowerCode.split(/\s+/);
+                matchingItems = items.filter(i => {
+                    if (!(Number(i.expected_quantity) > 0)) return false;
 
-                const desc = (i.products?.description || '').toLowerCase();
-                const icode = (i.product_code || '').toLowerCase();
-                const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
-                return searchTerms.every(term =>
-                    desc.includes(term) || icode.includes(term) || barcode.includes(term)
-                );
-            });
-        }
-
-        if (matchingItems.length === 1) {
-            setScanInput('');
-            processProductSelection({
-                code: matchingItems[0].product_code,
-                description: matchingItems[0].products?.description || 'Producto',
-                barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || '',
-                secondary_unit: matchingItems[0].products?.secondary_unit || null,
-                primary_unit: matchingItems[0].products?.primary_unit || null,
-                conversion_factor: matchingItems[0].products?.conversion_factor || null,
-                conversion_type: matchingItems[0].products?.conversion_type || null,
-            });
-        } else if (matchingItems.length > 1) {
-            setScanInput('');
-            setMultipleMatches(matchingItems.map(i => ({
-                id: i.id || i.product_code,
-                code: i.product_code,
-                description: i.products?.description || 'Producto',
-                barcode: i.products?.barcode || i.barcode || '',
-                secondary_unit: i.products?.secondary_unit || null,
-                primary_unit: i.products?.primary_unit || null,
-                conversion_factor: i.products?.conversion_factor || null,
-                conversion_type: i.products?.conversion_type || null,
-            })));
-            setShowMatchModal(true);
-        } else {
-            // Fallback: Check local catalog — cache first, then smart single IndexedDB call
-            const lowerFallback = code.toLowerCase();
-            let localProduct = productCacheRef.current.get(lowerFallback);
-            if (!localProduct) {
-                localProduct = await getProductByCode(code);
-                if (localProduct) productCacheRef.current.set(lowerFallback, localProduct);
+                    const desc = (i.products?.description || '').toLowerCase();
+                    const icode = (i.product_code || '').toLowerCase();
+                    const barcode = (i.products?.barcode || i.barcode || '').toLowerCase();
+                    const barcodeSec = (i.products?.barcode_secondary || '').toLowerCase();
+                    return searchTerms.every(term =>
+                        desc.includes(term) || icode.includes(term) || barcode.includes(term) || barcodeSec.includes(term)
+                    );
+                });
             }
-            if (localProduct) {
-                const errorMsg = `El producto "${localProduct.description}" (${code}) no forma parte de este remito de egreso.`;
-                toast.error(errorMsg, { duration: 4000 });
-                setScanStatus({ type: 'error', message: errorMsg });
+
+            if (matchingItems.length === 1) {
+                setScanInput('');
+                processProductSelection({
+                    code: matchingItems[0].product_code,
+                    description: matchingItems[0].products?.description || 'Producto',
+                    barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || '',
+                    secondary_unit: matchingItems[0].products?.secondary_unit || null,
+                    primary_unit: matchingItems[0].products?.primary_unit || null,
+                    conversion_factor: matchingItems[0].products?.conversion_factor || null,
+                    conversion_type: matchingItems[0].products?.conversion_type || null,
+                });
+            } else if (matchingItems.length > 1) {
+                setScanInput('');
+                setMultipleMatches(matchingItems.map(i => ({
+                    id: i.id || i.product_code,
+                    code: i.product_code,
+                    description: i.products?.description || 'Producto',
+                    barcode: i.products?.barcode || i.barcode || '',
+                    secondary_unit: i.products?.secondary_unit || null,
+                    primary_unit: i.products?.primary_unit || null,
+                    conversion_factor: i.products?.conversion_factor || null,
+                    conversion_type: i.products?.conversion_type || null,
+                })));
+                setShowMatchModal(true);
             } else {
-                const errorMsg = `El producto "${code}" no fue encontrado como código interno ni barras.`;
-                toast.error(errorMsg, { duration: 4000 });
-                setScanStatus({ type: 'error', message: errorMsg });
+                // Fallback: Check local catalog — cache first, then smart single IndexedDB call
+                const lowerFallback = code.toLowerCase();
+                let localProduct = productCacheRef.current.get(lowerFallback);
+                if (!localProduct) {
+                    localProduct = await getProductByCode(code);
+                    if (localProduct) productCacheRef.current.set(lowerFallback, localProduct);
+                }
+                if (localProduct) {
+                    const errorMsg = `El producto "${localProduct.description}" (${code}) no forma parte de este remito de egreso.`;
+                    toast.error(errorMsg, { duration: 4000 });
+                    setScanStatus({ type: 'error', message: errorMsg });
+                } else {
+                    const errorMsg = `El producto "${code}" no fue encontrado como código interno ni barras.`;
+                    toast.error(errorMsg, { duration: 4000 });
+                    setScanStatus({ type: 'error', message: errorMsg });
+                }
+                setScanInput('');
             }
-            setScanInput('');
+        } catch (error) {
+            console.error('Error in handleScan:', error);
+            toast.error('Error al procesar el escaneo');
+        } finally {
+            setProcessing(false);
         }
-        setProcessing(false);
     };
 
     const handleFichajeConfirm = async (quantityToAdd) => {

@@ -430,6 +430,7 @@ router.get('/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) 
                     brand,
                     code,
                     barcode,
+                    barcode_secondary,
                     provider_code
                 )
             `)
@@ -463,6 +464,12 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req,
             // Try barcode
             const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
             if (pBar) productCode = pBar.code;
+        }
+
+        if (!productCode) {
+            // Try secondary barcode
+            const { data: pSec } = await supabase.from('products').select('code').eq('barcode_secondary', code).maybeSingle();
+            if (pSec) productCode = pSec.code;
         }
 
         if (!productCode) {
