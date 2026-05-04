@@ -29,11 +29,7 @@ const EgresoDetailsPage = () => {
     const [activeTab, setActiveTab] = useState('control');
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [scanStatus, setScanStatus] = useState(null);
-    const [showScanner, setShowScanner] = useState(false);
-    const [isBulkImporting, setIsBulkImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
-    const [uploadingPdf, setUploadingPdf] = useState(false);
-    const pdfInputRef = useRef(null);
+
 
     // Local DB Sync
     const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -192,32 +188,7 @@ const EgresoDetailsPage = () => {
         }
     }, []);
 
-    const handlePdfUpload = async (e) => {
-        const files = Array.from(e.target.files);
-        if (files.length === 0) return;
 
-        setUploadingPdf(true);
-        const toastId = toast.loading('Subiendo documentos...');
-
-        try {
-            const formData = new FormData();
-            files.forEach(file => {
-                formData.append('pdf', file);
-            });
-            formData.append('existingEgresoId', id);
-
-            await api.post('/api/egresos/upload-pdf', formData);
-            
-            toast.success('Documentos vinculados correctamente', { id: toastId });
-            await fetchEgresoDetails();
-        } catch (error) {
-            console.error('Error uploading PDF:', error);
-            toast.error(error.response?.data?.message || 'Error al subir los archivos', { id: toastId });
-        } finally {
-            setUploadingPdf(false);
-            if (pdfInputRef.current) pdfInputRef.current.value = '';
-        }
-    };
 
     const fetchEgresoDetails = async () => {
         try {
@@ -787,39 +758,7 @@ const EgresoDetailsPage = () => {
         }
     };
 
-    const handleScanComplete = async (scannedItems) => {
-        setIsBulkImporting(true);
-        setImportProgress({ current: 0, total: scannedItems.length });
-        let successCount = 0;
-        let failCount = 0;
 
-        for (let i = 0; i < scannedItems.length; i++) {
-            const item = scannedItems[i];
-            try {
-                await api.post(`/api/egresos/${id}/scan`, {
-                    code: item.code,
-                    quantity: item.quantity
-                });
-                successCount++;
-            } catch (error) {
-                console.error(`Error importing egreso item ${item.code}:`, error);
-                failCount++;
-            }
-            setImportProgress({ current: i + 1, total: scannedItems.length });
-        }
-
-        if (successCount > 0) {
-            toast.success(`¡Listo! ${successCount} productos controlados.`);
-        }
-
-        if (failCount > 0) {
-            toast.error(`${failCount} fallaron al importar (posiblemente no están en el remito o exceden cantidad)`);
-        }
-
-        await fetchEgresoDetails();
-        setIsBulkImporting(false);
-        setShowScanner(false);
-    };
 
     const handlePrintDifferences = () => {
         const hasDifferences = items.some(item => {
@@ -1002,33 +941,7 @@ const EgresoDetailsPage = () => {
                             <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                             Dif.
                         </button>
-                        {egreso.status !== 'finalized' && (
-                            <div className="flex gap-2 w-full sm:w-auto">
-                                <input
-                                    type="file"
-                                    accept=".pdf"
-                                    multiple
-                                    className="hidden"
-                                    ref={pdfInputRef}
-                                    onChange={handlePdfUpload}
-                                />
-                                <button
-                                    onClick={() => pdfInputRef.current.click()}
-                                    disabled={uploadingPdf}
-                                    className="flex-1 sm:flex-none px-6 py-2.5 bg-white border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                    {uploadingPdf ? 'Subiendo...' : 'Subir PDF'}
-                                </button>
-                                <button
-                                    onClick={() => setShowScanner(true)}
-                                    className="flex-1 sm:flex-none px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition-all"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                    Escanear
-                                </button>
-                            </div>
-                        )}
+
                         {egreso.status !== 'finalized' ? (
                             <div className="flex gap-2">
                                 {canAdminFinalize && (
@@ -1736,34 +1649,6 @@ const EgresoDetailsPage = () => {
                             >
                                 Cancelar
                             </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {showScanner && (
-                <ReceiptScanner
-                    onClose={() => setShowScanner(false)}
-                    onScanComplete={handleScanComplete}
-                    egresoId={id}
-                />
-            )}
-
-            {isBulkImporting && ReactDOM.createPortal(
-                <div className="fixed inset-0 z-[2000] bg-black bg-opacity-75 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full text-center">
-                        <div className="w-16 h-16 border-4 border-blue-100 border-t-brand-blue rounded-full animate-spin mb-6"></div>
-                        <h2 className="text-xl font-bold text-gray-900 mb-2">Cargando Productos</h2>
-                        <p className="text-sm text-gray-500 mb-6">
-                            Por favor espera, guardando en la base de datos...<br />
-                            ({importProgress.current} de {importProgress.total})
-                        </p>
-                        <div className="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden">
-                            <div
-                                className="bg-brand-blue h-full rounded-full transition-all duration-300"
-                                style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
-                            ></div>
                         </div>
                     </div>
                 </div>,
