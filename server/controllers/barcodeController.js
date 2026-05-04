@@ -47,12 +47,18 @@ exports.getBarcodeHistory = async (req, res) => {
             const pCode = productCode.trim();
             
             // Step 1: Find products that match by code or barcode
-            const { data: matchedProducts } = await supabase
+            const { data: matchedProducts, error: matchError } = await supabase
                 .from('products')
                 .select('id')
-                .or(`code.ilike.%${pCode}%,barcode.ilike.%${pCode}%`);
+                .or(`code.ilike.%${pCode}%,barcode.ilike.%${pCode}%`)
+                .limit(200);
             
-            const productIds = matchedProducts?.map(p => p.id) || [];
+            if (matchError) {
+                console.error('Error matching products for filter:', matchError);
+                // Don't throw, just log and continue with description match only
+            }
+            
+            const productIds = (matchedProducts?.map(p => p.id) || []).slice(0, 200);
             
             // Step 2: Build the OR filter for the history table
             // We search by description OR by any of the matched product IDs
@@ -105,8 +111,6 @@ exports.getBarcodeHistory = async (req, res) => {
 
         // Logic for including surrounding context (3 items before and 3 items after)
         if (req.query.includeContext === 'true' && productCode && finalData.length > 0) {
-            const dataWithContext = [];
-            const seenIds = new Set();
             const matchesIds = new Set(finalData.map(item => item.id));
 
             const selectFields = `
@@ -121,8 +125,8 @@ exports.getBarcodeHistory = async (req, res) => {
                 products:product_id (barcode)
             `;
 
-            for (const item of finalData) {
-                // Fetch 3 items scanned AFTER (greater created_at)
+            // Parallelize context fetching for all items
+            const contextResults = await Promise.all(finalData.map(async (item) => {
                 let afterQuery = supabase
                     .from('barcode_history')
                     .select(selectFields)
@@ -130,7 +134,6 @@ exports.getBarcodeHistory = async (req, res) => {
                     .order('created_at', { ascending: true })
                     .limit(3);
                 
-                // Fetch 3 items scanned BEFORE (lesser created_at)
                 let beforeQuery = supabase
                     .from('barcode_history')
                     .select(selectFields)
@@ -138,47 +141,57 @@ exports.getBarcodeHistory = async (req, res) => {
                     .order('created_at', { ascending: false })
                     .limit(3);
                 
-                // Apply the SAME filters to both queries
-                [afterQuery, beforeQuery].forEach(q => {
+                // Apply filters
+                [afterQuery, beforeQuery] = [afterQuery, beforeQuery].map(q => {
+                    let filteredQ = q;
                     if (user_id) {
                         const userIds = user_id.split(',').filter(id => id.trim() !== '');
-                        if (userIds.length > 0) q.in('created_by', userIds);
+                        if (userIds.length > 0) filteredQ = filteredQ.in('created_by', userIds);
                     }
                     if (action_type) {
                         const types = action_type.split(',').filter(t => t.trim() !== '');
-                        if (types.length > 0) q.in('action_type', types);
+                        if (types.length > 0) filteredQ = filteredQ.in('action_type', types);
                     }
-                    if (startDate) q.gte('created_at', `${startDate}T00:00:00.000Z`);
-                    if (endDate) q.lte('created_at', `${endDate}T23:59:59.999Z`);
+                    if (startDate) filteredQ = filteredQ.gte('created_at', `${startDate}T00:00:00.000Z`);
+                    if (endDate) filteredQ = filteredQ.lte('created_at', `${endDate}T23:59:59.999Z`);
+                    return filteredQ;
                 });
 
                 const [afterRes, beforeRes] = await Promise.all([afterQuery, beforeQuery]);
-                
-                const itemsAfter = (afterRes.data || []).reverse(); // Reverse so they are in DESC order for the UI (newest top)
-                const itemsBefore = beforeRes.data || [];
+                return {
+                    item,
+                    after: (afterRes.data || []).reverse(),
+                    before: beforeRes.data || []
+                };
+            }));
 
-                // Add "After" context (items scanned later, so they appear ABOVE in the DESC list)
-                itemsAfter.forEach(ctx => {
+            const dataWithContext = [];
+            const seenIds = new Set();
+
+            contextResults.forEach(({ item, after, before }) => {
+                // Add "After" context
+                after.forEach(ctx => {
                     if (!seenIds.has(ctx.id) && !matchesIds.has(ctx.id)) {
                         dataWithContext.push({ ...ctx, isContext: true, contextType: 'after' });
                         seenIds.add(ctx.id);
                     }
                 });
 
-                // Add the actual MATCH if not already added
+                // Add original item
                 if (!seenIds.has(item.id)) {
                     dataWithContext.push(item);
                     seenIds.add(item.id);
                 }
 
-                // Add "Before" context (items scanned earlier, so they appear BELOW in the DESC list)
-                itemsBefore.forEach(ctx => {
+                // Add "Before" context
+                before.forEach(ctx => {
                     if (!seenIds.has(ctx.id) && !matchesIds.has(ctx.id)) {
                         dataWithContext.push({ ...ctx, isContext: true, contextType: 'before' });
                         seenIds.add(ctx.id);
                     }
                 });
-            }
+            });
+
             finalData = dataWithContext;
         }
         
@@ -190,8 +203,19 @@ exports.getBarcodeHistory = async (req, res) => {
             totalPages: finalTotalPages
         });
     } catch (error) {
-        console.error('Error fetching barcode history:', error);
-        res.status(500).json({ message: 'Error al obtener el historial de códigos' });
+        console.error('Error fetching barcode history:', {
+            message: error.message,
+            stack: error.stack,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            params: { startDate, endDate, user_id, action_type, productCode, page, limit, unique }
+        });
+        res.status(500).json({ 
+            message: 'Error al obtener el historial de códigos', 
+            details: error.message,
+            code: error.code
+        });
     }
 };
 

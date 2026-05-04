@@ -114,6 +114,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     // native references
     const moduleCheckedRef = useRef(false);
     const nativeScanActiveRef = useRef(false);
+    const nativeListenerRef = useRef(null);
 
     // Ref to always have the latest onScan prop available inside stale callbacks
     const onScanRef = useRef(onScan);
@@ -145,7 +146,17 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
 
     useEffect(() => {
         isPausedRef.current = isPaused;
-    }, [isPaused]);
+        
+        // Auto-restart if unpaused and scanner was stopped by a sub-component
+        if (!isPaused && isEnabled) {
+            if (isNative && !nativeScanActiveRef.current) {
+                startScanning();
+            } else if (!isNative && scannerRef.current && scannerRef.current.getState && scannerRef.current.getState() !== 2) {
+                // html5-qrcode state 2 means SCANNING
+                startScanning();
+            }
+        }
+    }, [isPaused, isEnabled, isNative]);
 
     // --- EFFECT: Lifecycle Management ---
     useEffect(() => {
@@ -203,7 +214,12 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
         }
 
         try {
-            await BarcodeScanner.removeAllListeners();
+            if (nativeListenerRef.current) {
+                await nativeListenerRef.current.remove();
+                nativeListenerRef.current = null;
+            } else {
+                await BarcodeScanner.removeAllListeners(); // Fallback
+            }
             await BarcodeScanner.stopScan();
         } catch (e) {
             // Ignore error if not scanning
@@ -261,7 +277,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
             document.documentElement.classList.add('barcode-scanner-active');
 
             // 5. Agregar listener para códigos detectados
-            await BarcodeScanner.addListener('barcodeScanned', async (result) => {
+            const listener = await BarcodeScanner.addListener('barcodeScanned', async (result) => {
                 if (isPausedRef.current) return;
                 if (result.barcode && result.barcode.rawValue) {
                     const code = result.barcode.rawValue;
@@ -273,6 +289,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
                     }
                 }
             });
+            nativeListenerRef.current = listener;
 
             // 6. Iniciar escaneo continuo (la cámara se ve detrás de la WebView)
             await BarcodeScanner.startScan({
@@ -337,7 +354,12 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
         // Esto evita que la envoltoria del padre (con fondo negro/blanco) se muestre
         // brevemente antes de desmontarse.
         try {
-            await BarcodeScanner.removeAllListeners();
+            if (nativeListenerRef.current) {
+                await nativeListenerRef.current.remove();
+                nativeListenerRef.current = null;
+            } else {
+                await BarcodeScanner.removeAllListeners();
+            }
             await BarcodeScanner.stopScan();
         } catch (e) {
             // Ignore
@@ -597,7 +619,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
                 )}
             </div>
 
-            {isScanning && ReactDOM.createPortal(
+            {isScanning && !isPaused && ReactDOM.createPortal(
                 <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 2000 }}>
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button
