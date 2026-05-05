@@ -1194,61 +1194,74 @@ const EtiquetasPage = () => {
                                     <Search className="w-4 h-4" />
                                     {activeDoubleSlot === 0 ? "Buscando para Etiqueta Superior" : "Buscando para Etiqueta Inferior"}
                                 </label>
-                                <div className="flex gap-2">
-                                    <div className="relative flex-grow">
-                                        <div className="relative">
-                                            <input
-                                                ref={inputRef}
-                                                type="text"
-                                                value={searchTerm}
-                                                onChange={(e) => handleSearch(e.target.value)}
-                                                placeholder="Nombre o código..."
-                                                className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all"
-                                            />
-                                            {searchTerm && (
-                                                <button
-                                                    onClick={() => { setSearchTerm(''); setSuggestions([]); setShowSuggestions(false); }}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors z-10"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            )}
+                                <div className="relative">
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-grow">
+                                            <div className="relative">
+                                                <input
+                                                    ref={inputRef}
+                                                    type="text"
+                                                    value={searchTerm}
+                                                    onChange={(e) => handleSearch(e.target.value)}
+                                                    placeholder="Nombre o código..."
+                                                    className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all text-base sm:text-lg"
+                                                />
+                                                {searchTerm && (
+                                                    <button
+                                                        onClick={() => { setSearchTerm(''); setSuggestions([]); setShowSuggestions(false); }}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors z-10"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleVoiceSearch}
+                                                className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm ${isListening ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-500 hover:text-blue-600 active:scale-95'}`}
+                                                title="Voz"
+                                            >
+                                                <Mic className={`w-4 h-4 sm:w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setIsScanning(true)} 
+                                                className="p-3 bg-white border-2 border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-500 transition-all shadow-sm active:scale-95"
+                                                title="Cámara"
+                                            >
+                                                <Camera className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                        {showSuggestions && (
-                                            <div className="absolute z-[60] left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto animate-in slide-in-from-top-2">
+                                    {/* Sugerencias Flotantes - Ahora fuera del flex-grow para ocupar todo el ancho */}
+                                    {showSuggestions && (
+                                        <div className="absolute z-[60] left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-80 overflow-y-auto animate-in slide-in-from-top-2">
+                                            <div className="sticky top-0 bg-gray-50/90 backdrop-blur-sm px-4 py-2 text-[10px] font-bold text-gray-400 flex justify-between items-center border-b border-gray-100 z-10">
+                                                <span>RESULTADOS</span>
+                                                <span>{suggestions.length} encontrados</span>
+                                            </div>
+                                            <div className="divide-y divide-gray-50">
                                                 {suggestions.map((p) => (
                                                     <button
                                                         key={p.code}
                                                         onClick={() => handleSelectProduct(p)}
-                                                        className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+                                                        className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 active:bg-blue-100 transition-all text-left group"
                                                     >
-                                                        <Package className="w-5 h-5 text-blue-500" />
-                                                        <div>
-                                                            <div className="font-bold text-gray-900">{p.description}</div>
-                                                            <div className="text-[10px] text-gray-500">COD: {p.code}</div>
+                                                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 flex-shrink-0 group-hover:scale-110 transition-transform">
+                                                            <Package className="w-5 h-5" />
+                                                        </div>
+                                                        <div className="flex-grow min-w-0">
+                                                            <div className="font-bold text-gray-900 leading-tight">{p.description}</div>
+                                                            <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                                                COD: {p.code} {p.barcode && <span className="ml-2 text-blue-400 font-bold">| {p.barcode}</span>}
+                                                            </div>
                                                         </div>
                                                     </button>
                                                 ))}
                                             </div>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={handleVoiceSearch}
-                                            className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm ${isListening ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-500 hover:text-blue-600 active:scale-95'}`}
-                                            title="Voz"
-                                        >
-                                            <Mic className={`w-4 h-4 sm:w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
-                                        </button>
-                                        <button 
-                                            onClick={() => setIsScanning(true)} 
-                                            className="p-3 bg-white border-2 border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-500 transition-all shadow-sm active:scale-95"
-                                            title="Cámara"
-                                        >
-                                            <Camera className="w-5 h-5" />
-                                        </button>
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
