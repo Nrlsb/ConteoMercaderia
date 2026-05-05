@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { X, HelpCircle, Scan, Keyboard, Mic, WifiOff, FileText, CheckCircle } from 'lucide-react';
 
 const GuideModal = ({ isOpen, onClose }) => {
@@ -61,7 +62,7 @@ const GuideModal = ({ isOpen, onClose }) => {
         }
     ];
 
-    return (
+    return ReactDOM.createPortal(
         <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
                 {/* Header */}
@@ -123,7 +124,8 @@ const GuideModal = ({ isOpen, onClose }) => {
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

@@ -388,6 +388,7 @@ const EgresoDetailsPage = () => {
                 code: existingItem.product_code,
                 description: existingItem.products?.description || 'Producto',
                 barcode: existingItem.products?.barcode || existingItem.barcode || '',
+                barcode_secondary: existingItem.products?.barcode_secondary || '',
                 secondary_unit: existingItem.products?.secondary_unit || null,
                 primary_unit: existingItem.products?.primary_unit || null,
                 conversion_factor: existingItem.products?.conversion_factor || null,
@@ -416,6 +417,7 @@ const EgresoDetailsPage = () => {
                 code: matchingItems[0].product_code,
                 description: matchingItems[0].products?.description || 'Producto',
                 barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || '',
+                barcode_secondary: matchingItems[0].products?.barcode_secondary || '',
                 secondary_unit: matchingItems[0].products?.secondary_unit || null,
                 primary_unit: matchingItems[0].products?.primary_unit || null,
                 conversion_factor: matchingItems[0].products?.conversion_factor || null,
@@ -450,6 +452,7 @@ const EgresoDetailsPage = () => {
                     code: matchingItems[0].product_code,
                     description: matchingItems[0].products?.description || 'Producto',
                     barcode: matchingItems[0].products?.barcode || matchingItems[0].barcode || '',
+                    barcode_secondary: matchingItems[0].products?.barcode_secondary || '',
                     secondary_unit: matchingItems[0].products?.secondary_unit || null,
                     primary_unit: matchingItems[0].products?.primary_unit || null,
                     conversion_factor: matchingItems[0].products?.conversion_factor || null,
@@ -462,6 +465,7 @@ const EgresoDetailsPage = () => {
                     code: i.product_code,
                     description: i.products?.description || 'Producto',
                     barcode: i.products?.barcode || i.barcode || '',
+                    barcode_secondary: i.products?.barcode_secondary || '',
                     secondary_unit: i.products?.secondary_unit || null,
                     primary_unit: i.products?.primary_unit || null,
                     conversion_factor: i.products?.conversion_factor || null,
@@ -1531,7 +1535,7 @@ const EgresoDetailsPage = () => {
                         onScan={handleBarcodeScan}
                         onCancel={() => setIsBarcodeReaderActive(false)}
                         isEnabled={isBarcodeReaderActive}
-                        isPaused={fichajeState.isOpen || showMatchModal || processing}
+                        isPaused={fichajeState.isOpen || showMatchModal}
                         allowRapidMode={canUseRapidMode}
                         scanStatus={scanStatus}
                     />

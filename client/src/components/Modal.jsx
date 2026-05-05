@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 
 const Modal = ({ isOpen, onClose, title, message, type = 'info', confirmText, onConfirm }) => {
     if (!isOpen) return null;
@@ -17,9 +18,9 @@ const Modal = ({ isOpen, onClose, title, message, type = 'info', confirmText, on
         error: 'bg-red-600 hover:bg-red-700'
     };
 
-    return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100 shadow-2xl border border-gray-100">
                 {/* Header */}
                 <div className={`px-6 py-4 border-b ${typeStyles[type]}`}>
                     <h3 className="text-lg font-bold">{title}</h3>
@@ -33,18 +34,18 @@ const Modal = ({ isOpen, onClose, title, message, type = 'info', confirmText, on
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
                     {onConfirm ? (
                         <>
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 font-semibold rounded-lg shadow-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                className="px-5 py-2.5 text-gray-700 bg-gray-200 hover:bg-gray-300 font-bold rounded-xl transition-all active:scale-95 shadow-sm"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={onConfirm}
-                                className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${buttonStyles[type]}`}
+                                className={`px-5 py-2.5 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2 ${buttonStyles[type]}`}
                             >
                                 {confirmText || 'Confirmar'}
                             </button>
@@ -52,14 +53,15 @@ const Modal = ({ isOpen, onClose, title, message, type = 'info', confirmText, on
                     ) : (
                         <button
                             onClick={onClose}
-                            className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${buttonStyles[type]}`}
+                            className={`px-5 py-2.5 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 ${buttonStyles[type]}`}
                         >
                             {confirmText || 'Entendido'}
                         </button>
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

@@ -1196,16 +1196,27 @@ const EtiquetasPage = () => {
                                 </label>
                                 <div className="flex gap-2">
                                     <div className="relative flex-grow">
-                                        <input
-                                            ref={inputRef}
-                                            type="text"
-                                            value={searchTerm}
-                                            onChange={(e) => handleSearch(e.target.value)}
-                                            placeholder="Nombre o código..."
-                                            className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                ref={inputRef}
+                                                type="text"
+                                                value={searchTerm}
+                                                onChange={(e) => handleSearch(e.target.value)}
+                                                placeholder="Nombre o código..."
+                                                className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all"
+                                            />
+                                            {searchTerm && (
+                                                <button
+                                                    onClick={() => { setSearchTerm(''); setSuggestions([]); setShowSuggestions(false); }}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors z-10"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+
                                         {showSuggestions && (
-                                            <div className="absolute z-[60] left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto">
+                                            <div className="absolute z-[60] left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-60 overflow-y-auto animate-in slide-in-from-top-2">
                                                 {suggestions.map((p) => (
                                                     <button
                                                         key={p.code}
@@ -1222,9 +1233,22 @@ const EtiquetasPage = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <button onClick={() => setIsScanning(true)} className="p-3 bg-white border-2 border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-500 transition-all">
-                                        <Camera className="w-5 h-5" />
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleVoiceSearch}
+                                            className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center shadow-sm ${isListening ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-500 hover:text-blue-600 active:scale-95'}`}
+                                            title="Voz"
+                                        >
+                                            <Mic className={`w-4 h-4 sm:w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
+                                        </button>
+                                        <button 
+                                            onClick={() => setIsScanning(true)} 
+                                            className="p-3 bg-white border-2 border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-500 transition-all shadow-sm active:scale-95"
+                                            title="Cámara"
+                                        >
+                                            <Camera className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 

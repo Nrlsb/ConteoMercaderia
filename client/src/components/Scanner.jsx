@@ -128,6 +128,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     // --- REF: Track enabled state for async callbacks ---
     const isEnabledRef = useRef(isEnabled);
     const isPausedRef = useRef(isPaused);
+    const initLockRef = useRef(false); // Bloqueo para evitar inicializaciones dobles
     const restartTimerRef = useRef(null);
 
     // Pre-calentar AudioContext al primer toque del usuario para eliminar latencia del beep
@@ -143,47 +144,40 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
 
     useEffect(() => {
         isEnabledRef.current = isEnabled;
-    }, [isEnabled]);
-
-    useEffect(() => {
         isPausedRef.current = isPaused;
         
         const manageCamera = async () => {
-            if (isPaused) {
-                // Si se pausa, detenemos la cámara pero conservamos el estado de "isScanning" 
-                // para saber que debemos reanudar luego.
-                // Sin embargo, para evitar conflictos de hardware, detenemos el proceso nativo.
-                if (nativeScanActiveRef.current || (scannerRef.current && scannerRef.current.isScanning)) {
-                    await stopScanning(false); // Limpiar CSS para que la app se vea sólida detrás del modal
+            // Si estamos en medio de una operación, esperar un poco
+            if (initLockRef.current || isStoppingRef.current) {
+                if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+                restartTimerRef.current = setTimeout(manageCamera, 150);
+                return;
+            }
+
+            if (isPaused || !isEnabled) {
+                if (isScanning || nativeScanActiveRef.current || (scannerRef.current && scannerRef.current.isScanning)) {
+                    await stopScanning(false);
                 }
-            } else if (isEnabled && !isScanning && !isStoppingRef.current) {
-                // Si se despausa y debería estar escaneando, reiniciamos.
-                startScanning();
+            } else {
+                if (!isScanning && !nativeScanActiveRef.current) {
+                    initLockRef.current = true;
+                    try {
+                        await startScanning();
+                    } finally {
+                        initLockRef.current = false;
+                    }
+                }
             }
         };
 
         manageCamera();
-    }, [isPaused, isEnabled, isNative]);
-
-    // --- EFFECT: Lifecycle Management ---
-    useEffect(() => {
-        if (!isEnabled) {
-            stopScanning();
-            return;
-        }
-
-        // Slight delay to allow UI to settle
-        const timer = setTimeout(() => {
-            startScanning();
-        }, 100);
 
         return () => {
-            clearTimeout(timer);
-            // On unmount/disable, stop everything and ALWAYS clean CSS
-            stopScanning();
-            cleanupScannerCSS();
+            if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+            // Al desmontar, limpiar TODO
+            stopScanning(false);
         };
-    }, [isEnabled, isNative]); // Removing scanMode dependency from here so it doesn't restart continuously
+    }, [isPaused, isEnabled, isNative]);
 
 
     // --- FUNCTION: Start Scanning ---
@@ -200,52 +194,57 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     // --- FUNCTION: Stop Scanning ---
     // skipCSSCleanup: si es true, NO limpia las clases CSS (se delegará al useEffect cleanup)
     const stopScanning = async (skipCSSCleanup = false) => {
+        // Si ya estamos deteniendo y no es una limpieza final de CSS, podemos salir
+        if (isStoppingRef.current && skipCSSCleanup) return;
+        
         isStoppingRef.current = true;
-        setIsScanning(false);
-        setDetectedCode(null);
-        detectedCodeRef.current = null;
-        setTorchOn(false);
-        setWebDetectedCode(null);
-        webDetectedCodeRef.current = null;
-        webPausedRef.current = false;
-        setWebTorchOn(false);
-        setNativeZoom(1.0);
-        setShowFocusHint(false);
-        if (focusTimerRef.current) {
-            clearTimeout(focusTimerRef.current);
-            focusTimerRef.current = null;
-        }
-
-        if (restartTimerRef.current) {
-            clearTimeout(restartTimerRef.current);
-            restartTimerRef.current = null;
-        }
-
         try {
-            if (nativeListenerRef.current) {
-                await nativeListenerRef.current.remove();
-                nativeListenerRef.current = null;
-            } else {
-                await BarcodeScanner.removeAllListeners(); // Fallback
+            setIsScanning(false);
+            setDetectedCode(null);
+            detectedCodeRef.current = null;
+            setTorchOn(false);
+            setWebDetectedCode(null);
+            webDetectedCodeRef.current = null;
+            webPausedRef.current = false;
+            setWebTorchOn(false);
+            setNativeZoom(1.0);
+            setShowFocusHint(false);
+            
+            if (focusTimerRef.current) {
+                clearTimeout(focusTimerRef.current);
+                focusTimerRef.current = null;
             }
-            await BarcodeScanner.stopScan();
-        } catch (e) {
-            // Ignore error if not scanning
-        }
-        nativeScanActiveRef.current = false;
 
-        if (scannerRef.current && scannerRef.current.isScanning) {
+            if (restartTimerRef.current) {
+                clearTimeout(restartTimerRef.current);
+                restartTimerRef.current = null;
+            }
+
+            // Native Cleanup
             try {
-                await scannerRef.current.stop();
-            } catch (err) {
-                console.warn("Failed to stop web scanner", err);
-            }
-        }
+                if (nativeListenerRef.current) {
+                    await nativeListenerRef.current.remove();
+                    nativeListenerRef.current = null;
+                }
+                // Usar Promise.race o un timeout para no trabar el unmount
+                await BarcodeScanner.stopScan();
+                await BarcodeScanner.removeAllListeners();
+            } catch (e) {}
+            nativeScanActiveRef.current = false;
 
-        if (!skipCSSCleanup) {
-            cleanupScannerCSS();
+            // Web Cleanup
+            if (scannerRef.current && scannerRef.current.isScanning) {
+                try {
+                    await scannerRef.current.stop();
+                } catch (err) {}
+            }
+
+            if (!skipCSSCleanup) {
+                cleanupScannerCSS();
+            }
+        } finally {
+            isStoppingRef.current = false;
         }
-        isStoppingRef.current = false;
     };
 
     // --- STRATEGY: Native (Capacitor ML Kit) con startScan() ---
@@ -333,12 +332,16 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
 
         } catch (err) {
             console.error("Native scan error:", err);
-            if (!err?.message?.toLowerCase().includes('canceled')) {
+            const msg = err?.message?.toLowerCase() || '';
+            // Si el error es simplemente que se canceló o que ya estaba arrancando, no mostrar error fatal
+            if (!msg.includes('canceled') && !msg.includes('already')) {
                 setError("Error en scanner nativo: " + err.message);
+                // IMPORTANTE: No llamar a onCancel() aquí para evitar el cierre automático.
+                // Permitimos que el componente se quede montado mostrando el error y el botón de cerrar manual.
             }
             setIsScanning(false);
             cleanupScannerCSS();
-            if (onCancel) onCancel();
+            nativeScanActiveRef.current = false;
         }
     };
 
@@ -357,28 +360,10 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
 
     // --- NATIVE: Cancelar escaneo ---
     const handleNativeCancel = useCallback(async () => {
-        // Detener el scanner nativo SIN limpiar CSS (skipCSSCleanup=true)
-        // El padre recibirá onCancel, desmontará su envoltoria Y este componente,
-        // y el useEffect cleanup se encargará de limpiar las clases CSS.
-        // Esto evita que la envoltoria del padre (con fondo negro/blanco) se muestre
-        // brevemente antes de desmontarse.
-        isStoppingRef.current = true;
-        try {
-            if (nativeListenerRef.current) {
-                await nativeListenerRef.current.remove();
-                nativeListenerRef.current = null;
-            } else {
-                await BarcodeScanner.removeAllListeners();
-            }
-            await BarcodeScanner.stopScan();
-        } catch (e) {
-            // Ignore
-        }
-        nativeScanActiveRef.current = false;
-        setIsScanning(false);
-        // Llamar al padre INMEDIATAMENTE para que desmonte todo
+        // Detener el scanner nativo y limpiar CSS inmediatamente
+        await stopScanning(false);
+        // Llamar al padre para que desmonte
         if (onCancel) onCancel();
-        // Las clases CSS se limpiarán en el useEffect cleanup del desmontaje
     }, [onCancel]);
 
     // --- NATIVE: Toggle Flash/Torch ---

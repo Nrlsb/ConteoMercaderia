@@ -627,7 +627,9 @@ const RemitoForm = () => {
         isOpen: false,
         title: '',
         message: '',
-        type: 'info'
+        type: 'info',
+        onConfirm: null,
+        confirmText: null
     });
 
     const [isLoadingXml, setIsLoadingXml] = useState(false);
@@ -651,12 +653,14 @@ const RemitoForm = () => {
         expectedQuantity: null
     });
 
-    const triggerModal = (title, message, type = 'info') => {
+    const triggerModal = (title, message, type = 'info', onConfirm = null, confirmText = null) => {
         setModalConfig({
             isOpen: true,
             title,
             message,
-            type
+            type,
+            onConfirm,
+            confirmText
         });
     };
 
@@ -1081,8 +1085,20 @@ const RemitoForm = () => {
                     setIsForcingUnexpected(false); // Reset State for UI
                     // Fall through to general lookup below
                 } else {
-                    // STRICT MODE: Block unexpected items
-                    triggerModal('Error', 'Este producto no pertenece al pedido cargado.', 'error');
+                    // STRICT MODE: Instead of blocking, ask for confirmation
+                    triggerModal(
+                        'Producto no en pedido',
+                        `El producto "${inputCode}" no pertenece al pedido cargado. ¿Desea agregarlo de todas formas como un item extra?`,
+                        'warning',
+                        () => {
+                            isForcingUnexpectedRef.current = true;
+                            setIsForcingUnexpected(true);
+                            closeModal();
+                            // Re-ejecutar el scan ahora que tenemos el permiso
+                            setTimeout(() => handleScan(inputCode), 100);
+                        },
+                        'Agregar de todas formas'
+                    );
                     return;
                 }
             } else if (matchedExpectedItems.length === 1) {
@@ -1092,6 +1108,7 @@ const RemitoForm = () => {
                     name: expectedItem.description,
                     description: expectedItem.description,
                     barcode: expectedItem.barcode,
+                    barcode_secondary: expectedItem.barcode_secondary || '',
                     brand: expectedItem.brand,
                     primary_unit: expectedItem.primary_unit,
                     secondary_unit: expectedItem.secondary_unit,
@@ -1106,6 +1123,7 @@ const RemitoForm = () => {
                     name: ei.description,
                     description: ei.description,
                     barcode: ei.barcode,
+                    barcode_secondary: ei.barcode_secondary || '',
                     brand: ei.brand,
                     primary_unit: ei.primary_unit,
                     secondary_unit: ei.secondary_unit,
@@ -1161,6 +1179,7 @@ const RemitoForm = () => {
                         name: localProduct.description || 'Producto Desconocido',
                         description: localProduct.description,
                         barcode: localProduct.barcode || inputCode,
+                        barcode_secondary: localProduct.barcode_secondary || '',
                         brand: localProduct.brand,
                         primary_unit: localProduct.primary_unit,
                         secondary_unit: localProduct.secondary_unit,
@@ -1192,6 +1211,7 @@ const RemitoForm = () => {
                             name: productData.description || 'Producto Desconocido',
                             description: productData.description,
                             barcode: inputCode,
+                            barcode_secondary: productData.barcode_secondary || '',
                             brand: productData.brand,
                             primary_unit: productData.primary_unit,
                             secondary_unit: productData.secondary_unit,
@@ -1207,6 +1227,7 @@ const RemitoForm = () => {
                             name: pd.description || 'Producto Desconocido',
                             description: pd.description,
                             barcode: inputCode,
+                            barcode_secondary: pd.barcode_secondary || '',
                             brand: pd.brand,
                             primary_unit: pd.primary_unit,
                             secondary_unit: pd.secondary_unit,
@@ -1226,6 +1247,7 @@ const RemitoForm = () => {
                         name: data.description || 'Producto Desconocido',
                         description: data.description,
                         barcode: inputCode,
+                        barcode_secondary: data.barcode_secondary || '',
                         brand: data.brand,
                         primary_unit: data.primary_unit,
                         secondary_unit: data.secondary_unit,
@@ -1571,6 +1593,8 @@ const RemitoForm = () => {
                 title={modalConfig.title}
                 message={modalConfig.message}
                 type={modalConfig.type}
+                onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
             />
 
             <ConfirmModal

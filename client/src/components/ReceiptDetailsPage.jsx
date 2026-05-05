@@ -566,6 +566,7 @@ const ReceiptDetailsPage = () => {
                 code: existingItem.product_code,
                 description: existingItem.products?.description || 'Producto',
                 barcode: existingItem.products?.barcode || existingItem.barcode || '',
+                barcode_secondary: existingItem.products?.barcode_secondary || '',
                 secondary_unit: existingItem.products?.secondary_unit || null,
                 primary_unit: existingItem.products?.primary_unit || null,
                 conversion_factor: existingItem.products?.conversion_factor || null,
@@ -610,6 +611,7 @@ const ReceiptDetailsPage = () => {
                         code: localProduct.code,
                         description: localProduct.description,
                         barcode: localProduct.barcode || '',
+                        barcode_secondary: localProduct.barcode_secondary || '',
                         provider_code: localProduct.provider_code || '',
                         secondary_unit: localProduct.secondary_unit || null,
                         primary_unit: localProduct.primary_unit || null,
@@ -644,6 +646,7 @@ const ReceiptDetailsPage = () => {
                             code: product.code,
                             description: product.description,
                             barcode: product.barcode || '',
+                            barcode_secondary: product.barcode_secondary || '',
                             provider_code: product.provider_code || '',
                             secondary_unit: product.secondary_unit || null,
                             primary_unit: product.primary_unit || null,
@@ -2266,7 +2269,7 @@ const ReceiptDetailsPage = () => {
                         onScan={handleBarcodeScan}
                         onCancel={() => setIsBarcodeReaderActive(false)}
                         isEnabled={isBarcodeReaderActive}
-                        isPaused={fichajeState.isOpen || processing || isDuplicateModalOpen}
+                        isPaused={fichajeState.isOpen || isDuplicateModalOpen}
                         allowRapidMode={canUseRapidMode}
                         scanStatus={scanStatus}
                     />

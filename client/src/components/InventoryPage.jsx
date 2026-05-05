@@ -130,7 +130,8 @@ const InventoryPage = () => {
             product: {
                 code: expected.code,
                 name: expected.description,
-                barcode: expected.barcode
+                barcode: expected.barcode,
+                barcode_secondary: expected.barcode_secondary || ''
             },
             existingQuantity: myCurrentQty, // Show MY count so far
             expectedQuantity: expected.quantity, // Show Total Expected
