@@ -796,14 +796,14 @@ const EtiquetasPage = () => {
 
     const generateDoublePDFInstance = async (num = 1) => {
         const doc = new jsPDF({
-            orientation: 'portrait',
+            orientation: 'landscape',
             unit: 'mm',
             format: 'a4',
             compress: true
         });
 
         for (let pageIdx = 0; pageIdx < num; pageIdx++) {
-            if (pageIdx > 0) doc.addPage('a4', 'portrait');
+            if (pageIdx > 0) doc.addPage('a4', 'landscape');
 
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
@@ -846,12 +846,12 @@ const EtiquetasPage = () => {
                 doc.setFont('helvetica', 'bold');
                 doc.text('INGRESO:', margin + 10, dateY + 15);
                 doc.setFont('helvetica', 'normal');
-                doc.text(item.fechaIngreso || '-', margin + 85, dateY + 15);
+                doc.text(item.fechaIngreso || '-', margin + 130, dateY + 15);
 
                 doc.setFont('helvetica', 'bold');
                 doc.text('VENCE:', margin + 10, dateY + 35);
                 doc.setFont('helvetica', 'normal');
-                doc.text(item.fechaVencimiento || 'N/A', margin + 85, dateY + 35);
+                doc.text(item.fechaVencimiento || 'N/A', margin + 130, dateY + 35);
 
                 // Código de Barras
                 const barcodeText = item.product.barcode || item.product.code;
@@ -946,11 +946,8 @@ const EtiquetasPage = () => {
         const firstItem = printQueue[0];
         let doc;
         
-        if (firstItem.type === 'individual' || firstItem.type === 'multiple') {
-            doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-        } else {
-            doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-        }
+        // Todas las etiquetas ahora usan orientación horizontal (landscape)
+        doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
 
         for (let i = 0; i < printQueue.length; i++) {
             const item = printQueue[i];
@@ -1009,7 +1006,7 @@ const EtiquetasPage = () => {
                 doc.text(`Generado: ${new Date().toLocaleString()} | Cola ID: ${item.id}`, margin, pageHeight - 5);
 
             } else if (item.type === 'doble') {
-                if (!isFirst) doc.addPage('a4', 'portrait');
+                if (!isFirst) doc.addPage('a4', 'landscape');
                 
                 const margin = 10;
                 const pageWidth = doc.internal.pageSize.getWidth();
@@ -1042,11 +1039,11 @@ const EtiquetasPage = () => {
                     doc.setFontSize(35);
                     doc.text('INGRESO:', margin + 10, dateY + 15);
                     doc.setFont('helvetica', 'normal');
-                    doc.text(dItem.fechaIngreso || '-', margin + 85, dateY + 15);
+                    doc.text(dItem.fechaIngreso || '-', margin + 130, dateY + 15);
                     doc.setFont('helvetica', 'bold');
                     doc.text('VENCE:', margin + 10, dateY + 35);
                     doc.setFont('helvetica', 'normal');
-                    doc.text(dItem.fechaVencimiento || 'N/A', margin + 85, dateY + 35);
+                    doc.text(dItem.fechaVencimiento || 'N/A', margin + 130, dateY + 35);
 
                     const bct = dItem.product.barcode || dItem.product.code;
                     if (bct) {
