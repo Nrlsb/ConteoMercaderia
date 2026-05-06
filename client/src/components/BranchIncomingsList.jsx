@@ -185,7 +185,7 @@ const BranchIncomingsList = () => {
     );
 
     return (
-        <div className="container mx-auto p-4 max-w-lg md:max-w-4xl animate-in fade-in duration-500">
+        <div className="max-w-7xl mx-auto animate-in fade-in duration-500 space-y-8">
             <div className="mb-8 p-6 bg-gradient-to-br from-brand-blue to-blue-700 rounded-2xl shadow-lg relative overflow-hidden">
                 {/* Decorative circles */}
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
@@ -237,7 +237,7 @@ const BranchIncomingsList = () => {
                             
                             <div className={`transition-opacity duration-300 ${loadingPending && transfers.length > 0 ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                                 {/* Desktop View */}
-                                <div className="hidden md:block bg-white shadow-xl shadow-gray-100 rounded-2xl overflow-hidden border border-gray-100">
+                                <div className="hidden md:block bg-white shadow-xl shadow-gray-100 rounded-2xl overflow-x-auto border border-gray-100">
                                     <table className="min-w-full">
                                         <thead>
                                             <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -420,7 +420,7 @@ const BranchIncomingsList = () => {
 
                             <div className={`transition-opacity duration-300 ${loadingHistory && receiptHistory.length > 0 ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                                 {/* Desktop View */}
-                                <div className="hidden md:block bg-white shadow-xl shadow-gray-100 rounded-2xl overflow-hidden border border-gray-100">
+                                <div className="hidden md:block bg-white shadow-xl shadow-gray-100 rounded-2xl overflow-x-auto border border-gray-100">
                                     <table className="min-w-full">
                                         <thead>
                                             <tr className="bg-gray-50/50 border-b border-gray-100">

@@ -21,7 +21,7 @@ const Navigation = () => {
     };
 
     const getLinkClass = (path) => {
-        const baseClass = "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ease-in-out border border-transparent";
+        const baseClass = "px-2 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ease-in-out border border-transparent";
         return isActive(path)
             ? `${baseClass} nav-item-active text-white`
             : `${baseClass} text-blue-100 hover:bg-white/10 hover:text-white hover:border-white/10`;
@@ -74,7 +74,7 @@ const Navigation = () => {
         <nav className="glass-nav text-white sticky top-0 z-50 transition-all duration-300" style={{ paddingTop: 'var(--safe-area-top)' }}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
-                    <div className="flex items-center gap-8">
+                    <div className="flex items-center gap-4">
                         <div className="flex-shrink-0 flex items-center">
                             <h1 className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200 uppercase">
                                 Control de Mercadería
@@ -82,7 +82,7 @@ const Navigation = () => {
                         </div>
 
                         {/* Desktop Menu */}
-                        <div className="hidden lg:flex items-center gap-1">
+                        <div className="hidden lg:flex items-center gap-0.5">
                             {showNuevoConteo && (
                                 <Link to="/" className={getLinkClass('/')}>Nuevo Conteo</Link>
                             )}

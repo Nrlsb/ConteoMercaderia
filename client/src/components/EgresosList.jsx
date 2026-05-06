@@ -477,7 +477,7 @@ const EgresosList = () => {
         (typeFilter !== 'all' ? 1 : 0);
 
     return (
-        <div className="container mx-auto p-4 max-w-lg md:max-w-6xl">
+        <div className="max-w-7xl mx-auto space-y-6">
             <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm mb-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="space-y-1">
@@ -943,7 +943,7 @@ const EgresosList = () => {
 
             {/* Vista de Escritorio (Tabla) */}
             {filteredEgresos.length > 0 && (
-                <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden">
+                <div className="hidden md:block bg-white shadow-md rounded-xl overflow-x-auto border border-gray-100">
                     <table className="min-w-full leading-normal">
                         <thead>
                             <tr>
@@ -975,7 +975,7 @@ const EgresosList = () => {
                                 <tr key={egreso.id}>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
                                         <div className="flex items-center gap-2">
-                                            <p className="text-gray-900 whitespace-no-wrap font-bold">{egreso.reference_number}</p>
+                                            <p className="text-gray-900 font-bold">{egreso.reference_number}</p>
                                             {egreso.is_devolucion && (
                                                 <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
                                                     Devolución
@@ -992,7 +992,7 @@ const EgresosList = () => {
                                         <p className="text-gray-600 truncate max-w-[150px]" title={egreso.pdf_filename}>{egreso.pdf_filename || '-'}</p>
                                     </td>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
-                                        <p className="text-gray-900 whitespace-no-wrap">
+                                        <p className="text-gray-900">
                                             {new Date(egreso.date).toLocaleDateString()} {new Date(egreso.date).toLocaleTimeString()}
                                         </p>
                                     </td>
@@ -1006,7 +1006,7 @@ const EgresosList = () => {
                                         <p className="text-gray-900 font-medium">{egreso.sucursal_name}</p>
                                     </td>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
-                                        <p className="text-gray-900 whitespace-no-wrap">{egreso.created_by}</p>
+                                        <p className="text-gray-900">{egreso.created_by}</p>
                                     </td>
                                     <td className="px-3 py-5 border-b border-gray-200 bg-white text-sm">
                                         <div className="flex gap-3 items-center">

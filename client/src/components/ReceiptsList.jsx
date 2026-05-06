@@ -181,7 +181,7 @@ const ReceiptsList = () => {
     }
 
     return (
-        <div className="container mx-auto p-4 max-w-lg md:max-w-4xl">
+        <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Ingreso de Mercadería</h1>
                 {canCreate && (
@@ -378,7 +378,7 @@ const ReceiptsList = () => {
             )}
 
             {/* Vista de Escritorio (Tabla) */}
-            <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="hidden md:block bg-white shadow-md rounded-xl overflow-x-auto border border-gray-100">
                 <table className="min-w-full leading-normal">
                     <thead>
                         <tr>
@@ -404,7 +404,7 @@ const ReceiptsList = () => {
                             <tr key={receipt.id}>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                     <div className="flex flex-col">
-                                        <p className="text-gray-900 whitespace-no-wrap font-bold">{receipt.remito_number}</p>
+                                        <p className="text-gray-900 font-bold">{receipt.remito_number}</p>
                                         {receipt.type === 'overstock' && (
                                             <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold w-fit uppercase">
                                                 Sobrestock
@@ -413,9 +413,9 @@ const ReceiptsList = () => {
                                     </div>
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                    <p className="text-gray-900 whitespace-no-wrap">
-                                        {new Date(receipt.date).toLocaleDateString()} {new Date(receipt.date).toLocaleTimeString()}
-                                    </p>
+                                    <p className="text-gray-900">
+                                         {new Date(receipt.date).toLocaleDateString()} {new Date(receipt.date).toLocaleTimeString()}
+                                     </p>
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                     <span className={`relative inline-block px-3 py-1 font-semibold text-green-900 leading-tight`}>
@@ -424,7 +424,7 @@ const ReceiptsList = () => {
                                     </span>
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                    <p className="text-gray-900 whitespace-no-wrap">{receipt.created_by}</p>
+                                    <p className="text-gray-900">{receipt.created_by}</p>
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                     <div className="flex gap-3 items-center">

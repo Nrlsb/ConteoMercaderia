@@ -142,7 +142,7 @@ const RemitoList = () => {
     });
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto py-8">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {/* Header & Filters */}
                 <div className="p-6 border-b border-gray-200 bg-white">
@@ -474,7 +474,7 @@ const RemitoList = () => {
                                 ) : (
                                     filteredRemitos.slice(0, visibleCount).map((remito) => (
                                         <tr key={remito.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900">
                                                     {new Date(remito.date).toLocaleDateString()}
                                                 </div>
@@ -485,7 +485,7 @@ const RemitoList = () => {
 
                                             <td className="px-6 py-4 whitespace-normal max-w-xs">
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-semibold text-brand-blue font-mono break-all whitespace-normal">{remito.count_name || remito.remito_number}</span>
+                                                    <span className="text-sm font-semibold text-brand-blue font-mono break-all">{remito.count_name || remito.remito_number}</span>
                                                     {remito.id_inventory && (
                                                         <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-0.5">ID: {remito.id_inventory}</span>
                                                     )}
@@ -495,12 +495,12 @@ const RemitoList = () => {
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4">
                                                 <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                                                     {remito.items?.length || 0}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4">
                                                 <div className="flex items-center">
                                                     <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs uppercase">
                                                         {remito.created_by ? remito.created_by.substring(0, 2) : 'U'}
@@ -510,7 +510,7 @@ const RemitoList = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-bold rounded uppercase w-fit ${!remito.is_finalized ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-green-100 text-green-800'}`}>
                                                         {!remito.is_finalized ? 'En curso' : 'Finalizado'}
