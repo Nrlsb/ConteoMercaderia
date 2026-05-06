@@ -9,7 +9,7 @@ const UsersManage = () => {
     const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [] });
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [], allow_multiple_sessions: false });
 
     // Get current user from storage or context (quick fix as we don't have context here)
     const [currentUser, setCurrentUser] = useState(null);
@@ -53,6 +53,7 @@ const UsersManage = () => {
             role: user.role,
             sucursal_id: user.sucursal_id || '',
             permissions: user.permissions || [],
+            allow_multiple_sessions: user.allow_multiple_sessions || false,
             password: '' // Reset password field
         });
     };
@@ -65,14 +66,15 @@ const UsersManage = () => {
             password: '',
             role: 'user',
             sucursal_id: '',
-            permissions: []
+            permissions: [],
+            allow_multiple_sessions: false
         });
     }
 
     const handleCancel = () => {
         setEditingUser(null);
         setIsCreating(false);
-        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [] });
+        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [], allow_multiple_sessions: false });
     };
 
     const handleDelete = async (id) => {
@@ -99,7 +101,8 @@ const UsersManage = () => {
                     password: formData.password,
                     role: formData.role,
                     sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
-                    permissions: formData.permissions
+                    permissions: formData.permissions,
+                    allow_multiple_sessions: formData.allow_multiple_sessions
                 };
                 await axios.post('/api/users', payload);
                 toast.success('Usuario creado exitosamente');
@@ -107,7 +110,8 @@ const UsersManage = () => {
                 const payload = {
                     role: formData.role,
                     sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
-                    permissions: formData.permissions
+                    permissions: formData.permissions,
+                    allow_multiple_sessions: formData.allow_multiple_sessions
                 };
                 if (formData.password) {
                     payload.password = formData.password;
@@ -314,6 +318,17 @@ const UsersManage = () => {
                                 required={isCreating}
                             />
                         </div>
+                        <div className="flex items-center pt-6">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.allow_multiple_sessions}
+                                    onChange={(e) => setFormData({ ...formData, allow_multiple_sessions: e.target.checked })}
+                                    className="form-checkbox h-5 w-5 text-blue-600 rounded"
+                                />
+                                <span className="text-gray-700 text-sm font-bold">Permitir múltiples sesiones</span>
+                            </label>
+                        </div>
                     </div>
 
                     {isSuperAdmin && (
@@ -398,9 +413,16 @@ const UsersManage = () => {
                                 <h3 className="font-bold text-gray-900 text-lg">{user.username}</h3>
                                 <div className="text-sm text-gray-500 capitalize">{user.role}</div>
                             </div>
-                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.is_session_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                {user.is_session_active ? 'Activo' : 'Offline'}
-                            </span>
+                            <div className="flex flex-col items-end gap-1">
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.is_session_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                    {user.is_session_active ? 'Activo' : 'Offline'}
+                                </span>
+                                {user.allow_multiple_sessions && (
+                                    <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                                        Multisesión
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="text-sm text-gray-600 mb-3">
                             <span className="font-medium">Sucursal:</span> {user.sucursal_name || 'Sin Asignar'}
@@ -444,9 +466,16 @@ const UsersManage = () => {
                                 <td className="py-2 px-4 border-b capitalize">{user.role}</td>
                                 <td className="py-2 px-4 border-b">{user.sucursal_name}</td>
                                 <td className="py-2 px-4 border-b text-center">
-                                    <span className={`px-2 py-1 rounded-full text-xs ${user.is_session_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                        {user.is_session_active ? 'Activo' : 'Offline'}
-                                    </span>
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className={`px-2 py-1 rounded-full text-xs ${user.is_session_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                            {user.is_session_active ? 'Activo' : 'Offline'}
+                                        </span>
+                                        {user.allow_multiple_sessions && (
+                                            <span className="text-[10px] text-purple-600 font-bold uppercase leading-none">
+                                                Multisesión
+                                            </span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="py-2 px-4 border-b">
                                     <div className="flex justify-center gap-2">

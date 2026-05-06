@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User, Calculator as CalculatorIcon, Copy } from 'lucide-react';
+import { Search, Printer as PrinterIcon, Calendar, Package, X, Loader2, Download, Barcode as BarcodeIcon, Mic, Camera, Edit2, Check, RefreshCw, Plus, Trash2, LayoutList, Tags, User, Calculator as CalculatorIcon, Copy, PlusCircle } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { toast } from 'sonner';
@@ -42,6 +42,8 @@ const EtiquetasPage = () => {
     const [tempBarcode, setTempBarcode] = useState('');
     const [isUpdatingBarcode, setIsUpdatingBarcode] = useState(false);
     const [isScanningForUpdate, setIsScanningForUpdate] = useState(false);
+    const [numHojas, setNumHojas] = useState(1);
+    const [printQueue, setPrintQueue] = useState([]);
 
     // Calculator States
     const [showIndividualCalc, setShowIndividualCalc] = useState(false);
@@ -63,6 +65,7 @@ const EtiquetasPage = () => {
     }, [syncProducts]);
 
     useEffect(() => {
+        setNumHojas(1);
         if (activeTab === 'historial' && history.length === 0) {
             fetchHistory(true);
         }
@@ -180,6 +183,64 @@ const EtiquetasPage = () => {
                 } catch (e) { }
             }
         }, 300);
+    };
+ 
+    const addToQueue = (type, data) => {
+        setPrintQueue(prev => [...prev, {
+            id: Date.now() + Math.random(),
+            type,
+            data,
+            numHojas,
+            timestamp: new Date().toISOString()
+        }]);
+        toast.success('Añadido a la cola de impresión');
+    };
+ 
+    const removeFromQueue = (id) => {
+        setPrintQueue(prev => prev.filter(item => item.id !== id));
+    };
+ 
+    const clearQueue = () => {
+        setPrintQueue([]);
+        toast.info('Cola de impresión vaciada');
+    };
+ 
+    const handleAddIndividualToQueue = () => {
+        if (!selectedProduct) {
+            toast.error('Selecciona un producto primero');
+            return;
+        }
+        if (!fechaIngreso) {
+            setFechaIngresoError(true);
+            toast.error('La fecha de ingreso es obligatoria');
+            return;
+        }
+        addToQueue('individual', {
+            product: selectedProduct,
+            fechaIngreso,
+            fechaVencimiento,
+            cantidad
+        });
+    };
+ 
+    const handleAddDoubleToQueue = () => {
+        if (!doubleProducts[0].product && !doubleProducts[1].product) {
+            toast.error('Carga al menos un producto');
+            return;
+        }
+        addToQueue('doble', {
+            products: [...doubleProducts]
+        });
+    };
+ 
+    const handleAddMultiToQueue = () => {
+        if (multiProducts.length === 0) {
+            toast.error('La lista de productos está vacía');
+            return;
+        }
+        addToQueue('multiple', {
+            products: [...multiProducts]
+        });
     };
 
     const handleSelectProduct = (product) => {
@@ -362,7 +423,7 @@ const EtiquetasPage = () => {
         });
     };
 
-    const generatePDFInstance = async () => {
+    const generatePDFInstance = async (num = 1) => {
         const doc = new jsPDF({
             orientation: 'landscape',
             unit: 'mm',
@@ -370,80 +431,84 @@ const EtiquetasPage = () => {
             compress: true // Optimización: Activa compresión interna del PDF
         });
 
-        const margin = 15;
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const contentWidth = pageWidth - (margin * 2);
+        for (let pageIdx = 0; pageIdx < num; pageIdx++) {
+            if (pageIdx > 0) doc.addPage('a4', 'landscape');
 
-        // DESCRIPCIÓN (SUPER GIGANTE)
-        doc.setTextColor(0);
-        doc.setFontSize(60);
-        doc.setFont('helvetica', 'bold');
+            const margin = 15;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const contentWidth = pageWidth - (margin * 2);
 
-        const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 60);
-        doc.text(splitDesc, margin, 30);
-
-        // CANTIDAD (Cant) en la esquina superior derecha
-        if (cantidad) {
-            doc.setFontSize(24);
+            // DESCRIPCIÓN (SUPER GIGANTE)
+            doc.setTextColor(0);
+            doc.setFontSize(60);
             doc.setFont('helvetica', 'bold');
-            doc.text('Cant:', pageWidth - margin, 20, { align: 'right' });
-            doc.setFontSize(80);
-            doc.text(cantidad, pageWidth - margin, 45, { align: 'right' });
-        }
 
-        let currentY = 30 + (splitDesc.length * 22);
+            const splitDesc = doc.splitTextToSize(selectedProduct.description || 'Sin descripción', contentWidth - 60);
+            doc.text(splitDesc, margin, 30);
 
-        // FECHAS (EXTRA GRANDES - DISPUESTAS VERTICALMENTE)
-        currentY += 5;
-
-        doc.setDrawColor(245);
-        doc.setFillColor(252, 252, 252);
-        doc.roundedRect(margin, currentY - 5, contentWidth, 105, 2, 2, 'FD');
-
-        doc.setTextColor(0);
-        doc.setFontSize(70);
-        doc.setFont('helvetica', 'bold');
-        doc.text('INGRESO:', margin + 10, currentY + 15);
-        doc.setFont('helvetica', 'normal');
-        doc.text(fechaIngreso || '-', margin + 130, currentY + 15);
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('VENCE:', margin + 10, currentY + 45);
-        doc.setFont('helvetica', 'normal');
-        doc.text(fechaVencimiento || 'N/A', margin + 130, currentY + 45);
-
-        // Código de Barras
-        const barcodeText = selectedProduct.barcode || selectedProduct.code;
-        if (barcodeText) {
-            try {
-                const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                const imgWidth = 55;
-                const imgHeight = 22;
-                // Posición fija a la derecha, debajo de la cantidad
-                const barcodeX = pageWidth - margin - imgWidth;
-                const barcodeY = 65;
-
-                doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
-
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'italic');
-                doc.setTextColor(150);
-                doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
-            } catch (err) {
-                console.error('Error generating barcode image:', err);
+            // CANTIDAD (Cant) en la esquina superior derecha
+            if (cantidad) {
+                doc.setFontSize(24);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Cant:', pageWidth - margin, 20, { align: 'right' });
+                doc.setFontSize(80);
+                doc.text(cantidad, pageWidth - margin, 45, { align: 'right' });
             }
-        }
 
-        // Pie de página
-        doc.setFontSize(8);
-        doc.setTextColor(180);
-        doc.text(`Generado el: ${new Date().toLocaleString()}`, margin, pageHeight - 5);
+            let currentY = 30 + (splitDesc.length * 22);
 
-        if (user && user.nombre_completo) {
-            doc.text(`Creado por: ${user.nombre_completo}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
-        } else if (user && user.username) {
-            doc.text(`Creado por: ${user.username}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+            // FECHAS (EXTRA GRANDES - DISPUESTAS VERTICALMENTE)
+            currentY += 5;
+
+            doc.setDrawColor(245);
+            doc.setFillColor(252, 252, 252);
+            doc.roundedRect(margin, currentY - 5, contentWidth, 105, 2, 2, 'FD');
+
+            doc.setTextColor(0);
+            doc.setFontSize(70);
+            doc.setFont('helvetica', 'bold');
+            doc.text('INGRESO:', margin + 10, currentY + 15);
+            doc.setFont('helvetica', 'normal');
+            doc.text(fechaIngreso || '-', margin + 130, currentY + 15);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text('VENCE:', margin + 10, currentY + 45);
+            doc.setFont('helvetica', 'normal');
+            doc.text(fechaVencimiento || 'N/A', margin + 130, currentY + 45);
+
+            // Código de Barras
+            const barcodeText = selectedProduct.barcode || selectedProduct.code;
+            if (barcodeText) {
+                try {
+                    const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                    const imgWidth = 55;
+                    const imgHeight = 22;
+                    // Posición fija a la derecha, debajo de la cantidad
+                    const barcodeX = pageWidth - margin - imgWidth;
+                    const barcodeY = 65;
+
+                    doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
+
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'italic');
+                    doc.setTextColor(150);
+                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
+                } catch (err) {
+                    console.error('Error generating barcode image:', err);
+                }
+            }
+
+            // Pie de página
+            doc.setFontSize(8);
+            doc.setTextColor(180);
+            doc.text(`Generado el: ${new Date().toLocaleString()}`, margin, pageHeight - 5);
+
+            if (user && user.nombre_completo) {
+                doc.text(`Creado por: ${user.nombre_completo}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+            } else if (user && user.username) {
+                doc.text(`Creado por: ${user.username}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+            }
         }
 
         return doc;
@@ -474,7 +539,7 @@ const EtiquetasPage = () => {
         });
     };
 
-    const generateMultiProductPDF = async () => {
+    const generateMultiProductPDF = async (num = 1) => {
         const doc = new jsPDF({
             orientation: 'landscape',
             unit: 'mm',
@@ -482,66 +547,70 @@ const EtiquetasPage = () => {
             compress: true // Optimización: Activa compresión para envíos múltiples
         });
 
-        const margin = 10;
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const contentWidth = pageWidth - (margin * 2);
-        const labelHeight = (pageHeight - (margin * 2)) / 4; // Aproximadamente 47.5mm por etiqueta
+        for (let pageIdx = 0; pageIdx < num; pageIdx++) {
+            if (pageIdx > 0) doc.addPage('a4', 'landscape');
 
-        let y = margin;
+            const margin = 10;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const contentWidth = pageWidth - (margin * 2);
+            const labelHeight = (pageHeight - (margin * 2)) / 4; // Aproximadamente 47.5mm por etiqueta
 
-        for (const item of multiProducts) {
-            // Dibujar recuadro de la etiqueta
-            doc.setDrawColor(230);
-            doc.setLineWidth(0.1);
-            doc.rect(margin, y, contentWidth, labelHeight);
+            let y = margin;
 
-            // Línea decorativa lateral
-            doc.setFillColor(37, 99, 235); // Blue-600
-            doc.rect(margin, y, 2, labelHeight, 'F');
+            for (const item of multiProducts) {
+                // Dibujar recuadro de la etiqueta
+                doc.setDrawColor(230);
+                doc.setLineWidth(0.1);
+                doc.rect(margin, y, contentWidth, labelHeight);
 
-            // Descripción (GIGANTE)
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(28);
-            doc.setTextColor(0);
-            const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 85);
-            doc.text(descLines, margin + 7, y + 12);
+                // Línea decorativa lateral
+                doc.setFillColor(37, 99, 235); // Blue-600
+                doc.rect(margin, y, 2, labelHeight, 'F');
 
-            // Cantidad (A la derecha)
-            if (item.labelCantidad) {
-                doc.setFontSize(10);
-                doc.setTextColor(100);
-                doc.text('CANTIDAD', margin + contentWidth - 45, y + 10);
-                doc.setFontSize(32);
+                // Descripción (GIGANTE)
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(28);
                 doc.setTextColor(0);
-                doc.text(String(item.labelCantidad), margin + contentWidth - 45, y + 22);
-            }
+                const descLines = doc.splitTextToSize(item.description || 'Sin descripción', contentWidth - 85);
+                doc.text(descLines, margin + 7, y + 12);
 
-            // Código de Barras (Abajo a la derecha)
-            const barcodeText = item.barcode || item.code;
-            if (barcodeText) {
-                try {
-                    const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const barcodeWidth = 50;
-                    const barcodeHeight = 16;
-                    doc.addImage(barcodeImg, 'PNG', margin + contentWidth - barcodeWidth - 5, y + labelHeight - barcodeHeight - 6, barcodeWidth, barcodeHeight, undefined, 'FAST');
-
-                    doc.setFontSize(8);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(150);
-                    doc.text(`* ${barcodeText} *`, margin + contentWidth - (barcodeWidth / 2) - 5, y + labelHeight - 2, { align: 'center' });
-                } catch (err) {
-                    console.error('Error in multi-barcode:', err);
+                // Cantidad (A la derecha)
+                if (item.labelCantidad) {
+                    doc.setFontSize(10);
+                    doc.setTextColor(100);
+                    doc.text('CANTIDAD', margin + contentWidth - 45, y + 10);
+                    doc.setFontSize(32);
+                    doc.setTextColor(0);
+                    doc.text(String(item.labelCantidad), margin + contentWidth - 45, y + 22);
                 }
+
+                // Código de Barras (Abajo a la derecha)
+                const barcodeText = item.barcode || item.code;
+                if (barcodeText) {
+                    try {
+                        const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                        const barcodeWidth = 50;
+                        const barcodeHeight = 16;
+                        doc.addImage(barcodeImg, 'PNG', margin + contentWidth - barcodeWidth - 5, y + labelHeight - barcodeHeight - 6, barcodeWidth, barcodeHeight, undefined, 'FAST');
+
+                        doc.setFontSize(8);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(150);
+                        doc.text(`* ${barcodeText} *`, margin + contentWidth - (barcodeWidth / 2) - 5, y + labelHeight - 2, { align: 'center' });
+                    } catch (err) {
+                        console.error('Error in multi-barcode:', err);
+                    }
+                }
+
+                // Información de auditoría y fecha
+                doc.setFontSize(7);
+                doc.setTextColor(180);
+                const userTag = user?.nombre_completo || user?.username || 'Admin';
+                doc.text(`Audit: ${userTag} | Generado: ${new Date().toLocaleString()}`, margin + 7, y + labelHeight - 3);
+
+                y += labelHeight;
             }
-
-            // Información de auditoría y fecha
-            doc.setFontSize(7);
-            doc.setTextColor(180);
-            const userTag = user?.nombre_completo || user?.username || 'Admin';
-            doc.text(`Audit: ${userTag} | Generado: ${new Date().toLocaleString()}`, margin + 7, y + labelHeight - 3);
-
-            y += labelHeight;
         }
 
         return doc;
@@ -555,7 +624,7 @@ const EtiquetasPage = () => {
 
         setGenerating(true);
         try {
-            const doc = await generateMultiProductPDF();
+            const doc = await generateMultiProductPDF(numHojas);
             doc.save('Etiqueta_Multiple.pdf');
             toast.success('PDF generado correctamente');
             
@@ -582,7 +651,7 @@ const EtiquetasPage = () => {
         toast.info('Preparando e imprimiendo...'); // Feedback instantáneo
         
         try {
-            const doc = await generateMultiProductPDF();
+            const doc = await generateMultiProductPDF(numHojas);
             const isNative = Capacitor.getPlatform() !== 'web';
 
             if (isNative) {
@@ -638,7 +707,7 @@ const EtiquetasPage = () => {
 
         setGenerating(true);
         try {
-            const doc = await generatePDFInstance();
+            const doc = await generatePDFInstance(numHojas);
             const fileName = `Etiqueta_${selectedProduct.code}_${fechaIngreso}.pdf`;
             doc.save(fileName);
             toast.success('PDF generado y descargado correctamente');
@@ -675,7 +744,7 @@ const EtiquetasPage = () => {
         toast.info('Preparando e imprimiendo...'); // Feedback instantáneo
 
         try {
-            const doc = await generatePDFInstance();
+            const doc = await generatePDFInstance(numHojas);
 
             // Comprobamos la plataforma usando el objeto oficial de Capacitor
             const isNative = Capacitor.getPlatform() !== 'web';
@@ -725,7 +794,7 @@ const EtiquetasPage = () => {
         }
     };
 
-    const generateDoublePDFInstance = async () => {
+    const generateDoublePDFInstance = async (num = 1) => {
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
@@ -733,75 +802,79 @@ const EtiquetasPage = () => {
             compress: true
         });
 
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 10;
-        const contentWidth = pageWidth - (margin * 2);
-        const labelHeight = (pageHeight - (margin * 2)) / 2;
+        for (let pageIdx = 0; pageIdx < num; pageIdx++) {
+            if (pageIdx > 0) doc.addPage('a4', 'portrait');
 
-        for (let i = 0; i < 2; i++) {
-            const item = doubleProducts[i];
-            if (!item.product) continue;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 10;
+            const contentWidth = pageWidth - (margin * 2);
+            const labelHeight = (pageHeight - (margin * 2)) / 2;
 
-            const yOffset = margin + (i * labelHeight);
-            
-            // Dibujar recuadro de la etiqueta (opcional, para visualización)
-            doc.setDrawColor(240);
-            doc.setLineWidth(0.1);
-            doc.roundedRect(margin, yOffset, contentWidth, labelHeight - 5, 2, 2, 'S');
+            for (let i = 0; i < 2; i++) {
+                const item = doubleProducts[i];
+                if (!item.product) continue;
 
-            // DESCRIPCIÓN
-            doc.setTextColor(0);
-            doc.setFontSize(35);
-            doc.setFont('helvetica', 'bold');
-            const splitDesc = doc.splitTextToSize(item.product.description || 'Sin descripción', contentWidth - 40);
-            doc.text(splitDesc, margin + 5, yOffset + 15);
+                const yOffset = margin + (i * labelHeight);
+                
+                // Dibujar recuadro de la etiqueta (opcional, para visualización)
+                doc.setDrawColor(240);
+                doc.setLineWidth(0.1);
+                doc.roundedRect(margin, yOffset, contentWidth, labelHeight - 5, 2, 2, 'S');
 
-            // CANTIDAD
-            if (item.cantidad) {
-                doc.setFontSize(14);
-                doc.text('Cant:', pageWidth - margin - 5, yOffset + 10, { align: 'right' });
-                doc.setFontSize(45);
-                doc.text(item.cantidad, pageWidth - margin - 5, yOffset + 25, { align: 'right' });
+                // DESCRIPCIÓN
+                doc.setTextColor(0);
+                doc.setFontSize(35);
+                doc.setFont('helvetica', 'bold');
+                const splitDesc = doc.splitTextToSize(item.product.description || 'Sin descripción', contentWidth - 40);
+                doc.text(splitDesc, margin + 5, yOffset + 15);
+
+                // CANTIDAD
+                if (item.cantidad) {
+                    doc.setFontSize(14);
+                    doc.text('Cant:', pageWidth - margin - 5, yOffset + 10, { align: 'right' });
+                    doc.setFontSize(45);
+                    doc.text(item.cantidad, pageWidth - margin - 5, yOffset + 25, { align: 'right' });
+                }
+
+                // FECHAS
+                const dateY = yOffset + 40 + (splitDesc.length > 1 ? 15 : 0);
+                doc.setFillColor(252, 252, 252);
+                doc.roundedRect(margin + 5, dateY, contentWidth - 10, 45, 2, 2, 'FD');
+
+                doc.setFontSize(35);
+                doc.setFont('helvetica', 'bold');
+                doc.text('INGRESO:', margin + 10, dateY + 15);
+                doc.setFont('helvetica', 'normal');
+                doc.text(item.fechaIngreso || '-', margin + 85, dateY + 15);
+
+                doc.setFont('helvetica', 'bold');
+                doc.text('VENCE:', margin + 10, dateY + 35);
+                doc.setFont('helvetica', 'normal');
+                doc.text(item.fechaVencimiento || 'N/A', margin + 85, dateY + 35);
+
+                // Código de Barras
+                const barcodeText = item.product.barcode || item.product.code;
+                if (barcodeText) {
+                    try {
+                        const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                        const imgWidth = 50;
+                        const imgHeight = 18;
+                        const barcodeX = pageWidth - margin - imgWidth - 10;
+                        const barcodeY = dateY + 50;
+
+                        doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
+                        doc.setFontSize(8);
+                        doc.setTextColor(150);
+                        doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
+                    } catch (err) { }
+                }
+
+                // Pie de etiqueta
+                doc.setFontSize(7);
+                doc.setTextColor(180);
+                doc.text(`Generado: ${new Date().toLocaleString()} | Usuario: ${user?.nombre_completo || user?.username || 'Admin'}`, margin + 10, yOffset + labelHeight - 10);
             }
-
-            // FECHAS
-            const dateY = yOffset + 40 + (splitDesc.length > 1 ? 15 : 0);
-            doc.setFillColor(252, 252, 252);
-            doc.roundedRect(margin + 5, dateY, contentWidth - 10, 45, 2, 2, 'FD');
-
-            doc.setFontSize(35);
-            doc.setFont('helvetica', 'bold');
-            doc.text('INGRESO:', margin + 10, dateY + 15);
-            doc.setFont('helvetica', 'normal');
-            doc.text(item.fechaIngreso || '-', margin + 85, dateY + 15);
-
-            doc.setFont('helvetica', 'bold');
-            doc.text('VENCE:', margin + 10, dateY + 35);
-            doc.setFont('helvetica', 'normal');
-            doc.text(item.fechaVencimiento || 'N/A', margin + 85, dateY + 35);
-
-            // Código de Barras
-            const barcodeText = item.product.barcode || item.product.code;
-            if (barcodeText) {
-                try {
-                    const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                    const imgWidth = 50;
-                    const imgHeight = 18;
-                    const barcodeX = pageWidth - margin - imgWidth - 10;
-                    const barcodeY = dateY + 50;
-
-                    doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    doc.text(`Cód: ${barcodeText}`, barcodeX + (imgWidth / 2), barcodeY + imgHeight + 4, { align: 'center' });
-                } catch (err) { }
-            }
-
-            // Pie de etiqueta
-            doc.setFontSize(7);
-            doc.setTextColor(180);
-            doc.text(`Generado: ${new Date().toLocaleString()} | Usuario: ${user?.nombre_completo || user?.username || 'Admin'}`, margin + 10, yOffset + labelHeight - 10);
         }
 
         return doc;
@@ -815,7 +888,7 @@ const EtiquetasPage = () => {
 
         setGenerating(true);
         try {
-            const doc = await generateDoublePDFInstance();
+            const doc = await generateDoublePDFInstance(numHojas);
             doc.save('Etiquetas_Dobles.pdf');
             toast.success('PDF generado correctamente');
             saveToHistory('doble', { products: doubleProducts });
@@ -834,7 +907,7 @@ const EtiquetasPage = () => {
 
         setPrinting(true);
         try {
-            const doc = await generateDoublePDFInstance();
+            const doc = await generateDoublePDFInstance(numHojas);
             const isNative = Capacitor.getPlatform() !== 'web';
 
             if (isNative) {
@@ -866,6 +939,219 @@ const EtiquetasPage = () => {
             toast.error('Error al imprimir');
         } finally {
             setPrinting(false);
+        }
+    };
+
+    const generateCombinedPDF = async () => {
+        const firstItem = printQueue[0];
+        let doc;
+        
+        if (firstItem.type === 'individual' || firstItem.type === 'multiple') {
+            doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+        } else {
+            doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+        }
+
+        for (let i = 0; i < printQueue.length; i++) {
+            const item = printQueue[i];
+            const isFirst = i === 0;
+
+            if (item.type === 'individual') {
+                if (!isFirst) doc.addPage('a4', 'landscape');
+                
+                const margin = 15;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const contentWidth = pageWidth - (margin * 2);
+
+                doc.setTextColor(0);
+                doc.setFontSize(60);
+                doc.setFont('helvetica', 'bold');
+                const splitDesc = doc.splitTextToSize(item.data.product.description || 'Sin descripción', contentWidth - 60);
+                doc.text(splitDesc, margin, 30);
+
+                if (item.data.cantidad) {
+                    doc.setFontSize(24);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Cant:', pageWidth - margin, 20, { align: 'right' });
+                    doc.setFontSize(80);
+                    doc.text(item.data.cantidad, pageWidth - margin, 45, { align: 'right' });
+                }
+
+                let currentY = 30 + (splitDesc.length * 22);
+                currentY += 5;
+                doc.setDrawColor(245);
+                doc.setFillColor(252, 252, 252);
+                doc.roundedRect(margin, currentY - 5, contentWidth, 105, 2, 2, 'FD');
+
+                doc.setTextColor(0);
+                doc.setFontSize(70);
+                doc.setFont('helvetica', 'bold');
+                doc.text('INGRESO:', margin + 10, currentY + 15);
+                doc.setFont('helvetica', 'normal');
+                doc.text(item.data.fechaIngreso || '-', margin + 130, currentY + 15);
+
+                doc.setFont('helvetica', 'bold');
+                doc.text('VENCE:', margin + 10, currentY + 45);
+                doc.setFont('helvetica', 'normal');
+                doc.text(item.data.fechaVencimiento || 'N/A', margin + 130, currentY + 45);
+
+                const barcodeText = item.data.product.barcode || item.data.product.code;
+                if (barcodeText) {
+                    try {
+                        const barcodeImg = await generateBarcodeBase64(String(barcodeText));
+                        doc.addImage(barcodeImg, 'PNG', pageWidth - margin - 55, 65, 55, 22, undefined, 'FAST');
+                    } catch (err) { }
+                }
+
+                doc.setFontSize(8);
+                doc.setTextColor(180);
+                doc.text(`Generado: ${new Date().toLocaleString()} | Cola ID: ${item.id}`, margin, pageHeight - 5);
+
+            } else if (item.type === 'doble') {
+                if (!isFirst) doc.addPage('a4', 'portrait');
+                
+                const margin = 10;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const contentWidth = pageWidth - (margin * 2);
+                const labelHeight = (pageHeight - (margin * 2)) / 2;
+
+                for (let j = 0; j < 2; j++) {
+                    const dItem = item.data.products[j];
+                    if (!dItem || !dItem.product) continue;
+                    const yOffset = margin + (j * labelHeight);
+                    doc.setDrawColor(240);
+                    doc.roundedRect(margin, yOffset, contentWidth, labelHeight - 5, 2, 2, 'S');
+                    doc.setTextColor(0);
+                    doc.setFontSize(35);
+                    doc.setFont('helvetica', 'bold');
+                    const splitDesc = doc.splitTextToSize(dItem.product.description || 'Sin descripción', contentWidth - 40);
+                    doc.text(splitDesc, margin + 5, yOffset + 15);
+
+                    if (dItem.cantidad) {
+                        doc.setFontSize(14);
+                        doc.text('Cant:', pageWidth - margin - 5, yOffset + 10, { align: 'right' });
+                        doc.setFontSize(45);
+                        doc.text(dItem.cantidad, pageWidth - margin - 5, yOffset + 25, { align: 'right' });
+                    }
+
+                    const dateY = yOffset + 40 + (splitDesc.length > 1 ? 15 : 0);
+                    doc.setFillColor(252, 252, 252);
+                    doc.roundedRect(margin + 5, dateY, contentWidth - 10, 45, 2, 2, 'FD');
+                    doc.setFontSize(35);
+                    doc.text('INGRESO:', margin + 10, dateY + 15);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(dItem.fechaIngreso || '-', margin + 85, dateY + 15);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('VENCE:', margin + 10, dateY + 35);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(dItem.fechaVencimiento || 'N/A', margin + 85, dateY + 35);
+
+                    const bct = dItem.product.barcode || dItem.product.code;
+                    if (bct) {
+                        try {
+                            const bImg = await generateBarcodeBase64(String(bct));
+                            doc.addImage(bImg, 'PNG', pageWidth - margin - 60, dateY + 50, 50, 18, undefined, 'FAST');
+                        } catch (e) {}
+                    }
+                }
+
+            } else if (item.type === 'multiple') {
+                if (!isFirst) doc.addPage('a4', 'landscape');
+                
+                const margin = 10;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const contentWidth = pageWidth - (margin * 2);
+                const labelHeight = (pageHeight - (margin * 2)) / 4;
+
+                let y = margin;
+                for (const mItem of item.data.products) {
+                    doc.setDrawColor(230);
+                    doc.rect(margin, y, contentWidth, labelHeight);
+                    doc.setFillColor(37, 99, 235);
+                    doc.rect(margin, y, 2, labelHeight, 'F');
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(28);
+                    doc.setTextColor(0);
+                    const lines = doc.splitTextToSize(mItem.description || 'Sin descripción', contentWidth - 85);
+                    doc.text(lines, margin + 7, y + 12);
+                    if (mItem.labelCantidad) {
+                        doc.setFontSize(10);
+                        doc.setTextColor(100);
+                        doc.text('CANTIDAD', margin + contentWidth - 45, y + 10);
+                        doc.setFontSize(32);
+                        doc.setTextColor(0);
+                        doc.text(String(mItem.labelCantidad), margin + contentWidth - 45, y + 22);
+                    }
+                    const bct = mItem.barcode || mItem.code;
+                    if (bct) {
+                        try {
+                            const bImg = await generateBarcodeBase64(String(bct));
+                            doc.addImage(bImg, 'PNG', margin + contentWidth - 55, y + labelHeight - 22, 50, 16, undefined, 'FAST');
+                        } catch (e) {}
+                    }
+                    y += labelHeight;
+                }
+            }
+        }
+
+        return doc;
+    };
+
+    const handlePrintQueue = async () => {
+        if (printQueue.length === 0) return;
+        setPrinting(true);
+        try {
+            const doc = await generateCombinedPDF();
+            if (!doc) return;
+
+            const isNative = Capacitor.getPlatform() !== 'web';
+            if (isNative) {
+                const pdfBase64 = doc.output('datauristring').split(',')[1];
+                await Printer.printBase64({
+                    name: `Cola_Impresion_Etiquetas`,
+                    data: pdfBase64,
+                    mimeType: 'application/pdf'
+                });
+            } else {
+                const pdfBlob = doc.output('blob');
+                const url = URL.createObjectURL(pdfBlob);
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = url;
+                document.body.appendChild(iframe);
+                iframe.onload = () => {
+                    setTimeout(() => {
+                        iframe.contentWindow.print();
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                            URL.revokeObjectURL(url);
+                        }, 1000);
+                    }, 500);
+                };
+            }
+            toast.success('Impresión de cola iniciada');
+        } catch (error) {
+            toast.error('Error al imprimir la cola');
+        } finally {
+            setPrinting(false);
+        }
+    };
+
+    const handleDownloadQueue = async () => {
+        if (printQueue.length === 0) return;
+        setGenerating(true);
+        try {
+            const doc = await generateCombinedPDF();
+            if (!doc) return;
+            doc.save('Cola_Impresion.pdf');
+            toast.success('PDF de la cola descargado');
+        } catch (error) {
+            toast.error('Error al descargar la cola');
+        } finally {
+            setGenerating(false);
         }
     };
 
@@ -902,14 +1188,28 @@ const EtiquetasPage = () => {
                         Doble
                     </button>
                     <button
-                        onClick={() => setActiveTab('multiple')}
+                        onClick={() => { setActiveTab('multiple'); setNumHojas(1); }}
                         className={`flex-1 py-3 sm:py-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'multiple' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
                     >
                         <LayoutList className="w-3.5 h-3.5 sm:w-4 h-4" />
                         Múltiple
                     </button>
                     <button
-                        onClick={() => setActiveTab('historial')}
+                        onClick={() => { setActiveTab('cola'); setNumHojas(1); }}
+                        className={`flex-1 py-3 sm:py-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'cola' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        <div className="relative">
+                            <LayoutList className="w-3.5 h-3.5 sm:w-4 h-4" />
+                            {printQueue.length > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] px-1 rounded-full animate-bounce">
+                                    {printQueue.length}
+                                </span>
+                            )}
+                        </div>
+                        Cola
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('historial'); setNumHojas(1); }}
                         className={`flex-1 py-3 sm:py-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'historial' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
                     >
                         <RefreshCw className={`w-3.5 h-3.5 sm:w-4 h-4 ${loadingHistory ? 'animate-spin' : ''}`} />
@@ -1144,6 +1444,34 @@ const EtiquetasPage = () => {
                                             initialValue={cantidad || '0'}
                                         />
                                     )}
+ 
+                                 <div className="pt-2">
+                                     <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                         <LayoutList className="w-4 h-4 text-gray-400" />
+                                         Número de Hojas (Copias)
+                                     </label>
+                                     <div className="flex items-center gap-3">
+                                         <input
+                                             type="number"
+                                             min="1"
+                                             max="50"
+                                             value={numHojas}
+                                             onChange={(e) => setNumHojas(Math.max(1, parseInt(e.target.value) || 1))}
+                                             className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all font-bold"
+                                         />
+                                         <div className="flex gap-1">
+                                             {[1, 2, 5, 10].map(n => (
+                                                 <button
+                                                     key={n}
+                                                     onClick={() => setNumHojas(n)}
+                                                     className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${numHojas === n ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                                                 >
+                                                     {n}
+                                                 </button>
+                                             ))}
+                                         </div>
+                                     </div>
+                                 </div>
 
                                 <div className="pt-4 sm:pt-6 space-y-2 sm:space-y-3">
                                     {/* Botón de Impresión (Principal) */}
@@ -1161,6 +1489,19 @@ const EtiquetasPage = () => {
                                             <PrinterIcon className="w-5 h-5 sm:w-6 h-6" />
                                         )}
                                         {printing ? 'Preparando...' : 'IMPRIMIR ETIQUETA'}
+                                    </button>
+
+                                    {/* Botón de Añadir a Cola */}
+                                    <button
+                                        onClick={handleAddIndividualToQueue}
+                                        disabled={!selectedProduct || generating || printing}
+                                        className={`w-full py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all border-2
+                                        ${!selectedProduct || generating || printing
+                                                ? 'border-gray-100 text-gray-300 cursor-not-allowed shadow-none'
+                                                : 'border-orange-500 text-orange-500 hover:bg-orange-50'}`}
+                                    >
+                                        <PlusCircle className="w-4 h-4" />
+                                        AÑADIR A LA COLA
                                     </button>
 
                                     {/* Botón de Descargar (Secundario) */}
@@ -1348,8 +1689,44 @@ const EtiquetasPage = () => {
                                     </div>
                                 ))}
                             </div>
+ 
+                             <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 sm:p-6 mt-4">
+                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                     <LayoutList className="w-4 h-4 text-blue-600" />
+                                     Número de Hojas (Copias)
+                                 </label>
+                                 <div className="flex items-center gap-4">
+                                     <input
+                                         type="number"
+                                         min="1"
+                                         max="50"
+                                         value={numHojas}
+                                         onChange={(e) => setNumHojas(Math.max(1, parseInt(e.target.value) || 1))}
+                                         className="flex-grow px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all font-bold"
+                                     />
+                                     <div className="flex gap-2">
+                                         {[1, 2, 5, 10].map(n => (
+                                             <button
+                                                 key={n}
+                                                 onClick={() => setNumHojas(n)}
+                                                 className={`px-4 py-3 rounded-xl text-sm font-black transition-all ${numHojas === n ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                             >
+                                                 {n}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 </div>
+                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
+                                <button
+                                     onClick={handleAddDoubleToQueue}
+                                     disabled={printing || generating}
+                                     className="py-4 bg-orange-500 text-white rounded-2xl font-black text-base flex items-center justify-center gap-3 hover:bg-orange-600 shadow-xl shadow-orange-100 active:scale-95 disabled:opacity-50 sm:col-span-2"
+                                 >
+                                     <PlusCircle className="w-5 h-5" />
+                                     AÑADIR A LA COLA
+                                 </button>
                                 <button
                                     onClick={handlePrintDoublePDF}
                                     disabled={printing || generating}
@@ -1550,9 +1927,48 @@ const EtiquetasPage = () => {
                                     </div>
                                 )}
                             </div>
+ 
+                             <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 sm:p-6 mt-4">
+                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                     <LayoutList className="w-4 h-4 text-blue-600" />
+                                     Número de Hojas (Copias)
+                                 </label>
+                                 <div className="flex items-center gap-4">
+                                     <input
+                                         type="number"
+                                         min="1"
+                                         max="50"
+                                         value={numHojas}
+                                         onChange={(e) => setNumHojas(Math.max(1, parseInt(e.target.value) || 1))}
+                                         className="flex-grow px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none transition-all font-bold"
+                                     />
+                                     <div className="flex gap-2">
+                                         {[1, 2, 5, 10].map(n => (
+                                             <button
+                                                 key={n}
+                                                 onClick={() => setNumHojas(n)}
+                                                 className={`px-4 py-3 rounded-xl text-sm font-black transition-all ${numHojas === n ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                             >
+                                                 {n}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 </div>
+                             </div>
 
                             {/* Botones de Acción Globales */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <button
+                                    onClick={handleAddMultiToQueue}
+                                    disabled={multiProducts.length === 0 || printing || generating}
+                                    className={`group py-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95
+                                    ${multiProducts.length === 0 || printing || generating
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                                            : 'bg-orange-500 text-white hover:bg-orange-600 shadow-orange-100 active:shadow-inner'}`}
+                                >
+                                    <PlusCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                    AÑADIR A LA COLA
+                                </button>
                                 <button
                                     onClick={handlePrintMultiPDF}
                                     disabled={multiProducts.length === 0 || printing || generating}
@@ -1567,7 +1983,7 @@ const EtiquetasPage = () => {
                                 <button
                                     onClick={handleGenerateMultiPDF}
                                     disabled={multiProducts.length === 0 || generating || printing}
-                                    className={`py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-3 transition-all border-2
+                                    className={`py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-3 transition-all border-2 sm:col-span-2
                                     ${multiProducts.length === 0 || generating || printing
                                             ? 'border-gray-100 text-gray-300 cursor-not-allowed'
                                             : 'border-blue-600 text-blue-600 hover:bg-blue-50 hover:border-blue-700 active:scale-95'}`}
@@ -1576,6 +1992,80 @@ const EtiquetasPage = () => {
                                     {generating ? 'Generando...' : 'DESCARGAR PDF'}
                                 </button>
                             </div>
+                        </div>
+                    ) : activeTab === 'cola' ? (
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                    <LayoutList className="w-5 h-5" />
+                                    Cola de Impresión
+                                </h3>
+                                {printQueue.length > 0 && (
+                                    <button 
+                                        onClick={clearQueue}
+                                        className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors flex items-center gap-1"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        VACIAR COLA
+                                    </button>
+                                )}
+                            </div>
+
+                            {printQueue.length === 0 ? (
+                                <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl py-16 px-8 text-center">
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
+                                        <PrinterIcon className="w-8 h-8 text-gray-300" />
+                                    </div>
+                                    <p className="text-gray-400 font-medium max-w-[250px] mx-auto text-sm">La cola está vacía. Añade etiquetas desde las otras pestañas.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {printQueue.map((item) => (
+                                            <div key={item.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between group hover:shadow-md transition-all">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.type === 'individual' ? 'bg-blue-50 text-blue-600' : item.type === 'doble' ? 'bg-purple-50 text-purple-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                        {item.type === 'individual' ? <Tags className="w-5 h-5" /> : item.type === 'doble' ? <Copy className="w-5 h-5" /> : <LayoutList className="w-5 h-5" />}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-gray-900 text-sm">
+                                                            {item.type === 'individual' ? item.data.product.description : item.type === 'doble' ? 'Etiqueta Doble' : 'Pliego Múltiple'}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
+                                                            Tipo: {item.type.toUpperCase()} • {new Date(item.timestamp).toLocaleTimeString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => removeFromQueue(item.id)}
+                                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+                                        <button
+                                            onClick={handlePrintQueue}
+                                            disabled={printing || generating}
+                                            className="py-4 bg-blue-600 text-white rounded-2xl font-black text-base flex items-center justify-center gap-3 hover:bg-blue-700 shadow-xl shadow-blue-100 active:scale-95 disabled:opacity-50"
+                                        >
+                                            {printing ? <Loader2 className="w-5 h-5 animate-spin" /> : <PrinterIcon className="w-5 h-5" />}
+                                            IMPRIMIR COLA ({printQueue.length})
+                                        </button>
+                                        <button
+                                            onClick={handleDownloadQueue}
+                                            disabled={generating || printing}
+                                            className="py-4 border-2 border-blue-600 text-blue-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-50 active:scale-95 disabled:opacity-50"
+                                        >
+                                            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                            DESCARGAR PDF
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">

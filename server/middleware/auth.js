@@ -11,7 +11,7 @@ const verifyToken = async (req, res, next) => {
         // Verify session is still valid in DB
         const { data: user, error } = await supabase
             .from('users')
-            .select('current_session_id, role, is_session_active, sucursal_id, permissions')
+            .select('current_session_id, role, is_session_active, sucursal_id, permissions, allow_multiple_sessions')
             .eq('id', decoded.id)
             .single();
 
@@ -19,7 +19,10 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'User not found' });
         }
 
-        if (user.current_session_id !== decoded.session_id || !user.is_session_active) {
+        const isSessionRestricted = !user.allow_multiple_sessions;
+        const sessionMismatch = user.current_session_id !== decoded.session_id;
+
+        if ((isSessionRestricted && sessionMismatch) || !user.is_session_active) {
             return res.status(401).json({ message: 'Sesión iniciada en otro dispositivo o sesión expirada' });
         }
 

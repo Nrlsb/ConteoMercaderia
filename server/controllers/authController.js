@@ -117,8 +117,8 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        // Check for existing active session if not forcing
-        if (!force && user.is_session_active && user.current_session_id) {
+        // Check for existing active session if not forcing and restricted
+        if (!force && user.is_session_active && user.current_session_id && !user.allow_multiple_sessions) {
             // Check if session is stale (more than 5 minutes since last seen)
             const lastSeen = user.last_seen ? new Date(user.last_seen) : null;
             const now = new Date();
