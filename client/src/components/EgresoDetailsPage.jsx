@@ -13,6 +13,7 @@ import { downloadFile } from '../utils/downloadUtils';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import ReceiptScanner from './ReceiptScanner';
+import PrintDifferencesModal from './PrintDifferencesModal';
 
 const EgresoDetailsPage = () => {
     const { id } = useParams();
@@ -74,6 +75,8 @@ const EgresoDetailsPage = () => {
         suggestions: [],
         processing: false
     });
+
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
     // Optimized map for item lookups
     const productLookupMap = React.useMemo(() => {
@@ -783,22 +786,11 @@ const EgresoDetailsPage = () => {
         });
 
         if (!hasDifferences) {
-            toast.info('No hay diferencias para exportar');
+            toast.info('No hay diferencias para mostrar');
             return;
         }
 
-        api.get(`/api/egresos/${id}/export?onlyDifferences=true`, { responseType: 'blob' })
-            .then(response => {
-                downloadFile(new Blob([response.data]), `Diferencias_Egreso_${egreso?.reference_number}.xlsx`)
-                    .catch(err => {
-                        console.error('Download error:', err);
-                        toast.error('Error al procesar descarga');
-                    });
-            })
-            .catch(err => {
-                console.error('Export differences error:', err);
-                toast.error('Error al descargar Excel de diferencias');
-            });
+        setIsPrintModalOpen(true);
     };
 
     if (loading) return <div className="p-4 text-center">Cargando...</div>;
@@ -1670,6 +1662,13 @@ const EgresoDetailsPage = () => {
                 </div>,
                 document.body
             )}
+            {/* Print Differences Modal */}
+            <PrintDifferencesModal
+                isOpen={isPrintModalOpen}
+                onClose={() => setIsPrintModalOpen(false)}
+                items={items}
+                egreso={egreso}
+            />
         </div>
     );
 };
