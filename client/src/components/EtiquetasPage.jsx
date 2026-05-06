@@ -817,16 +817,18 @@ const EtiquetasPage = () => {
 
                 const yOffset = margin + (i * labelHeight);
                 
-                // Dibujar recuadro de la etiqueta (opcional, para visualización)
-                doc.setDrawColor(240);
-                doc.setLineWidth(0.1);
-                doc.roundedRect(margin, yOffset, contentWidth, labelHeight - 5, 2, 2, 'S');
+                // Línea de división entre etiquetas
+                if (i === 0) {
+                    doc.setDrawColor(200);
+                    doc.setLineWidth(0.2);
+                    doc.line(margin, yOffset + labelHeight, pageWidth - margin, yOffset + labelHeight);
+                }
 
                 // DESCRIPCIÓN
                 doc.setTextColor(0);
-                doc.setFontSize(35);
+                doc.setFontSize(32);
                 doc.setFont('helvetica', 'bold');
-                const splitDesc = doc.splitTextToSize(item.product.description || 'Sin descripción', contentWidth - 40);
+                const splitDesc = doc.splitTextToSize(item.product.description || 'Sin descripción', contentWidth - 50);
                 doc.text(splitDesc, margin + 5, yOffset + 15);
 
                 // CANTIDAD
@@ -837,31 +839,35 @@ const EtiquetasPage = () => {
                     doc.text(item.cantidad, pageWidth - margin - 5, yOffset + 25, { align: 'right' });
                 }
 
-                // FECHAS
-                const dateY = yOffset + 40 + (splitDesc.length > 1 ? 15 : 0);
+                // FECHAS Y CÓDIGO DE BARRAS (LADO A LADO)
+                const dateY = yOffset + (splitDesc.length > 1 ? 48 : 38);
+                const dateBoxWidth = contentWidth - 75;
+                
                 doc.setFillColor(252, 252, 252);
-                doc.roundedRect(margin + 5, dateY, contentWidth - 10, 45, 2, 2, 'FD');
+                doc.setDrawColor(230);
+                doc.roundedRect(margin + 5, dateY, dateBoxWidth, 40, 2, 2, 'FD');
 
-                doc.setFontSize(35);
+                doc.setTextColor(0);
+                doc.setFontSize(28);
                 doc.setFont('helvetica', 'bold');
-                doc.text('INGRESO:', margin + 10, dateY + 15);
+                doc.text('INGRESO:', margin + 10, dateY + 14);
                 doc.setFont('helvetica', 'normal');
-                doc.text(item.fechaIngreso || '-', margin + 130, dateY + 15);
+                doc.text(item.fechaIngreso || '-', margin + 90, dateY + 14);
 
                 doc.setFont('helvetica', 'bold');
-                doc.text('VENCE:', margin + 10, dateY + 35);
+                doc.text('VENCE:', margin + 10, dateY + 30);
                 doc.setFont('helvetica', 'normal');
-                doc.text(item.fechaVencimiento || 'N/A', margin + 130, dateY + 35);
+                doc.text(item.fechaVencimiento || 'N/A', margin + 90, dateY + 30);
 
-                // Código de Barras
+                // Código de Barras (Reposicionado a la derecha de las fechas para evitar superposición)
                 const barcodeText = item.product.barcode || item.product.code;
                 if (barcodeText) {
                     try {
                         const barcodeImg = await generateBarcodeBase64(String(barcodeText));
-                        const imgWidth = 50;
-                        const imgHeight = 18;
-                        const barcodeX = pageWidth - margin - imgWidth - 10;
-                        const barcodeY = dateY + 50;
+                        const imgWidth = 60;
+                        const imgHeight = 22;
+                        const barcodeX = pageWidth - margin - imgWidth - 5;
+                        const barcodeY = dateY + 5;
 
                         doc.addImage(barcodeImg, 'PNG', barcodeX, barcodeY, imgWidth, imgHeight, undefined, 'FAST');
                         doc.setFontSize(8);
@@ -873,7 +879,7 @@ const EtiquetasPage = () => {
                 // Pie de etiqueta
                 doc.setFontSize(7);
                 doc.setTextColor(180);
-                doc.text(`Generado: ${new Date().toLocaleString()} | Usuario: ${user?.nombre_completo || user?.username || 'Admin'}`, margin + 10, yOffset + labelHeight - 10);
+                doc.text(`Generado: ${new Date().toLocaleString()} | Usuario: ${user?.nombre_completo || user?.username || 'Admin'}`, margin + 10, yOffset + labelHeight - 6);
             }
         }
 
@@ -1018,12 +1024,16 @@ const EtiquetasPage = () => {
                     const dItem = item.data.products[j];
                     if (!dItem || !dItem.product) continue;
                     const yOffset = margin + (j * labelHeight);
-                    doc.setDrawColor(240);
-                    doc.roundedRect(margin, yOffset, contentWidth, labelHeight - 5, 2, 2, 'S');
+                    if (j === 0) {
+                        doc.setDrawColor(200);
+                        doc.setLineWidth(0.2);
+                        doc.line(margin, yOffset + labelHeight, pageWidth - margin, yOffset + labelHeight);
+                    }
+
                     doc.setTextColor(0);
-                    doc.setFontSize(35);
+                    doc.setFontSize(32);
                     doc.setFont('helvetica', 'bold');
-                    const splitDesc = doc.splitTextToSize(dItem.product.description || 'Sin descripción', contentWidth - 40);
+                    const splitDesc = doc.splitTextToSize(dItem.product.description || 'Sin descripción', contentWidth - 50);
                     doc.text(splitDesc, margin + 5, yOffset + 15);
 
                     if (dItem.cantidad) {
@@ -1033,23 +1043,32 @@ const EtiquetasPage = () => {
                         doc.text(dItem.cantidad, pageWidth - margin - 5, yOffset + 25, { align: 'right' });
                     }
 
-                    const dateY = yOffset + 40 + (splitDesc.length > 1 ? 15 : 0);
+                    const dateY = yOffset + (splitDesc.length > 1 ? 48 : 38);
+                    const dateBoxWidth = contentWidth - 75;
+
                     doc.setFillColor(252, 252, 252);
-                    doc.roundedRect(margin + 5, dateY, contentWidth - 10, 45, 2, 2, 'FD');
-                    doc.setFontSize(35);
-                    doc.text('INGRESO:', margin + 10, dateY + 15);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(dItem.fechaIngreso || '-', margin + 130, dateY + 15);
+                    doc.setDrawColor(230);
+                    doc.roundedRect(margin + 5, dateY, dateBoxWidth, 40, 2, 2, 'FD');
+
+                    doc.setFontSize(28);
                     doc.setFont('helvetica', 'bold');
-                    doc.text('VENCE:', margin + 10, dateY + 35);
+                    doc.text('INGRESO:', margin + 10, dateY + 14);
                     doc.setFont('helvetica', 'normal');
-                    doc.text(dItem.fechaVencimiento || 'N/A', margin + 130, dateY + 35);
+                    doc.text(dItem.fechaIngreso || '-', margin + 90, dateY + 14);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('VENCE:', margin + 10, dateY + 30);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(dItem.fechaVencimiento || 'N/A', margin + 90, dateY + 30);
 
                     const bct = dItem.product.barcode || dItem.product.code;
                     if (bct) {
                         try {
                             const bImg = await generateBarcodeBase64(String(bct));
-                            doc.addImage(bImg, 'PNG', pageWidth - margin - 60, dateY + 50, 50, 18, undefined, 'FAST');
+                            const imgW = 60;
+                            const imgH = 22;
+                            const bX = pageWidth - margin - imgW - 5;
+                            const bY = dateY + 5;
+                            doc.addImage(bImg, 'PNG', bX, bY, imgW, imgH, undefined, 'FAST');
                         } catch (e) {}
                     }
                 }
