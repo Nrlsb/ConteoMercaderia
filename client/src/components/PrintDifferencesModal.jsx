@@ -40,17 +40,12 @@ const PrintDifferencesModal = ({ isOpen, onClose, items, egreso }) => {
                             </style>
                         </head>
                         <body>
-                            <div class="header">
+                            <div className="header">
                                 <h1>REPORTE DE DIFERENCIAS</h1>
                                 <p><strong>Egreso:</strong> ${egreso?.reference_number}</p>
-                                <p><strong>Sucursal:</strong> ${egreso?.branch_name || 'N/A'}</p>
                                 <p style="font-size: 10px; color: #666;">Fecha: ${new Date().toLocaleString()}</p>
                             </div>
                             ${printContent}
-                            <div class="footer">
-                                <div class="signature">Firma Responsable Control</div>
-                                <div class="signature">Firma Responsable Sucursal</div>
-                            </div>
                         </body>
                     </html>
                 `;
@@ -114,7 +109,6 @@ const PrintDifferencesModal = ({ isOpen, onClose, items, egreso }) => {
                             <div>
                                 <h1 className="text-2xl font-black uppercase tracking-tighter">REPORTE DE DIFERENCIAS</h1>
                                 <p className="text-sm font-bold text-gray-700">EGRESO: {egreso?.reference_number}</p>
-                                <p className="text-xs text-gray-500">Sucursal: {egreso?.branch_name || 'N/A'}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-xs font-bold text-gray-400">FECHA: {new Date().toLocaleDateString()}</p>
@@ -159,20 +153,6 @@ const PrintDifferencesModal = ({ isOpen, onClose, items, egreso }) => {
                         </div>
                     )}
 
-                    {/* Print-only Footer */}
-                    <div className="hidden print:block mt-12 pt-8 border-t border-gray-200">
-                        <div className="flex justify-between gap-12">
-                            <div className="flex-1 border-t border-gray-400 pt-2 text-center">
-                                <p className="text-[10px] font-bold uppercase text-gray-400">Firma Responsable Control</p>
-                            </div>
-                            <div className="flex-1 border-t border-gray-400 pt-2 text-center">
-                                <p className="text-[10px] font-bold uppercase text-gray-400">Firma Responsable Sucursal</p>
-                            </div>
-                        </div>
-                            <div className="mt-8 text-[8px] text-gray-300 text-center uppercase tracking-widest">
-                                Sistema de Control de Mercadería - Generado Automáticamente
-                            </div>
-                        </div>
                     </div>
                 </div>
 
