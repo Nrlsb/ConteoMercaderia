@@ -551,6 +551,10 @@ const ReceiptDetailsPage = () => {
 
     const handleScan = async (e, overrideCode = null) => {
         if (e) e.preventDefault();
+        
+        // Evitar múltiples envíos paralelos o escaneos mientras se procesa otro
+        if (processing || fichajeState.isOpen || isDuplicateModalOpen) return;
+
         const code = (overrideCode || scanInput).trim();
         if (!code) return;
 
@@ -589,7 +593,7 @@ const ReceiptDetailsPage = () => {
             setIsDuplicateModalOpen(true);
             setScanInput('');
         } else {
-            // Check client cache first
+            // 2. Check client cache first
             const cached = productCacheRef.current.get(code);
             if (cached) {
                 if (Array.isArray(cached)) {
@@ -597,6 +601,7 @@ const ReceiptDetailsPage = () => {
                     setIsDuplicateModalOpen(true);
                     setScanInput('');
                 } else {
+                    setScanInput('');
                     openModal(cached, null, 0);
                 }
                 return;
@@ -619,6 +624,7 @@ const ReceiptDetailsPage = () => {
                         conversion_type: localProduct.conversion_type || null
                     };
                     productCacheRef.current.set(code, productObj);
+                    setScanInput('');
                     openModal(productObj, null, 0);
                     return;
                 }
@@ -627,6 +633,7 @@ const ReceiptDetailsPage = () => {
                 if (navigator.onLine) {
                     const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
                     const data = response.data;
+                    
                     if (Array.isArray(data) && data.length > 1) {
                         const duplicates = data.map(p => ({
                             code: p.code,
@@ -640,7 +647,7 @@ const ReceiptDetailsPage = () => {
                         setDuplicateProducts(duplicates);
                         setIsDuplicateModalOpen(true);
                         setScanInput('');
-                    } else if (data) {
+                    } else if (data && (!Array.isArray(data) || data.length > 0)) {
                         const product = Array.isArray(data) ? data[0] : data;
                         const productObj = {
                             code: product.code,
@@ -654,16 +661,20 @@ const ReceiptDetailsPage = () => {
                             conversion_type: product.conversion_type || null
                         };
                         productCacheRef.current.set(code, productObj);
+                        setScanInput('');
                         openModal(productObj, null, 0);
                     } else {
                         toast.error('Producto no encontrado');
+                        setScanInput('');
                     }
                 } else {
                     toast.error('Producto no encontrado (Modo Offline)');
+                    setScanInput('');
                 }
             } catch (error) {
                 console.error('Error during product lookup:', error);
                 toast.error('Error al buscar el producto');
+                setScanInput('');
             } finally {
                 setProcessing(false);
             }
@@ -798,40 +809,43 @@ const ReceiptDetailsPage = () => {
         if (matchingItems.length === 1) {
             const item = matchingItems[0];
             await handleRapidConfirm(item.product_code, item.products?.description || 'Producto');
+            return;
         } else if (matchingItems.length > 1) {
             setScanStatus({ type: 'error', message: 'Múltiples productos encontrados. Use modo Manual.' });
             setTimeout(() => setScanStatus(null), 3000);
-        } else {
-            // Check catalog
-            setProcessing(true);
-            try {
-                const localProduct = await getProductByCode(code, searchType);
-                if (localProduct) {
-                    await handleRapidConfirm(localProduct.code, localProduct.description);
-                } else if (navigator.onLine) {
-                    const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
-                    const data = response.data;
-                    if (Array.isArray(data) && data.length > 1) {
-                        setScanStatus({ type: 'error', message: 'Múltiples productos encontrados en catálogo.' });
-                    } else if (data) {
-                        const product = Array.isArray(data) ? data[0] : data;
-                        await handleRapidConfirm(product.code, product.description);
-                    } else {
-                        setScanStatus({ type: 'error', message: `Producto no encontrado: ${code}` });
-                    }
+            setProcessing(false);
+            return;
+        }
+
+        // Búsqueda en catálogo (local y luego servidor)
+        let productToConfirm = null;
+        try {
+            const localProduct = await getProductByCode(code, searchType);
+            if (localProduct) {
+                productToConfirm = localProduct;
+            } else if (navigator.onLine) {
+                const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
+                const data = response.data;
+                if (Array.isArray(data) && data.length > 1) {
+                    setScanStatus({ type: 'error', message: 'Múltiples productos encontrados en catálogo.' });
+                } else if (data && (!Array.isArray(data) || data.length > 0)) {
+                    productToConfirm = Array.isArray(data) ? data[0] : data;
                 } else {
-                    setScanStatus({ type: 'error', message: 'Producto no encontrado (Modo Offline)' });
+                    setScanStatus({ type: 'error', message: `Producto no encontrado: ${code}` });
                 }
-            } catch (error) {
-                setScanStatus({ type: 'error', message: 'Error al buscar producto' });
-            } finally {
-                // No seteamos processing a false aquí, lo hará handleRapidConfirm 
-                // o lo hacemos nosotros si hay error
-                if (scanStatus?.type === 'error') {
-                    setProcessing(false);
-                    setTimeout(() => setScanStatus(null), 3000);
-                }
+            } else {
+                setScanStatus({ type: 'error', message: 'Producto no encontrado (Modo Offline)' });
             }
+        } catch (error) {
+            console.error('Rapid search error:', error);
+            setScanStatus({ type: 'error', message: 'Error al buscar producto' });
+        }
+
+        if (productToConfirm) {
+            await handleRapidConfirm(productToConfirm.code, productToConfirm.description);
+        } else {
+            setProcessing(false);
+            setTimeout(() => setScanStatus(null), 3000);
         }
     };
 

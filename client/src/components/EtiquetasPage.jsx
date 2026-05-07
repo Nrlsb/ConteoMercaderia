@@ -56,6 +56,7 @@ const EtiquetasPage = () => {
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
 
     const searchTimeoutRef = useRef(null);
+    const lastSearchRef = useRef('');
     const inputRef = useRef(null);
     const barcodeCacheRef = useRef(new Map());
 
@@ -151,17 +152,24 @@ const EtiquetasPage = () => {
 
     const handleSearch = async (value) => {
         setSearchTerm(value);
+        lastSearchRef.current = value;
+
         if (!value || value.length < 2) {
             setSuggestions([]);
             setShowSuggestions(false);
+            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
             return;
         }
 
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
         searchTimeoutRef.current = setTimeout(async () => {
-            // Local search is always priority
+            // Priority: Local DB (Instant)
             const results = await searchProductsLocally(value);
+            
+            // Check if this search is still valid
+            if (lastSearchRef.current !== value) return;
+
             setSuggestions(results);
             setShowSuggestions(results.length > 0);
 
@@ -169,6 +177,10 @@ const EtiquetasPage = () => {
             if (navigator.onLine && results.length < 3) {
                 try {
                     const response = await api.get(`/api/products/search?q=${encodeURIComponent(value)}`);
+                    
+                    // Re-check validity after async call
+                    if (lastSearchRef.current !== value) return;
+
                     if (response.data && response.data.length > 0) {
                         const apiResults = response.data;
                         setSuggestions(prev => {
@@ -244,6 +256,10 @@ const EtiquetasPage = () => {
     };
 
     const handleSelectProduct = (product) => {
+        // Cancel any pending search
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        lastSearchRef.current = '';
+
         if (activeTab === 'multiple') {
             handleAddMultiProduct(product);
             return;
@@ -519,6 +535,10 @@ const EtiquetasPage = () => {
             toast.error('Límite alcanzado (máx. 4 productos por hoja)');
             return;
         }
+
+        // Ensure search states are cleared when adding in multiple mode
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        lastSearchRef.current = '';
 
         setMultiProducts(prev => [...prev, { ...product, labelCantidad: '' }]);
         setSearchTerm('');

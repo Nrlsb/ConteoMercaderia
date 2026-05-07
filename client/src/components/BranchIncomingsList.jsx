@@ -328,7 +328,7 @@ const BranchIncomingsList = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <h3 className="text-lg font-black text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-1">{transfer.reference_number}</h3>
+                                                        <h3 className="text-lg font-black text-gray-900 group-hover:text-brand-blue transition-colors">{transfer.reference_number}</h3>
                                                         <div className="flex gap-2 items-center mt-2 flex-wrap">
                                                             <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-black uppercase tracking-wide">
                                                                 {transfer.sucursal?.name || 'Destinatario'}
@@ -490,7 +490,7 @@ const BranchIncomingsList = () => {
                                         >
                                             <div className="flex justify-between items-start mb-4">
                                                 <div>
-                                                    <h3 className="text-lg font-black text-gray-900 truncate max-w-[200px]">{receipt.remito_number}</h3>
+                                                    <h3 className="text-lg font-black text-gray-900">{receipt.remito_number}</h3>
                                                     <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1 mt-1">
                                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
