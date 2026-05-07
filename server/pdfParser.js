@@ -117,7 +117,8 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
         const isDevolucion = text.includes('REMITO DE DEVOLUCION');
         const isTransferencia = text.includes('REMITO DE TRANSFERENCIA');
         const isRemito = text.toUpperCase().includes('REMITO');
-        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : (isTransferencia ? 'TRANSFERENCIA' : 'REMITO')} (isRemito: ${isRemito})`);
+        const isPlavicon = text.includes('33-52273454-9') || text.includes('DEBENEDETTI 8217') || text.toUpperCase().includes('VIALSER');
+        console.log(`[PDF PARSER] Document type: ${isDevolucion ? 'DEVOLUCION' : (isTransferencia ? 'TRANSFERENCIA' : 'REMITO')} (isRemito: ${isRemito}, isPlavicon: ${isPlavicon})`);
 
         const lines = text.split('\n');
         const items = [];
@@ -198,6 +199,25 @@ async function parseRemitoPdf(dataBuffer, stopOnCopies = true) {
                     }
                 }
                 if (codes.length > 0) continue;
+            }
+
+            // 0. INTENTO PLAVICON (Prioridad si se detectó el proveedor)
+            if (isPlavicon) {
+                // Formato: CODIGO(XXXX.XXXX.XXXXXX) [Espacios] DESCRIPCION [Espacios >=2] CANTIDAD [Espacios >=2] PRESENTACION ...
+                // Capturamos el código con o sin puntos, y la PRIMERA cantidad que aparece tras un gap grande.
+                const regexPlavicon = /^\s*(\d{4}(?:\.\d{4}\.\d{6})?)\s+(.+?)\s{2,}(\d+(?:,\d{1,3})?)(?:\s{2,}.*)?$/i;
+                const matchPlavicon = line.match(regexPlavicon);
+                if (matchPlavicon) {
+                    const code = matchPlavicon[1];
+                    const description = matchPlavicon[2].trim();
+                    const quantityStr = matchPlavicon[3];
+                    const quantity = parseFloat(quantityStr.replace(',', '.'));
+                    if (!isNaN(quantity) && quantity > 0) {
+                        console.log(`[PDF Match Plavicon] ${code} | ${quantity} | ${description.substring(0, 30)}...`);
+                        lastItem = pushItem(items, code, description, quantity);
+                        continue;
+                    }
+                }
             }
 
             // 1. INTENTOS ESTRÍCTOS (Prioridad para evitar falsos positivos en códigos divididos)

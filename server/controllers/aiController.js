@@ -29,10 +29,13 @@ exports.parseRemito = async (req, res) => {
             REGLAS:
             1. Devuelve SOLO un array JSON de objetos.
             2. Cada objeto debe tener las llaves: "code" (string), "quantity" (number), "description" (string).
-            3. Si una línea no parece un producto (encabezados, fechas, totales), ignórala.
-            4. Si el código parece estar pegado a la cantidad o descripción, sepáralos.
-            5. Los códigos suelen ser numéricos largos.
-            6. Sé conservador: si no estás seguro de un campo, intenta deducirlo o ignora la línea.
+            3. Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
+               - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
+               - La SEGUNDA columna "Cantidad" (al lado del Código de Barras) es la de bultos y debe ser IGNORADA.
+            4. Si una línea no parece un producto (encabezados, fechas, totales), ignórala.
+            5. Si el código parece estar pegado a la cantidad o descripción, sepáralos.
+            6. Los códigos suelen ser numéricos largos.
+            7. Sé conservador: si no estás seguro de un campo, intenta deducirlo o ignora la línea.
             
             TEXTO OCR:
             ---
@@ -137,11 +140,15 @@ exports.parseImage = async (req, res) => {
             1. Devuelve SOLO un array JSON válido de objetos.
             2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
             3. El "code" es el código del producto (suele estar en la primera columna).
-            4. La "quantity" es la cantidad pedida/enviada. Si ves decimales (ej: 42,00), conviértelos a número (42).
-            5. La "description" es el nombre del producto.
-            6. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
-            7. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada, de lo contrario usa la impresa.
-            8. Sé extremadamente preciso con los códigos numéricos.
+            4. La "quantity" es la cantidad pedida/enviada.
+               - IMPORTANTE: Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
+               - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
+               - La SEGUNDA columna "Cantidad" (al lado del Código de Barras) es la de bultos y debe ser IGNORADA.
+            5. Si ves decimales (ej: 42,00), conviértelos a número (42).
+            6. La "description" es el nombre del producto.
+            7. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
+            8. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada, de lo contrario usa la impresa.
+            9. Sé extremadamente preciso con los códigos numéricos.
 
             Formato esperado:
             [

@@ -819,6 +819,9 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                             2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
                             3. El "code" es el código del producto del PROVEEDOR.
                             4. La "quantity" es la cantidad enviada.
+                               - IMPORTANTE: Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
+                               - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
+                               - La SEGUNDA columna "Cantidad" (al lado del Código de Barras) es la de bultos y debe ser IGNORADA.
                             5. La "description" es el nombre del producto tal como figura en el remito.
                             6. Extrae TODOS los productos.
                             
@@ -868,6 +871,9 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                                 2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
                                 3. El "code" es el código que aparece en el remito (Código Interno si es sobrestock).
                                 4. La "quantity" es la cantidad.
+                                   - IMPORTANTE: Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
+                                   - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
+                                   - La SEGUNDA columna "Cantidad" (al lado del Código de Barras) es la de bultos y debe ser IGNORADA.
                                 5. La "description" es el nombre del producto.
                                 
                                 Formato esperado:
