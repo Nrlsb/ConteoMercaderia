@@ -79,6 +79,8 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
     // Native: almacena el último código detectado en tiempo real
     const [detectedCode, setDetectedCode] = useState(null);
     const detectedCodeRef = useRef(null);
+    const [flash, setFlash] = useState(false);
+    const [scanCounter, setScanCounter] = useState(0);
 
     // Flash state
     const [torchOn, setTorchOn] = useState(false);
@@ -553,7 +555,7 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
         // diferente código usa delay mínimo (solo evita doble-fire del mismo frame)
         const isSameCode = code === lastScannedCodeRef.current;
         const debounceTime = isSameCode 
-            ? (scanModeRef.current === 'rapid' ? 1500 : 2000) 
+            ? (scanModeRef.current === 'rapid' ? 800 : 2000) 
             : 100;
         
         if ((now - lastScannedTimeRef.current) < debounceTime) {
@@ -604,6 +606,11 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
         };
 
         provideFeedback();
+        
+        // 3. Trigger local visual feedback
+        setFlash(true);
+        setScanCounter(prev => prev + 1);
+        setTimeout(() => setFlash(false), 150);
     };
 
     return (
@@ -616,6 +623,9 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
 
             {isScanning && ReactDOM.createPortal(
                 <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: 'transparent', zIndex: 2000 }}>
+                    {/* Flash Overlay */}
+                    <div className={`absolute inset-0 pointer-events-none transition-opacity duration-150 z-[3000] ${flash ? 'opacity-40 bg-white' : 'opacity-0'}`} />
+                    
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
                         <button
                             onClick={isNative ? handleNativeCancel : () => { if (onCancel) onCancel(); }}
@@ -669,9 +679,17 @@ const Scanner = React.memo(({ onScan, onCancel, isEnabled = true, isPaused = fal
                     </div>
 
                     {scanStatus && (
-                        <div className="px-4 py-2 animate-in fade-in slide-in-from-top-4 duration-300">
-                            <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border ${scanStatus.type === 'error' ? 'bg-red-500 border-red-400 text-white' : 'bg-green-600 border-green-500 text-white'}`}>
+                        <div 
+                            key={`${scanStatus.message}-${scanCounter}`}
+                            className="px-4 py-2 animate-in animate-pop slide-in-from-top-4 duration-300"
+                        >
+                            <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border transition-all ${scanStatus.type === 'error' ? 'bg-red-500 border-red-400 text-white' : 'bg-green-600 border-green-500 text-white'} ${flash ? 'scale-105 shadow-green-500/50' : 'scale-100'}`}>
                                 <p className="text-sm font-bold leading-tight flex-1">{scanStatus.message}</p>
+                                {scanStatus.type !== 'error' && (
+                                    <div className="bg-white/20 rounded-full p-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

@@ -123,7 +123,30 @@ html.barcode-scanner-active body {
 }
 
 .fade-in {
-  animation: fade-in 0.5s ease-out;
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes slide-in-top {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.slide-in-from-top-4 {
+  animation: slide-in-top 0.3s ease-out;
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.95); opacity: 0; }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-pop {
+  animation: pop-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.duration-300 {
+  animation-duration: 300ms;
 }
 
 .duration-700 {

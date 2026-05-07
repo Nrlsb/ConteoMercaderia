@@ -246,6 +246,18 @@ const ReceiptDetailsPage = () => {
         syncProducts(); // Sync catalog on mount
     }, [id]);
 
+    // Background polling to sync with other devices every 15 seconds
+    useEffect(() => {
+        const pollInterval = setInterval(() => {
+            // Only poll if window is visible and not already processing/syncing
+            if (document.visibilityState === 'visible' && !processing && !isBulkImporting) {
+                fetchReceiptDetails();
+            }
+        }, 15000);
+
+        return () => clearInterval(pollInterval);
+    }, [id, processing, isBulkImporting]);
+
     useEffect(() => {
         // Keep focus on input for continuous scanning
         if (!processing && inputRef.current) {
@@ -797,7 +809,8 @@ const ReceiptDetailsPage = () => {
     };
 
     const handleRapidScan = async (code) => {
-        if (processing) return;
+        // En modo rápido, no bloqueamos por 'processing' para evitar pérdida de scans por latencia de red,
+        // ya que el Scanner ya maneja su propio debounce de 800ms.
         setProcessing(true);
 
         // Limpiar estado previo
@@ -900,10 +913,8 @@ const ReceiptDetailsPage = () => {
                 checkPendingSync();
             }
         } finally {
-            // Artificial delay to prevent double scan and allow user to move camera
-            setTimeout(() => {
-                setProcessing(false);
-            }, 400);
+            // Liberar el estado de procesamiento
+            setProcessing(false);
         }
     };
 
