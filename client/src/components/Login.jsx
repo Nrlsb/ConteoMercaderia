@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
     const [username, setUsername] = useState(() => localStorage.getItem('savedUsername') || '');
@@ -146,14 +146,7 @@ const Login = () => {
                     </button>
                 </form>
 
-                <div className="mt-8 text-center border-t border-gray-100 pt-6">
-                    <p className="text-sm text-brand-gray">
-                        ¿No tienes cuenta?{' '}
-                        <Link to="/register" className="font-medium text-brand-blue hover:text-blue-800 hover:underline transition">
-                            Regístrate aquí
-                        </Link>
-                    </p>
-                </div>
+
             </div>
         </div>
     );

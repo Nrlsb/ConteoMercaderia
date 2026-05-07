@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, us
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import Login from './components/Login';
-import Register from './components/Register';
+
 import Navigation from './components/Navigation';
 import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -172,7 +172,7 @@ const AppContent = () => {
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+
                 <Route path="/" element={
                   <ProtectedRoute>
                     <RoleBasedHome />
