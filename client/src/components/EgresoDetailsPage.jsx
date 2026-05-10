@@ -7,7 +7,9 @@ import Scanner from './Scanner';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
 import { useProductSync } from '../hooks/useProductSync'; // Add this line
+import { supabase } from '../supabaseClient';
 import { db } from '../db';
+
 import { toast } from 'sonner';
 import { downloadFile } from '../utils/downloadUtils';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -131,17 +133,35 @@ const EgresoDetailsPage = () => {
         return () => window.removeEventListener('online', syncOfflineData);
     }, [id]);
 
-    // Background polling to sync with other devices every 15 seconds
+    // Supabase Realtime Subscription
     useEffect(() => {
-        const pollInterval = setInterval(() => {
-            // Only poll if window is visible and not already processing
-            if (document.visibilityState === 'visible' && !processing) {
-                fetchEgresoDetails();
-            }
-        }, 15000);
+        if (!id) return;
 
-        return () => clearInterval(pollInterval);
-    }, [id, processing]);
+        const channel = supabase.channel(`egreso_${id}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'egreso_items', // Asumiendo que la tabla se llama egreso_items
+                filter: `egreso_id=eq.${id}` // Asumiendo el FK es egreso_id
+            }, (payload) => {
+                console.log('⚡ Cambio detectado por Realtime:', payload);
+                debouncedFetch();
+            })
+            .on('presence', { event: 'sync' }, () => {
+                const state = channel.presenceState();
+                const activeDevicesCount = Object.keys(state).length;
+                console.log(`👤 Dispositivos conectados a este egreso: ${activeDevicesCount}`);
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await channel.track({ device: navigator.userAgent });
+                }
+            });
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [id, debouncedFetch]);
 
     const checkPendingSync = async () => {
         try {

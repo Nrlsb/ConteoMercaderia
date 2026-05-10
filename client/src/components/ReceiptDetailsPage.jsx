@@ -9,7 +9,9 @@ import { downloadFile } from '../utils/downloadUtils';
 import FichajeModal from './FichajeModal';
 import { useAuth } from '../context/AuthContext';
 import { useProductSync } from '../hooks/useProductSync'; // Add this line
+import { supabase } from '../supabaseClient';
 import { db } from '../db';
+
 import { toast } from 'sonner';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
@@ -246,17 +248,37 @@ const ReceiptDetailsPage = () => {
         syncProducts(); // Sync catalog on mount
     }, [id]);
 
-    // Background polling to sync with other devices every 15 seconds
+    // Supabase Realtime Subscription
     useEffect(() => {
-        const pollInterval = setInterval(() => {
-            // Only poll if window is visible and not already processing/syncing
-            if (document.visibilityState === 'visible' && !processing && !isBulkImporting) {
-                fetchReceiptDetails();
-            }
-        }, 15000);
+        if (!id) return;
 
-        return () => clearInterval(pollInterval);
-    }, [id, processing, isBulkImporting]);
+        const channel = supabase.channel(`receipt_${id}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'receipt_items',
+                filter: `receipt_id=eq.${id}`
+            }, (payload) => {
+                console.log('⚡ Cambio detectado por Realtime:', payload);
+                // Solo refrescamos si el cambio no lo provocó este mismo dispositivo
+                // (Como no podemos filtrarlo fácil por DB, debouncedFetch maneja bien la concurrencia)
+                debouncedFetch();
+            })
+            .on('presence', { event: 'sync' }, () => {
+                const state = channel.presenceState();
+                const activeDevicesCount = Object.keys(state).length;
+                console.log(`👤 Dispositivos conectados a este remito: ${activeDevicesCount}`);
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await channel.track({ device: navigator.userAgent });
+                }
+            });
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [id, debouncedFetch]);
 
     useEffect(() => {
         // Keep focus on input for continuous scanning

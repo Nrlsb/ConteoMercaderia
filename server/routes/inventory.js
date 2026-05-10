@@ -10,12 +10,14 @@ const xlsx = require('xlsx');
 
 // --- LOCAL HELPERS ---
 
-// Helper to extract capacity from description (e.g., "X 1", "X 4")
+// Helper to extract capacity from description (e.g., "X 1", "X 4", "X 0,5")
 const getCapacityFromDescription = (description) => {
     if (!description) return 999999;
-    const match = description.match(/\s+X\s+(\d+(?:\.\d+)?)/i);
+    // Soporta tanto punto como coma decimal, y espacio opcional después de la X
+    const match = description.match(/\s+X\s*(\d+(?:[.,]\d+)?)/i);
     if (match) {
-        return parseFloat(match[1]);
+        // Reemplazar coma por punto para que parseFloat funcione correctamente
+        return parseFloat(match[1].replace(',', '.'));
     }
     return 999999;
 };

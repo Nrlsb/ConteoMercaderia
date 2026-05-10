@@ -23,6 +23,7 @@
     "@capacitor/share": "^8.0.0",
     "@capgo/capacitor-printer": "^8.0.12",
     "@pantrist/capacitor-plugin-ml-kit-text-recognition": "^8.0.0",
+    "@supabase/supabase-js": "^2.105.3",
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.13.2",
     "bwip-js": "^4.9.2",
