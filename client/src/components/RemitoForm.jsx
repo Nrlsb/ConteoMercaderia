@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { toast } from 'sonner';
 
@@ -16,6 +16,8 @@ import { useProductSync } from '../hooks/useProductSync';
 import { HelpCircle } from 'lucide-react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '../supabaseClient';
+
 
 const RemitoForm = () => {
     const { user } = useAuth();
@@ -49,6 +51,17 @@ const RemitoForm = () => {
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
     const selectionClearedRef = React.useRef(false); // Tracks if user explicitly cleared selection (prevents poll restore)
     const productCacheRef = React.useRef(new Map()); // Client-side product cache to avoid repeated API calls
+    const fetchTimeoutRef = useRef(null);
+
+    // Función para refrescar datos con debounce (evita re-renders masivos constantes)
+    const debouncedFetch = useCallback(() => {
+        if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = setTimeout(() => {
+            if (selectedCountRef.current?.id) {
+                restoreSession(selectedCountRef.current.id, true);
+            }
+        }, 5000); // Refrescar realidad del servidor cada 5 segs después del último cambio
+    }, []);
 
     useEffect(() => {
         syncProducts();
@@ -352,7 +365,7 @@ const RemitoForm = () => {
     // Restore Session Logic
     const [lastRestoredId, setLastRestoredId] = useState(null);
 
-    const restoreSession = async (countId) => {
+    const restoreSession = async (countId, isSilent = false) => {
         try {
             const res = await api.get(`/api/inventory/${countId}`);
             // Check for 'myItems' (Rich list) or fallback to 'myScans' (Legacy map)
@@ -381,7 +394,9 @@ const RemitoForm = () => {
 
             if (restoredItems.length > 0) {
                 setItems(restoredItems);
-                triggerModal('Sesión Restaurada', `Se han recuperado ${restoredItems.length} productos escaneados previamente.`, 'success');
+                if (!isSilent) {
+                    triggerModal('Sesión Restaurada', `Se han recuperado ${restoredItems.length} productos escaneados previamente.`, 'success');
+                }
             }
         } catch (error) {
             console.error('Error restoring session:', error);
@@ -411,6 +426,40 @@ const RemitoForm = () => {
             }
         }
     }, [selectedCount?.id]); // Only depend on ID change
+
+    // Supabase Realtime Subscription
+    useEffect(() => {
+        if (!selectedCount?.id) return;
+
+        const countId = selectedCount.id;
+        console.log(`🔌 Suscribiendo a Realtime para conteo: ${countId}`);
+
+        const channel = supabase.channel(`inventory_scans_${countId}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'inventory_scans',
+                filter: `order_number=eq.${countId}`
+            }, (payload) => {
+                console.log('⚡ Cambio detectado por Realtime en Nuevo Conteo:', payload);
+                debouncedFetch();
+            })
+            .on('presence', { event: 'sync' }, () => {
+                const state = channel.presenceState();
+                const activeDevicesCount = Object.keys(state).length;
+                console.log(`👤 Dispositivos conectados a este conteo: ${activeDevicesCount}`);
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await channel.track({ device: navigator.userAgent, user: user?.username });
+                }
+            });
+
+        return () => {
+            console.log(`🔌 Desuscribiendo de Realtime para conteo: ${countId}`);
+            supabase.removeChannel(channel);
+        };
+    }, [selectedCount?.id, debouncedFetch]);
 
     // Auto-load expected items (pre-remitos) when a count is active and items are null
     useEffect(() => {
@@ -1337,6 +1386,7 @@ const RemitoForm = () => {
             });
 
             console.log(`✅ Sincronizado (Total): ${code} = ${totalQuantity}`);
+            debouncedFetch();
         } catch (error) {
             console.error('Error in syncTotalToInventory:', error);
             // No bloqueamos al usuario con un modal aquí para evitar interrumpir el flujo de edición rápida,
@@ -1375,6 +1425,7 @@ const RemitoForm = () => {
             });
 
             console.log(`✅ Sincronizado a inventory_scans: ${code} +${quantityToAdd}`);
+            debouncedFetch();
         } catch (error) {
             console.error('[DEBUG_FRONTEND] Error syncing to inventory_scans:', error);
             if (error.response?.status === 401) {
