@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { db } from '../db';
+import { supabase } from '../supabaseClient';
+
 
 const RemitoList = () => {
     const { user } = useAuth();
@@ -21,15 +23,64 @@ const RemitoList = () => {
     const [mainTab, setMainTab] = useState('scanned');
     const [discrepancyTab, setDiscrepancyTab] = useState('missing');
 
+    const fetchTimeoutRef = useRef(null);
+
+    // Función para refrescar datos con debounce
+    const debouncedFetch = useCallback(() => {
+        if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = setTimeout(() => {
+            fetchRemitos();
+        }, 2000); // Refrescar lista cada 2 segs tras el último cambio detectado
+    }, []);
+
     useEffect(() => {
         fetchRemitos();
     }, []);
 
-    // Global refresh polling (every 30 seconds)
+    // Supabase Realtime Subscription para el Historial
+    useEffect(() => {
+        console.log('🔌 Suscribiendo Historial a Realtime...');
+
+        // 1. Canal para cambios en los escaneos (actualiza progreso)
+        const scansChannel = supabase.channel('history_scans')
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'inventory_scans' 
+            }, () => {
+                debouncedFetch();
+            })
+            .subscribe();
+
+        // 2. Canal para nuevos conteos o cierres
+        const documentsChannel = supabase.channel('history_docs')
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'general_counts' 
+            }, () => {
+                debouncedFetch();
+            })
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'remitos' 
+            }, () => {
+                debouncedFetch();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(scansChannel);
+            supabase.removeChannel(documentsChannel);
+        };
+    }, [debouncedFetch]);
+
+    // Global refresh polling (fallback cada 60 segundos)
     useEffect(() => {
         const interval = setInterval(() => {
             fetchRemitos();
-        }, 30000);
+        }, 60000);
         return () => clearInterval(interval);
     }, []);
 

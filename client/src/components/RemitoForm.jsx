@@ -60,7 +60,7 @@ const RemitoForm = () => {
             if (selectedCountRef.current?.id) {
                 restoreSession(selectedCountRef.current.id, true);
             }
-        }, 5000); // Refrescar realidad del servidor cada 5 segs después del último cambio
+        }, 1500); // Refrescar realidad del servidor cada 1.5 segs después del último cambio
     }, []);
 
     useEffect(() => {
