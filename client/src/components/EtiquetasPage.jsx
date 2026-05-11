@@ -205,6 +205,10 @@ const EtiquetasPage = () => {
             numHojas,
             timestamp: new Date().toISOString()
         }]);
+        
+        // También guardamos en el historial lo que se envía a la cola
+        saveToHistory(type, data);
+        
         toast.success('Añadido a la cola de impresión');
     };
  

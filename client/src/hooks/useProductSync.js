@@ -27,7 +27,6 @@ export const useProductSync = () => {
         const metadata = await db.sync_metadata.get('products_last_sync');
         const now = new Date();
         if (!force && metadata && (now - new Date(metadata.last_sync)) < 1000 * 60 * 60) {
-            console.log("Skipping sync - recently updated");
             return;
         }
 

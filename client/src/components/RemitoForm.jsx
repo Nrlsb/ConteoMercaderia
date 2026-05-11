@@ -432,7 +432,6 @@ const RemitoForm = () => {
         if (!selectedCount?.id) return;
 
         const countId = selectedCount.id;
-        console.log(`🔌 Suscribiendo a Realtime para conteo: ${countId}`);
 
         const channel = supabase.channel(`inventory_scans_${countId}`)
             .on('postgres_changes', { 
@@ -441,13 +440,9 @@ const RemitoForm = () => {
                 table: 'inventory_scans',
                 filter: `order_number=eq.${countId}`
             }, (payload) => {
-                console.log('⚡ Cambio detectado por Realtime en Nuevo Conteo:', payload);
                 debouncedFetch();
             })
             .on('presence', { event: 'sync' }, () => {
-                const state = channel.presenceState();
-                const activeDevicesCount = Object.keys(state).length;
-                console.log(`👤 Dispositivos conectados a este conteo: ${activeDevicesCount}`);
             })
             .subscribe(async (status) => {
                 if (status === 'SUBSCRIBED') {
@@ -456,7 +451,6 @@ const RemitoForm = () => {
             });
 
         return () => {
-            console.log(`🔌 Desuscribiendo de Realtime para conteo: ${countId}`);
             supabase.removeChannel(channel);
         };
     }, [selectedCount?.id, debouncedFetch]);
@@ -469,7 +463,6 @@ const RemitoForm = () => {
                 // In this app, counts created from remitos have the order numbers as name
                 const orderNumbers = selectedCount.name.split(',').map(n => n.trim());
                 if (orderNumbers.length > 0 && orderNumbers[0].length > 3) {
-                    console.log('Auto-loading expected items for count:', selectedCount.name);
                     try {
                         setPreRemitoStatus('loading');
                         const mergedItems = await fetchItemsByOrders(orderNumbers);
@@ -859,7 +852,6 @@ const RemitoForm = () => {
                 });
 
                 lastOrderNumber = response.data.orderNumber;
-                console.log(`Processed file ${i + 1}/${files.length}: ${lastOrderNumber}`);
             }
 
             if (files.length > 1) {
@@ -1371,12 +1363,6 @@ const RemitoForm = () => {
         }
 
         try {
-            console.log('Sincronizando cantidad absoluta:', {
-                orderNumber: selectedCount.id,
-                code: code,
-                total: totalQuantity
-            });
-
             await api.post('/api/inventory/scan', {
                 orderNumber: selectedCount.id,
                 items: [{
@@ -1385,7 +1371,6 @@ const RemitoForm = () => {
                 }]
             });
 
-            console.log(`✅ Sincronizado (Total): ${code} = ${totalQuantity}`);
             debouncedFetch();
         } catch (error) {
             console.error('Error in syncTotalToInventory:', error);
@@ -1409,12 +1394,6 @@ const RemitoForm = () => {
         }
 
         try {
-            console.log('Intentando sincronizar (incremental):', {
-                orderNumber: selectedCount.id,
-                code: code,
-                delta: quantityToAdd
-            });
-
             // Use new incremental endpoint - sends DELTA, not total.
             const response = await api.post('/api/inventory/scan-incremental', {
                 orderNumber: selectedCount.id,
@@ -1424,7 +1403,6 @@ const RemitoForm = () => {
                 }]
             });
 
-            console.log(`✅ Sincronizado a inventory_scans: ${code} +${quantityToAdd}`);
             debouncedFetch();
         } catch (error) {
             console.error('[DEBUG_FRONTEND] Error syncing to inventory_scans:', error);
