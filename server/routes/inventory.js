@@ -636,8 +636,7 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
         if (!count) return res.status(404).json({ message: 'Conteo no encontrado' });
         if (count.status !== 'open') return res.status(400).json({ message: 'El conteo ya fue cerrado' });
 
-        let products = [];
-        let total = 0;
+        let productsWithMeta = [];
 
         // If the count has specific product_codes (from XML/pre-remito),
         // we fetch all of them and paginate/filter in memory to respect the original order.
@@ -652,68 +651,92 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
                 .filter(p => p !== undefined); // Filter out any codes not found in products table
 
             // Add order info if missing and extract capacity for sorting
-            let productsWithMeta = orderedProducts.map((p, idx) => ({
+            productsWithMeta = orderedProducts.map((p, idx) => ({
                 ...p,
                 indexInCount: idx,
                 capacity: getCapacityFromDescription(p.description)
             }));
 
-            // Apply Grouping by Capacity, preserving relative order (stable sort)
-            productsWithMeta.sort((a, b) => {
-                if (a.capacity !== b.capacity) {
-                    return a.capacity - b.capacity;
-                }
-                return a.indexInCount - b.indexInCount;
-            });
-
-            // Apply search filter in memory
-            if (search) {
-                const lowerCaseSearch = search.toLowerCase();
-                productsWithMeta = productsWithMeta.filter(p =>
-                    p.description.toLowerCase().includes(lowerCaseSearch) ||
-                    p.code.toLowerCase().includes(lowerCaseSearch)
-                );
-            }
-
-            total = productsWithMeta.length;
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize; // 'to' is exclusive for slice
-            products = productsWithMeta.slice(from, to);
-
         } else {
             // Updated logic: Fetch ALL products using helper to avoid 1000 limit
             const allDbProducts = await fetchAllProductsDetailed();
 
-            let productsWithMeta = (allDbProducts || []).map(p => ({
+            productsWithMeta = (allDbProducts || []).map(p => ({
                 ...p,
                 capacity: getCapacityFromDescription(p.description)
             }));
-
-            // Apply Grouping by Capacity, preserving excel_order
-            productsWithMeta.sort((a, b) => {
-                if (a.capacity !== b.capacity) {
-                    return a.capacity - b.capacity;
-                }
-                return (a.excel_order || 0) - (b.excel_order || 0);
-            });
-
-            // Apply search filter in memory
-            if (search) {
-                const lowerCaseSearch = search.toLowerCase();
-                productsWithMeta = productsWithMeta.filter(p =>
-                    p.description.toLowerCase().includes(lowerCaseSearch) ||
-                    p.code.toLowerCase().includes(lowerCaseSearch)
-                );
-            }
-
-            total = productsWithMeta.length;
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize;
-            products = productsWithMeta.slice(from, to);
         }
 
-        // Fetch scans for the current page's product codes to see my qty and if others scanned
-        const codes = (products || []).map(p => p.code);
+        // --- NEW: Group and Sort by Controller ---
+        // 1. Fetch ALL scans for this count to determine global sorting
+        const { data: allCountScans, error: allScansError } = await supabase
+            .from('inventory_scans')
+            .select('code, user_id, timestamp')
+            .eq('order_number', id);
+
+        if (allScansError) throw allScansError;
+
+        // 2. Identify the last controller for each product
+        const lastControllerMap = {}; // code -> { userId, timestamp }
+        (allCountScans || []).forEach(s => {
+            const existing = lastControllerMap[s.code];
+            if (!existing || new Date(s.timestamp) > new Date(existing.timestamp)) {
+                lastControllerMap[s.code] = { userId: s.user_id, timestamp: s.timestamp };
+            }
+        });
+
+        // 3. Fetch Usernames
+        const userIds = [...new Set(Object.values(lastControllerMap).map(v => v.userId))];
+        const { data: usersData } = await supabase.from('users').select('id, username').in('id', userIds);
+        const userMap = {};
+        if (usersData) usersData.forEach(u => userMap[u.id] = u.username);
+
+        // 4. Enrich productsWithMeta with controller info
+        let enrichedFullList = productsWithMeta.map(p => {
+            const last = lastControllerMap[p.code];
+            return {
+                ...p,
+                controller_name: last ? (userMap[last.userId] || 'Desconocido') : '— Pendientes —',
+                last_timestamp: last ? last.timestamp : null
+            };
+        });
+
+        // 5. Apply Global Sorting (Group by User, then logical order)
+        enrichedFullList.sort((a, b) => {
+            // 1. Sort by controller name (Pendientes at the end)
+            if (a.controller_name === '— Pendientes —' && b.controller_name !== '— Pendientes —') return 1;
+            if (a.controller_name !== '— Pendientes —' && b.controller_name === '— Pendientes —') return -1;
+            
+            if (a.controller_name !== b.controller_name) {
+                return a.controller_name.localeCompare(b.controller_name);
+            }
+            
+            // 2. Secondary sort: Capacity
+            if (a.capacity !== b.capacity) return a.capacity - b.capacity;
+            
+            // 3. Tertiary sort: Excel Order / Index
+            const orderA = a.excel_order !== null ? a.excel_order : (a.indexInCount !== undefined ? a.indexInCount : 999999);
+            const orderB = b.excel_order !== null ? b.excel_order : (b.indexInCount !== undefined ? b.indexInCount : 999999);
+            return orderA - orderB;
+        });
+
+        // 6. Apply search filter in memory AFTER global sort (to keep grouping)
+        if (search) {
+            const lowerCaseSearch = search.toLowerCase();
+            enrichedFullList = enrichedFullList.filter(p =>
+                (p.description || '').toLowerCase().includes(lowerCaseSearch) ||
+                (p.code || '').toLowerCase().includes(lowerCaseSearch) ||
+                (p.controller_name || '').toLowerCase().includes(lowerCaseSearch)
+            );
+        }
+
+        const total = enrichedFullList.length;
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize;
+        const pagedProducts = enrichedFullList.slice(from, to);
+
+        // Fetch my scans for the current page's product codes to see my qty and if others scanned
+        const codes = (pagedProducts || []).map(p => p.code);
         let myScannedMap = {};
         let othersScannedMap = {};
         if (codes.length > 0) {
@@ -741,12 +764,13 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
             .eq('order_number', id)
             .eq('user_id', userId);
 
-        const productList = (products || []).map(p => ({
+        const productList = (pagedProducts || []).map(p => ({
             code: p.code,
             description: p.description,
             excel_order: p.excel_order,
             quantity: myScannedMap[p.code] !== undefined ? myScannedMap[p.code] : null,
-            has_other_scans: !!othersScannedMap[p.code]
+            has_other_scans: !!othersScannedMap[p.code],
+            controlled_by: p.controller_name !== '— Pendientes —' ? p.controller_name : null
         }));
 
         res.json({
@@ -2226,6 +2250,98 @@ router.put('/general-counts/:id/close', verifyToken, hasPermission('close_counts
     }
 });
 
+// Create a Re-control session for a closed count
+router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_counts'), async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Fetch the original count
+        const { data: originalCount, error: fetchError } = await supabase
+            .from('general_counts')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !originalCount) {
+            return res.status(404).json({ message: 'Conteo original no encontrado' });
+        }
+
+        // 2. Fetch scans to identify differences
+        const scans = await getAllScans(id);
+        const totals = {};
+        scans.forEach(scan => {
+            totals[scan.code] = (totals[scan.code] || 0) + (scan.quantity || 0);
+        });
+
+        // 3. Get expected stock (simplified for now, using the same logic as close)
+        let allProducts = [];
+        const parts = (originalCount.name || '').split(',').map(s => s.trim());
+        const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
+
+        if (linkedOrderNumbers.length > 0) {
+            const { data: linkedPreRemitos } = await supabase
+                .from('pre_remitos')
+                .select('items')
+                .in('order_number', linkedOrderNumbers);
+            
+            if (linkedPreRemitos) {
+                const mergedMap = {};
+                linkedPreRemitos.forEach(pr => {
+                    (pr.items || []).forEach(item => {
+                        mergedMap[item.code] = (mergedMap[item.code] || 0) + (item.quantity || 0);
+                    });
+                });
+                allProducts = Object.entries(mergedMap).map(([code, quantity]) => ({ code, current_stock: quantity }));
+            }
+        }
+
+        if (allProducts.length === 0) {
+            allProducts = await getAllProducts();
+        }
+
+        // 4. Identify products with differences
+        const diffCodes = allProducts.filter(p => {
+            const scanned = totals[p.code] || 0;
+            const expected = p.current_stock || 0;
+            return scanned !== expected;
+        }).map(p => p.code);
+
+        // Also add products that were scanned but not in the expected list
+        const scannedCodes = Object.keys(totals);
+        scannedCodes.forEach(code => {
+            if (!allProducts.some(p => p.code === code) && totals[code] !== 0) {
+                diffCodes.push(code);
+            }
+        });
+
+        if (diffCodes.length === 0) {
+            return res.status(400).json({ message: 'No hay diferencias para re-controlar en este conteo.' });
+        }
+
+        // 5. Create NEW Re-control Count
+        const { data: newCount, error: insertError } = await supabase
+            .from('general_counts')
+            .insert([{
+                name: `RE-CONTROL: ${originalCount.name}`,
+                status: 'open',
+                sucursal_id: originalCount.sucursal_id,
+                created_by: req.user.id,
+                parent_count_id: id,
+                product_codes: diffCodes
+            }])
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        res.json({ message: 'Re-control iniciado con éxito', count: newCount });
+
+    } catch (error) {
+        console.error('Error starting re-control:', error);
+        res.status(500).json({ message: 'Error al iniciar re-control', details: error.message });
+    }
+});
+
 // Inventory Scans Endpoints
 
 // Get Inventory State (Progress)
@@ -2409,7 +2525,7 @@ router.post('/inventory/scan', verifyToken, async (req, res) => {
         // Verify count isn't deleted if using General Count ID
         const { data: countCheck } = await supabase
             .from('general_counts')
-            .select('id')
+            .select('id, parent_count_id')
             .eq('id', orderNumber)
             .is('deleted_at', null)
             .maybeSingle();
@@ -2418,6 +2534,31 @@ router.post('/inventory/scan', verifyToken, async (req, res) => {
             // If it looks like a UUID (doesn't have STOCK-) and not found as active, reject
             return res.status(404).json({ message: 'Conteo no encontrado o eliminado' });
         }
+
+        // --- RE-CONTROL RULE ENFORCEMENT ---
+        if (countCheck && countCheck.parent_count_id) {
+            const parentId = countCheck.parent_count_id;
+            const itemCodes = items.map(i => i.code);
+
+            // Check if this user scanned any of these codes in the parent count
+            const { data: previousScans, error: checkError } = await supabase
+                .from('inventory_scans')
+                .select('code')
+                .eq('order_number', parentId)
+                .eq('user_id', userId)
+                .in('code', itemCodes);
+
+            if (checkError) console.error('Error checking previous scans for re-control:', checkError);
+
+            if (previousScans && previousScans.length > 0) {
+                const blockedCode = previousScans[0].code;
+                return res.status(403).json({ 
+                    message: `Regla de Re-control: No puedes contar el producto ${blockedCode} porque ya lo contaste en el conteo original.`,
+                    code: blockedCode
+                });
+            }
+        }
+        // -----------------------------------
 
         const upsertData = items.map(item => ({
             order_number: orderNumber,
@@ -2465,38 +2606,43 @@ router.post('/inventory/scan-incremental', verifyToken, async (req, res) => {
             const delta = parseInt(item.quantity, 10);
             if (isNaN(delta) || delta === 0) continue;
 
-            // 1. Fetch current value
-            const { data: existing, error: fetchError } = await supabase
-                .from('inventory_scans')
-                .select('quantity')
-                .match({ order_number: orderNumber, user_id: userId, code: internalCode })
+            // --- RE-CONTROL RULE ENFORCEMENT ---
+            // We need to fetch count info for incremental too
+            const { data: countCheck } = await supabase
+                .from('general_counts')
+                .select('parent_count_id')
+                .eq('id', orderNumber)
                 .maybeSingle();
 
-            if (fetchError) throw fetchError;
+            if (countCheck && countCheck.parent_count_id) {
+                const { data: previous } = await supabase
+                    .from('inventory_scans')
+                    .select('id')
+                    .match({ order_number: countCheck.parent_count_id, user_id: userId, code: internalCode })
+                    .maybeSingle();
+                
+                if (previous) {
+                    return res.status(403).json({ 
+                        message: `Regla de Re-control: No puedes contar este producto porque ya lo contaste en el conteo original.`
+                    });
+                }
+            }
+            // -----------------------------------
 
-            const newQuantity = (existing ? existing.quantity : 0) + delta;
+            // 1. Atomic Increment using RPC
+            const { error: rpcError } = await supabase.rpc('increment_inventory_scan', {
+                p_order_number: orderNumber,
+                p_user_id: userId,
+                p_code: internalCode,
+                p_delta: delta
+            });
 
-            // 2. Upsert new value
-            // Note: There is still a tiny race condition here if two requests interleave significantly,
-            // but it is much safer than overwriting with frontend state 0.
-            const { error: upsertError } = await supabase
-                .from('inventory_scans')
-                .upsert({
-                    order_number: orderNumber,
-                    user_id: userId,
-                    code: internalCode,
-                    quantity: newQuantity,
-                    timestamp: new Date().toISOString()
-                }, { onConflict: 'order_number, user_id, code' });
-
-            if (upsertError) {
-                console.error(`[DEBUG_INCREMENTAL] Error upserting ${internalCode}:`, upsertError);
-                throw upsertError;
+            if (rpcError) {
+                console.error(`[DEBUG_INCREMENTAL] Error in RPC for ${internalCode}:`, rpcError);
+                throw rpcError;
             }
 
-            /* Manual history logging removed as it is handled by DB triggers */
-
-            results.push({ code: internalCode, newQuantity });
+            results.push({ code: internalCode, delta });
         }
 
         console.log(`[DEBUG_INCREMENTAL] Updated ${results.length} items for order ${orderNumber} by user ${userId}`);

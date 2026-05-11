@@ -53,6 +53,8 @@ const RemitoForm = () => {
     const productCacheRef = React.useRef(new Map()); // Client-side product cache to avoid repeated API calls
     const fetchTimeoutRef = useRef(null);
 
+    const isSyncingRef = React.useRef(false); // Mutex for offline sync
+
     // Función para refrescar datos con debounce (evita re-renders masivos constantes)
     const debouncedFetch = useCallback(() => {
         if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
@@ -291,16 +293,25 @@ const RemitoForm = () => {
     }, [selectedCount]);
 
     const syncOfflineData = async () => {
-        if (!selectedCount) return;
+        if (!selectedCount || isSyncingRef.current) return;
+        
         const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
         const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
         if (queue.length === 0) return;
 
+        isSyncingRef.current = true;
         try {
-            toast.info('Sincronizando conteos offline...', { duration: 2000 });
+            toast.info('Sincronizando conteos offline...', { duration: 2000, id: 'offline-sync' });
+            
+            // Move queue to a temporary variable and CLEAR it from localStorage immediately
+            // This prevents concurrent calls from processing the same data.
+            const itemsToSync = [...queue];
+            localStorage.removeItem(pendingKey);
+            setPendingSyncCount(0);
+
             // Separar incrementales de totales
-            const incrementals = queue.filter(q => q.type === 'incremental').map(q => ({ code: q.code, quantity: q.quantity }));
-            const totals = queue.filter(q => q.type === 'total').map(q => ({ code: q.code, quantity: q.quantity }));
+            const incrementals = itemsToSync.filter(q => q.type === 'incremental').map(q => ({ code: q.code, quantity: q.quantity }));
+            const totals = itemsToSync.filter(q => q.type === 'total').map(q => ({ code: q.code, quantity: q.quantity }));
 
             if (incrementals.length > 0) {
                 await api.post('/api/inventory/scan-incremental', {
@@ -310,20 +321,23 @@ const RemitoForm = () => {
             }
 
             if (totals.length > 0) {
-                // Para totales, backend suele esperar 1 solo item por request por diseño del body (aunque envía un array)
-                // O se puede enviar todos si el backend lo soporta, asumo que sí.
                 await api.post('/api/inventory/scan', {
                     orderNumber: selectedCount.id,
                     items: totals
                 });
             }
 
-            localStorage.removeItem(pendingKey);
-            checkPendingSync();
-            toast.success('Sincronización offline completada');
+            toast.success('Sincronización offline completada', { id: 'offline-sync' });
         } catch (error) {
             console.error('Error sincronizando scans offline:', error);
-            toast.error('Error al sincronizar. Se reintentará luego.');
+            toast.error('Error al sincronizar algunos datos offline. Se reintentará luego.', { id: 'offline-sync' });
+            
+            // On failure, we should ideally put them back in the queue, but carefully
+            const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+            localStorage.setItem(pendingKey, JSON.stringify([...queue, ...currentQueue]));
+            checkPendingSync();
+        } finally {
+            isSyncingRef.current = false;
         }
     };
 
@@ -1308,40 +1322,44 @@ const RemitoForm = () => {
         }
     }, []); // Empty dependency array as we use refs/setters
 
-    const handleFichajeConfirm = (quantityToAdd) => {
+    const handleFichajeConfirm = async (quantityToAdd) => {
         const { product } = fichajeState;
         if (!product || isSubmittingFichaje || lockingRef.current) return;
 
         lockingRef.current = true;
         setIsSubmittingFichaje(true);
 
-        setItems(prevItems => {
-            const existingItem = prevItems.find(i => i.code === product.code);
-            const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
+        try {
+            setItems(prevItems => {
+                const existingItem = prevItems.find(i => i.code === product.code);
+                const newTotal = (existingItem ? existingItem.quantity : 0) + quantityToAdd;
 
-            const updatedItem = existingItem 
-                ? { ...existingItem, quantity: newTotal, validationError: null }
-                : {
-                    code: product.code,
-                    name: product.name,
-                    quantity: quantityToAdd,
-                    validationError: null
-                };
+                const updatedItem = existingItem 
+                    ? { ...existingItem, quantity: newTotal, validationError: null }
+                    : {
+                        code: product.code,
+                        name: product.name,
+                        quantity: quantityToAdd,
+                        validationError: null
+                    };
 
-            // Prepend updated or new item to the list (Latest First)
-            return [updatedItem, ...prevItems.filter(i => i.code !== product.code)];
-        });
-
-        // Close modal immediately so the user can scan the next product right away
-        setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
-        setIsSubmittingFichaje(false);
-        lockingRef.current = false;
-
-        // Sync to backend in background (fire-and-forget)
-        if (selectedCount) {
-            syncToInventoryScans(product.code, quantityToAdd).catch(error => {
-                console.error('[ERROR] Background sync failed:', error);
+                // Prepend updated or new item to the list (Latest First)
+                return [updatedItem, ...prevItems.filter(i => i.code !== product.code)];
             });
+
+            // Sync to backend
+            if (selectedCount) {
+                await syncToInventoryScans(product.code, quantityToAdd);
+            }
+            
+            // Close modal only after successful sync/queue
+            setFichajeState(prev => ({ ...prev, isOpen: false, product: null }));
+        } catch (error) {
+            console.error('[ERROR] Fichaje confirmation failed:', error);
+            // The syncToInventoryScans already handles offline queueing and toasts
+        } finally {
+            setIsSubmittingFichaje(false);
+            lockingRef.current = false;
         }
     };
 
@@ -1858,17 +1876,24 @@ const RemitoForm = () => {
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                             {activeCounts.map(count => (
-                                                <button
-                                                    key={count.id}
-                                                    onClick={() => handleSelectCount(count)}
-                                                    className="p-4 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg text-left transition shadow-sm hover:shadow"
-                                                >
-                                                    <div className="font-bold text-gray-800 mb-1">{count.name}</div>
-                                                    <div className="text-xs text-gray-500 flex justify-between">
-                                                        <span>{count.sucursal_name || 'Global'}</span>
-                                                        <span>{new Date(count.created_at).toLocaleDateString()}</span>
-                                                    </div>
-                                                </button>
+                                                 <button
+                                                     key={count.id}
+                                                     onClick={() => handleSelectCount(count)}
+                                                     className={`p-4 bg-white hover:bg-blue-50 border rounded-lg text-left transition shadow-sm hover:shadow relative overflow-hidden ${count.parent_count_id ? 'border-orange-200' : 'border-gray-200 hover:border-blue-300'}`}
+                                                 >
+                                                     {count.parent_count_id && (
+                                                         <div className="absolute top-0 right-0">
+                                                             <div className="bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">
+                                                                 Re-control
+                                                             </div>
+                                                         </div>
+                                                     )}
+                                                     <div className="font-bold text-gray-800 mb-1">{count.name}</div>
+                                                     <div className="text-xs text-gray-500 flex justify-between">
+                                                         <span>{count.sucursal_name || 'Global'}</span>
+                                                         <span>{new Date(count.created_at).toLocaleDateString()}</span>
+                                                     </div>
+                                                 </button>
                                             ))}
                                         </div>
                                     )}
@@ -1881,14 +1906,19 @@ const RemitoForm = () => {
                                     <div className="p-2 rounded-full bg-green-100 text-green-600">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                                     </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-800 max-h-32 overflow-y-auto break-all custom-scrollbar pr-2 leading-tight">
-                                            Conteo: {selectedCount.name}
-                                        </h3>
-                                        <p className="text-sm text-gray-600">
-                                            {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito'}
-                                        </p>
-                                    </div>
+                                     <div>
+                                         <h3 className="text-lg font-bold text-gray-800 max-h-32 overflow-y-auto break-all custom-scrollbar pr-2 leading-tight flex items-center gap-2">
+                                             Conteo: {selectedCount.name}
+                                             {selectedCount.parent_count_id && (
+                                                 <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                                                     Modo Re-control
+                                                 </span>
+                                             )}
+                                         </h3>
+                                         <p className="text-sm text-gray-600">
+                                             {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito'}
+                                         </p>
+                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-2">

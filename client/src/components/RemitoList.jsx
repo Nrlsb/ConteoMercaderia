@@ -595,6 +595,25 @@ const RemitoList = () => {
                                                         <button onClick={() => handleViewDetails(remito)} className="text-gray-400 hover:text-brand-blue transition" title="Ver detalles">
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 5 8.268 7.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                                         </button>
+                                                        {remito.is_finalized && (remito.type === 'general_count' || remito.type === 'remito') && (user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
+                                                            <button 
+                                                                onClick={async (e) => {
+                                                                    e.stopPropagation();
+                                                                    if (!window.confirm('¿Deseas iniciar un re-control de diferencias para este conteo? Se creará una nueva sesión con los productos que tuvieron discrepancias.')) return;
+                                                                    try {
+                                                                        const res = await api.post(`/api/general-counts/${remito.id}/re-control`);
+                                                                        toast.success('Re-control iniciado con éxito. Dirígete a "Nuevo Conteo" para comenzar.');
+                                                                        navigate('/');
+                                                                    } catch (err) {
+                                                                        toast.error(err.response?.data?.message || 'Error al iniciar re-control');
+                                                                    }
+                                                                }}
+                                                                className="text-gray-400 hover:text-orange-500 transition" 
+                                                                title="Iniciar Re-control"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={(e) => handleDelete(e, remito)}
                                                             className="text-gray-400 hover:text-red-500 transition"

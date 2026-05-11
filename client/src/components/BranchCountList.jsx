@@ -262,11 +262,23 @@ const BranchCountList = ({ countId, countName }) => {
                                 const rawVal = localQty[product.code] ?? '';
                                 const hasValue = rawVal !== '' && !isNaN(parseFloat(rawVal));
                                 const globalIndex = (page - 1) * PAGE_SIZE + index;
+                                
+                                // Grouping logic: Show header if controller changes
+                                const prevProduct = index > 0 ? products[index - 1] : null;
+                                const showGroupHeader = !prevProduct || product.controlled_by !== prevProduct.controlled_by;
 
                                 return (
-                                    <div
-                                        key={product.code}
-                                        className={`flex flex-col sm:flex-row sm:items-center transition-colors py-3 sm:py-0 border-l-4 ${hasValue
+                                    <React.Fragment key={product.code}>
+                                        {showGroupHeader && (
+                                            <div className="bg-gray-50/80 px-4 py-2 border-y border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-widest flex justify-between items-center sticky top-8 z-10 backdrop-blur-sm">
+                                                <span>{product.controlled_by || '— Pendientes de Control —'}</span>
+                                                <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[9px]">
+                                                    Grupo de Control
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div
+                                            className={`flex flex-col sm:flex-row sm:items-center transition-colors py-3 sm:py-0 border-l-4 ${hasValue
                                                 ? 'bg-green-50 hover:bg-green-100 border-green-500'
                                                 : product.has_other_scans
                                                     ? 'bg-amber-50/30 hover:bg-amber-50 border-amber-400'
@@ -290,6 +302,11 @@ const BranchCountList = ({ countId, countName }) => {
                                                             <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                                                         </svg>
                                                         Contado por otros
+                                                    </span>
+                                                )}
+                                                {product.controlled_by && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide">
+                                                        Controlado por: {product.controlled_by}
                                                     </span>
                                                 )}
                                             </div>
@@ -329,8 +346,9 @@ const BranchCountList = ({ countId, countName }) => {
                                             </div>
                                         </div>
                                     </div>
-                                );
-                            })}
+                                </React.Fragment>
+                            );
+                        })}
                         </div>
                     </div>
                 )}
