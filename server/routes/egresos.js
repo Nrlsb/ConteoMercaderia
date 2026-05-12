@@ -535,6 +535,94 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req,
     }
 });
 
+// Batch Scan/Control Egreso Items (Offline Sync)
+router.post('/:id/scan/batch', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
+    const { id } = req.params;
+    const { scans } = req.body;
+    console.log(`[EGRESO BATCH] Syncing ${scans?.length} items for egreso ${id}`);
+
+    if (!scans || !Array.isArray(scans)) return res.status(400).json({ message: 'Missing scans array' });
+
+    try {
+        const results = { success: [], failed: [] };
+        
+        for (const scan of scans) {
+            const { code, quantity } = scan;
+            const qtyToAdd = Number(quantity) || 1;
+            
+            try {
+                // Find product code (internal or barcode)
+                let productCode = null;
+                const { data: pCode } = await supabase.from('products').select('code').eq('code', code).maybeSingle();
+                if (pCode) productCode = pCode.code;
+                else {
+                    const { data: pBar } = await supabase.from('products').select('code').eq('barcode', code).maybeSingle();
+                    if (pBar) productCode = pBar.code;
+                    else {
+                        const { data: pSec } = await supabase.from('products').select('code').eq('barcode_secondary', code).maybeSingle();
+                        if (pSec) productCode = pSec.code;
+                    }
+                }
+
+                if (!productCode) {
+                    results.failed.push({ code, error: 'Producto no encontrado' });
+                    continue;
+                }
+
+                const { data: existingItem } = await supabase
+                    .from('egreso_items')
+                    .select('*')
+                    .eq('egreso_id', id)
+                    .eq('product_code', productCode)
+                    .maybeSingle();
+
+                if (!existingItem || !(Number(existingItem.expected_quantity) > 0)) {
+                    results.failed.push({ code, error: 'El producto no forma parte de este remito de egreso' });
+                    continue;
+                }
+
+                let oldScanned = (Number(existingItem.scanned_quantity) || 0);
+                let currentExpected = Number(existingItem.expected_quantity) || 0;
+                let newScanned = oldScanned + qtyToAdd;
+
+                if (newScanned > currentExpected) {
+                    results.failed.push({ code, error: `Excede cantidad esperada. Máximo: ${currentExpected - oldScanned}` });
+                    continue;
+                }
+
+                await supabase
+                    .from('egreso_items')
+                    .upsert({
+                        egreso_id: id,
+                        product_code: productCode,
+                        scanned_quantity: newScanned,
+                        expected_quantity: currentExpected,
+                        last_scanned_at: new Date().toISOString()
+                    }, { onConflict: 'egreso_id, product_code' });
+
+                await supabase.from('egreso_items_history').insert({
+                    egreso_id: id,
+                    user_id: req.user.id,
+                    operation: 'UPDATE_SCANNED',
+                    product_code: productCode,
+                    old_data: { scanned_quantity: oldScanned },
+                    new_data: { scanned_quantity: newScanned },
+                    changed_at: new Date().toISOString()
+                });
+
+                results.success.push({ code: productCode, quantity: newScanned, originalIndex: scans.indexOf(scan) });
+            } catch (err) {
+                results.failed.push({ code, error: err.message, originalIndex: scans.indexOf(scan) });
+            }
+        }
+
+        res.json({ message: 'Batch sync completed', results });
+    } catch (error) {
+        console.error('Error in batch scan:', error);
+        res.status(500).json({ message: 'Error processing batch scans' });
+    }
+});
+
 // Resolve a failed PDF item by linking it to a correct catalog product
 router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;

@@ -182,15 +182,36 @@ const EgresoDetailsPage = () => {
         toast.info(`Sincronizando ${queue.length} registros offline...`, { id: 'sync' });
 
         try {
-            const scans = queue.map(s => ({ code: s.data.code, quantity: s.data.quantity }));
-            await api.post(`/api/egresos/${id}/scan/batch`, { scans });
-            await db.pending_syncs.bulkDelete(queue.map(s => s.id));
+            const scans = queue.map(s => ({ 
+                queueId: s.id, 
+                code: s.data.code, 
+                quantity: s.data.quantity 
+            }));
+            
+            const response = await api.post(`/api/egresos/${id}/scan/batch`, { scans });
+            const { results } = response.data;
+
+            // Delete only successful ones from local DB
+            if (results && results.success) {
+                const successfulIds = results.success.map(res => scans[res.originalIndex].queueId);
+                if (successfulIds.length > 0) {
+                    await db.pending_syncs.bulkDelete(successfulIds);
+                }
+            }
+
             checkPendingSync();
-            toast.success('Sincronización completada exitosamente', { id: 'sync' });
+
+            if (results && results.failed && results.failed.length > 0) {
+                toast.warning(`Sincronización parcial: ${results.success.length} ok, ${results.failed.length} con error`);
+            } else {
+                toast.success('Sincronización completada exitosamente', { id: 'sync' });
+            }
+            
             fetchEgresoDetails();
         } catch (error) {
-            console.error('Error syncing:', error);
-            toast.error('Error al sincronizar. Se reintentará cuando haya red.', { id: 'sync' });
+            console.error('Error syncing details:', error.response?.data || error.message || error);
+            const errorMsg = error.response?.data?.message || 'Error al sincronizar. Se reintentará cuando haya red.';
+            toast.error(errorMsg, { id: 'sync' });
         }
     };
 
@@ -543,6 +564,19 @@ const EgresoDetailsPage = () => {
         const qty = parseFloat(quantityToAdd) || 1;
 
         if (!navigator.onLine) {
+            const existingItem = items.find(i => i.product_code === code);
+            const currentExpected = Number(existingItem?.expected_quantity) || 0;
+            const alreadyScanned = Number(existingItem?.scanned_quantity) || 0;
+
+            if (alreadyScanned + qty > currentExpected) {
+                const errorMsg = `No se puede exceder la cantidad esperada (${currentExpected}).`;
+                toast.error(errorMsg);
+                setScanStatus({ type: 'error', message: errorMsg });
+                setFichajeState(prev => ({ ...prev, isOpen: false }));
+                setProcessing(false);
+                return;
+            }
+
             await db.pending_syncs.add({
                 document_id: id,
                 type: 'egreso',
@@ -702,6 +736,17 @@ const EgresoDetailsPage = () => {
             }
 
             if (!navigator.onLine) {
+                const existingItem = items.find(i => i.product_code === code);
+                const currentExpected = Number(existingItem?.expected_quantity) || 0;
+                const alreadyScanned = Number(existingItem?.scanned_quantity) || 0;
+
+                if (alreadyScanned + qty > currentExpected) {
+                    const errorMsg = `Excede cantidad esperada: ${currentExpected}`;
+                    setScanStatus({ type: 'error', message: errorMsg });
+                    setProcessing(false);
+                    return;
+                }
+
                 await db.pending_syncs.add({
                     document_id: id,
                     type: 'egreso',
