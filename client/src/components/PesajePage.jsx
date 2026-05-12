@@ -21,8 +21,10 @@ const PesajePage = () => {
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    const [baudRate, setBaudRate] = useState(9600);
     const { searchProductsLocally } = useProductSync();
     const searchTimeoutRef = useRef(null);
+
 
     // Fetch recent measurements on mount
     const fetchRecentMeasurements = useCallback(async () => {
@@ -52,7 +54,8 @@ const PesajePage = () => {
         setIsConnecting(true);
         try {
             const selectedPort = await navigator.serial.requestPort();
-            await selectedPort.open({ baudRate: 9600 }); // Baud rate común para balanzas Kretz
+            await selectedPort.open({ baudRate: baudRate }); // Usar la velocidad seleccionada
+
 
             setPort(selectedPort);
             setIsConnected(true);
@@ -227,7 +230,26 @@ const PesajePage = () => {
                     {isConnecting ? 'Conectando...' : isConnected ? 'Balanza Conectada (USB)' : 'Conectar Balanza (USB)'}
 
                 </button>
+
+                {!isConnected && (
+                    <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
+                        <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
+                        <select 
+                            value={baudRate}
+                            onChange={(e) => setBaudRate(Number(e.target.value))}
+                            className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
+                        >
+                            <option value={2400}>2400</option>
+                            <option value={4800}>4800</option>
+                            <option value={9600}>9600</option>
+                            <option value={19200}>19200</option>
+                            <option value={38400}>38400</option>
+                            <option value={115200}>115200</option>
+                        </select>
+                    </div>
+                )}
             </div>
+
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Main Action Card */}
