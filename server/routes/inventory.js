@@ -2326,16 +2326,18 @@ router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_
         }
 
         // 5. Create NEW Re-control Count
+        const insertPayload = {
+            name: `RE-CONTROL: ${originalCount.name}`,
+            status: 'open',
+            sucursal_id: originalCount.sucursal_id,
+            created_by: req.user.id,
+            parent_count_id: id,
+            product_codes: diffCodes
+        };
+
         let { data: newCount, error: insertError } = await supabase
             .from('general_counts')
-            .insert([{
-                name: `RE-CONTROL: ${originalCount.name}`,
-                status: 'open',
-                sucursal_id: originalCount.sucursal_id,
-                created_by: req.user.id,
-                parent_count_id: id,
-                product_codes: diffCodes
-            }])
+            .insert([insertPayload])
             .select()
             .single();
 
