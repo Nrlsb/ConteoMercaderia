@@ -105,7 +105,45 @@ const RemitoForm = () => {
     // Guide Modal State
     const [isGuideOpen, setIsGuideOpen] = useState(false);
 
-    // --- HELPER FUNCTIONS (Defined early to avoid TDZ) ---
+    // --- OPTIMIZED DATA STRUCTURES ---
+    // Optimized lookup for expected quantities using a Map (O(1) instead of O(n))
+    const expectedMap = React.useMemo(() => {
+        if (!expectedItems) return new Map();
+        const map = new Map();
+        expectedItems.forEach(item => {
+            if (item.code) map.set(item.code, item.quantity);
+        });
+        return map;
+    }, [expectedItems]);
+
+    const getExpectedQty = useCallback((code) => {
+        if (!expectedItems) return null;
+        return expectedMap.get(code) ?? null;
+    }, [expectedItems, expectedMap]);
+
+    // Fast lookup for expected items by barcode
+    const expectedBarcodeMap = React.useMemo(() => {
+        if (!expectedItems) return new Map();
+        const map = new Map();
+        expectedItems.forEach(item => {
+            if (item.barcode) {
+                if (!map.has(item.barcode)) map.set(item.barcode, []);
+                map.get(item.barcode).push(item);
+            }
+            if (item.code && item.code !== item.barcode) {
+                if (!map.has(item.code)) map.set(item.code, []);
+                map.get(item.code).push(item);
+            }
+        });
+        return map;
+    }, [expectedItems]);
+
+    const expectedBarcodeMapRef = React.useRef(expectedBarcodeMap);
+    useEffect(() => {
+        expectedBarcodeMapRef.current = expectedBarcodeMap;
+    }, [expectedBarcodeMap]);
+
+    // --- HELPER FUNCTIONS ---
     const fetchItemsByOrders = async (orderNumbers) => {
         const results = await Promise.all(
             orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
@@ -175,16 +213,16 @@ const RemitoForm = () => {
             // Merge results
             const combined = [...localResults.map(p => ({
                 ...p,
-                inDocument: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false,
-                isExpected: expectedItems ? expectedItems.some(ei => ei.code === p.code) : false
+                inDocument: expectedMap.has(p.code),
+                isExpected: expectedMap.has(p.code)
             }))];
 
             apiResults.forEach(apiItem => {
                 if (!combined.some(c => c.code === apiItem.code)) {
                     combined.push({
                         ...apiItem,
-                        inDocument: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false,
-                        isExpected: expectedItems ? expectedItems.some(ei => ei.code === apiItem.code) : false
+                        inDocument: expectedMap.has(apiItem.code),
+                        isExpected: expectedMap.has(apiItem.code)
                     });
                 }
             });
@@ -984,9 +1022,9 @@ const RemitoForm = () => {
 
             // Find Extra Items (Scanned but not in expected items OR quantity exceeds expected)
             items.forEach(scanned => {
-                const expected = expectedItems.find(i => i.code === scanned.code);
+                const expectedQty = expectedMap.get(scanned.code);
 
-                if (!expected) {
+                if (expectedQty === undefined) {
                     // Completely unexpected item
                     discrepancies.extra.push({
                         code: scanned.code,
@@ -994,12 +1032,12 @@ const RemitoForm = () => {
                         expected: 0, // Explicitly set 0 for reports
                         scanned: scanned.quantity
                     });
-                } else if (scanned.quantity > expected.quantity) {
+                } else if (scanned.quantity > expectedQty) {
                     // Expected item but with excess quantity
                     discrepancies.extra.push({
                         code: scanned.code,
                         description: scanned.name,
-                        expected: expected.quantity,
+                        expected: expectedQty,
                         scanned: scanned.quantity
                     });
                 }
@@ -1130,8 +1168,8 @@ const RemitoForm = () => {
 
         // Check in expected items first
         if (currentExpectedItems) {
-            // Try to find by barcode OR code
-            const matchedExpectedItems = currentExpectedItems.filter(item => item.barcode === inputCode || item.code === inputCode);
+            // Try to find by barcode OR code using optimized Map
+            const matchedExpectedItems = expectedBarcodeMapRef.current.get(inputCode) || [];
 
             if (matchedExpectedItems.length === 0) {
                 // If force adding, don't block
@@ -1624,13 +1662,7 @@ const RemitoForm = () => {
     };
 
 
-    // Helper to get expected quantity
-    const getExpectedQty = (code) => {
-        if (!expectedItems) return null;
-        // Match by code (internal)
-        const item = expectedItems.find(i => i.code === code);
-        return item ? item.quantity : null; // Return null if not found
-    };
+    // (Optimization: getExpectedQty is now moved to the top of the component)
 
     return (
         <div className="relative w-full h-full">
@@ -2260,12 +2292,12 @@ const RemitoForm = () => {
                     </div>
                 )}
 
-                {/* Tab switcher: only shown when a branch count (sucursal_id) is active */}
-                {selectedCount?.sucursal_id && (
-                    <div className="flex border-b border-gray-200 mb-0 mt-4">
+                {/* Tab switcher: shown when any count is active */}
+                {selectedCount && (
+                    <div className="flex border-b border-gray-200 mb-0 mt-4 overflow-x-auto no-scrollbar">
                         <button
                             onClick={() => setCountTab('scan')}
-                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${countTab === 'scan'
+                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${countTab === 'scan'
                                 ? 'border-blue-500 text-blue-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
@@ -2278,8 +2310,22 @@ const RemitoForm = () => {
                             </span>
                         </button>
                         <button
+                            onClick={() => setCountTab('history')}
+                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${countTab === 'history'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <span className="flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                                Historial ({items.length})
+                            </span>
+                        </button>
+                        <button
                             onClick={() => setCountTab('list')}
-                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${countTab === 'list'
+                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${countTab === 'list'
                                 ? 'border-blue-500 text-blue-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
@@ -2295,7 +2341,7 @@ const RemitoForm = () => {
                 )}
 
                 {/* Branch count list tab content */}
-                {selectedCount?.sucursal_id && countTab === 'list' && (
+                {selectedCount && countTab === 'list' && (
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-0" style={{ minHeight: '600px' }}>
                         <Suspense fallback={
                             <div className="flex items-center justify-center py-16 text-gray-400">
@@ -2308,7 +2354,7 @@ const RemitoForm = () => {
                     </div>
                 )}
 
-                <div className={`flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8 mt-8 ${selectedCount?.sucursal_id && countTab === 'list' ? 'hidden' : ''}`}>
+                <div className={`flex flex-col lg:grid ${selectedCount && countTab === 'scan' ? 'lg:grid-cols-1 max-w-2xl mx-auto' : 'lg:grid-cols-3'} gap-6 md:gap-8 mt-8 ${selectedCount && (countTab === 'list' || countTab === 'history') ? 'hidden' : ''}`}>
                     {/* Left Column: Inputs */}
                     <div className="lg:col-span-1 space-y-6">
                         {/* Remito Number Input Removed - Auto-assigned from Order */}
@@ -2450,11 +2496,39 @@ const RemitoForm = () => {
                                     document.body
                                 )}
                             </div>
+
+                            {/* Recent Scans Preview (only when a count is active and in scan tab) */}
+                            {selectedCount && countTab === 'scan' && items.length > 0 && (
+                                <div className="mt-8 pt-8 border-t border-gray-100 animate-fadeIn">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Últimos Escaneos</h4>
+                                        <button
+                                            onClick={() => setCountTab('history')}
+                                            className="text-xs text-blue-600 font-bold hover:text-blue-800 transition px-2 py-1 bg-blue-50 rounded"
+                                        >
+                                            VER HISTORIAL COMPLETO
+                                        </button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {items.slice(0, 3).map((item) => (
+                                            <div key={item.code} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm transition hover:shadow-md">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-bold text-gray-800 truncate">{item.name}</p>
+                                                    <p className="text-[10px] text-gray-500 font-mono">{item.code}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3 ml-4">
+                                                    <span className="bg-brand-blue/10 text-brand-blue text-sm font-black px-2.5 py-1 rounded-lg">x{item.quantity}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Right Column: Item List */}
-                    <div className="lg:col-span-2 flex flex-col h-full">
+                    {/* Right Column: Item List (Hidden in scan mode when a count is active to improve performance) */}
+                    <div className={`lg:col-span-2 flex flex-col h-full ${selectedCount && countTab === 'scan' ? 'hidden' : ''}`}>
                         <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
                             <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                                 <h3 className="font-semibold text-brand-dark flex items-center">
@@ -2472,14 +2546,14 @@ const RemitoForm = () => {
                                         <p className="text-sm">Escanea productos para comenzar</p>
                                     </div>
                                 ) : (
-                                    items.slice(0, 20).map((item, index) => {
+                                    items.map((item, index) => {
                                         const expectedQty = getExpectedQty(item.code);
                                         const isUnexpected = expectedItems && expectedQty === null;
                                         const isOverQty = false;
                                         const hasError = isUnexpected;
 
                                         return (
-                                            <div key={index} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border transition hover:shadow-md gap-4 ${hasError ? 'border-l-4 border-l-brand-alert border-y-gray-100 border-r-gray-100' : 'border-l-4 border-l-brand-success border-y-gray-100 border-r-gray-100'}`}>
+                                            <div key={item.code} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border transition hover:shadow-md gap-4 ${hasError ? 'border-l-4 border-l-brand-alert border-y-gray-100 border-r-gray-100' : 'border-l-4 border-l-brand-success border-y-gray-100 border-r-gray-100'}`}>
                                                 <div className="flex-1 w-full">
                                                     <div className="flex items-center justify-between sm:justify-start">
                                                         <p className="font-semibold text-brand-dark text-lg">{item.name}</p>
@@ -2563,6 +2637,83 @@ const RemitoForm = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* History Tab (Full width version of the Item List) */}
+                {selectedCount && countTab === 'history' && (
+                    <div className="flex flex-col h-full mt-8 animate-fadeIn">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden min-h-[600px]">
+                            <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                <h3 className="font-semibold text-brand-dark flex items-center">
+                                    <svg className="w-5 h-5 mr-2 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                                    Historial de Escaneo
+                                </h3>
+                                <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length} productos</span>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+                                {items.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-400 py-20">
+                                        <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                                        <p className="text-lg font-medium">No hay productos escaneados aún</p>
+                                        <p className="text-sm">Vuelve a la pestaña "Escanear" para agregar productos</p>
+                                    </div>
+                                ) : (
+                                    items.map((item) => {
+                                        const expectedQty = getExpectedQty(item.code);
+                                        const isUnexpected = expectedItems && expectedQty === null;
+                                        const hasError = isUnexpected;
+
+                                        return (
+                                            <div key={item.code} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border transition hover:shadow-md gap-4 ${hasError ? 'border-l-4 border-l-brand-alert border-y-gray-100 border-r-gray-100' : 'border-l-4 border-l-brand-success border-y-gray-100 border-r-gray-100'}`}>
+                                                <div className="flex-1 w-full">
+                                                    <div className="flex items-center justify-between sm:justify-start">
+                                                        <p className="font-semibold text-brand-dark text-lg">{item.name}</p>
+                                                        {hasError && <span className="ml-2 text-brand-alert"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></span>}
+                                                    </div>
+                                                    <p className="text-sm text-brand-gray font-mono tracking-wide">{item.code}</p>
+                                                    {isUnexpected && <p className="text-xs text-brand-alert font-bold mt-1">⚠️ No solicitado</p>}
+                                                </div>
+
+                                                <div className="flex items-center justify-between w-full sm:w-auto gap-6">
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                                                            <button
+                                                                className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
+                                                                onClick={() => handleQuantityChange(item.code, Math.max(1, item.quantity - 1))}
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={item.quantity}
+                                                                onChange={(e) => handleQuantityChange(item.code, e.target.value)}
+                                                                className="w-14 p-0 bg-transparent border-0 text-center font-bold text-brand-dark focus:ring-0 text-lg"
+                                                            />
+                                                            <button
+                                                                className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
+                                                                onClick={() => handleQuantityChange(item.code, item.quantity + 1)}
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveItem(item.code)}
+                                                        className="text-gray-400 hover:text-brand-alert p-2 rounded-full hover:bg-red-50 transition"
+                                                        title="Eliminar item"
+                                                    >
+                                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Modal for Duplicate Products Selection */}
