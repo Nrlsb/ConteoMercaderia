@@ -1069,7 +1069,14 @@ async function getFullRemitoDetails(id) {
         const codes = [...new Set(scans.map(s => s.code))];
 
         const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-        const { data: products } = await supabase.from('products').select('code, description, brand, brand_code').in('code', codes);
+        let allProducts = [];
+        const chunkSize = 50;
+        for (let i = 0; i < codes.length; i += chunkSize) {
+            const chunk = codes.slice(i, i + chunkSize);
+            const { data: productsChunk } = await supabase.from('products').select('code, description, brand, brand_code').in('code', chunk);
+            if (productsChunk) allProducts = [...allProducts, ...productsChunk];
+        }
+        const products = allProducts; //
 
         if (users) users.forEach(u => userMap[u.id] = u.username);
         // Store complete product info including brand
@@ -2470,10 +2477,16 @@ router.get('/inventory/:orderNumber', verifyToken, async (req, res) => {
 
         // Fetch details for items not in expected list
         if (missingCodes.length > 0) {
-            const { data: found } = await supabase
+            let found = [];
+            const chunkSize = 50;
+            for (let i = 0; i < missingCodes.length; i += chunkSize) {
+                const chunk = missingCodes.slice(i, i + chunkSize);
+                const { data: chunkData } = await supabase.from('products').select('code, description, barcode').in('code', chunk);
+                if (chunkData) found = [...found, ...chunkData];
+            } /*
                 .from('products')
                 .select('code, description, barcode')
-                .in('code', missingCodes);
+                .in('code', missingCodes); */
 
             const foundMap = {};
             if (found) found.forEach(f => foundMap[f.code] = f);
