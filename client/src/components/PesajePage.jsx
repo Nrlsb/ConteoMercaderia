@@ -10,8 +10,9 @@ const PesajePage = () => {
     const [unit, setUnit] = useState('kg');
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
-    const [bluetoothDevice, setBluetoothDevice] = useState(null);
-    const [characteristic, setCharacteristic] = useState(null);
+    const [port, setPort] = useState(null);
+    const [reader, setReader] = useState(null);
+
 
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
