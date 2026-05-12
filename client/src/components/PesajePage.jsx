@@ -22,7 +22,11 @@ const PesajePage = () => {
     const [isSaving, setIsSaving] = useState(false);
 
     const [baudRate, setBaudRate] = useState(9600);
+    const [parity, setParity] = useState('none');
+    const [dataBits, setDataBits] = useState(8);
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const { searchProductsLocally } = useProductSync();
+
     const searchTimeoutRef = useRef(null);
 
 
@@ -54,7 +58,13 @@ const PesajePage = () => {
         setIsConnecting(true);
         try {
             const selectedPort = await navigator.serial.requestPort();
-            await selectedPort.open({ baudRate: baudRate }); // Usar la velocidad seleccionada
+            await selectedPort.open({ 
+                baudRate: baudRate,
+                parity: parity,
+                dataBits: dataBits,
+                stopBits: 1
+            });
+
 
 
             setPort(selectedPort);
@@ -232,23 +242,59 @@ const PesajePage = () => {
                 </button>
 
                 {!isConnected && (
-                    <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
-                        <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
-                        <select 
-                            value={baudRate}
-                            onChange={(e) => setBaudRate(Number(e.target.value))}
-                            className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
-                        >
-                            <option value={2400}>2400</option>
-                            <option value={4800}>4800</option>
-                            <option value={9600}>9600</option>
-                            <option value={19200}>19200</option>
-                            <option value={38400}>38400</option>
-                            <option value={115200}>115200</option>
-                        </select>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
+                            <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
+                            <select 
+                                value={baudRate}
+                                onChange={(e) => setBaudRate(Number(e.target.value))}
+                                className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
+                            >
+                                <option value={2400}>2400</option>
+                                <option value={4800}>4800</option>
+                                <option value={9600}>9600</option>
+                                <option value={19200}>19200</option>
+                            </select>
+                            <button 
+                                onClick={() => setShowAdvanced(!showAdvanced)}
+                                className="p-2 text-gray-400 hover:text-blue-600"
+                                title="Ajustes avanzados"
+                            >
+                                <RefreshCw className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                            </button>
+                        </div>
+                        
+                        {showAdvanced && (
+                            <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
+                                <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                                    <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Paridad:</span>
+                                    <select 
+                                        value={parity}
+                                        onChange={(e) => setParity(e.target.value)}
+                                        className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
+                                    >
+                                        <option value="none">None</option>
+                                        <option value="even">Even</option>
+                                        <option value="odd">Odd</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                                    <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Bits:</span>
+                                    <select 
+                                        value={dataBits}
+                                        onChange={(e) => setDataBits(Number(e.target.value))}
+                                        className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
+                                    >
+                                        <option value={8}>8</option>
+                                        <option value={7}>7</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
+
 
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
