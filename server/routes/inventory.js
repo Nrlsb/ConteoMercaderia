@@ -2326,7 +2326,7 @@ router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_
         }
 
         // 5. Create NEW Re-control Count
-        const { data: newCount, error: insertError } = await supabase
+        let { data: newCount, error: insertError } = await supabase
             .from('general_counts')
             .insert([{
                 name: `RE-CONTROL: ${originalCount.name}`,
@@ -2339,13 +2339,36 @@ router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_
             .select()
             .single();
 
-        if (insertError) throw insertError;
+        if (insertError) {
+            console.error('Insert error:', insertError);
+            if (insertError.code === '42703' || (insertError.message && insertError.message.includes('parent_count_id'))) {
+                // Retry without parent_count_id
+                const fallbackPayload = {
+                    name: `RE-CONTROL: ${originalCount.name || originalCount.id}`,
+                    status: 'open',
+                    sucursal_id: originalCount.sucursal_id,
+                    created_by: req.user.id,
+                    product_codes: diffCodes
+                };
+                const { data: fallbackData, error: fallbackError } = await supabase
+                    .from('general_counts')
+                    .insert([fallbackPayload])
+                    .select()
+                    .single();
+                if (fallbackError) throw new Error(`Fallback error: ${fallbackError.message}`);
+                newCount = fallbackData;
+            } else if (insertError.message && insertError.message.includes('unique')) {
+                throw new Error('Ya existe un conteo activo para esta sucursal.');
+            } else {
+                throw new Error(`DB Error: ${insertError.message}`);
+            }
+        }
 
         res.json({ message: 'Re-control iniciado con éxito', count: newCount });
 
     } catch (error) {
         console.error('Error starting re-control:', error);
-        res.status(500).json({ message: 'Error al iniciar re-control', details: error.message });
+        res.status(500).json({ message: error.message || 'Error al iniciar re-control', details: error.message });
     }
 });
 
