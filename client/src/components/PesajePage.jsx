@@ -97,14 +97,27 @@ const PesajePage = () => {
 
         try {
             while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                if (value) {
-                    handleWeightData(value);
+                try {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        handleWeightData(value);
+                    }
+                } catch (readError) {
+                    // Ignorar errores transitorios como BreakError y continuar intentando leer
+                    if (readError.name === 'BreakError') {
+                        console.warn('Serial Break received, continuing...');
+                        continue;
+                    }
+                    throw readError; // Re-lanzar si es un error fatal
                 }
             }
         } catch (error) {
-            console.error('Serial Read Error:', error);
+            console.error('Serial Fatal Error:', error);
+            if (isConnected) {
+                toast.error('Error crítico en la lectura USB. Reconectando...');
+                disconnectScale();
+            }
         } finally {
             reader.releaseLock();
         }
