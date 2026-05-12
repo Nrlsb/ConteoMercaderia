@@ -601,7 +601,7 @@ const RemitoList = () => {
                                                                     e.stopPropagation();
                                                                     if (!window.confirm('¿Deseas iniciar un re-control de diferencias para este conteo? Se creará una nueva sesión con los productos que tuvieron discrepancias.')) return;
                                                                     try {
-                                                                        const res = await api.post(`/api/general-counts/${remito.id}/re-control`);
+                                                                        const res = await api.post(`/api/general-counts/${remito.remito_number || remito.id}/re-control`);
                                                                         toast.success('Re-control iniciado con éxito. Dirígete a "Nuevo Conteo" para comenzar.');
                                                                         navigate('/');
                                                                     } catch (err) {
