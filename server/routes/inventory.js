@@ -2341,22 +2341,39 @@ router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_
 
         if (insertError) {
             console.error('Insert error:', insertError);
-            if (insertError.code === '42703' || (insertError.message && insertError.message.includes('parent_count_id'))) {
-                // Retry without parent_count_id
-                const fallbackPayload = {
-                    name: `RE-CONTROL: ${originalCount.name || originalCount.id}`,
-                    status: 'open',
-                    sucursal_id: originalCount.sucursal_id,
-                    created_by: req.user.id,
-                    product_codes: diffCodes
-                };
+            
+            // Si hay error de FK (23503) o error de columna faltante (42703)
+            if (insertError.code === '23503' || insertError.code === '42703' || (insertError.message && insertError.message.includes('parent_count_id'))) {
+                
+                if (insertError.code === '23503') {
+                    insertPayload.created_by = null;
+                }
+                if (insertError.code === '42703' || (insertError.message && insertError.message.includes('parent_count_id'))) {
+                    delete insertPayload.parent_count_id;
+                }
+
+                // Intentar de nuevo con los ajustes
                 const { data: fallbackData, error: fallbackError } = await supabase
                     .from('general_counts')
-                    .insert([fallbackPayload])
+                    .insert([insertPayload])
                     .select()
                     .single();
-                if (fallbackError) throw new Error(`Fallback error: ${fallbackError.message}`);
-                newCount = fallbackData;
+                
+                // Si vuelve a fallar y fue por FK, intentar quitar parent_count_id también por si acaso
+                if (fallbackError && (fallbackError.code === '42703' || (fallbackError.message && fallbackError.message.includes('parent_count_id')))) {
+                    delete insertPayload.parent_count_id;
+                    const { data: fallbackData2, error: fallbackError2 } = await supabase
+                        .from('general_counts')
+                        .insert([insertPayload])
+                        .select()
+                        .single();
+                    if (fallbackError2) throw new Error(`Fallback 2 error: ${fallbackError2.message}`);
+                    newCount = fallbackData2;
+                } else if (fallbackError) {
+                    throw new Error(`Fallback error: ${fallbackError.message}`);
+                } else {
+                    newCount = fallbackData;
+                }
             } else if (insertError.message && insertError.message.includes('unique')) {
                 throw new Error('Ya existe un conteo activo para esta sucursal.');
             } else {
