@@ -1663,6 +1663,10 @@ const RemitoForm = () => {
 
 
     // (Optimization: getExpectedQty is now moved to the top of the component)
+    
+    // Calculate total quantity of items scanned
+    const totalQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+
 
     return (
         <div className="relative w-full h-full">
@@ -2320,7 +2324,7 @@ const RemitoForm = () => {
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                                 </svg>
-                                Historial ({items.length})
+                                Historial <span className="ml-1 bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-[10px]">{items.length} prod | {totalQuantity} u.</span>
                             </span>
                         </button>
                         <button
@@ -2354,7 +2358,8 @@ const RemitoForm = () => {
                     </div>
                 )}
 
-                <div className={`flex flex-col lg:grid ${selectedCount && countTab === 'scan' ? 'lg:grid-cols-1 max-w-2xl mx-auto' : 'lg:grid-cols-3'} gap-6 md:gap-8 mt-8 ${selectedCount && (countTab === 'list' || countTab === 'history') ? 'hidden' : ''}`}>
+                {(!selectedCount || countTab === 'scan') && (
+                    <div className={`flex flex-col lg:grid ${selectedCount && countTab === 'scan' ? 'lg:grid-cols-1 max-w-2xl mx-auto' : 'lg:grid-cols-3'} gap-6 md:gap-8 mt-8`}>
                     {/* Left Column: Inputs */}
                     <div className="lg:col-span-1 space-y-6">
                         {/* Remito Number Input Removed - Auto-assigned from Order */}
@@ -2535,7 +2540,7 @@ const RemitoForm = () => {
                                     <svg className="w-5 h-5 mr-2 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                                     Items Escaneados
                                 </h3>
-                                <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length}</span>
+                                <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length} prod | {totalQuantity} u.</span>
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 min-h-[400px]">
@@ -2637,6 +2642,7 @@ const RemitoForm = () => {
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* History Tab (Full width version of the Item List) */}
                 {selectedCount && countTab === 'history' && (
@@ -2647,7 +2653,7 @@ const RemitoForm = () => {
                                     <svg className="w-5 h-5 mr-2 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                                     Historial de Escaneo
                                 </h3>
-                                <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length} productos</span>
+                                <span className="bg-brand-blue text-white text-xs font-bold px-2.5 py-1 rounded-full">{items.length} prod | {totalQuantity} unidades</span>
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">

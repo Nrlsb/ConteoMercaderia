@@ -2413,12 +2413,13 @@ router.get('/inventory/:orderNumber', verifyToken, async (req, res) => {
         }
 
         // 2. Get All Scans for this Order
-        const { data: scans, error: scanError } = await supabase
+        const scans = await getAllScans(orderNumber); /*
+        const { data: _scans, error: scanError } = await supabase
             .from('inventory_scans')
             .select('user_id, code, quantity, timestamp')
             .eq('order_number', orderNumber);
 
-        if (scanError) throw scanError;
+        if (scanError) throw scanError; */
 
         // 3. Aggregate Scans
         const scannedMap = {}; // { code: totalQuantity }
