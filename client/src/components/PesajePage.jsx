@@ -24,6 +24,7 @@ const PesajePage = () => {
     const [baudRate, setBaudRate] = useState(9600);
     const [parity, setParity] = useState('none');
     const [dataBits, setDataBits] = useState(8);
+    const [stopBits, setStopBits] = useState(1);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const { searchProductsLocally } = useProductSync();
 
@@ -62,7 +63,7 @@ const PesajePage = () => {
                 baudRate: baudRate,
                 parity: parity,
                 dataBits: dataBits,
-                stopBits: 1
+                stopBits: stopBits
             });
 
 
@@ -121,6 +122,11 @@ const PesajePage = () => {
                     if (readError.name === 'BreakError') {
                         console.warn('Serial Break received, continuing...');
                         continue;
+                    }
+                    if (readError.name === 'FramingError') {
+                        console.error('Framing Error: Verifique los Bauds y Paridad.');
+                        toast.error('Error de Trama (Framing Error). Verifique los Bauds, Paridad y Stop Bits.');
+                        continue; // Intentamos seguir, aunque los datos podrían ser corruptos
                     }
                     throw readError; // Re-lanzar si es un error fatal
                 }
@@ -254,6 +260,7 @@ const PesajePage = () => {
                                 <option value={4800}>4800</option>
                                 <option value={9600}>9600</option>
                                 <option value={19200}>19200</option>
+                                <option value={115200}>115200</option>
                             </select>
                             <button 
                                 onClick={() => setShowAdvanced(!showAdvanced)}
@@ -287,6 +294,17 @@ const PesajePage = () => {
                                     >
                                         <option value={8}>8</option>
                                         <option value={7}>7</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                                    <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Stop:</span>
+                                    <select 
+                                        value={stopBits}
+                                        onChange={(e) => setStopBits(Number(e.target.value))}
+                                        className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
+                                    >
+                                        <option value={1}>1</option>
+                                        <option value={2}>2</option>
                                     </select>
                                 </div>
                             </div>
