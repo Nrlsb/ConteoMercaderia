@@ -350,16 +350,65 @@ const ReceiptDetailsPage = () => {
         try {
             const response = await api.get(`/api/receipts/${id}`);
             const data = response.data;
+            const baseItems = data.items || [];
+
+            // Buscar escaneos pendientes localmente
+            const pending = await db.pending_syncs
+                .where({ document_id: id, type: 'receipt' })
+                .toArray();
+            
+            // Combinar optimísticamente
+            const mergedItems = baseItems.map(item => {
+                const localScans = pending.filter(p => p.data.code === item.product_code);
+                if (localScans.length > 0) {
+                    const totalPending = localScans.reduce((sum, p) => sum + Number(p.data.quantity), 0);
+                    const field = localScans[0].data.type === 'load' ? 'expected_quantity' : 'scanned_quantity';
+                    return { ...item, [field]: Number(item[field] || 0) + totalPending };
+                }
+                return item;
+            });
+
             setReceipt(data);
-            setItems(data.items || []);
+            setItems(mergedItems);
             setImportFailedItems(data.failed_items || []);
             
-            // Load history for source traceability
+            // Fetch history from server
             try {
                 const historyRes = await api.get(`/api/receipts/${id}/history`);
-                setImportHistory(historyRes.data || []);
+                const serverHistory = Array.isArray(historyRes.data) ? historyRes.data : [];
+                
+                // Formatear escaneos locales para el historial
+                const offlineHistory = pending.map(p => {
+                    const item = mergedItems.find(i => i.product_code === p.data.code);
+                    return {
+                        operation: p.data.type === 'load' ? 'INSERT_ITEM' : 'UPDATE_SCANNED',
+                        description: item?.products?.description || 'Producto (Offline)',
+                        product_code: p.data.code,
+                        changed_at: new Date(p.timestamp).toISOString(),
+                        username: user?.username || 'Usuario',
+                        new_data: { [p.data.type === 'load' ? 'expected_quantity' : 'scanned_quantity']: p.data.quantity },
+                        isOffline: true
+                    };
+                });
+
+                const combinedHistory = [...offlineHistory, ...serverHistory].sort((a, b) => 
+                    new Date(b.changed_at) - new Date(a.changed_at)
+                );
+                setImportHistory(combinedHistory);
             } catch (hErr) {
                 console.error('Error fetching history for load tab:', hErr);
+                // Si falla el historial del servidor, al menos mostrar lo local
+                const offlineHistory = pending.map(p => {
+                    return {
+                        operation: p.data.type === 'load' ? 'INSERT_ITEM' : 'UPDATE_SCANNED',
+                        description: 'Producto (Offline)',
+                        product_code: p.data.code,
+                        changed_at: new Date(p.timestamp).toISOString(),
+                        username: user?.username || 'Usuario',
+                        isOffline: true
+                    };
+                });
+                setImportHistory(offlineHistory);
             }
             
             setLoading(false);
@@ -372,8 +421,23 @@ const ReceiptDetailsPage = () => {
             console.error('Error fetching receipt details:', error);
             const cache = await db.offline_caches.get(`receipt_${id}`);
             if (cache && cache.data) {
+                const baseItems = cache.data.items || [];
+                const pending = await db.pending_syncs
+                    .where({ document_id: id, type: 'receipt' })
+                    .toArray();
+
+                const mergedItems = baseItems.map(item => {
+                    const localScans = pending.filter(p => p.data.code === item.product_code);
+                    if (localScans.length > 0) {
+                        const totalPending = localScans.reduce((sum, p) => sum + Number(p.data.quantity), 0);
+                        const field = localScans[0].data.type === 'load' ? 'expected_quantity' : 'scanned_quantity';
+                        return { ...item, [field]: Number(item[field] || 0) + totalPending };
+                    }
+                    return item;
+                });
+
                 setReceipt(cache.data);
-                setItems(cache.data.items || []);
+                setItems(mergedItems);
                 setLoading(false);
                 toast.info('Cargado desde respaldo offline local');
             } else {

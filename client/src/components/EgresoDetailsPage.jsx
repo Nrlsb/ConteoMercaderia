@@ -254,10 +254,28 @@ const EgresoDetailsPage = () => {
     const fetchEgresoDetails = async () => {
         try {
             const response = await api.get(`/api/egresos/${id}`);
+            const baseItems = response.data.items || [];
+            
+            // Buscar si hay escaneos pendientes localmente para este documento
+            const pending = await db.pending_syncs
+                .where({ document_id: id, type: 'egreso' })
+                .toArray();
+            
+            // Combinar datos del servidor con los pendientes locales (optimista)
+            const mergedItems = baseItems.map(item => {
+                const localScans = pending.filter(p => p.data.code === item.product_code);
+                if (localScans.length > 0) {
+                    const totalPending = localScans.reduce((sum, p) => sum + Number(p.data.quantity), 0);
+                    return { ...item, scanned_quantity: Number(item.scanned_quantity) + totalPending };
+                }
+                return item;
+            });
+
             setEgreso(response.data);
-            setItems(response.data.items || []);
+            setItems(mergedItems);
             setLoading(false);
-            // Guardar respaldo local en IndexedDB
+            
+            // Guardar respaldo local en IndexedDB (los datos base del servidor)
             await db.offline_caches.put({
                 id: `egreso_${id}`,
                 data: response.data,
@@ -268,8 +286,24 @@ const EgresoDetailsPage = () => {
             // Intentar recuperar de caché local IndexedDB
             const cache = await db.offline_caches.get(`egreso_${id}`);
             if (cache && cache.data) {
+                const baseItems = cache.data.items || [];
+                
+                // IMPORTANTE: Al estar offline, es crítico sumar lo que tenemos pendiente en Dexie
+                const pending = await db.pending_syncs
+                    .where({ document_id: id, type: 'egreso' })
+                    .toArray();
+
+                const mergedItems = baseItems.map(item => {
+                    const localScans = pending.filter(p => p.data.code === item.product_code);
+                    if (localScans.length > 0) {
+                        const totalPending = localScans.reduce((sum, p) => sum + Number(p.data.quantity), 0);
+                        return { ...item, scanned_quantity: Number(item.scanned_quantity) + totalPending };
+                    }
+                    return item;
+                });
+
                 setEgreso(cache.data);
-                setItems(cache.data.items || []);
+                setItems(mergedItems);
                 setLoading(false);
                 toast.info('Cargado desde respaldo offline local');
             } else {
@@ -281,11 +315,44 @@ const EgresoDetailsPage = () => {
 
     const fetchHistory = async () => {
         setHistoryLoading(true);
+        let serverHistory = [];
         try {
             const response = await api.get(`/api/egresos/${id}/history`);
-            setHistory(response.data);
+            serverHistory = Array.isArray(response.data) ? response.data : [];
         } catch (error) {
             console.error('Error fetching history:', error);
+            // Si falla por falta de red, simplemente continuamos con el historial vacío del servidor
+        }
+
+        try {
+            // Obtener registros pendientes de sincronizar de la DB local
+            const pending = await db.pending_syncs
+                .where({ document_id: id, type: 'egreso' })
+                .toArray();
+            
+            const offlineHistory = pending.map(p => {
+                // Intentar encontrar la descripción en los items que ya tenemos cargados
+                const item = items.find(i => i.product_code === p.data.code);
+                return {
+                    operation: 'OFFLINE_SCAN',
+                    description: item?.products?.description || 'Producto escaneado',
+                    product_code: p.data.code,
+                    changed_at: new Date(p.timestamp).toISOString(),
+                    username: user?.username || 'Usuario',
+                    new_data: { scanned_quantity: p.data.quantity },
+                    isOffline: true
+                };
+            });
+
+            // Combinar ambos historiales y ordenar por fecha (más reciente primero)
+            const combined = [...offlineHistory, ...serverHistory].sort((a, b) => 
+                new Date(b.changed_at) - new Date(a.changed_at)
+            );
+            
+            setHistory(combined);
+        } catch (e) {
+            console.error('Error merging offline history:', e);
+            setHistory(serverHistory);
         } finally {
             setHistoryLoading(false);
         }
@@ -594,6 +661,7 @@ const EgresoDetailsPage = () => {
             toast.success(`Controlado offline: cantidad ${qty} (Se sincronizará al conectar)`, { duration: 4000 });
             setFichajeState(prev => ({ ...prev, isOpen: false }));
             checkPendingSync();
+            if (activeTab === 'history') fetchHistory();
             setProcessing(false);
             return;
         }
@@ -614,6 +682,7 @@ const EgresoDetailsPage = () => {
         // API call + refresh in background
         try {
             await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
+            if (activeTab === 'history') fetchHistory();
             // optimistic update already applied, no re-fetch needed
         } catch (error) {
             console.error('Scan error:', error);
@@ -757,6 +826,7 @@ const EgresoDetailsPage = () => {
             } else {
                 await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
             }
+            if (activeTab === 'history') fetchHistory();
             debouncedFetch();
         } catch (error) {
             console.error('Rapid scan error:', error);
@@ -882,6 +952,7 @@ const EgresoDetailsPage = () => {
             case 'PDF_IMPORT': return '📄 Importado desde PDF';
             case 'UPDATE_SCANNED': return '📦 Control actualizado';
             case 'INSERT_SCANNED': return '📦 Primer control';
+            case 'OFFLINE_SCAN': return '⏳ Escaneo Offline (Pendiente)';
             default: return op;
         }
     };
@@ -1449,7 +1520,14 @@ const EgresoDetailsPage = () => {
                                     <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
                                         <div className="flex justify-between items-start">
                                             <div>
-                                                <div className="text-sm font-bold text-gray-800">{getOperationLabel(entry.operation)}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-sm font-bold text-gray-800">{getOperationLabel(entry.operation)}</div>
+                                                    {entry.isOffline && (
+                                                        <span className="animate-pulse bg-yellow-100 text-yellow-700 text-[10px] px-1.5 py-0.5 rounded-full font-black border border-yellow-200">
+                                                            PENDIENTE
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-gray-500 mt-0.5">{entry.description} ({entry.product_code})</div>
                                             </div>
                                             <div className="text-right">

@@ -445,9 +445,30 @@ const RemitoForm = () => {
             }
 
             if (restoredItems.length > 0) {
-                setItems(restoredItems);
+                // Combinar con escaneos pendientes localmente (Offline)
+                const pendingKey = `pending_inventory_scans_${countId}`;
+                const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                
+                let mergedItems = [...restoredItems];
+                if (queue.length > 0) {
+                    queue.forEach(q => {
+                        const idx = mergedItems.findIndex(i => i.code === q.code);
+                        if (idx > -1) {
+                            mergedItems[idx].quantity = Number(mergedItems[idx].quantity || 0) + Number(q.quantity);
+                        } else {
+                            mergedItems.push({
+                                code: q.code,
+                                name: 'Producto (Pendiente de subir)',
+                                quantity: q.quantity,
+                                isOfflinePending: true
+                            });
+                        }
+                    });
+                }
+
+                setItems(mergedItems);
                 if (!isSilent) {
-                    triggerModal('Sesión Restaurada', `Se han recuperado ${restoredItems.length} productos escaneados previamente.`, 'success');
+                    triggerModal('Sesión Restaurada', `Se han recuperado ${mergedItems.length} productos (incluyendo escaneos locales).`, 'success');
                 }
             }
         } catch (error) {
