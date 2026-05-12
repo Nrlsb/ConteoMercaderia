@@ -78,6 +78,8 @@ const settingsRoutes = require('./routes/settings');
 const stockRoutes = require('./routes/stock');
 const productsRoutes = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
+const measurementsRoutes = require('./routes/measurements');
+
 
 // --- Import Services ---
 const { startLabelHistoryCleanupTask } = require('./services/cronJobs');
@@ -137,6 +139,8 @@ app.use('/api/products', productsRoutes);
 app.use('/api/barcode-history', barcodesRoutes);
 app.use('/api/labels', labelsRoutes);
 app.use('/api', inventoryRoutes);
+app.use('/api/measurements', measurementsRoutes);
+
 
 // --- Catch-All: Serve React App ---
 app.get(/(.*)/, (req, res) => {

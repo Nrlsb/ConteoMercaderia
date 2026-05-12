@@ -28,6 +28,8 @@ const EgresoDetailsPage = lazy(() => import('./components/EgresoDetailsPage'));
 const BranchIncomingsList = lazy(() => import('./components/BranchIncomingsList'));
 const EtiquetasPage = lazy(() => import('./components/EtiquetasPage'));
 const HelpPage = lazy(() => import('./components/HelpPage'));
+const PesajePage = lazy(() => import('./components/PesajePage'));
+
 
 const ProtectedRoute = ({ children, role, tabPermission }) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -248,6 +250,12 @@ const AppContent = () => {
                     <HelpPage />
                   </ProtectedRoute>
                 } />
+                <Route path="/pesaje" element={
+                  <ProtectedRoute>
+                    <PesajePage />
+                  </ProtectedRoute>
+                } />
+
               </Routes>
             </Suspense>
           </ErrorBoundary>

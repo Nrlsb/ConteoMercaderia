@@ -59,6 +59,8 @@ const Navigation = () => {
     const showEgresos = canSeeTab('tab_egresos', user?.role === 'admin' || user?.role === 'superadmin' || user?.sucursal_name === 'Deposito');
     const showIngresoSucursal = canSeeTab('tab_ingreso_sucursal', user?.role === 'admin' || user?.role === 'superadmin' || (user?.sucursal_name && user?.sucursal_name !== 'Deposito'));
     const showEtiquetas = canSeeTab('tab_etiquetas', true);
+    const showPesaje = canSeeTab('tab_pesaje', true);
+
 
     const getRoleName = () => {
         switch (user?.role) {
@@ -110,7 +112,11 @@ const Navigation = () => {
                             {showEtiquetas && (
                                 <Link to="/etiquetas" className={getLinkClass('/etiquetas')}>Etiquetas</Link>
                             )}
+                            {showPesaje && (
+                                <Link to="/pesaje" className={getLinkClass('/pesaje')}>Pesaje</Link>
+                            )}
                             <Link to="/ayuda" className={getLinkClass('/ayuda')}>Ayuda</Link>
+
                         </div>
                     </div>
                     {/* Desktop Right Side - Hidden on Mobile */}
@@ -192,7 +198,11 @@ const Navigation = () => {
                         {showEtiquetas && (
                             <Link to="/etiquetas" className={getMobileLinkClass('/etiquetas')} onClick={() => setIsOpen(false)}>Etiquetas</Link>
                         )}
+                        {showPesaje && (
+                            <Link to="/pesaje" className={getMobileLinkClass('/pesaje')} onClick={() => setIsOpen(false)}>Pesaje</Link>
+                        )}
                         <Link to="/ayuda" className={getMobileLinkClass('/ayuda')} onClick={() => setIsOpen(false)}>Ayuda</Link>
+
 
                         <button
                             onClick={() => {
