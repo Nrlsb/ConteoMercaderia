@@ -17,6 +17,10 @@ const BranchCountList = ({ countId, countName }) => {
     const [total, setTotal] = useState(0);
     const [countedTotal, setCountedTotal] = useState(0);
 
+    // Filter by Sub-ID (Grouped counts)
+    const [selectedSubId, setSelectedSubId] = useState('all');
+    const [subIds, setSubIds] = useState([]);
+
     // Search (server-side, debounced)
     const [search, setSearch] = useState('');
     const [searchInput, setSearchInput] = useState('');
@@ -27,6 +31,19 @@ const BranchCountList = ({ countId, countName }) => {
     const listTopRef = useRef(null);
     const currentPageRef = useRef(page);
     const currentSearchRef = useRef(search);
+    const currentFilterRef = useRef(selectedSubId);
+
+    // Parse countName to find individual order numbers
+    useEffect(() => {
+        if (countName) {
+            const parts = countName.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length > 1) {
+                setSubIds(parts);
+            } else {
+                setSubIds([]);
+            }
+        }
+    }, [countName]);
 
     useEffect(() => {
         currentPageRef.current = page;
@@ -36,11 +53,19 @@ const BranchCountList = ({ countId, countName }) => {
         currentSearchRef.current = search;
     }, [search]);
 
-    const fetchPage = useCallback(async (p, q, silent = false) => {
+    useEffect(() => {
+        currentFilterRef.current = selectedSubId;
+    }, [selectedSubId]);
+
+    const fetchPage = useCallback(async (p, q, f = 'all', silent = false) => {
         if (!countId) return;
         if (!silent) setIsLoading(true);
         try {
-            const params = new URLSearchParams({ page: p, pageSize: PAGE_SIZE });
+            const params = new URLSearchParams({ 
+                page: p, 
+                pageSize: PAGE_SIZE,
+                filterId: f === 'all' ? '' : f
+            });
             if (q) params.set('search', q);
             const res = await api.get(`/api/general-counts/${countId}/product-list?${params}`);
             const data = res.data;
@@ -78,8 +103,8 @@ const BranchCountList = ({ countId, countName }) => {
 
     // Initial load
     useEffect(() => {
-        fetchPage(1, '');
-    }, [fetchPage]);
+        fetchPage(1, '', selectedSubId);
+    }, [fetchPage, selectedSubId]);
 
     // Real-time subscription
     const refreshTimerRef = useRef(null);
@@ -96,7 +121,7 @@ const BranchCountList = ({ countId, countName }) => {
                 // Debounced refresh to avoid excessive reloads
                 if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
                 refreshTimerRef.current = setTimeout(() => {
-                    fetchPage(currentPageRef.current, currentSearchRef.current, true);
+                    fetchPage(currentPageRef.current, currentSearchRef.current, currentFilterRef.current, true);
                 }, 1000);
             })
             .subscribe();
@@ -113,7 +138,7 @@ const BranchCountList = ({ countId, countName }) => {
         clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             setSearch(value);
-            fetchPage(1, value);
+            fetchPage(1, value, selectedSubId);
         }, 400);
     };
 
@@ -172,7 +197,7 @@ const BranchCountList = ({ countId, countName }) => {
 
     const goToPage = (p) => {
         if (p < 1 || p > totalPages) return;
-        fetchPage(p, search);
+        fetchPage(p, search, selectedSubId);
         listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
@@ -258,6 +283,33 @@ const BranchCountList = ({ countId, countName }) => {
                         {countedTotal} / {total} productos cargados
                         {isSaving && <span className="ml-2 text-blue-500 animate-pulse font-medium">· Guardando...</span>}
                     </p>
+
+                    {/* Filter pills for grouped counts */}
+                    {subIds.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                            <button
+                                onClick={() => setSelectedSubId('all')}
+                                className={`px-3 py-1 rounded-full text-xs font-bold transition shadow-sm border ${selectedSubId === 'all'
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                                    }`}
+                            >
+                                TODOS
+                            </button>
+                            {subIds.map(id => (
+                                <button
+                                    key={id}
+                                    onClick={() => setSelectedSubId(id)}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition shadow-sm border uppercase ${selectedSubId === id
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                                        }`}
+                                >
+                                    {id.startsWith('STOCK-') ? `ID: ${id.split('-').slice(-2).join('-')}` : id}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <div className="relative w-full sm:w-64">
                     <input

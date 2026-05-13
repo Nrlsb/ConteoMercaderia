@@ -622,12 +622,13 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(10, parseInt(req.query.pageSize) || 50));
     const search = (req.query.search || '').trim();
+    const filterId = req.query.filterId; // New: Optional filter for grouped counts
 
     try {
         // Verify count exists and is open
         const { data: count, error: countError } = await supabase
             .from('general_counts')
-            .select('id, status, sucursal_id, product_codes')
+            .select('id, status, sucursal_id, product_codes, name')
             .eq('id', id)
             .is('deleted_at', null)
             .maybeSingle();
@@ -636,17 +637,32 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
         if (!count) return res.status(404).json({ message: 'Conteo no encontrado' });
         if (count.status !== 'open') return res.status(400).json({ message: 'El conteo ya fue cerrado' });
 
+        let currentProductCodes = count.product_codes || [];
+
+        // --- NEW: Filter by specific pre-remito if filterId provided ---
+        if (filterId && filterId !== 'all') {
+            const { data: preRemito, error: preError } = await supabase
+                .from('pre_remitos')
+                .select('items')
+                .eq('order_number', filterId)
+                .maybeSingle();
+            
+            if (!preError && preRemito && preRemito.items) {
+                currentProductCodes = preRemito.items.map(i => i.code).filter(Boolean);
+            }
+        }
+
         let productsWithMeta = [];
 
         // If the count has specific product_codes (from XML/pre-remito),
         // we fetch all of them and paginate/filter in memory to respect the original order.
-        if (Array.isArray(count.product_codes) && count.product_codes.length > 0) {
-            const allProductsInCount = await fetchProductsByCodes(count.product_codes);
+        if (Array.isArray(currentProductCodes) && currentProductCodes.length > 0) {
+            const allProductsInCount = await fetchProductsByCodes(currentProductCodes);
 
             const productMap = new Map(allProductsInCount.map(p => [p.code, p]));
 
-            // Reorder products based on count.product_codes
-            let orderedProducts = count.product_codes
+            // Reorder products based on currentProductCodes
+            let orderedProducts = currentProductCodes
                 .map(code => productMap.get(code))
                 .filter(p => p !== undefined); // Filter out any codes not found in products table
 
