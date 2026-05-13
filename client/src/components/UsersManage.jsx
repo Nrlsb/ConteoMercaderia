@@ -207,6 +207,13 @@ const UsersManage = () => {
             id: 'tab_etiquetas',
             name: 'Etiquetas',
             specialPermissions: []
+        },
+        {
+            id: 'tab_pesaje',
+            name: 'Balanza',
+            specialPermissions: [
+                { id: 'save_measurements', name: 'Guardar Pesajes' }
+            ]
         }
     ];
 
