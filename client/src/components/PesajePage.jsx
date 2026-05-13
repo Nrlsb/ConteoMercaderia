@@ -21,7 +21,7 @@ const PesajePage = () => {
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const [baudRate, setBaudRate] = useState(9600);
+    const [baudRate, setBaudRate] = useState(1200);
     const [parity, setParity] = useState('even');
     const [dataBits, setDataBits] = useState(7);
     const [stopBits, setStopBits] = useState(1);
@@ -274,6 +274,8 @@ const PesajePage = () => {
                                 onChange={(e) => setBaudRate(Number(e.target.value))}
                                 className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
                             >
+                                <option value={600}>600</option>
+                                <option value={1200}>1200</option>
                                 <option value={2400}>2400</option>
                                 <option value={4800}>4800</option>
                                 <option value={9600}>9600</option>
