@@ -637,6 +637,24 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
         if (!count) return res.status(404).json({ message: 'Conteo no encontrado' });
         if (count.status !== 'open') return res.status(400).json({ message: 'El conteo ya fue cerrado' });
 
+        // --- NEW: Fetch filter labels (id_inventory) from pre_remitos ---
+        const orderNumbers = (count.name || '').split(',').map(n => n.trim()).filter(Boolean);
+        let filterOptions = [];
+        if (orderNumbers.length > 1) {
+            const { data: preRemitosMeta } = await supabase
+                .from('pre_remitos')
+                .select('order_number, id_inventory')
+                .in('order_number', orderNumbers);
+            
+            if (preRemitosMeta) {
+                // Map to ensure we have a label for each ID
+                filterOptions = preRemitosMeta.map(pm => ({
+                    id: pm.order_number,
+                    label: pm.id_inventory || pm.order_number
+                }));
+            }
+        }
+
         let currentProductCodes = count.product_codes || [];
 
         // --- NEW: Filter by specific pre-remito if filterId provided ---
@@ -795,7 +813,8 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
             page,
             pageSize,
             totalPages: Math.ceil((total || 0) / pageSize),
-            countedTotal: countedTotal || 0
+            countedTotal: countedTotal || 0,
+            filterOptions: filterOptions // New metadata for frontend filters
         });
     } catch (error) {
         console.error('Error fetching branch count product list:', error);

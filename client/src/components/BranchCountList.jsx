@@ -33,18 +33,6 @@ const BranchCountList = ({ countId, countName }) => {
     const currentSearchRef = useRef(search);
     const currentFilterRef = useRef(selectedSubId);
 
-    // Parse countName to find individual order numbers
-    useEffect(() => {
-        if (countName) {
-            const parts = countName.split(',').map(s => s.trim()).filter(Boolean);
-            if (parts.length > 1) {
-                setSubIds(parts);
-            } else {
-                setSubIds([]);
-            }
-        }
-    }, [countName]);
-
     useEffect(() => {
         currentPageRef.current = page;
     }, [page]);
@@ -75,6 +63,7 @@ const BranchCountList = ({ countId, countName }) => {
             setTotalPages(data.totalPages);
             setTotal(data.total);
             setCountedTotal(data.countedTotal);
+            if (data.filterOptions) setSubIds(data.filterOptions);
 
             // Update localQty but PRESERVE the value of the currently focused input
             setLocalQty(prev => {
@@ -296,16 +285,16 @@ const BranchCountList = ({ countId, countName }) => {
                             >
                                 TODOS
                             </button>
-                            {subIds.map(id => (
+                            {subIds.map(item => (
                                 <button
-                                    key={id}
-                                    onClick={() => setSelectedSubId(id)}
-                                    className={`px-3 py-1 rounded-full text-xs font-bold transition shadow-sm border uppercase ${selectedSubId === id
+                                    key={item.id}
+                                    onClick={() => setSelectedSubId(item.id)}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition shadow-sm border uppercase ${selectedSubId === item.id
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
                                         }`}
                                 >
-                                    {id.startsWith('STOCK-') ? `ID: ${id.split('-').slice(-2).join('-')}` : id}
+                                    ID: {item.label}
                                 </button>
                             ))}
                         </div>
