@@ -116,7 +116,13 @@ const PesajePage = () => {
                     const { value, done } = await reader.read();
                     if (done) break;
                     if (value) {
-                        setRawData(prev => (prev + value).slice(-100)); // Guardamos los últimos 100 caracteres
+                        // Convertimos a Hex si son caracteres raros para poder diagnosticar mejor
+                        const hexVal = Array.from(value).map(char => {
+                            const code = char.charCodeAt(0);
+                            return (code < 32 || code > 126) ? `[${code.toString(16).toUpperCase()}]` : char;
+                        }).join('');
+                        
+                        setRawData(prev => (prev + hexVal).slice(-100));
                         handleWeightData(value);
                     }
                 } catch (readError) {
