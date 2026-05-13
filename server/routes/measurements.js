@@ -36,7 +36,6 @@ router.post('/', verifyToken, async (req, res) => {
                 product_description: productDescription,
                 weight: parseFloat(weight),
                 unit: unit || 'kg',
-                user_id: req.user.id,
                 timestamp: new Date().toISOString(),
                 metadata: metadata || {}
             }])
