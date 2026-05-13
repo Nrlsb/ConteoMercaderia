@@ -119,9 +119,9 @@ const PesajePage = () => {
                     }
                 } catch (readError) {
                     if (readError.name === 'BreakError') continue;
-                    if (readError.name === 'FramingError') {
-                        console.error('Framing Error: Verifique Paridad (Sartorius usa 7-Even).');
-                        toast.error('Error de Trama. Verifique que esté en 7-Even.');
+                    if (readError.name === 'FramingError' || readError.name === 'ParityError') {
+                        console.error(`${readError.name}: Error de configuración de bits/paridad.`);
+                        toast.error('Error de Paridad/Trama. Probá cambiar de "Even" a "Odd" en ajustes avanzados.');
                         continue;
                     }
                     throw readError;
