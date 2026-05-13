@@ -7,7 +7,7 @@ import { useProductSync } from '../hooks/useProductSync';
 
 const PesajePage = () => {
     const [weight, setWeight] = useState(0);
-    const [unit, setUnit] = useState('kg');
+    const [unit, setUnit] = useState('g');
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [port, setPort] = useState(null);
@@ -193,16 +193,12 @@ const PesajePage = () => {
             const rawValue = weightMatch[0].replace(/\s+/g, '');
             let val = parseFloat(rawValue);
             
-            // Si la unidad es gramos y la web espera kilos, convertimos
+            // Detectamos la unidad y ajustamos el valor si es necesario
             if (unitMatch) {
                 const detectedUnit = unitMatch[0].toLowerCase();
-                if (detectedUnit === 'g' && unit === 'kg') {
-                    val = val / 1000;
-                } else if (detectedUnit === 'kg' && unit === 'g') {
-                    val = val * 1000;
+                if (detectedUnit !== unit) {
+                    setUnit(detectedUnit);
                 }
-                // Actualizamos la unidad si es necesario (opcional)
-                // setUnit(detectedUnit); 
             }
 
             if (!isNaN(val) && Math.abs(val - weight) > 0.00001) {
@@ -382,7 +378,7 @@ const PesajePage = () => {
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest absolute top-4 left-6">Peso Actual</span>
                             <div className="flex items-baseline gap-2">
                                 <span className={`text-7xl font-black tracking-tighter transition-all duration-300 ${weight > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
-                                    {weight.toFixed(3)}
+                                    {unit === 'g' ? weight.toFixed(1) : weight.toFixed(3)}
                                 </span>
                                 <span className="text-2xl font-bold text-gray-400">{unit}</span>
                             </div>
