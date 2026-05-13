@@ -21,11 +21,12 @@ const PesajePage = () => {
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const [baudRate, setBaudRate] = useState(1200);
-    const [parity, setParity] = useState('even');
-    const [dataBits, setDataBits] = useState(7);
+    const [baudRate, setBaudRate] = useState(9600);
+    const [parity, setParity] = useState('none');
+    const [dataBits, setDataBits] = useState(8);
     const [stopBits, setStopBits] = useState(1);
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [rawData, setRawData] = useState('');
     const { searchProductsLocally } = useProductSync();
 
     const searchTimeoutRef = useRef(null);
@@ -115,13 +116,14 @@ const PesajePage = () => {
                     const { value, done } = await reader.read();
                     if (done) break;
                     if (value) {
+                        setRawData(prev => (prev + value).slice(-100)); // Guardamos los últimos 100 caracteres
                         handleWeightData(value);
                     }
                 } catch (readError) {
                     if (readError.name === 'BreakError') continue;
                     if (readError.name === 'FramingError' || readError.name === 'ParityError') {
-                        console.error(`${readError.name}: Error de configuración de bits/paridad.`);
-                        toast.error('Error de Paridad/Trama. Probá cambiar de "Even" a "Odd" en ajustes avanzados.');
+                        // Intentamos limpiar los datos crudos para ver si algo pasa
+                        setRawData(prev => prev + '[ERR]');
                         continue;
                     }
                     throw readError;
@@ -373,6 +375,12 @@ const PesajePage = () => {
                                 >
                                     <RefreshCw className="w-4 h-4" /> SOLICITAR PESO (ESC P)
                                 </button>
+                            )}
+
+                            {rawData && (
+                                <div className="mt-4 p-2 bg-gray-900 rounded font-mono text-[10px] text-green-400 overflow-hidden truncate">
+                                    RAW: {rawData}
+                                </div>
                             )}
                         </div>
 
