@@ -21,7 +21,7 @@ const PesajePage = () => {
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const [baudRate, setBaudRate] = useState(1200);
+    const [baudRate, setBaudRate] = useState(2400);
     const [parity, setParity] = useState('odd');
     const [dataBits, setDataBits] = useState(7);
     const [stopBits, setStopBits] = useState(1);
