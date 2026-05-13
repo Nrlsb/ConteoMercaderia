@@ -252,7 +252,8 @@ const PesajePage = () => {
             setSearchQuery('');
         } catch (error) {
             console.error('Save error:', error);
-            toast.error('Error al guardar el pesaje');
+            const detail = error.response?.data?.details || error.response?.data?.message || '';
+            toast.error(`Error al guardar el pesaje ${detail ? ': ' + detail : ''}`);
         } finally {
             setIsSaving(false);
         }
