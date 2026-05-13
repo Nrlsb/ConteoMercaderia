@@ -38,6 +38,7 @@ router.post('/', verifyToken, async (req, res) => {
                 unit: unit || 'kg',
                 user_id: req.user.id,
                 username: req.user.username,
+                sucursal_id: req.user.sucursal_id,
                 timestamp: new Date().toISOString(),
                 metadata: metadata || {}
             }])
@@ -48,7 +49,11 @@ router.post('/', verifyToken, async (req, res) => {
         res.status(201).json(data);
     } catch (error) {
         console.error('Error saving measurement:', error);
-        res.status(500).json({ message: 'Error al guardar el pesaje' });
+        res.status(500).json({ 
+            message: 'Error al guardar el pesaje', 
+            details: error.message,
+            error: error 
+        });
     }
 });
 
