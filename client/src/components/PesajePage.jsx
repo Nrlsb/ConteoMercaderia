@@ -232,8 +232,8 @@ const PesajePage = () => {
             toast.error('Seleccione un producto primero');
             return;
         }
-        if (weight <= 0) {
-            toast.error('El peso debe ser mayor a 0');
+        if (weight === 0) {
+            toast.error('El peso no puede ser 0');
             return;
         }
 
@@ -481,8 +481,8 @@ const PesajePage = () => {
                         {/* Action Button */}
                         <button
                             onClick={handleSaveMeasurement}
-                            disabled={isSaving || !selectedProduct || weight <= 0}
-                            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                            disabled={isSaving || !selectedProduct || weight === 0}
+                            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-400 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {isSaving ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
                             GUARDAR PESO
