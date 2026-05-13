@@ -735,20 +735,20 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
             };
         });
 
-        // 5. Apply Global Sorting (Logical Order: Capacity -> Excel Order -> Description)
+        // 5. Apply Global Sorting (Logical Order: Excel Order -> Capacity -> Brand -> Description)
         enrichedFullList.sort((a, b) => {
-            // 1. Primary sort: Capacity (e.g., all 1L together, then 4L, etc.)
-            if (a.capacity !== b.capacity) return a.capacity - b.capacity;
-
-            // 2. Secondary sort: Brand
-            const brandA = (a.brand || '').toLowerCase();
-            const brandB = (b.brand || '').toLowerCase();
-            if (brandA !== brandB) return brandA.localeCompare(brandB);
-
-            // 3. Tertiary sort: Excel Order / Index (Original sequence)
+            // 1. Primary sort: Excel Order / Index (Original sequence)
             const orderA = a.excel_order !== null ? a.excel_order : (a.indexInCount !== undefined ? a.indexInCount : 999999);
             const orderB = b.excel_order !== null ? b.excel_order : (b.indexInCount !== undefined ? b.indexInCount : 999999);
             if (orderA !== orderB) return orderA - orderB;
+
+            // 2. Secondary sort: Capacity (e.g., all 1L together, then 4L, etc.)
+            if (a.capacity !== b.capacity) return a.capacity - b.capacity;
+
+            // 3. Tertiary sort: Brand
+            const brandA = (a.brand || '').toLowerCase();
+            const brandB = (b.brand || '').toLowerCase();
+            if (brandA !== brandB) return brandA.localeCompare(brandB);
             
             // 4. Quaternary sort: Description
             return (a.description || '').localeCompare(b.description || '');
