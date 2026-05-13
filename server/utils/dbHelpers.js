@@ -149,7 +149,7 @@ async function fetchProductsByCodes(codes) {
         const chunk = codes.slice(i, i + chunkSize);
         const { data, error } = await supabase
             .from('products')
-            .select('code, description, excel_order, provider_code, brand')
+            .select('code, description, excel_order, provider_code, brand, capacity')
             .in('code', chunk);
 
         if (error) throw error;

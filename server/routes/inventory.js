@@ -32,7 +32,7 @@ async function fetchAllProductsDetailed() {
     while (hasMore) {
         const { data, error } = await supabase
             .from('products')
-            .select('code, description, excel_order, current_stock, brand, brand_code')
+            .select('code, description, excel_order, current_stock, brand, brand_code, capacity')
             .range(from, from + step - 1);
 
         if (error) throw error;
@@ -57,7 +57,7 @@ async function fetchBranchStock(sucursalId) {
     while (hasMore) {
         const { data, error } = await supabase
             .from('stock_sucursal')
-            .select('product_code, quantity, products(description, brand, brand_code)')
+            .select('product_code, quantity, products(description, brand, brand_code, capacity)')
             .eq('sucursal_id', sucursalId)
             .range(from, from + step - 1);
 
@@ -688,7 +688,7 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
             productsWithMeta = orderedProducts.map((p, idx) => ({
                 ...p,
                 indexInCount: idx,
-                capacity: getCapacityFromDescription(p.description)
+                capacity: p.capacity !== null && p.capacity !== undefined ? parseFloat(p.capacity) : getCapacityFromDescription(p.description)
             }));
 
         } else {
@@ -697,7 +697,7 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
 
             productsWithMeta = (allDbProducts || []).map(p => ({
                 ...p,
-                capacity: getCapacityFromDescription(p.description)
+                capacity: p.capacity !== null && p.capacity !== undefined ? parseFloat(p.capacity) : getCapacityFromDescription(p.description)
             }));
         }
 
