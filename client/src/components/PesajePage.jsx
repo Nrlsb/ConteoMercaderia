@@ -29,6 +29,7 @@ const PesajePage = () => {
     const [rawData, setRawData] = useState('');
     const { searchProductsLocally } = useProductSync();
 
+    const bufferRef = useRef('');
     const searchTimeoutRef = useRef(null);
 
 
@@ -116,14 +117,30 @@ const PesajePage = () => {
                     const { value, done } = await reader.read();
                     if (done) break;
                     if (value) {
-                        // Convertimos a Hex si son caracteres raros para poder diagnosticar mejor
+                        // Guardamos en el buffer para procesar líneas completas
+                        bufferRef.current += value;
+                        
+                        // Convertimos a Hex para el visor RAW
                         const hexVal = Array.from(value).map(char => {
                             const code = char.charCodeAt(0);
                             return (code < 32 || code > 126) ? `[${code.toString(16).toUpperCase()}]` : char;
                         }).join('');
                         
                         setRawData(prev => (prev + hexVal).slice(-100));
-                        handleWeightData(value);
+
+                        // Procesamos líneas completas (terminadas en \n o \r)
+                        if (bufferRef.current.includes('\n') || bufferRef.current.includes('\r')) {
+                            const lines = bufferRef.current.split(/[\r\n]+/);
+                            // Mantenemos el último fragmento incompleto en el buffer
+                            bufferRef.current = lines.pop() || '';
+                            
+                            // Procesamos cada línea completa
+                            for (const line of lines) {
+                                if (line.trim()) {
+                                    handleWeightData(line);
+                                }
+                            }
+                        }
                     }
                 } catch (readError) {
                     if (readError.name === 'BreakError') continue;
@@ -166,17 +183,30 @@ const PesajePage = () => {
         }
     };
 
-    const handleWeightData = (str) => {
-        // Sartorius SBI Format: "+      123.45 g  " o "S +   123.45 g  "
-        // Buscamos el número que puede tener signo y punto decimal
-        const match = str.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
+    const handleWeightData = (line) => {
+        // Sartorius SBI Format: "+      123.45 g  "
+        // Buscamos el número (con signo y decimal) y la unidad (g, kg, t, etc)
+        const weightMatch = line.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
+        const unitMatch = line.match(/(g|kg|lb|oz|t)\b/i);
         
-        if (match) {
-            const rawValue = match[0].replace(/\s+/g, ''); // Quitamos espacios
-            const newWeight = parseFloat(rawValue);
+        if (weightMatch) {
+            const rawValue = weightMatch[0].replace(/\s+/g, '');
+            let val = parseFloat(rawValue);
             
-            if (!isNaN(newWeight) && Math.abs(newWeight - weight) > 0.0001) {
-                setWeight(newWeight);
+            // Si la unidad es gramos y la web espera kilos, convertimos
+            if (unitMatch) {
+                const detectedUnit = unitMatch[0].toLowerCase();
+                if (detectedUnit === 'g' && unit === 'kg') {
+                    val = val / 1000;
+                } else if (detectedUnit === 'kg' && unit === 'g') {
+                    val = val * 1000;
+                }
+                // Actualizamos la unidad si es necesario (opcional)
+                // setUnit(detectedUnit); 
+            }
+
+            if (!isNaN(val) && Math.abs(val - weight) > 0.00001) {
+                setWeight(val);
             }
         }
     };
