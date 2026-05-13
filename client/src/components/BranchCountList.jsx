@@ -36,29 +36,43 @@ const BranchCountList = ({ countId, countName }) => {
         currentSearchRef.current = search;
     }, [search]);
 
-    const fetchPage = useCallback(async (p, q) => {
+    const fetchPage = useCallback(async (p, q, silent = false) => {
         if (!countId) return;
-        setIsLoading(true);
+        if (!silent) setIsLoading(true);
         try {
             const params = new URLSearchParams({ page: p, pageSize: PAGE_SIZE });
             if (q) params.set('search', q);
             const res = await api.get(`/api/general-counts/${countId}/product-list?${params}`);
             const data = res.data;
+            
             setProducts(data.products);
             setPage(data.page);
             setTotalPages(data.totalPages);
             setTotal(data.total);
             setCountedTotal(data.countedTotal);
 
-            const initial = {};
-            data.products.forEach(p => {
-                initial[p.code] = p.quantity !== null ? String(p.quantity) : '';
+            // Update localQty but PRESERVE the value of the currently focused input
+            setLocalQty(prev => {
+                const updated = {};
+                const activeElement = document.activeElement;
+                const focusedCode = activeElement?.tagName === 'INPUT' ? 
+                                   Object.keys(inputRefs.current).find(code => inputRefs.current[code] === activeElement) : 
+                                   null;
+
+                data.products.forEach(prod => {
+                    if (prod.code === focusedCode) {
+                        // Keep current local value for focused input
+                        updated[prod.code] = prev[prod.code];
+                    } else {
+                        updated[prod.code] = prod.quantity !== null ? String(prod.quantity) : '';
+                    }
+                });
+                return updated;
             });
-            setLocalQty(initial);
         } catch (err) {
-            toast.error('Error al cargar la lista de productos');
+            if (!silent) toast.error('Error al cargar la lista de productos');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     }, [countId]);
 
@@ -82,7 +96,7 @@ const BranchCountList = ({ countId, countName }) => {
                 // Debounced refresh to avoid excessive reloads
                 if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
                 refreshTimerRef.current = setTimeout(() => {
-                    fetchPage(currentPageRef.current, currentSearchRef.current);
+                    fetchPage(currentPageRef.current, currentSearchRef.current, true);
                 }, 1000);
             })
             .subscribe();
@@ -272,7 +286,7 @@ const BranchCountList = ({ countId, countName }) => {
 
             {/* Product list */}
             <div className="flex-1 overflow-y-auto">
-                {isLoading ? (
+                {isLoading && products.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
                         <p>Cargando productos...</p>
