@@ -22,8 +22,8 @@ const PesajePage = () => {
     const [isSaving, setIsSaving] = useState(false);
 
     const [baudRate, setBaudRate] = useState(9600);
-    const [parity, setParity] = useState('none');
-    const [dataBits, setDataBits] = useState(8);
+    const [parity, setParity] = useState('even');
+    const [dataBits, setDataBits] = useState(7);
     const [stopBits, setStopBits] = useState(1);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const { searchProductsLocally } = useProductSync();
@@ -118,23 +118,19 @@ const PesajePage = () => {
                         handleWeightData(value);
                     }
                 } catch (readError) {
-                    // Ignorar errores transitorios como BreakError y continuar intentando leer
-                    if (readError.name === 'BreakError') {
-                        console.warn('Serial Break received, continuing...');
+                    if (readError.name === 'BreakError') continue;
+                    if (readError.name === 'FramingError') {
+                        console.error('Framing Error: Verifique Paridad (Sartorius usa 7-Even).');
+                        toast.error('Error de Trama. Verifique que esté en 7-Even.');
                         continue;
                     }
-                    if (readError.name === 'FramingError') {
-                        console.error('Framing Error: Verifique los Bauds y Paridad.');
-                        toast.error('Error de Trama (Framing Error). Verifique los Bauds, Paridad y Stop Bits.');
-                        continue; // Intentamos seguir, aunque los datos podrían ser corruptos
-                    }
-                    throw readError; // Re-lanzar si es un error fatal
+                    throw readError;
                 }
             }
         } catch (error) {
             console.error('Serial Fatal Error:', error);
             if (isConnected) {
-                toast.error('Error crítico en la lectura USB. Reconectando...');
+                toast.error('Error crítico en la lectura USB.');
                 disconnectScale();
             }
         } finally {
@@ -142,14 +138,36 @@ const PesajePage = () => {
         }
     };
 
+    const requestWeightManual = async () => {
+        if (!port || !port.writable) {
+            toast.error('Balanza no conectada o puerto no escribible');
+            return;
+        }
+
+        const writer = port.writable.getWriter();
+        try {
+            // Comando ESC P (Standard Sartorius Interface Command)
+            // ESC=0x1B, P=0x50, CR=0x0D, LF=0x0A
+            const command = new Uint8Array([0x1B, 0x50, 0x0D, 0x0A]);
+            await writer.write(command);
+        } catch (error) {
+            console.error('Error enviando comando a balanza:', error);
+            toast.error('Error al solicitar peso');
+        } finally {
+            writer.releaseLock();
+        }
+    };
+
     const handleWeightData = (str) => {
-        // Protocolo Kretz/Evolution común por Serial: 
-        // A veces envían cadenas como "ST,GS,+  0.123kg" o solo "0.123"
-        // Intentar extraer el número del peso
-        const match = str.match(/([0-9.]+)/);
+        // Sartorius SBI Format: "+      123.45 g  " o "S +   123.45 g  "
+        // Buscamos el número que puede tener signo y punto decimal
+        const match = str.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
+        
         if (match) {
-            const newWeight = parseFloat(match[1]);
-            if (!isNaN(newWeight) && newWeight !== weight) {
+            const rawValue = match[0].replace(/\s+/g, ''); // Quitamos espacios
+            const newWeight = parseFloat(rawValue);
+            
+            if (!isNaN(newWeight) && Math.abs(newWeight - weight) > 0.0001) {
                 setWeight(newWeight);
             }
         }
@@ -222,9 +240,9 @@ const PesajePage = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Scale className="text-blue-600" /> Pesaje Evolution
+                        <Scale className="text-blue-600" /> Balanza Sartorius
                     </h1>
-                    <p className="text-gray-500">Asocia productos a mediciones de peso en tiempo real</p>
+                    <p className="text-gray-500">Configurada para Sartorius PMA Evolution (SBI)</p>
                 </div>
                 
                 <button
@@ -344,6 +362,15 @@ const PesajePage = () => {
                                         className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
                                     > Reset </button>
                                 </div>
+                            )}
+
+                            {isConnected && (
+                                <button
+                                    onClick={requestWeightManual}
+                                    className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors font-bold text-sm"
+                                >
+                                    <RefreshCw className="w-4 h-4" /> SOLICITAR PESO (ESC P)
+                                </button>
                             )}
                         </div>
 
