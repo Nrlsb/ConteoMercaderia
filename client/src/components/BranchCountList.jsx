@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api';
 import { toast } from 'sonner';
+import { supabase } from '../supabaseClient';
 
 const PAGE_SIZE = 50;
 
@@ -24,6 +25,16 @@ const BranchCountList = ({ countId, countName }) => {
     const debounceTimers = useRef({});
     const inputRefs = useRef({});
     const listTopRef = useRef(null);
+    const currentPageRef = useRef(page);
+    const currentSearchRef = useRef(search);
+
+    useEffect(() => {
+        currentPageRef.current = page;
+    }, [page]);
+
+    useEffect(() => {
+        currentSearchRef.current = search;
+    }, [search]);
 
     const fetchPage = useCallback(async (p, q) => {
         if (!countId) return;
@@ -55,6 +66,32 @@ const BranchCountList = ({ countId, countName }) => {
     useEffect(() => {
         fetchPage(1, '');
     }, [fetchPage]);
+
+    // Real-time subscription
+    const refreshTimerRef = useRef(null);
+    useEffect(() => {
+        if (!countId) return;
+
+        const channel = supabase.channel(`branch_list_scans_${countId}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'inventory_scans',
+                filter: `order_number=eq.${countId}`
+            }, () => {
+                // Debounced refresh to avoid excessive reloads
+                if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+                refreshTimerRef.current = setTimeout(() => {
+                    fetchPage(currentPageRef.current, currentSearchRef.current);
+                }, 1000);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        };
+    }, [countId, fetchPage]);
 
     // Debounce search input → server query
     const handleSearchChange = (value) => {
