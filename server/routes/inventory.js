@@ -701,23 +701,23 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
             };
         });
 
-        // 5. Apply Global Sorting (Group by User, then logical order)
+        // 5. Apply Global Sorting (Prioritize Original Order to keep products in place)
         enrichedFullList.sort((a, b) => {
-            // 1. Sort by controller name (Pendientes at the end)
-            if (a.controller_name === '— Pendientes —' && b.controller_name !== '— Pendientes —') return 1;
-            if (a.controller_name !== '— Pendientes —' && b.controller_name === '— Pendientes —') return -1;
+            // 1. Primary sort: Excel Order / Index (Physical/Original sequence)
+            const orderA = a.excel_order !== null ? a.excel_order : (a.indexInCount !== undefined ? a.indexInCount : 999999);
+            const orderB = b.excel_order !== null ? b.excel_order : (b.indexInCount !== undefined ? b.indexInCount : 999999);
             
+            if (orderA !== orderB) return orderA - orderB;
+
+            // 2. Secondary sort: Capacity
+            if (a.capacity !== b.capacity) return a.capacity - b.capacity;
+            
+            // 3. Tertiary sort: Controller name (only if same original order)
             if (a.controller_name !== b.controller_name) {
                 return a.controller_name.localeCompare(b.controller_name);
             }
             
-            // 2. Secondary sort: Capacity
-            if (a.capacity !== b.capacity) return a.capacity - b.capacity;
-            
-            // 3. Tertiary sort: Excel Order / Index
-            const orderA = a.excel_order !== null ? a.excel_order : (a.indexInCount !== undefined ? a.indexInCount : 999999);
-            const orderB = b.excel_order !== null ? b.excel_order : (b.indexInCount !== undefined ? b.indexInCount : 999999);
-            return orderA - orderB;
+            return 0;
         });
 
         // 6. Apply search filter in memory AFTER global sort (to keep grouping)

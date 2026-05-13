@@ -263,20 +263,8 @@ const BranchCountList = ({ countId, countName }) => {
                                 const hasValue = rawVal !== '' && !isNaN(parseFloat(rawVal));
                                 const globalIndex = (page - 1) * PAGE_SIZE + index;
                                 
-                                // Grouping logic: Show header if controller changes
-                                const prevProduct = index > 0 ? products[index - 1] : null;
-                                const showGroupHeader = !prevProduct || product.controlled_by !== prevProduct.controlled_by;
-
                                 return (
                                     <React.Fragment key={product.code}>
-                                        {showGroupHeader && (
-                                            <div className="bg-gray-50/80 px-4 py-2 border-y border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-widest flex justify-between items-center sticky top-8 z-10 backdrop-blur-sm">
-                                                <span>{product.controlled_by || '— Pendientes de Control —'}</span>
-                                                <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[9px]">
-                                                    Grupo de Control
-                                                </span>
-                                            </div>
-                                        )}
                                         <div
                                             className={`flex flex-col sm:flex-row sm:items-center transition-colors py-3 sm:py-0 border-l-4 ${hasValue
                                                 ? 'bg-green-50 hover:bg-green-100 border-green-500'
