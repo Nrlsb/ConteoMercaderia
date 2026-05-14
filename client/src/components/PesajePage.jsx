@@ -285,7 +285,7 @@ const PesajePage = () => {
         return 1; // Default 1kg
     };
 
-    const handleUn2KeyDown = (e, code, index) => {
+    const handleUn2KeyDown = (e, code) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             
@@ -294,14 +294,22 @@ const PesajePage = () => {
             if (product) saveRow(product);
 
             // Mover el foco al siguiente producto
-            const nextProduct = hogarColorants[index + 1];
+            const currentIndex = hogarColorants.findIndex(p => p.code === code);
+            const nextProduct = hogarColorants[currentIndex + 1];
+            
             if (nextProduct) {
-                const nextRef = un2Refs.current[nextProduct.code];
-                if (nextRef) {
-                    nextRef.focus();
-                    nextRef.select();
-                    setFocusedRowCode(nextProduct.code);
-                }
+                // Pequeño delay para asegurar que el re-render no interfiera con el foco
+                setTimeout(() => {
+                    const nextDesktopRef = un2Refs.current[`desktop-${nextProduct.code}`];
+                    const nextMobileRef = un2Refs.current[`mobile-${nextProduct.code}`];
+                    
+                    const targetRef = nextDesktopRef || nextMobileRef;
+                    if (targetRef) {
+                        targetRef.focus();
+                        targetRef.select();
+                        setFocusedRowCode(nextProduct.code);
+                    }
+                }, 10);
             } else {
                 toast.info('Fin de la lista');
             }
@@ -934,7 +942,7 @@ const PesajePage = () => {
                                                         </td>
                                                         <td className="px-1 py-2 text-center">
                                                             <input
-                                                                ref={el => un2Refs.current[p.code] = el}
+                                                                ref={el => { if (el) un2Refs.current[`desktop-${p.code}`] = el }}
                                                                 type="text"
                                                                 value={vals.un2}
                                                                 onChange={(e) => handleListInputChange(p.code, 'un2', e.target.value)}
@@ -942,7 +950,7 @@ const PesajePage = () => {
                                                                     setFocusedRowCode(p.code);
                                                                     e.target.select();
                                                                 }}
-                                                                onKeyDown={(e) => handleUn2KeyDown(e, p.code, idx)}
+                                                                onKeyDown={(e) => handleUn2KeyDown(e, p.code)}
                                                                 className={`w-24 text-center text-sm font-bold rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border border-green-100 text-green-700' : 'bg-transparent text-blue-600 border-none'}`}
                                                                 readOnly={currentGroup === 'Hogar y Obra'}
                                                             />
@@ -1027,12 +1035,12 @@ const PesajePage = () => {
                                                     <div className="space-y-1">
                                                         <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? 'Gramos' : 'Extra'}</label>
                                                         <input
-                                                            ref={el => { if (currentGroup === 'Automotor') un2Refs.current[p.code] = el }}
+                                                            ref={el => { if (el) un2Refs.current[`mobile-${p.code}`] = el }}
                                                             type="text"
                                                             value={currentGroup === 'Automotor' ? vals.un2 : vals.impExtra}
                                                             onChange={(e) => handleListInputChange(p.code, currentGroup === 'Automotor' ? 'un2' : 'impExtra', e.target.value)}
                                                             onFocus={() => setFocusedRowCode(p.code)}
-                                                            onKeyDown={(e) => handleUn2KeyDown(e, p.code, idx)}
+                                                            onKeyDown={(e) => handleUn2KeyDown(e, p.code)}
                                                             className={`w-full text-center text-sm font-bold rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-blue-50 border-blue-50 text-blue-700'}`}
                                                             placeholder="0"
                                                         />
