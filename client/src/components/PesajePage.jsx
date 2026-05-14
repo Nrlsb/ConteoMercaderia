@@ -94,6 +94,13 @@ const PesajePage = () => {
 
     const bufferRef = useRef('');
     const searchTimeoutRef = useRef(null);
+    const handleWeightDataRef = useRef(null);
+    const isConnectedRef = useRef(isConnected);
+
+    // Keep refs in sync with state for use in the serial loop
+    useEffect(() => {
+        isConnectedRef.current = isConnected;
+    }, [isConnected]);
 
 
     // Fetch recent measurements on mount
@@ -271,7 +278,9 @@ const PesajePage = () => {
                             // Procesamos cada línea completa
                             for (const line of lines) {
                                 if (line.trim()) {
-                                    handleWeightData(line);
+                                    if (handleWeightDataRef.current) {
+                                        handleWeightDataRef.current(line);
+                                    }
                                 }
                             }
                         }
@@ -288,7 +297,7 @@ const PesajePage = () => {
             }
         } catch (error) {
             console.error('Serial Fatal Error:', error);
-            if (isConnected) {
+            if (isConnectedRef.current) {
                 toast.error('Error crítico en la lectura USB.');
                 disconnectScale();
             }
@@ -361,7 +370,7 @@ const PesajePage = () => {
         }
     };
 
-    const handleWeightData = (line) => {
+    const handleWeightData = useCallback((line) => {
         // Sartorius SBI Format: "+      123.45 g  "
         // Buscamos el número (con signo y decimal) y la unidad (g, kg, lb, oz, t)
         const weightMatch = line.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
@@ -387,7 +396,11 @@ const PesajePage = () => {
                 }
             }
         }
-    };
+    }, [weight, unit, currentGroup, focusedRowCode, handleListInputChange]);
+
+    useEffect(() => {
+        handleWeightDataRef.current = handleWeightData;
+    }, [handleWeightData]);
 
     // Hogar y Obra Calculator Logic
     useEffect(() => {
