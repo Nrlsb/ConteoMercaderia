@@ -455,7 +455,14 @@ const PesajePage = () => {
 
     const saveRow = async (product) => {
         const values = listInputs[product.code];
-        if (!values || (parseFloat(values.un1) === 0 && parseFloat(values.cm) === 0)) {
+        const hasValue = values && (
+            (parseFloat(values.un1) || 0) > 0 || 
+            (parseFloat(values.un2) || 0) > 0 || 
+            (parseFloat(values.cm) || 0) > 0 || 
+            (parseFloat(values.impExtra) || 0) > 0
+        );
+
+        if (!hasValue) {
             toast.error('Ingrese valores para guardar');
             return;
         }
@@ -844,9 +851,13 @@ const PesajePage = () => {
                                             <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase">Colorante</th>
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">S. Teo</th>
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
-                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
-                                            <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
-                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Imp. Extra</th>
+                                            {currentGroup === 'Hogar y Obra' && (
+                                                <>
+                                                    <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
+                                                    <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                                </>
+                                            )}
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Extra</th>
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
                                             <th className="px-4 py-3 w-10"></th>
@@ -880,29 +891,32 @@ const PesajePage = () => {
                                                                 value={vals.un1}
                                                                 onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
                                                                 onBlur={() => handleInputBlur(p.code, 'un1')}
-                                                                onFocus={() => setFocusedRowCode(p.code)}
+                                                                onFocus={(e) => {
+                                                                    setFocusedRowCode(p.code);
+                                                                    e.target.select();
+                                                                }}
                                                                 className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                 placeholder="0"
                                                             />
                                                         </td>
-                                                        <td className="px-1 py-2">
-                                                            {currentGroup === 'Hogar y Obra' ? (
-                                                                <input
-                                                                    type="text"
-                                                                    value={vals.cm}
-                                                                    onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
-                                                                    onBlur={() => handleInputBlur(p.code, 'cm')}
-                                                                    onFocus={() => setFocusedRowCode(p.code)}
-                                                                    className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                    placeholder="0"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-16 text-center text-xs text-gray-300">-</div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-0 py-2 text-center">
-                                                            <ArrowRight className="w-3 h-3 text-gray-300" />
-                                                        </td>
+                                                        {currentGroup === 'Hogar y Obra' && (
+                                                            <>
+                                                                <td className="px-1 py-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={vals.cm}
+                                                                        onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
+                                                                        onBlur={() => handleInputBlur(p.code, 'cm')}
+                                                                        onFocus={() => setFocusedRowCode(p.code)}
+                                                                        className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                        placeholder="0"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-0 py-2 text-center">
+                                                                    <ArrowRight className="w-3 h-3 text-gray-300" />
+                                                                </td>
+                                                            </>
+                                                        )}
                                                         <td className="px-1 py-2 text-center">
                                                             {currentGroup === 'Hogar y Obra' ? (
                                                                 <input
@@ -924,7 +938,10 @@ const PesajePage = () => {
                                                                 type="text"
                                                                 value={vals.un2}
                                                                 onChange={(e) => handleListInputChange(p.code, 'un2', e.target.value)}
-                                                                onFocus={() => setFocusedRowCode(p.code)}
+                                                                onFocus={(e) => {
+                                                                    setFocusedRowCode(p.code);
+                                                                    e.target.select();
+                                                                }}
                                                                 onKeyDown={(e) => handleUn2KeyDown(e, p.code, idx)}
                                                                 className={`w-24 text-center text-sm font-bold rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border border-green-100 text-green-700' : 'bg-transparent text-blue-600 border-none'}`}
                                                                 readOnly={currentGroup === 'Hogar y Obra'}
@@ -994,18 +1011,19 @@ const PesajePage = () => {
                                                             placeholder="0"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? '-' : 'CM'}</label>
-                                                        <input
-                                                            type="text"
-                                                            value={vals.cm}
-                                                            onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
-                                                            onFocus={() => setFocusedRowCode(p.code)}
-                                                            disabled={currentGroup === 'Automotor'}
-                                                            className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-30"
-                                                            placeholder="0"
-                                                        />
-                                                    </div>
+                                                    {currentGroup === 'Hogar y Obra' && (
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">CM</label>
+                                                            <input
+                                                                type="text"
+                                                                value={vals.cm}
+                                                                onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
+                                                                onFocus={() => setFocusedRowCode(p.code)}
+                                                                className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                    )}
                                                     <div className="space-y-1">
                                                         <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? 'Gramos' : 'Extra'}</label>
                                                         <input
