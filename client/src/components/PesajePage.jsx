@@ -704,15 +704,15 @@ const PesajePage = () => {
                         </button>
                     </div>
 
-                    <div className="flex-grow overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                    <div className="flex-grow overflow-x-hidden">
+                        <table className="w-full text-left border-collapse table-fixed">
                             <thead className="sticky top-0 bg-white shadow-sm z-10">
                                 <tr className="border-b border-gray-100">
-                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase">Descripción</th>
-                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
-                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
-                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
-                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase w-[40%] md:w-auto">Descripción</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[15%]">UN1</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[15%]">UN2</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-right w-[20%]">Total</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[10%]"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
@@ -721,19 +721,19 @@ const PesajePage = () => {
                                         <td colSpan="5" className="py-20">
                                             <div className="flex flex-col items-center justify-center gap-4">
                                                 <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                                                <p className="text-gray-400 font-medium">Cargando historial...</p>
+                                                <p className="text-gray-400 font-medium text-sm">Cargando...</p>
                                             </div>
                                         </td>
                                     </tr>
-                                ) : recentMeasurements.length === 0 ? (
+                                ) : groupedMeasurements.length === 0 ? (
                                     <tr>
                                         <td colSpan="5" className="py-20 text-center px-6">
                                             <div className="flex flex-col items-center justify-center">
-                                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                                                    <Scale className="w-8 h-8 text-gray-300" />
+                                                <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                                    <Scale className="w-6 h-6 text-gray-300" />
                                                 </div>
-                                                <h3 className="text-gray-900 font-bold">Sin registros</h3>
-                                                <p className="text-gray-500 text-sm">Los conteos que realices aparecerán aquí.</p>
+                                                <h3 className="text-gray-900 font-bold text-sm">Sin registros</h3>
+                                                <p className="text-gray-400 text-xs">Los registros de hoy aparecerán aquí.</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -741,34 +741,36 @@ const PesajePage = () => {
                                     groupedMeasurements.map((m) => {
                                         return (
                                             <tr key={m.product_code} className="group hover:bg-blue-50/30 transition-colors">
-                                                <td className="p-3">
-                                                    <div className="font-bold text-gray-900 text-sm truncate max-w-[200px]" title={m.product_description}>
+                                                <td className="p-2 md:p-3 align-top">
+                                                    <div className="font-bold text-gray-900 text-[11px] md:text-sm truncate" title={m.product_description}>
                                                         {m.product_description || 'Desconocido'}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                                    <div className="flex flex-wrap items-center gap-1 md:gap-2 text-[9px] text-gray-500 mt-0.5">
                                                         <span className="font-mono">{m.product_code}</span>
-                                                        <span className="text-gray-300">•</span>
-                                                        {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        <span className="text-gray-300 hidden md:inline">•</span>
+                                                        <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                     </div>
                                                 </td>
-                                                <td className="p-3 text-center text-sm font-semibold text-gray-600">
+                                                <td className="p-2 md:p-3 text-center text-[11px] md:text-sm font-semibold text-gray-600">
                                                     {m.un1 > 0 ? m.un1 : '-'}
                                                 </td>
-                                                <td className="p-3 text-center text-sm font-semibold text-gray-600">
+                                                <td className="p-2 md:p-3 text-center text-[11px] md:text-sm font-semibold text-gray-600">
                                                     {m.un2 > 0 ? m.un2 : '-'}
                                                 </td>
-                                                <td className="p-3 text-right">
-                                                    <span className="text-sm font-black text-blue-600">
-                                                        {m.unit === 'un' ? parseFloat(m.totalWeight).toFixed(3) : parseFloat(m.totalWeight).toFixed(1)}
-                                                        <span className="ml-1 text-[10px] font-bold text-gray-400 uppercase">{m.unit}</span>
-                                                    </span>
+                                                <td className="p-2 md:p-3 text-right">
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[11px] md:text-sm font-black text-blue-600">
+                                                            {m.unit === 'un' ? parseFloat(m.totalWeight).toFixed(3) : parseFloat(m.totalWeight).toFixed(1)}
+                                                        </span>
+                                                        <span className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase leading-none">{m.unit}</span>
+                                                    </div>
                                                 </td>
-                                                <td className="p-3 text-center">
+                                                <td className="p-2 md:p-3 text-center">
                                                     <button
                                                         onClick={() => handleDeleteMeasurement(m.ids)}
-                                                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all md:opacity-0 group-hover:opacity-100"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                                     </button>
                                                 </td>
                                             </tr>
