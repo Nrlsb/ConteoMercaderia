@@ -46,11 +46,7 @@ router.post('/', verifyToken, async (req, res) => {
         res.status(201).json(data);
     } catch (error) {
         console.error('Error saving measurement:', error);
-        res.status(500).json({ 
-            message: 'Error al guardar el pesaje', 
-            details: error.message,
-            error: error 
-        });
+        res.status(500).json({ message: 'Error al guardar el pesaje' });
     }
 });
 

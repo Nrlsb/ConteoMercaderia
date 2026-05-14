@@ -252,8 +252,7 @@ const PesajePage = () => {
             setSearchQuery('');
         } catch (error) {
             console.error('Save error:', error);
-            const detail = error.response?.data?.details || error.response?.data?.message || '';
-            toast.error(`Error al guardar el pesaje ${detail ? ': ' + detail : ''}`);
+            toast.error('Error al guardar el pesaje');
         } finally {
             setIsSaving(false);
         }
@@ -410,11 +409,7 @@ const PesajePage = () => {
                                 </button>
                             )}
 
-                            {rawData && (
-                                <div className="mt-4 p-2 bg-gray-900 rounded font-mono text-[10px] text-green-400 overflow-hidden truncate">
-                                    RAW: {rawData}
-                                </div>
-                            )}
+
                         </div>
 
                         {/* Product Search */}
@@ -524,7 +519,7 @@ const PesajePage = () => {
                                 <div key={m.id} className="group bg-gray-50 hover:bg-white hover:shadow-md border border-transparent hover:border-blue-100 p-4 rounded-xl transition-all duration-200">
                                     <div className="flex justify-between items-start">
                                         <div className="flex-grow min-w-0">
-                                            <div className="font-bold text-gray-900 truncate pr-2">{m.product_description || 'Desconocido'}</div>
+                                            <div className="font-bold text-gray-900 pr-2">{m.product_description || 'Desconocido'}</div>
                                             <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                                                 <Clock className="w-3 h-3" />
                                                 {new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
