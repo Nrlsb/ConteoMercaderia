@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus, Upload } from 'lucide-react';
+import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus, Upload, FileSpreadsheet, Settings2, Activity, Info, Layers } from 'lucide-react';
 
 import { toast } from 'sonner';
 import api from '../api';
@@ -673,160 +673,138 @@ const PesajePage = () => {
     }, [recentMeasurements]);
 
     return (
-        <div className="max-w-6xl mx-auto p-4 space-y-6 animate-in fade-in">
-            {/* Header section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Scale className="text-blue-600" /> {currentGroup === 'Hogar y Obra' ? 'Conteo Hogar y Obra' : 'Conteo Automotor'}
-                    </h1>
-                    <p className="text-gray-500">{currentGroup === 'Hogar y Obra' ? 'Sistema de impulsos y unidades' : 'Pesaje por gramos y unidades cerradas'}</p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    {user?.role === 'superadmin' && (
-                        <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
-                            <button
-                                onClick={() => setOverrideGroup('Hogar y Obra')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentGroup === 'Hogar y Obra' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                HOGAR
-                            </button>
-                            <button
-                                onClick={() => setOverrideGroup('Automotor')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentGroup === 'Automotor' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                AUTO
-                            </button>
+        <div className="max-w-7xl mx-auto p-4 space-y-6 animate-in fade-in duration-500">
+            {/* Header section redesigned */}
+            <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-blue-900/5 border border-gray-100/50">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+                    {/* Brand & Title */}
+                    <div className="flex items-center gap-5">
+                        <div className="relative">
+                            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 overflow-hidden group">
+                                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <Scale className="text-white w-7 h-7" />
+                            </div>
+                            {isConnected && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+                            )}
                         </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm min-w-[200px]">
-                            <Package className="w-4 h-4 text-blue-500 ml-3" />
-                            <select
-                                value={selectedCount?.id || ''}
-                                onChange={(e) => {
-                                    const count = activeCounts.find(c => String(c.id) === e.target.value);
-                                    setSelectedCount(count || null);
-                                }}
-                                className="bg-transparent py-2 pr-8 pl-1 text-sm font-bold text-gray-700 outline-none cursor-pointer w-full"
-                            >
-                                <option value="">-- Conteo de Colorantes --</option>
-                                {activeCounts.map(count => (
-                                    <option key={count.id} value={count.id}>{count.name}</option>
-                                ))}
-                            </select>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">
+                                    {currentGroup === 'Hogar y Obra' ? 'Conteo Hogar' : 'Conteo Automotor'}
+                                </h1>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${currentGroup === 'Hogar y Obra' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                    {currentGroup === 'Hogar y Obra' ? 'H&O' : 'AUTO'}
+                                </span>
+                            </div>
+                            <p className="text-sm font-medium text-gray-400">
+                                {currentGroup === 'Hogar y Obra' ? 'Gestión por impulsos y unidades' : 'Pesaje de alta precisión por gramos'}
+                            </p>
                         </div>
-
-                        <label className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-sm cursor-pointer active:scale-95">
-                            <Upload className="w-5 h-5" />
-                            <span className="hidden sm:inline">Importar Excel</span>
-                            <input
-                                type="file"
-                                accept=".xlsx, .xls"
-                                onChange={handleImportExcel}
-                                className="hidden"
-                            />
-                        </label>
                     </div>
 
-                    <button
-                        onClick={handleClearAll}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-white text-red-600 rounded-xl font-bold hover:bg-red-50 transition-all border border-gray-200 shadow-sm active:scale-95"
-                    >
-                        <Trash2 className="w-5 h-5" />
-                        <span className="hidden sm:inline">Limpiar Todo</span>
-                    </button>
-
-                    {currentGroup !== 'Hogar y Obra' && (
-                        <button
-                            onClick={isConnected ? disconnectScale : connectToScale}
-                            disabled={isConnecting}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-sm ${isConnected
-                                ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                                : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-                                }`}
-                        >
-                            {isConnecting ? (
-                                <RefreshCw className="w-5 h-5 animate-spin" />
-                            ) : isConnected ? (
-                                <Zap className="w-5 h-5 text-green-600" />
-                            ) : (
-                                <Cable className="w-5 h-5" />
-                            )}
-                            {isConnecting ? 'Conectando...' : isConnected ? 'Balanza Conectada (USB)' : 'Conectar Balanza (USB)'}
-                        </button>
-                    )}
-
-                    {currentGroup !== 'Hogar y Obra' && !isConnected && (
-                        <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
-                                <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
-                                <select
-                                    value={baudRate}
-                                    onChange={(e) => setBaudRate(Number(e.target.value))}
-                                    className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
-                                >
-                                    <option value={600}>600</option>
-                                    <option value={1200}>1200</option>
-                                    <option value={2400}>2400</option>
-                                    <option value={4800}>4800</option>
-                                    <option value={9600}>9600</option>
-                                    <option value={19200}>19200</option>
-                                    <option value={115200}>115200</option>
-                                </select>
+                    {/* Dynamic Controls Bar */}
+                    <div className="flex flex-wrap items-center gap-4">
+                        {/* Superadmin Group Switch */}
+                        {user?.role === 'superadmin' && (
+                            <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
                                 <button
-                                    onClick={() => setShowAdvanced(!showAdvanced)}
-                                    className="p-2 text-gray-400 hover:text-blue-600"
-                                    title="Ajustes avanzados"
+                                    onClick={() => setOverrideGroup('Hogar y Obra')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${currentGroup === 'Hogar y Obra' ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
                                 >
-                                    <RefreshCw className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                                    HOGAR
+                                </button>
+                                <button
+                                    onClick={() => setOverrideGroup('Automotor')}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${currentGroup === 'Automotor' ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    AUTO
                                 </button>
                             </div>
+                        )}
 
-                            {showAdvanced && (
-                                <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
-                                    <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-                                        <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Paridad:</span>
-                                        <select
-                                            value={parity}
-                                            onChange={(e) => setParity(e.target.value)}
-                                            className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
-                                        >
-                                            <option value="none">None</option>
-                                            <option value="even">Even</option>
-                                            <option value="odd">Odd</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-                                        <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Bits:</span>
-                                        <select
-                                            value={dataBits}
-                                            onChange={(e) => setDataBits(Number(e.target.value))}
-                                            className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
-                                        >
-                                            <option value={8}>8</option>
-                                            <option value={7}>7</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-                                        <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Stop:</span>
-                                        <select
-                                            value={stopBits}
-                                            onChange={(e) => setStopBits(Number(e.target.value))}
-                                            className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
-                                        >
-                                            <option value={1}>1</option>
-                                            <option value={2}>2</option>
-                                        </select>
-                                    </div>
+                        {/* Inventory Module */}
+                        <div className="flex items-center gap-2 bg-gray-50/50 p-1.5 rounded-[1.25rem] border border-gray-100">
+                            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-200/50 min-w-[240px] group focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                <Layers className="w-4 h-4 text-blue-500" />
+                                <select
+                                    value={selectedCount?.id || ''}
+                                    onChange={(e) => {
+                                        const count = activeCounts.find(c => String(c.id) === e.target.value);
+                                        setSelectedCount(count || null);
+                                    }}
+                                    className="bg-transparent text-sm font-bold text-gray-700 outline-none cursor-pointer w-full appearance-none"
+                                >
+                                    <option value="">-- Seleccionar Conteo --</option>
+                                    {activeCounts.map(count => (
+                                        <option key={count.id} value={count.id}>{count.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            <label className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 cursor-pointer active:scale-95 group">
+                                <FileSpreadsheet className="w-4 h-4 transition-transform group-hover:scale-110" />
+                                <span>IMPORTAR EXCEL</span>
+                                <input
+                                    type="file"
+                                    accept=".xlsx, .xls"
+                                    onChange={handleImportExcel}
+                                    className="hidden"
+                                />
+                            </label>
+                        </div>
+
+                        {/* Hardware Connectivity & Reset */}
+                        <div className="flex items-center gap-3">
+                            {currentGroup !== 'Hogar y Obra' && (
+                                <div className="flex items-center gap-2 bg-blue-50/50 p-1.5 rounded-[1.25rem] border border-blue-100">
+                                    <button
+                                        onClick={isConnected ? disconnectScale : connectToScale}
+                                        disabled={isConnecting}
+                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all duration-300 ${isConnected
+                                            ? 'bg-white text-green-600 shadow-sm border border-green-100'
+                                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
+                                            }`}
+                                    >
+                                        {isConnecting ? (
+                                            <RefreshCw className="w-4 h-4 animate-spin" />
+                                        ) : isConnected ? (
+                                            <Zap className="w-4 h-4 text-green-500" />
+                                        ) : (
+                                            <Cable className="w-4 h-4" />
+                                        )}
+                                        {isConnecting ? 'CONECTANDO...' : isConnected ? 'BALANZA ACTIVA' : 'CONECTAR BALANZA'}
+                                    </button>
+
+                                    {!isConnected && (
+                                        <div className="flex items-center gap-1 pr-2">
+                                            <Settings2 className="w-3.5 h-3.5 text-blue-400 ml-1" />
+                                            <select
+                                                value={baudRate}
+                                                onChange={(e) => setBaudRate(Number(e.target.value))}
+                                                className="bg-transparent text-[11px] font-black text-blue-600 outline-none cursor-pointer"
+                                            >
+                                                <option value={2400}>2400</option>
+                                                <option value={9600}>9600</option>
+                                                <option value={19200}>19200</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                             )}
+
+                            <button
+                                onClick={handleClearAll}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white text-red-500 rounded-xl font-black text-xs hover:bg-red-50 transition-all border border-gray-200 shadow-sm active:scale-95"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                <span>LIMPIAR</span>
+                            </button>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
+
 
             <div className="grid grid-cols-1 gap-6">
                 {/* Main Action Card */}
