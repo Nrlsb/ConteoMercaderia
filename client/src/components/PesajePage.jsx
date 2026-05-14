@@ -468,6 +468,28 @@ const PesajePage = () => {
         }
     };
 
+    const handleClearAll = () => {
+        if (window.confirm('¿Desea limpiar todos los campos? Esta acción no se puede deshacer.')) {
+            if (currentGroup === 'Hogar y Obra') {
+                const initialInputs = {};
+                hogarColorants.forEach(p => {
+                    initialInputs[p.code] = { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
+                });
+                setListInputs(initialInputs);
+            }
+            
+            // Limpiar estados individuales
+            setUn1Value('0');
+            setUn2Value('0');
+            setCmValue('');
+            setWeight(0);
+            setSelectedProduct(null);
+            setSearchQuery('');
+            
+            toast.success('Campos limpiados');
+        }
+    };
+
     const handleDeleteMeasurement = async (ids) => {
         if (!Array.isArray(ids)) ids = [ids];
         try {
@@ -537,6 +559,14 @@ const PesajePage = () => {
                             </button>
                         </div>
                     )}
+
+                    <button
+                        onClick={handleClearAll}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white text-red-600 rounded-xl font-bold hover:bg-red-50 transition-all border border-gray-200 shadow-sm active:scale-95"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                        <span className="hidden sm:inline">Limpiar Todo</span>
+                    </button>
 
                     {currentGroup !== 'Hogar y Obra' && (
                         <button
