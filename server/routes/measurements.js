@@ -160,6 +160,29 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
     }
 });
 
+// Obtener todos los conteos de colorantes (no eliminados)
+router.get('/dye-counts', verifyToken, async (req, res) => {
+    try {
+        let query = supabase
+            .from('dye_counting_lists')
+            .select('*')
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false });
+
+        if (req.user.role !== 'superadmin') {
+            query = query.eq('created_by', req.user.username);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching dye counts:', error);
+        res.status(500).json({ message: 'Error al obtener conteos de colorantes' });
+    }
+});
+
 // Obtener conteos de colorantes activos
 router.get('/dye-counts/active', verifyToken, async (req, res) => {
     try {
@@ -260,6 +283,29 @@ router.post('/dye-counts/:id/close', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error closing dye count:', error);
         res.status(500).json({ message: 'Error al finalizar el conteo' });
+    }
+});
+
+// Eliminar (soft delete) un conteo de colorantes
+router.delete('/dye-counts/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        let query = supabase
+            .from('dye_counting_lists')
+            .update({ deleted_at: new Date() })
+            .eq('id', id);
+
+        if (req.user.role !== 'superadmin') {
+            query = query.eq('created_by', req.user.username);
+        }
+
+        const { error } = await query;
+
+        if (error) throw error;
+        res.json({ message: 'Conteo eliminado correctamente' });
+    } catch (error) {
+        console.error('Error deleting dye count:', error);
+        res.status(500).json({ message: 'Error al eliminar el conteo' });
     }
 });
 

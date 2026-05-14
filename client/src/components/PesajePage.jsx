@@ -121,20 +121,20 @@ const PesajePage = () => {
         fetchRecentMeasurements();
     }, [fetchRecentMeasurements]);
 
-    useEffect(() => {
-        const fetchActiveCounts = async () => {
-            try {
-                // NEW: Endpoint separado para colorantes
-                const res = await api.get('/api/measurements/dye-counts/active');
-                setActiveCounts(Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []));
-            } catch (error) {
-                console.error('Error fetching dye counts:', error);
-            }
-        };
-        fetchActiveCounts();
-        const interval = setInterval(fetchActiveCounts, 30000);
-        return () => clearInterval(interval);
+    const fetchDyeCounts = useCallback(async () => {
+        try {
+            const res = await api.get('/api/measurements/dye-counts');
+            setActiveCounts(Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []));
+        } catch (error) {
+            console.error('Error fetching dye counts:', error);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchDyeCounts();
+        const interval = setInterval(fetchDyeCounts, 30000);
+        return () => clearInterval(interval);
+    }, [fetchDyeCounts]);
 
     const handleImportExcel = async (e) => {
         const file = e.target.files[0];
@@ -151,9 +151,13 @@ const PesajePage = () => {
             toast.success(res.data.message, { id: toastId });
             
             // Refrescar y seleccionar el nuevo
-            const updatedCountsRes = await api.get('/api/measurements/dye-counts/active');
+            await fetchDyeCounts();
+            
+            // Nota: Para seleccionar el nuevo automáticamente, necesitaríamos los datos frescos
+            // fetchDyeCounts actualiza el estado, pero no devuelve los datos directamente.
+            // Podemos hacer un fetch manual aquí para obtener el ID.
+            const updatedCountsRes = await api.get('/api/measurements/dye-counts');
             const updatedCounts = updatedCountsRes.data;
-            setActiveCounts(updatedCounts);
             
             const newCount = updatedCounts.find(c => c.id === res.data.countId);
             if (newCount) setSelectedCount(newCount);
@@ -189,6 +193,23 @@ const PesajePage = () => {
         } catch (error) {
             console.error('Error exporting dye excel:', error);
             toast.error('Error al generar el archivo Excel', { id: toastId });
+        }
+    };
+
+    const handleDeleteDyeCount = async (id) => {
+        if (!window.confirm('¿Está seguro de eliminar este conteo? Esta acción ocultará el conteo de la lista de selección.')) return;
+        
+        const toastId = toast.loading('Eliminando conteo...');
+        try {
+            await api.delete(`/api/measurements/dye-counts/${id}`);
+            toast.success('Conteo eliminado', { id: toastId });
+            await fetchDyeCounts();
+            if (selectedCount?.id === id) {
+                setSelectedCount(null);
+            }
+        } catch (error) {
+            console.error('Error deleting dye count:', error);
+            toast.error('Error al eliminar el conteo', { id: toastId });
         }
     };
 
@@ -797,9 +818,20 @@ const PesajePage = () => {
                                 >
                                     <option value="">-- Seleccionar Conteo --</option>
                                     {activeCounts.map(count => (
-                                        <option key={count.id} value={count.id}>{count.name}</option>
+                                        <option key={count.id} value={count.id}>
+                                            {count.name} {count.status === 'closed' ? '(Cerrado)' : ''}
+                                        </option>
                                     ))}
                                 </select>
+                                {selectedCount && (
+                                    <button
+                                        onClick={() => handleDeleteDyeCount(selectedCount.id)}
+                                        className="p-1 flex-shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                        title="Eliminar este conteo"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                             
                             <label className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 cursor-pointer active:scale-95 group">
