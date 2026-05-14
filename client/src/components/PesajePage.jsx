@@ -79,6 +79,8 @@ const PesajePage = () => {
     const [hogarColorants, setHogarColorants] = useState([]);
     const [listInputs, setListInputs] = useState({}); // { code: { un1, cm, un2, total } }
     const [isLoadingList, setIsLoadingList] = useState(false);
+    const [focusedRowCode, setFocusedRowCode] = useState(null);
+    const un2Refs = useRef({});
 
     const [baudRate, setBaudRate] = useState(2400);
     const [parity, setParity] = useState('odd');
@@ -222,6 +224,42 @@ const PesajePage = () => {
         }
     };
 
+    const getCapacityFromDescription = (desc) => {
+        if (!desc) return 1;
+        // Buscamos patrones como "500G", "1KG", "0.5KG", "250ML", etc.
+        const match = desc.match(/(\d+(?:\.\d+)?)\s*(G|KG|ML|L)/i);
+        if (match) {
+            let value = parseFloat(match[1]);
+            const unit = match[2].toUpperCase();
+            if (unit === 'G' || unit === 'ML') return value / 1000;
+            return value;
+        }
+        return 1; // Default 1kg
+    };
+
+    const handleUn2KeyDown = (e, code, index) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            
+            // Guardar fila actual
+            const product = hogarColorants.find(p => p.code === code);
+            if (product) saveRow(product);
+
+            // Mover el foco al siguiente producto
+            const nextProduct = hogarColorants[index + 1];
+            if (nextProduct) {
+                const nextRef = un2Refs.current[nextProduct.code];
+                if (nextRef) {
+                    nextRef.focus();
+                    nextRef.select();
+                    setFocusedRowCode(nextProduct.code);
+                }
+            } else {
+                toast.info('Fin de la lista');
+            }
+        }
+    };
+
     const requestWeightManual = async () => {
         if (!port || !port.writable) {
             toast.error('Balanza no conectada o puerto no escribible');
@@ -262,6 +300,10 @@ const PesajePage = () => {
 
             if (!isNaN(val) && Math.abs(val - weight) > 0.00001) {
                 setWeight(val);
+                // Si estamos en Automotor y hay una fila enfocada, actualizamos su UN2 (gramos)
+                if (currentGroup === 'Automotor' && focusedRowCode) {
+                    handleListInputChange(focusedRowCode, 'un2', val.toString());
+                }
             }
         }
     };
@@ -282,15 +324,15 @@ const PesajePage = () => {
         }
     }, [un1Value, un2Value, currentGroup]);
 
-    // Fetch colorants for Hogar y Obra list
+    // Fetch colorants for the current group list
     useEffect(() => {
-        if (currentGroup === 'Hogar y Obra') {
+        if (currentGroup) {
             const loadList = async () => {
                 setIsLoadingList(true);
                 try {
                     const colorants = await db.products
                         .where('counting_category')
-                        .equals('Hogar y Obra')
+                        .equals(currentGroup)
                         .toArray();
                     
                     const sorted = colorants.sort((a, b) => a.description.localeCompare(b.description));
@@ -318,17 +360,28 @@ const PesajePage = () => {
             
             // Evaluar expresiones matemáticas para los cálculos
             const un1 = evaluateMath(current.un1);
-            const cm = evaluateMath(current.cm);
-            const impExtra = evaluateMath(current.impExtra);
             
-            const un2FromCm = Math.round(cm * 220);
-            const un2 = un2FromCm + impExtra;
-            const total = un1 + (un2 / 2200);
-            
-            return {
-                ...prev,
-                [code]: { ...current, un2, total }
-            };
+            if (currentGroup === 'Hogar y Obra') {
+                const cm = evaluateMath(current.cm);
+                const impExtra = evaluateMath(current.impExtra);
+                const un2FromCm = Math.round(cm * 220);
+                const un2 = un2FromCm + impExtra;
+                const total = un1 + (un2 / 2200);
+                return {
+                    ...prev,
+                    [code]: { ...current, un2, total }
+                };
+            } else {
+                // Automotor
+                const un2 = parseFloat(current.un2) || 0; // Gramos de la balanza
+                const product = hogarColorants.find(p => p.code === code);
+                const capacity = getCapacityFromDescription(product?.description || '');
+                const total = un1 + (un2 / 1000 / capacity);
+                return {
+                    ...prev,
+                    [code]: { ...current, un2, total }
+                };
+            }
         });
     };
 
@@ -363,9 +416,9 @@ const PesajePage = () => {
                 metadata: {
                     un1: parseFloat(values.un1) || 0,
                     un2: values.un2,
-                    impExtra: parseFloat(values.impExtra) || 0,
-                    cmValue: values.cm,
-                    group: 'Hogar y Obra'
+                    impExtra: currentGroup === 'Hogar y Obra' ? (parseFloat(values.impExtra) || 0) : null,
+                    cmValue: currentGroup === 'Hogar y Obra' ? values.cm : null,
+                    group: currentGroup
                 }
             });
             toast.success(`${product.description} guardado`);
@@ -544,14 +597,14 @@ const PesajePage = () => {
     }, [recentMeasurements]);
 
     return (
-        <div className={`${currentGroup === 'Hogar y Obra' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto p-4 space-y-6 animate-in fade-in`}>
+        <div className="max-w-6xl mx-auto p-4 space-y-6 animate-in fade-in">
             {/* Header section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Scale className="text-blue-600" /> {currentGroup === 'Hogar y Obra' ? 'Conteo Colorantes' : 'Balanza Sartorius'}
+                        <Scale className="text-blue-600" /> {currentGroup === 'Hogar y Obra' ? 'Conteo Hogar y Obra' : 'Conteo Automotor'}
                     </h1>
-                    <p className="text-gray-500">{currentGroup === 'Hogar y Obra' ? 'Sistema de impulsos y unidades' : 'Configurada para Sartorius PMA Evolution (SBI)'}</p>
+                    <p className="text-gray-500">{currentGroup === 'Hogar y Obra' ? 'Sistema de impulsos y unidades' : 'Pesaje por gramos y unidades cerradas'}</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -669,305 +722,223 @@ const PesajePage = () => {
                 </div>
             </div>
 
-            <div className={`grid grid-cols-1 ${currentGroup === 'Hogar y Obra' ? '' : 'lg:grid-cols-2'} gap-6`}>
+            <div className="grid grid-cols-1 gap-6">
                 {/* Main Action Card */}
                 <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
                     <div className="p-6 space-y-6">
-                        {currentGroup === 'Hogar y Obra' ? (
-                            <div className="space-y-4">
-                                {/* Desktop Table View (Hidden on Mobile) */}
-                                <div className="hidden md:block overflow-x-auto -mx-6">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-gray-50 border-y border-gray-100">
-                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase w-1/3">Colorante</th>
-                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
-                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
-                                                <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
-                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Imp. Extra</th>
-                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
-                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
-                                                <th className="px-4 py-3 w-10"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {isLoadingList ? (
-                                                <tr>
-                                                    <td colSpan="8" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
-                                                </tr>
-                                            ) : hogarColorants.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan="8" className="py-12 text-center text-gray-400">No hay colorantes marcados para Hogar y Obra</td>
-                                                </tr>
-                                            ) : (
-                                                hogarColorants.map((p) => {
-                                                    const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
-                                                    return (
-                                                        <tr key={p.code} className="hover:bg-blue-50/20 transition-colors group">
-                                                            <td className="px-4 py-2.5">
-                                                                <div className="text-xs font-bold text-gray-900 leading-tight">{p.description}</div>
-                                                                <div className="text-[10px] text-gray-400 font-mono">{p.code}</div>
-                                                            </td>
-                                                            <td className="px-1 py-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={vals.un1}
-                                                                    onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
-                                                                    onBlur={() => handleInputBlur(p.code, 'un1')}
-                                                                    className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                    placeholder="0"
-                                                                />
-                                                            </td>
-                                                            <td className="px-1 py-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={vals.cm}
-                                                                    onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
-                                                                    onBlur={() => handleInputBlur(p.code, 'cm')}
-                                                                    className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                    placeholder="0"
-                                                                />
-                                                            </td>
-                                                            <td className="px-0 py-2 text-center">
-                                                                <ArrowRight className="w-3 h-3 text-gray-300" />
-                                                            </td>
-                                                            <td className="px-1 py-2 text-center">
-                                                                <input
-                                                                    type="text"
-                                                                    value={vals.impExtra}
-                                                                    onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
-                                                                    onBlur={() => handleInputBlur(p.code, 'impExtra')}
-                                                                    className="w-20 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                    placeholder="0"
-                                                                />
-                                                            </td>
-                                                            <td className="px-1 py-2 text-center">
-                                                                <div className="text-xs font-bold text-blue-600">{vals.un2}</div>
-                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">UN2</div>
-                                                            </td>
-                                                            <td className="px-2 py-2 text-right">
-                                                                <div className="text-sm font-black text-blue-700">{vals.total.toFixed(3)}</div>
-                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">Un</div>
-                                                            </td>
-                                                            <td className="px-4 py-2">
-                                                                <button
-                                                                    onClick={() => saveRow(p)}
-                                                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                                                                    title="Guardar fila"
-                                                                >
-                                                                    <Save className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
+                        <div className="space-y-4">
+                            {currentGroup === 'Automotor' && (
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between mb-4 animate-in slide-in-from-top-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
+                                        <div>
+                                            <div className="text-xs font-bold text-blue-900 uppercase tracking-wider">Estado de Balanza</div>
+                                            <div className="text-sm font-medium text-blue-700">
+                                                {isConnected ? 'Sartorius Conectada' : 'Balanza Desconectada'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-2xl font-black text-blue-600 font-mono">
+                                        {unit === 'g' ? weight.toFixed(1) : weight.toFixed(3)} <span className="text-sm font-bold uppercase">{unit}</span>
+                                    </div>
                                 </div>
+                            )}
 
-                                {/* Mobile Card View (Hidden on Desktop) */}
-                                <div className="md:hidden space-y-4">
-                                    {isLoadingList ? (
-                                        <div className="py-12 text-center text-gray-400">Cargando colorantes...</div>
-                                    ) : hogarColorants.length === 0 ? (
-                                        <div className="py-12 text-center text-gray-400">No hay colorantes marcados</div>
-                                    ) : (
-                                        hogarColorants.map((p) => {
-                                            const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
-                                            return (
-                                                <div key={p.code} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
-                                                    <div className="flex justify-between items-start gap-2">
-                                                        <div className="flex-1">
-                                                            <div className="text-sm font-bold text-gray-900 leading-tight">{p.description}</div>
-                                                            <div className="text-[10px] text-gray-400 font-mono mt-1">{p.code}</div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => saveRow(p)}
-                                                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
-                                                        >
-                                                            <Save className="w-3.5 h-3.5" /> GUARDAR
-                                                        </button>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-3 gap-3">
-                                                        <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">UN1</label>
+                            {/* Desktop Table View (Hidden on Mobile) */}
+                            <div className="hidden md:block overflow-x-auto -mx-6">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-50 border-y border-gray-100">
+                                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase w-1/3">Colorante</th>
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
+                                            <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Imp. Extra</th>
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
+                                            <th className="px-4 py-3 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {isLoadingList ? (
+                                            <tr>
+                                                <td colSpan="8" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
+                                            </tr>
+                                        ) : hogarColorants.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="8" className="py-12 text-center text-gray-400">No hay colorantes marcados para este grupo</td>
+                                            </tr>
+                                        ) : (
+                                            hogarColorants.map((p, idx) => {
+                                                const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
+                                                return (
+                                                    <tr key={p.code} className={`hover:bg-blue-50/20 transition-colors group ${focusedRowCode === p.code ? 'bg-blue-50/10' : ''}`}>
+                                                        <td className="px-4 py-2.5">
+                                                            <div className="text-xs font-bold text-gray-900 leading-tight">{p.description}</div>
+                                                            <div className="text-[10px] text-gray-400 font-mono">{p.code}</div>
+                                                        </td>
+                                                        <td className="px-1 py-2">
                                                             <input
                                                                 type="text"
                                                                 value={vals.un1}
                                                                 onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
                                                                 onBlur={() => handleInputBlur(p.code, 'un1')}
-                                                                className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                                onFocus={() => setFocusedRowCode(p.code)}
+                                                                className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                 placeholder="0"
                                                             />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">CM</label>
+                                                        </td>
+                                                        <td className="px-1 py-2">
+                                                            {currentGroup === 'Hogar y Obra' ? (
+                                                                <input
+                                                                    type="text"
+                                                                    value={vals.cm}
+                                                                    onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
+                                                                    onBlur={() => handleInputBlur(p.code, 'cm')}
+                                                                    onFocus={() => setFocusedRowCode(p.code)}
+                                                                    className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    placeholder="0"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-16 text-center text-xs text-gray-300">-</div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-0 py-2 text-center">
+                                                            <ArrowRight className="w-3 h-3 text-gray-300" />
+                                                        </td>
+                                                        <td className="px-1 py-2 text-center">
+                                                            {currentGroup === 'Hogar y Obra' ? (
+                                                                <input
+                                                                    type="text"
+                                                                    value={vals.impExtra}
+                                                                    onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
+                                                                    onBlur={() => handleInputBlur(p.code, 'impExtra')}
+                                                                    onFocus={() => setFocusedRowCode(p.code)}
+                                                                    className="w-20 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    placeholder="0"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-20 text-center text-xs text-gray-300">-</div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-1 py-2 text-center">
                                                             <input
+                                                                ref={el => un2Refs.current[p.code] = el}
                                                                 type="text"
-                                                                value={vals.cm}
-                                                                onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
-                                                                onBlur={() => handleInputBlur(p.code, 'cm')}
-                                                                className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="0"
+                                                                value={vals.un2}
+                                                                onChange={(e) => handleListInputChange(p.code, 'un2', e.target.value)}
+                                                                onFocus={() => setFocusedRowCode(p.code)}
+                                                                onKeyDown={(e) => handleUn2KeyDown(e, p.code, idx)}
+                                                                className={`w-24 text-center text-sm font-bold rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border border-green-100 text-green-700' : 'bg-transparent text-blue-600 border-none'}`}
+                                                                readOnly={currentGroup === 'Hogar y Obra'}
                                                             />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Extra</label>
-                                                            <input
-                                                                type="text"
-                                                                value={vals.impExtra}
-                                                                onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
-                                                                onBlur={() => handleInputBlur(p.code, 'impExtra')}
-                                                                className="w-full text-center text-sm font-bold bg-blue-50 border border-blue-50 text-blue-700 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="0"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-xl border border-blue-50">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[9px] font-bold text-blue-400 uppercase">UN2</span>
-                                                            <span className="text-lg font-black text-blue-600 leading-none">{vals.un2}</span>
-                                                        </div>
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="text-[9px] font-bold text-blue-400 uppercase">Unidades Totales</span>
-                                                            <span className="text-xl font-black text-blue-700 leading-none">{vals.total.toFixed(3)} <span className="text-[10px]">un</span></span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            /* Automotor Mode (Original Scale UI) */
-                            <div className="bg-gray-50 rounded-2xl p-8 flex flex-col items-center justify-center border border-gray-100 relative group">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest absolute top-4 left-6">Peso Actual</span>
-                                <div className="flex items-baseline gap-2">
-                                    <span className={`text-7xl font-black tracking-tighter transition-all duration-300 ${weight > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
-                                        {unit === 'g' ? weight.toFixed(1) : weight.toFixed(3)}
-                                    </span>
-                                    <span className="text-2xl font-bold text-gray-400">{unit}</span>
-                                </div>
-
-                                {!isConnected && (
-                                    <div className="mt-4 flex gap-2">
-                                        <button
-                                            onClick={() => setWeight(Math.max(0, weight - 0.1))}
-                                            className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                        > -0.1 </button>
-                                        <button
-                                            onClick={() => setWeight(weight + 0.1)}
-                                            className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                        > +0.1 </button>
-                                        <button
-                                            onClick={() => setWeight(0)}
-                                            className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                        > Reset </button>
-                                    </div>
-                                )}
-
-                                {isConnected && (
-                                    <button
-                                        onClick={requestWeightManual}
-                                        className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors font-bold text-sm"
-                                    >
-                                        <RefreshCw className="w-4 h-4" /> SOLICITAR PESO (ESC P)
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
-                            {/* Product Search (Hidden in List Mode) */}
-                            {currentGroup !== 'Hogar y Obra' && (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-end">
-                                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Producto a Asociar</label>
-                                        {currentGroup && (
-                                            <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">
-                                                Grupo: {currentGroup}
-                                            </span>
+                                                            <div className="text-[8px] text-gray-400 uppercase font-bold">{currentGroup === 'Automotor' ? 'Gramos' : 'UN2'}</div>
+                                                        </td>
+                                                        <td className="px-2 py-2 text-right">
+                                                            <div className="text-sm font-black text-blue-700">{vals.total.toFixed(3)}</div>
+                                                            <div className="text-[8px] text-gray-400 uppercase font-bold">Un</div>
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            <button
+                                                                onClick={() => saveRow(p)}
+                                                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                                                title="Guardar fila"
+                                                            >
+                                                                <Save className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
                                         )}
-                                    </div>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                            <Package className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            placeholder="Buscar por nombre o código..."
-                                            value={searchQuery}
-                                            onChange={(e) => handleSearch(e.target.value)}
-                                            className="block w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-lg"
-                                        />
-                                        {searchQuery && (
-                                            <button
-                                                onClick={() => { setSearchQuery(''); setSuggestions([]); }}
-                                                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
-                                            >
-                                                <X className="h-5 w-5" />
-                                            </button>
-                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                        {/* Autocomplete Suggestions */}
-                                        {suggestions.length > 0 && (
-                                            <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2">
-                                                {suggestions.map((p) => (
+                            {/* Mobile Card View (Hidden on Desktop) */}
+                            <div className="md:hidden space-y-4">
+                                {isLoadingList ? (
+                                    <div className="py-12 text-center text-gray-400">Cargando colorantes...</div>
+                                ) : hogarColorants.length === 0 ? (
+                                    <div className="py-12 text-center text-gray-400">No hay colorantes marcados</div>
+                                ) : (
+                                    hogarColorants.map((p, idx) => {
+                                        const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
+                                        return (
+                                            <div key={p.code} className={`bg-white border rounded-2xl p-4 shadow-sm space-y-4 transition-colors ${focusedRowCode === p.code ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-100'}`}>
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <div className="flex-1">
+                                                        <div className="text-sm font-bold text-gray-900 leading-tight">{p.description}</div>
+                                                        <div className="text-[10px] text-gray-400 font-mono mt-1">{p.code}</div>
+                                                    </div>
                                                     <button
-                                                        key={p.code}
-                                                        onClick={() => {
-                                                            setSelectedProduct(p);
-                                                            setSearchQuery(p.description);
-                                                            setSuggestions([]);
-                                                        }}
-                                                        className="w-full px-4 py-3 text-left hover:bg-blue-50 flex flex-col border-b border-gray-50 last:border-0 transition-colors"
+                                                        onClick={() => saveRow(p)}
+                                                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
                                                     >
-                                                        <span className="font-semibold text-gray-900">{p.description}</span>
-                                                        <span className="text-xs text-gray-500 font-mono">{p.code}</span>
+                                                        <Save className="w-3.5 h-3.5" /> GUARDAR
                                                     </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {selectedProduct && (
-                                        <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between animate-pop">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                                    <Package className="w-5 h-5" />
                                                 </div>
-                                                <div>
-                                                    <div className="font-bold text-blue-900 leading-tight">{selectedProduct.description}</div>
-                                                    <div className="text-xs text-blue-700 font-mono">{selectedProduct.code}</div>
+
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">UN1</label>
+                                                        <input
+                                                            type="text"
+                                                            value={vals.un1}
+                                                            onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
+                                                            onFocus={() => setFocusedRowCode(p.code)}
+                                                            className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? '-' : 'CM'}</label>
+                                                        <input
+                                                            type="text"
+                                                            value={vals.cm}
+                                                            onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
+                                                            onFocus={() => setFocusedRowCode(p.code)}
+                                                            disabled={currentGroup === 'Automotor'}
+                                                            className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-30"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? 'Gramos' : 'Extra'}</label>
+                                                        <input
+                                                            ref={el => { if (currentGroup === 'Automotor') un2Refs.current[p.code] = el }}
+                                                            type="text"
+                                                            value={currentGroup === 'Automotor' ? vals.un2 : vals.impExtra}
+                                                            onChange={(e) => handleListInputChange(p.code, currentGroup === 'Automotor' ? 'un2' : 'impExtra', e.target.value)}
+                                                            onFocus={() => setFocusedRowCode(p.code)}
+                                                            onKeyDown={(e) => handleUn2KeyDown(e, p.code, idx)}
+                                                            className={`w-full text-center text-sm font-bold rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-blue-50 border-blue-50 text-blue-700'}`}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-xl border border-blue-50">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-blue-400 uppercase">{currentGroup === 'Automotor' ? 'Peso UN2' : 'UN2'}</span>
+                                                        <span className="text-lg font-black text-blue-600 leading-none">{vals.un2}</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[9px] font-bold text-blue-400 uppercase">Unidades Totales</span>
+                                                        <span className="text-xl font-black text-blue-700 leading-none">{vals.total.toFixed(3)} <span className="text-[10px]">un</span></span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <button onClick={() => setSelectedProduct(null)} className="text-blue-400 hover:text-blue-600 p-1">
-                                                <X className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                        {/* Action Button (Hidden in List Mode as rows have their own save) */}
-                        {currentGroup !== 'Hogar y Obra' && (
-                            <button
-                                onClick={handleSaveMeasurement}
-                                disabled={isSaving || !selectedProduct || weight === 0}
-                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-400 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                            >
-                                {isSaving ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-                                GUARDAR CONTEO
-                            </button>
-                        )}
+                                        );
+                                    })
+                                )}
+                            </div>
                     </div>
                 </div>
+            </div>
 
-                {/* History Card */}
-                <div className={`bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 flex flex-col ${currentGroup === 'Hogar y Obra' ? 'w-full min-h-[400px]' : 'h-[600px]'}`}>
+            {/* History Card */}
+            <div className={`bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 flex flex-col ${currentGroup === 'Hogar y Obra' ? 'w-full min-h-[400px]' : 'h-[600px]'}`}>
                     <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <History className="text-blue-500 w-5 h-5" /> Historial de Hoy
