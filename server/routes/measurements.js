@@ -60,41 +60,44 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
 
     try {
         const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]; // Primera hoja
-        
-        // Obtenemos todas las filas como arrays para buscar la cabecera
-        const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
         
         let headerRowIndex = -1;
         let codeColIndex = -1;
         let descColIndex = -1;
         let stockColIndex = -1;
         let idColIndex = -1;
+        let foundSheetData = null;
 
-        // 1. Buscar la fila de cabecera
-        for (let i = 0; i < Math.min(rows.length, 10); i++) {
-            const row = rows[i];
-            if (!row || !Array.isArray(row)) continue;
+        // 1. Iterar por todas las hojas buscando la estructura de inventario
+        for (const sheetName of workbook.SheetNames) {
+            const sheet = workbook.Sheets[sheetName];
+            const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+            
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+                const row = rows[i];
+                if (!row || !Array.isArray(row)) continue;
 
-            const findInRow = (keywords) => row.findIndex(cell => 
-                cell && keywords.some(k => String(cell).toLowerCase().includes(k.toLowerCase()))
-            );
+                const findInRow = (keywords) => row.findIndex(cell => 
+                    cell && keywords.some(k => String(cell).toLowerCase().includes(k.toLowerCase()))
+                );
 
-            codeColIndex = findInRow(['codigo', 'código', 'producto', 'art', 'referencia']);
-            descColIndex = findInRow(['descripcion', 'descripción', 'nombre', 'detalle']);
-            stockColIndex = findInRow(['stock', 'cantidad', 'actual']);
-            idColIndex = findInRow(['id']);
+                codeColIndex = findInRow(['codigo', 'código', 'producto', 'art', 'referencia']);
+                descColIndex = findInRow(['descripcion', 'descripción', 'nombre', 'detalle']);
+                stockColIndex = findInRow(['stock', 'cantidad', 'actual', 'saldo']);
+                idColIndex = findInRow(['id']);
 
-            // Si encontramos al menos código y descripción, esta es nuestra cabecera
-            if (codeColIndex !== -1 && descColIndex !== -1) {
-                headerRowIndex = i;
-                break;
+                if (codeColIndex !== -1 && descColIndex !== -1) {
+                    headerRowIndex = i;
+                    foundSheetData = rows;
+                    console.log(`Estructura encontrada en hoja "${sheetName}", fila ${i + 1}`);
+                    break;
+                }
             }
+            if (foundSheetData) break;
         }
 
-        if (headerRowIndex === -1) {
-            console.log('No se encontró cabecera en las primeras 10 filas. Filas:', rows.slice(0, 5));
-            return res.status(400).json({ message: 'No se pudo detectar la estructura del Excel. Asegúrese de que tenga columnas de Código y Descripción.' });
+        if (!foundSheetData) {
+            return res.status(400).json({ message: 'No se pudo detectar la estructura de inventario en ninguna hoja del Excel.' });
         }
 
         // 2. Crear el registro del conteo
@@ -112,10 +115,10 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
 
         if (countError) throw countError;
 
-        // 3. Procesar datos a partir de la fila siguiente a la cabecera
+        // 3. Procesar datos
         const items = [];
-        for (let i = headerRowIndex + 1; i < rows.length; i++) {
-            const row = rows[i];
+        for (let i = headerRowIndex + 1; i < foundSheetData.length; i++) {
+            const row = foundSheetData[i];
             if (!row || row.length === 0) continue;
 
             const code = row[codeColIndex] ? String(row[codeColIndex]).trim() : null;
@@ -130,16 +133,13 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
             });
         }
         
-        console.log(`Cabecera encontrada en fila ${headerRowIndex + 1}. Insertando ${items.length} ítems.`);
-
-        // Insertar ítems en lotes
         if (items.length > 0) {
             const { error: itemsError } = await supabase.from('dye_count_items').insert(items);
             if (itemsError) throw itemsError;
         }
 
         res.json({ 
-            message: `Excel de colorantes importado con éxito. Se cargaron ${items.length} productos.`, 
+            message: `Excel importado con éxito. Se cargaron ${items.length} productos.`, 
             countId: dyeCount.id,
             totalItems: items.length 
         });
