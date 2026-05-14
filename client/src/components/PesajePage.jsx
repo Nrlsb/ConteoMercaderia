@@ -21,11 +21,36 @@ const BRANCH_GROUP_MAP = {
     // Ejemplo: Sucursales que cuentan Hogar y Obra
     'Sucursal 01': 'Hogar y Obra',
     'Sucursal 02': 'Hogar y Obra',
-    
+    'Sucursal 03': 'Hogar y Obra',
+    'Sucursal 04': 'Hogar y Obra',
+    'Sucursal 05': 'Hogar y Obra',
+    'Sucursal 07': 'Hogar y Obra',
+    'Sucursal 08': 'Hogar y Obra',
+    'Sucursal 09': 'Hogar y Obra',
+    'Sucursal 10': 'Hogar y Obra',
+    'Sucursal 11': 'Hogar y Obra',
+    'Sucursal 12': 'Hogar y Obra',
+    'Sucursal 15': 'Hogar y Obra',
+    'Sucursal 16': 'Hogar y Obra',
+    'Sucursal 17': 'Hogar y Obra',
+    'Sucursal 20': 'Hogar y Obra',
+    'Sucursal 21': 'Hogar y Obra',
+    'Sucursal 24': 'Hogar y Obra',
+    'Sucursal 25': 'Hogar y Obra',
+    'Sucursal 26': 'Hogar y Obra',
+    'Sucursal 27': 'Hogar y Obra',
+    'Sucursal 28': 'Hogar y Obra',
+    'Sucursal 29': 'Hogar y Obra',
+    'Sucursal 30': 'Hogar y Obra',
+    'Sucursal 31': 'Hogar y Obra',
+    'Sucursal 32': 'Hogar y Obra',
+    'Sucursal 33': 'Hogar y Obra',
+
     // Ejemplo: Sucursales que cuentan Automotor
-    'Sucursal 25': 'Automotor',
-    'Sucursal 26': 'Automotor',
-    
+    'Sucursal 13': 'Automotor',
+    'Sucursal 22': 'Automotor',
+    'Sucursal 23': 'Automotor',
+
     // Puedes seguir agregando el resto aquí...
 };
 
@@ -44,7 +69,12 @@ const PesajePage = () => {
     const [recentMeasurements, setRecentMeasurements] = useState([]);
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    
+
+    // Group differentiation logic
+    const [overrideGroup, setOverrideGroup] = useState(null);
+    const { user } = useAuth();
+    const currentGroup = overrideGroup || BRANCH_GROUP_MAP[user?.sucursal_name] || 'Automotor';
+
     // Hogar y Obra specific state
     const [countingMode, setCountingMode] = useState('machine'); // 'machine' or 'closed'
     const [cmValue, setCmValue] = useState('');
@@ -59,7 +89,6 @@ const PesajePage = () => {
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [rawData, setRawData] = useState('');
     const { searchProductsLocally } = useProductSync();
-    const { user } = useAuth();
 
     const bufferRef = useRef('');
     const searchTimeoutRef = useRef(null);
@@ -93,7 +122,7 @@ const PesajePage = () => {
         setIsConnecting(true);
         try {
             const selectedPort = await navigator.serial.requestPort();
-            await selectedPort.open({ 
+            await selectedPort.open({
                 baudRate: baudRate,
                 parity: parity,
                 dataBits: dataBits,
@@ -151,13 +180,13 @@ const PesajePage = () => {
                     if (value) {
                         // Guardamos en el buffer para procesar líneas completas
                         bufferRef.current += value;
-                        
+
                         // Convertimos a Hex para el visor RAW
                         const hexVal = Array.from(value).map(char => {
                             const code = char.charCodeAt(0);
                             return (code < 32 || code > 126) ? `[${code.toString(16).toUpperCase()}]` : char;
                         }).join('');
-                        
+
                         setRawData(prev => (prev + hexVal).slice(-100));
 
                         // Procesamos líneas completas (terminadas en \n o \r)
@@ -165,7 +194,7 @@ const PesajePage = () => {
                             const lines = bufferRef.current.split(/[\r\n]+/);
                             // Mantenemos el último fragmento incompleto en el buffer
                             bufferRef.current = lines.pop() || '';
-                            
+
                             // Procesamos cada línea completa
                             for (const line of lines) {
                                 if (line.trim()) {
@@ -220,11 +249,11 @@ const PesajePage = () => {
         // Buscamos el número (con signo y decimal) y la unidad (g, kg, lb, oz, t)
         const weightMatch = line.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
         const unitMatch = line.match(/(g|kg|lb|oz|t)\b/i);
-        
+
         if (weightMatch) {
             const rawValue = weightMatch[0].replace(/\s+/g, '');
             let val = parseFloat(rawValue);
-            
+
             // Detectamos la unidad y ajustamos el valor si es necesario
             if (unitMatch) {
                 const detectedUnit = unitMatch[0].toLowerCase();
@@ -241,7 +270,7 @@ const PesajePage = () => {
 
     // Hogar y Obra Calculator Logic
     useEffect(() => {
-        if (BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra') {
+        if (currentGroup === 'Hogar y Obra') {
             if (countingMode === 'machine') {
                 const cm = parseFloat(cmValue) || 0;
                 const impulses = Math.round(cm * 220); // 10cm = 2200 => 1cm = 220
@@ -256,7 +285,7 @@ const PesajePage = () => {
                 setUnit('un');
             }
         }
-    }, [cmValue, closedQuantity, countingMode, user?.sucursal_name]);
+    }, [cmValue, closedQuantity, countingMode, currentGroup]);
 
     // Product Search Logic
     const handleSearch = async (value) => {
@@ -271,14 +300,14 @@ const PesajePage = () => {
         searchTimeoutRef.current = setTimeout(async () => {
             try {
                 let results = await searchProductsLocally(value);
-                
+
                 // Filtrar por sucursal si es necesario (Superadmin ve todo)
                 const userBranch = user?.sucursal_name;
                 const groupName = BRANCH_GROUP_MAP[userBranch];
-                
+
                 if (user?.role !== 'superadmin' && groupName && COLORANT_GROUPS[groupName]) {
                     const allowedBrands = COLORANT_GROUPS[groupName].brands;
-                    results = results.filter(p => 
+                    results = results.filter(p =>
                         allowedBrands.includes(p.brand?.toUpperCase())
                     );
                 }
@@ -311,7 +340,7 @@ const PesajePage = () => {
                     countingMode,
                     cmValue: countingMode === 'machine' ? cmValue : null,
                     impulses: countingMode === 'machine' ? calculatedImpulses : null,
-                    group: BRANCH_GROUP_MAP[user?.sucursal_name]
+                    group: currentGroup
                 }
             });
             toast.success('Registro guardado correctamente');
@@ -344,117 +373,133 @@ const PesajePage = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Scale className="text-blue-600" /> {BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra' ? 'Conteo Colorantes' : 'Balanza Sartorius'}
+                        <Scale className="text-blue-600" /> {currentGroup === 'Hogar y Obra' ? 'Conteo Colorantes' : 'Balanza Sartorius'}
                     </h1>
-                    <p className="text-gray-500">{BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra' ? 'Sistema de impulsos y unidades' : 'Configurada para Sartorius PMA Evolution (SBI)'}</p>
+                    <p className="text-gray-500">{currentGroup === 'Hogar y Obra' ? 'Sistema de impulsos y unidades' : 'Configurada para Sartorius PMA Evolution (SBI)'}</p>
                 </div>
-                
-                {BRANCH_GROUP_MAP[user?.sucursal_name] !== 'Hogar y Obra' && (
-                    <button
-                        onClick={isConnected ? disconnectScale : connectToScale}
-                        disabled={isConnecting}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-sm ${
-                            isConnected 
-                            ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' 
-                            : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-                        }`}
-                    >
-                        {isConnecting ? (
-                            <RefreshCw className="w-5 h-5 animate-spin" />
-                        ) : isConnected ? (
-                            <Zap className="w-5 h-5 text-green-600" />
-                        ) : (
-                            <Cable className="w-5 h-5" />
-                        )}
-                        {isConnecting ? 'Conectando...' : isConnected ? 'Balanza Conectada (USB)' : 'Conectar Balanza (USB)'}
-                    </button>
-                )}
 
-                {BRANCH_GROUP_MAP[user?.sucursal_name] !== 'Hogar y Obra' && !isConnected && (
-                    <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
-                            <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
-                            <select 
-                                value={baudRate}
-                                onChange={(e) => setBaudRate(Number(e.target.value))}
-                                className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
+                <div className="flex items-center gap-3">
+                    {user?.role === 'superadmin' && (
+                        <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm mr-4">
+                            <button
+                                onClick={() => setOverrideGroup('Hogar y Obra')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentGroup === 'Hogar y Obra' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
-                                <option value={600}>600</option>
-                                <option value={1200}>1200</option>
-                                <option value={2400}>2400</option>
-                                <option value={4800}>4800</option>
-                                <option value={9600}>9600</option>
-                                <option value={19200}>19200</option>
-                                <option value={115200}>115200</option>
-                            </select>
-                            <button 
-                                onClick={() => setShowAdvanced(!showAdvanced)}
-                                className="p-2 text-gray-400 hover:text-blue-600"
-                                title="Ajustes avanzados"
+                                HOGAR
+                            </button>
+                            <button
+                                onClick={() => setOverrideGroup('Automotor')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentGroup === 'Automotor' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
-                                <RefreshCw className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                                AUTO
                             </button>
                         </div>
-                        
-                        {showAdvanced && (
-                            <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
-                                <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-                                    <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Paridad:</span>
-                                    <select 
-                                        value={parity}
-                                        onChange={(e) => setParity(e.target.value)}
-                                        className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
-                                    >
-                                        <option value="none">None</option>
-                                        <option value="even">Even</option>
-                                        <option value="odd">Odd</option>
-                                    </select>
-                                </div>
-                                <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-                                    <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Bits:</span>
-                                    <select 
-                                        value={dataBits}
-                                        onChange={(e) => setDataBits(Number(e.target.value))}
-                                        className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
-                                    >
-                                        <option value={8}>8</option>
-                                        <option value={7}>7</option>
-                                    </select>
-                                </div>
-                                <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-                                    <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Stop:</span>
-                                    <select 
-                                        value={stopBits}
-                                        onChange={(e) => setStopBits(Number(e.target.value))}
-                                        className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
-                                    >
-                                        <option value={1}>1</option>
-                                        <option value={2}>2</option>
-                                    </select>
-                                </div>
+                    )}
+
+                    {currentGroup !== 'Hogar y Obra' && (
+                        <button
+                            onClick={isConnected ? disconnectScale : connectToScale}
+                            disabled={isConnecting}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-sm ${isConnected
+                                ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+                                }`}
+                        >
+                            {isConnecting ? (
+                                <RefreshCw className="w-5 h-5 animate-spin" />
+                            ) : isConnected ? (
+                                <Zap className="w-5 h-5 text-green-600" />
+                            ) : (
+                                <Cable className="w-5 h-5" />
+                            )}
+                            {isConnecting ? 'Conectando...' : isConnected ? 'Balanza Conectada (USB)' : 'Conectar Balanza (USB)'}
+                        </button>
+                    )}
+
+                    {currentGroup !== 'Hogar y Obra' && !isConnected && (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
+                                <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
+                                <select
+                                    value={baudRate}
+                                    onChange={(e) => setBaudRate(Number(e.target.value))}
+                                    className="bg-transparent py-1.5 pr-8 pl-2 text-sm font-bold text-blue-600 outline-none cursor-pointer"
+                                >
+                                    <option value={600}>600</option>
+                                    <option value={1200}>1200</option>
+                                    <option value={2400}>2400</option>
+                                    <option value={4800}>4800</option>
+                                    <option value={9600}>9600</option>
+                                    <option value={19200}>19200</option>
+                                    <option value={115200}>115200</option>
+                                </select>
+                                <button
+                                    onClick={() => setShowAdvanced(!showAdvanced)}
+                                    className="p-2 text-gray-400 hover:text-blue-600"
+                                    title="Ajustes avanzados"
+                                >
+                                    <RefreshCw className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                                </button>
                             </div>
-                        )}
-                    </div>
-                )}
+
+                            {showAdvanced && (
+                                <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Paridad:</span>
+                                        <select
+                                            value={parity}
+                                            onChange={(e) => setParity(e.target.value)}
+                                            className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
+                                        >
+                                            <option value="none">None</option>
+                                            <option value="even">Even</option>
+                                            <option value="odd">Odd</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Bits:</span>
+                                        <select
+                                            value={dataBits}
+                                            onChange={(e) => setDataBits(Number(e.target.value))}
+                                            className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
+                                        >
+                                            <option value={8}>8</option>
+                                            <option value={7}>7</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex flex-1 items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="pl-2 text-[10px] font-bold text-gray-400 uppercase">Stop:</span>
+                                        <select
+                                            value={stopBits}
+                                            onChange={(e) => setStopBits(Number(e.target.value))}
+                                            className="bg-transparent py-1 pr-6 pl-1 text-xs font-bold text-gray-600 outline-none"
+                                        >
+                                            <option value={1}>1</option>
+                                            <option value={2}>2</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
-
-
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Main Action Card */}
                 <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
                     <div className="p-6 space-y-6">
                         {/* Dynamic UI based on Branch Group */}
-                        {BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra' ? (
+                        {currentGroup === 'Hogar y Obra' ? (
                             <div className="space-y-6">
                                 <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <button 
+                                    <button
                                         onClick={() => setCountingMode('machine')}
                                         className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${countingMode === 'machine' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
                                         EN MÁQUINA (CM)
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setCountingMode('closed')}
                                         className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${countingMode === 'closed' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
@@ -466,7 +511,7 @@ const PesajePage = () => {
                                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 space-y-4">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Medida en CM</label>
-                                            <input 
+                                            <input
                                                 type="number"
                                                 value={cmValue}
                                                 onChange={(e) => setCmValue(e.target.value)}
@@ -488,7 +533,7 @@ const PesajePage = () => {
                                 ) : (
                                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
                                         <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Cantidad Cerrada (Unidades)</label>
-                                        <input 
+                                        <input
                                             type="number"
                                             value={closedQuantity}
                                             onChange={(e) => setClosedQuantity(e.target.value)}
@@ -507,18 +552,18 @@ const PesajePage = () => {
                                     </span>
                                     <span className="text-2xl font-bold text-gray-400">{unit}</span>
                                 </div>
-                                
+
                                 {!isConnected && (
                                     <div className="mt-4 flex gap-2">
-                                        <button 
+                                        <button
                                             onClick={() => setWeight(Math.max(0, weight - 0.1))}
                                             className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
                                         > -0.1 </button>
-                                        <button 
+                                        <button
                                             onClick={() => setWeight(weight + 0.1)}
                                             className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
                                         > +0.1 </button>
-                                        <button 
+                                        <button
                                             onClick={() => setWeight(0)}
                                             className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
                                         > Reset </button>
@@ -540,9 +585,9 @@ const PesajePage = () => {
                         <div className="space-y-4">
                             <div className="flex justify-between items-end">
                                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Producto a Asociar</label>
-                                {user?.sucursal_name && BRANCH_GROUP_MAP[user?.sucursal_name] && (
+                                {currentGroup && (
                                     <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">
-                                        Grupo: {BRANCH_GROUP_MAP[user?.sucursal_name]}
+                                        Grupo: {currentGroup}
                                     </span>
                                 )}
                             </div>
@@ -558,8 +603,8 @@ const PesajePage = () => {
                                     className="block w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-lg"
                                 />
                                 {searchQuery && (
-                                    <button 
-                                        onClick={() => {setSearchQuery(''); setSuggestions([]);}}
+                                    <button
+                                        onClick={() => { setSearchQuery(''); setSuggestions([]); }}
                                         className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
                                     >
                                         <X className="h-5 w-5" />
@@ -623,7 +668,7 @@ const PesajePage = () => {
                         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             <History className="text-blue-500 w-5 h-5" /> Historial de Hoy
                         </h2>
-                        <button 
+                        <button
                             onClick={fetchRecentMeasurements}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         >
@@ -653,14 +698,14 @@ const PesajePage = () => {
                                             <div className="font-bold text-gray-900 pr-2">{m.product_description || 'Desconocido'}</div>
                                             <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                                                 <Clock className="w-3 h-3" />
-                                                {new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 <span className="text-gray-300">•</span>
                                                 <span className="font-mono">{m.product_code}</span>
                                             </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className="text-xl font-black text-blue-600">{m.weight} {m.unit}</span>
-                                            <button 
+                                            <button
                                                 onClick={() => handleDeleteMeasurement(m.id)}
                                                 className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
                                             >
