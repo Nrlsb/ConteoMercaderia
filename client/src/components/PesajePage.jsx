@@ -701,7 +701,7 @@ const PesajePage = () => {
                                                             </td>
                                                             <td className="px-1 py-2 text-center">
                                                                 <div className="text-xs font-bold text-blue-600">{vals.un2}</div>
-                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">Imp Total</div>
+                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">UN2</div>
                                                             </td>
                                                             <td className="px-2 py-2 text-right">
                                                                 <div className="text-sm font-black text-blue-700">{vals.total.toFixed(3)}</div>
@@ -786,7 +786,7 @@ const PesajePage = () => {
 
                                                     <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-xl border border-blue-50">
                                                         <div className="flex flex-col">
-                                                            <span className="text-[9px] font-bold text-blue-400 uppercase">Imp. Totales</span>
+                                                            <span className="text-[9px] font-bold text-blue-400 uppercase">UN2</span>
                                                             <span className="text-lg font-black text-blue-600 leading-none">{vals.un2}</span>
                                                         </div>
                                                         <div className="flex flex-col items-end">
