@@ -287,24 +287,27 @@ router.get('/dye-counts/:id/export', verifyToken, async (req, res) => {
         if (itemsError) throw itemsError;
 
         // 3. Obtener todas las mediciones vinculadas a este conteo
-        // Nota: En PesajePage.jsx se guarda como conteoId en el objeto metadata
+        // Usamos .contains para filtrar dentro de la columna JSONB 'metadata'
         const { data: measurements, error: measError } = await supabase
             .from('product_measurements')
             .select('*')
-            .filter('metadata->conteoId', 'eq', parseInt(id));
+            .contains('metadata', { conteoId: parseInt(id) });
 
         if (measError) throw measError;
 
         // 4. Agrupar mediciones por código de producto
         const aggregation = {};
-        measurements.forEach(m => {
-            const code = m.product_code;
-            if (!aggregation[code]) {
-                aggregation[code] = { un1: 0, un2: 0 };
-            }
-            aggregation[code].un1 += (m.metadata?.un1 || 0);
-            aggregation[code].un2 += (m.metadata?.un2 || 0);
-        });
+        if (measurements) {
+            measurements.forEach(m => {
+                const code = m.product_code;
+                if (!aggregation[code]) {
+                    aggregation[code] = { un1: 0, un2: 0 };
+                }
+                const meta = m.metadata || {};
+                aggregation[code].un1 += (parseFloat(meta.un1) || 0);
+                aggregation[code].un2 += (parseFloat(meta.un2) || 0);
+            });
+        }
 
         // 5. Preparar datos para el Excel
         const exportData = items.map(item => {
@@ -323,7 +326,7 @@ router.get('/dye-counts/:id/export', verifyToken, async (req, res) => {
         xlsx.utils.book_append_sheet(workbook, ws, "Conteo");
 
         const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-        const fileName = `Conteo_${dyeCount.name.replace(/\//g, '-')}.xlsx`;
+        const fileName = `Conteo_${dyeCount.name.replace(/[/\\?%*:|"<>]/g, '-')}.xlsx`;
 
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -331,7 +334,11 @@ router.get('/dye-counts/:id/export', verifyToken, async (req, res) => {
 
     } catch (error) {
         console.error('Error al exportar conteo de colorantes:', error);
-        res.status(500).json({ message: 'Error al generar el Excel', error: error.message });
+        res.status(500).json({ 
+            message: 'Error al generar el Excel', 
+            error: error.message,
+            details: error.details || error
+        });
     }
 });
 
