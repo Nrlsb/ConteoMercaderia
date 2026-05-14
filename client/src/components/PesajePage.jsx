@@ -299,7 +299,7 @@ const PesajePage = () => {
                     // Initialize inputs
                     const initialInputs = {};
                     sorted.forEach(p => {
-                        initialInputs[p.code] = { un1: '', cm: '', un2: 0, total: 0 };
+                        initialInputs[p.code] = { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
                     });
                     setListInputs(initialInputs);
                 } catch (error) {
@@ -319,8 +319,10 @@ const PesajePage = () => {
             // Recalculate UN2 and Total
             const un1 = parseFloat(current.un1) || 0;
             const cm = parseFloat(current.cm) || 0;
+            const impExtra = parseFloat(current.impExtra) || 0;
             
-            const un2 = Math.round(cm * 220);
+            const un2FromCm = Math.round(cm * 220);
+            const un2 = un2FromCm + impExtra;
             const total = un1 + (un2 / 2200);
             
             return {
@@ -346,6 +348,7 @@ const PesajePage = () => {
                 metadata: {
                     un1: parseFloat(values.un1) || 0,
                     un2: values.un2,
+                    impExtra: parseFloat(values.impExtra) || 0,
                     cmValue: values.cm,
                     group: 'Hogar y Obra'
                 }
@@ -608,6 +611,7 @@ const PesajePage = () => {
                                                 <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
                                                 <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
                                                 <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Imp. Extra</th>
                                                 <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
                                                 <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
                                                 <th className="px-4 py-3 w-10"></th>
@@ -653,8 +657,17 @@ const PesajePage = () => {
                                                                 <ArrowRight className="w-3 h-3 text-gray-300" />
                                                             </td>
                                                             <td className="px-1 py-2 text-center">
+                                                                <input
+                                                                    type="number"
+                                                                    value={vals.impExtra}
+                                                                    onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
+                                                                    className="w-16 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+                                                            <td className="px-1 py-2 text-center">
                                                                 <div className="text-xs font-bold text-blue-600">{vals.un2}</div>
-                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">Imp</div>
+                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">Imp Total</div>
                                                             </td>
                                                             <td className="px-2 py-2 text-right">
                                                                 <div className="text-sm font-black text-blue-700">{vals.total.toFixed(3)}</div>
