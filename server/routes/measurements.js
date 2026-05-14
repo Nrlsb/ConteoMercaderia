@@ -263,6 +263,78 @@ router.post('/dye-counts/:id/close', verifyToken, async (req, res) => {
     }
 });
 
+// Exportar resultados de un conteo de colorantes a Excel
+router.get('/dye-counts/:id/export', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        // 1. Obtener información del conteo
+        const { data: dyeCount, error: countError } = await supabase
+            .from('dye_counting_lists')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (countError || !dyeCount) {
+            return res.status(404).json({ message: 'Conteo no encontrado' });
+        }
+
+        // 2. Obtener todos los productos definidos en este conteo
+        const { data: items, error: itemsError } = await supabase
+            .from('dye_count_items')
+            .select('*')
+            .eq('dye_count_id', id);
+
+        if (itemsError) throw itemsError;
+
+        // 3. Obtener todas las mediciones vinculadas a este conteo
+        // Nota: En PesajePage.jsx se guarda como conteoId en el objeto metadata
+        const { data: measurements, error: measError } = await supabase
+            .from('product_measurements')
+            .select('*')
+            .filter('metadata->conteoId', 'eq', parseInt(id));
+
+        if (measError) throw measError;
+
+        // 4. Agrupar mediciones por código de producto
+        const aggregation = {};
+        measurements.forEach(m => {
+            const code = m.product_code;
+            if (!aggregation[code]) {
+                aggregation[code] = { un1: 0, un2: 0 };
+            }
+            aggregation[code].un1 += (m.metadata?.un1 || 0);
+            aggregation[code].un2 += (m.metadata?.un2 || 0);
+        });
+
+        // 5. Preparar datos para el Excel
+        const exportData = items.map(item => {
+            const agg = aggregation[item.product_code] || { un1: 0, un2: 0 };
+            return {
+                'Codigo': item.product_code,
+                'Descripcion': item.description,
+                'UN1': agg.un1,
+                'UN2': agg.un2
+            };
+        });
+
+        // 6. Generar el archivo Excel
+        const workbook = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet(exportData);
+        xlsx.utils.book_append_sheet(workbook, ws, "Conteo");
+
+        const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = `Conteo_${dyeCount.name.replace(/\//g, '-')}.xlsx`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buf);
+
+    } catch (error) {
+        console.error('Error al exportar conteo de colorantes:', error);
+        res.status(500).json({ message: 'Error al generar el Excel', error: error.message });
+    }
+});
+
 // Delete a measurement
 router.delete('/:id', verifyToken, async (req, res) => {
     const { id } = req.params;

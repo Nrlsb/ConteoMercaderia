@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus, Upload, FileSpreadsheet, Settings2, Activity, Info, Layers } from 'lucide-react';
+import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus, Upload, FileSpreadsheet, Settings2, Activity, Info, Layers, Download } from 'lucide-react';
 
 import { toast } from 'sonner';
 import api from '../api';
@@ -157,6 +157,31 @@ const PesajePage = () => {
             console.error('Error importing dye excel:', error);
             const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Error al importar el archivo';
             toast.error(errorMsg, { id: toastId });
+        }
+    };
+
+    const handleExportExcel = async () => {
+        if (!selectedCount) return;
+        
+        const toastId = toast.loading('Generando reporte Excel...');
+        try {
+            const response = await api.get(`/api/measurements/dye-counts/${selectedCount.id}/export`, {
+                responseType: 'blob'
+            });
+            
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const fileName = `Conteo_${selectedCount.name.replace(/\//g, '-')}.xlsx`;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            
+            toast.success('Excel descargado con éxito', { id: toastId });
+        } catch (error) {
+            console.error('Error exporting dye excel:', error);
+            toast.error('Error al generar el archivo Excel', { id: toastId });
         }
     };
 
@@ -763,6 +788,16 @@ const PesajePage = () => {
                                     className="hidden"
                                 />
                             </label>
+
+                            {selectedCount && (
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 cursor-pointer active:scale-95 group"
+                                >
+                                    <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
+                                    <span>DESCARGAR EXCEL</span>
+                                </button>
+                            )}
                         </div>
 
                         {/* Hardware Connectivity & Reset */}
