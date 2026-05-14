@@ -80,6 +80,8 @@ const PesajePage = () => {
     const [listInputs, setListInputs] = useState({}); // { code: { un1, cm, un2, total } }
     const [isLoadingList, setIsLoadingList] = useState(false);
     const [focusedRowCode, setFocusedRowCode] = useState(null);
+    const [activeCounts, setActiveCounts] = useState([]);
+    const [selectedCount, setSelectedCount] = useState(null);
     const un2Refs = useRef({});
 
     const [baudRate, setBaudRate] = useState(2400);
@@ -111,6 +113,51 @@ const PesajePage = () => {
     useEffect(() => {
         fetchRecentMeasurements();
     }, [fetchRecentMeasurements]);
+
+    useEffect(() => {
+        const fetchActiveCounts = async () => {
+            try {
+                // NEW: Endpoint separado para colorantes
+                const res = await api.get('/api/measurements/dye-counts/active');
+                setActiveCounts(Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []));
+            } catch (error) {
+                console.error('Error fetching dye counts:', error);
+            }
+        };
+        fetchActiveCounts();
+        const interval = setInterval(fetchActiveCounts, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleImportExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const toastId = toast.loading('Procesando Excel de colorantes...');
+        try {
+            const res = await api.post('/api/measurements/import-dye-excel', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success(res.data.message, { id: toastId });
+            
+            // Refrescar y seleccionar el nuevo
+            const updatedCountsRes = await api.get('/api/measurements/dye-counts/active');
+            const updatedCounts = updatedCountsRes.data;
+            setActiveCounts(updatedCounts);
+            
+            const newCount = updatedCounts.find(c => c.id === res.data.countId);
+            if (newCount) setSelectedCount(newCount);
+            
+            // Limpiar input
+            e.target.value = '';
+        } catch (error) {
+            console.error('Error importing dye excel:', error);
+            toast.error('Error al importar el archivo', { id: toastId });
+        }
+    };
 
     // USB/Serial Connection Logic
     const connectToScale = async () => {
@@ -326,33 +373,38 @@ const PesajePage = () => {
 
     // Fetch colorants for the current group list
     useEffect(() => {
-        if (currentGroup) {
-            const loadList = async () => {
-                setIsLoadingList(true);
-                try {
-                    const colorants = await db.products
+        const loadList = async () => {
+            setIsLoadingList(true);
+            try {
+                let colorants = [];
+                if (selectedCount) {
+                    // NEW: Endpoint separado para productos de colorantes
+                    const res = await api.get(`/api/measurements/dye-counts/${selectedCount.id}/products`);
+                    colorants = res.data.products || [];
+                } else if (currentGroup) {
+                    colorants = await db.products
                         .where('counting_category')
                         .equals(currentGroup)
                         .toArray();
-                    
-                    const sorted = colorants.sort((a, b) => a.description.localeCompare(b.description));
-                    setHogarColorants(sorted);
-                    
-                    // Initialize inputs
-                    const initialInputs = {};
-                    sorted.forEach(p => {
-                        initialInputs[p.code] = { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
-                    });
-                    setListInputs(initialInputs);
-                } catch (error) {
-                    console.error("Error loading colorant list:", error);
-                } finally {
-                    setIsLoadingList(false);
+                    colorants.sort((a, b) => a.description.localeCompare(b.description));
                 }
-            };
-            loadList();
-        }
-    }, [currentGroup]);
+                
+                setHogarColorants(colorants);
+                
+                // Initialize inputs
+                const initialInputs = {};
+                colorants.forEach(p => {
+                    initialInputs[p.code] = { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
+                });
+                setListInputs(initialInputs);
+            } catch (error) {
+                console.error("Error loading colorant list:", error);
+            } finally {
+                setIsLoadingList(false);
+            }
+        };
+        loadList();
+    }, [currentGroup, selectedCount]);
 
     const handleListInputChange = (code, field, value) => {
         setListInputs(prev => {
@@ -408,6 +460,7 @@ const PesajePage = () => {
         }
 
         try {
+            // Guardar en el historial de mediciones
             await api.post('/api/measurements', {
                 productCode: product.code,
                 productDescription: product.description,
@@ -418,12 +471,19 @@ const PesajePage = () => {
                     un2: values.un2,
                     impExtra: currentGroup === 'Hogar y Obra' ? (parseFloat(values.impExtra) || 0) : null,
                     cmValue: currentGroup === 'Hogar y Obra' ? values.cm : null,
-                    group: currentGroup
+                    group: currentGroup,
+                    conteoId: selectedCount?.id || null
                 }
             });
+
+            // Si hay un conteo activo de colorantes, podríamos guardar el progreso aquí si fuera necesario.
+            // Por ahora, el historial de measurements ya incluye el conteoId.
+            // Si en el futuro se requiere una tabla dye_count_scans, se añadiría aquí.
+
             toast.success(`${product.description} guardado`);
             fetchRecentMeasurements();
         } catch (error) {
+            console.error('Error al guardar:', error);
             toast.error('Error al guardar fila');
         }
     };
@@ -609,7 +669,7 @@ const PesajePage = () => {
 
                 <div className="flex items-center gap-3">
                     {user?.role === 'superadmin' && (
-                        <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm mr-4">
+                        <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
                             <button
                                 onClick={() => setOverrideGroup('Hogar y Obra')}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentGroup === 'Hogar y Obra' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
@@ -624,6 +684,36 @@ const PesajePage = () => {
                             </button>
                         </div>
                     )}
+
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm min-w-[200px]">
+                            <Package className="w-4 h-4 text-blue-500 ml-3" />
+                            <select
+                                value={selectedCount?.id || ''}
+                                onChange={(e) => {
+                                    const count = activeCounts.find(c => String(c.id) === e.target.value);
+                                    setSelectedCount(count || null);
+                                }}
+                                className="bg-transparent py-2 pr-8 pl-1 text-sm font-bold text-gray-700 outline-none cursor-pointer w-full"
+                            >
+                                <option value="">-- Conteo de Colorantes --</option>
+                                {activeCounts.map(count => (
+                                    <option key={count.id} value={count.id}>{count.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <label className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-sm cursor-pointer active:scale-95">
+                            <Upload className="w-5 h-5" />
+                            <span className="hidden sm:inline">Importar Excel</span>
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleImportExcel}
+                                className="hidden"
+                            />
+                        </label>
+                    </div>
 
                     <button
                         onClick={handleClearAll}
@@ -749,7 +839,9 @@ const PesajePage = () => {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-gray-50 border-y border-gray-100">
-                                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase w-1/3">Colorante</th>
+                                            <th className="px-3 py-3 text-[10px] font-bold text-gray-400 uppercase w-10 text-center">Id</th>
+                                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase">Colorante</th>
+                                            <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">S. Teo</th>
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
                                             <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
@@ -762,20 +854,24 @@ const PesajePage = () => {
                                     <tbody className="divide-y divide-gray-50">
                                         {isLoadingList ? (
                                             <tr>
-                                                <td colSpan="8" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
+                                                <td colSpan="10" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
                                             </tr>
                                         ) : hogarColorants.length === 0 ? (
                                             <tr>
-                                                <td colSpan="8" className="py-12 text-center text-gray-400">No hay colorantes marcados para este grupo</td>
+                                                <td colSpan="10" className="py-12 text-center text-gray-400">No hay colorantes marcados para este grupo</td>
                                             </tr>
                                         ) : (
                                             hogarColorants.map((p, idx) => {
                                                 const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
                                                 return (
                                                     <tr key={p.code} className={`hover:bg-blue-50/20 transition-colors group ${focusedRowCode === p.code ? 'bg-blue-50/10' : ''}`}>
+                                                        <td className="px-3 py-2 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
                                                         <td className="px-4 py-2.5">
                                                             <div className="text-xs font-bold text-gray-900 leading-tight">{p.description}</div>
                                                             <div className="text-[10px] text-gray-400 font-mono">{p.code}</div>
+                                                        </td>
+                                                        <td className="px-2 py-2 text-center text-xs font-bold text-gray-500 bg-gray-50/50">
+                                                            {p.current_stock || 0}
                                                         </td>
                                                         <td className="px-1 py-2">
                                                             <input
@@ -868,8 +964,14 @@ const PesajePage = () => {
                                             <div key={p.code} className={`bg-white border rounded-2xl p-4 shadow-sm space-y-4 transition-colors ${focusedRowCode === p.code ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-100'}`}>
                                                 <div className="flex justify-between items-start gap-2">
                                                     <div className="flex-1">
-                                                        <div className="text-sm font-bold text-gray-900 leading-tight">{p.description}</div>
-                                                        <div className="text-[10px] text-gray-400 font-mono mt-1">{p.code}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-gray-300">#{idx + 1}</span>
+                                                            <div className="text-sm font-bold text-gray-900 leading-tight">{p.description}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 mt-1">
+                                                            <div className="text-[10px] text-gray-400 font-mono">{p.code}</div>
+                                                            <div className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md">Stock: {p.current_stock || 0}</div>
+                                                        </div>
                                                     </div>
                                                     <button
                                                         onClick={() => saveRow(p)}
