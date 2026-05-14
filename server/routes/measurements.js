@@ -61,7 +61,8 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
     try {
         const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]]; // Primera hoja
-        const rawData = xlsx.utils.sheet_to_json(sheet);
+        // range: 1 indica que empezamos desde la fila 2 (0-indexed es 1)
+        const rawData = xlsx.utils.sheet_to_json(sheet, { range: 1 });
 
         // 1. Crear el registro del conteo
         const fileName = req.file.originalname.replace('.xlsx', '').replace('.xls', '');
