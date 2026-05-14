@@ -468,8 +468,8 @@ const PesajePage = () => {
         }
     };
 
-    const handleClearAll = () => {
-        if (window.confirm('¿Desea limpiar todos los campos? Esta acción no se puede deshacer.')) {
+    const handleClearAll = async () => {
+        if (window.confirm('¿Desea limpiar todos los campos e historial? Esta acción borrará permanentemente los registros de hoy.')) {
             if (currentGroup === 'Hogar y Obra') {
                 const initialInputs = {};
                 hogarColorants.forEach(p => {
@@ -485,8 +485,20 @@ const PesajePage = () => {
             setWeight(0);
             setSelectedProduct(null);
             setSearchQuery('');
+
+            // Limpiar historial de la base de datos
+            if (recentMeasurements.length > 0) {
+                try {
+                    const ids = recentMeasurements.map(m => m.id);
+                    await Promise.all(ids.map(id => api.delete(`/api/measurements/${id}`)));
+                    fetchRecentMeasurements();
+                } catch (error) {
+                    console.error('Error clearing history:', error);
+                    toast.error('Error al limpiar parte del historial');
+                }
+            }
             
-            toast.success('Campos limpiados');
+            toast.success('Todo ha sido limpiado');
         }
     };
 
