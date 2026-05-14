@@ -192,117 +192,18 @@ const PesajePage = () => {
         }
     };
 
-    // USB/Serial Connection Logic
-    const connectToScale = async () => {
-        if (!navigator.serial) {
-            toast.error('Web Serial no está soportado en este navegador/dispositivo. Use Chrome o Edge.');
-            return;
-        }
-
-        setIsConnecting(true);
+    const evaluateMath = (str) => {
+        if (!str) return 0;
         try {
-            const selectedPort = await navigator.serial.requestPort();
-            await selectedPort.open({
-                baudRate: baudRate,
-                parity: parity,
-                dataBits: dataBits,
-                stopBits: stopBits
-            });
-
-
-
-            setPort(selectedPort);
-            setIsConnected(true);
-            toast.success('Balanza conectada por USB');
-
-            readSerialData(selectedPort);
-
-            selectedPort.addEventListener('disconnect', () => {
-                setIsConnected(false);
-                setPort(null);
-                setReader(null);
-                toast.warning('Balanza desconectada');
-            });
-
-        } catch (error) {
-            console.error('Serial Error:', error);
-            if (error.name !== 'NotFoundError') {
-                toast.error('Error al conectar con la balanza USB');
+            // Limpiar espacios y validar caracteres permitidos
+            const cleanStr = str.replace(/\s+/g, '');
+            if (!/^[0-9+\-*./()]+$/.test(cleanStr)) {
+                return parseFloat(cleanStr) || 0;
             }
-        } finally {
-            setIsConnecting(false);
-        }
-    };
-
-    const disconnectScale = async () => {
-        if (reader) {
-            await reader.cancel();
-        }
-        if (port) {
-            await port.close();
-        }
-        setIsConnected(false);
-        setPort(null);
-        setReader(null);
-    };
-
-    const readSerialData = async (activePort) => {
-        const textDecoder = new TextDecoderStream();
-        const readableStreamClosed = activePort.readable.pipeTo(textDecoder.writable);
-        const reader = textDecoder.readable.getReader();
-        setReader(reader);
-
-        try {
-            while (true) {
-                try {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    if (value) {
-                        // Guardamos en el buffer para procesar líneas completas
-                        bufferRef.current += value;
-
-                        // Convertimos a Hex para el visor RAW
-                        const hexVal = Array.from(value).map(char => {
-                            const code = char.charCodeAt(0);
-                            return (code < 32 || code > 126) ? `[${code.toString(16).toUpperCase()}]` : char;
-                        }).join('');
-
-                        setRawData(prev => (prev + hexVal).slice(-100));
-
-                        // Procesamos líneas completas (terminadas en \n o \r)
-                        if (bufferRef.current.includes('\n') || bufferRef.current.includes('\r')) {
-                            const lines = bufferRef.current.split(/[\r\n]+/);
-                            // Mantenemos el último fragmento incompleto en el buffer
-                            bufferRef.current = lines.pop() || '';
-
-                            // Procesamos cada línea completa
-                            for (const line of lines) {
-                                if (line.trim()) {
-                                    if (handleWeightDataRef.current) {
-                                        handleWeightDataRef.current(line);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (readError) {
-                    if (readError.name === 'BreakError') continue;
-                    if (readError.name === 'FramingError' || readError.name === 'ParityError') {
-                        // Intentamos limpiar los datos crudos para ver si algo pasa
-                        setRawData(prev => prev + '[ERR]');
-                        continue;
-                    }
-                    throw readError;
-                }
-            }
-        } catch (error) {
-            console.error('Serial Fatal Error:', error);
-            if (isConnectedRef.current) {
-                toast.error('Error crítico en la lectura USB.');
-                disconnectScale();
-            }
-        } finally {
-            reader.releaseLock();
+            // Evaluación simple usando Function (seguro tras el regex)
+            return new Function(`return ${cleanStr}`)();
+        } catch (e) {
+            return parseFloat(str) || 0;
         }
     };
 
@@ -318,89 +219,6 @@ const PesajePage = () => {
         }
         return 1; // Default 1kg
     };
-
-    const handleUn2KeyDown = (e, code) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            
-            // Guardar fila actual
-            const product = hogarColorants.find(p => p.code === code);
-            if (product) saveRow(product);
-
-            // Mover el foco al siguiente producto
-            const currentIndex = hogarColorants.findIndex(p => p.code === code);
-            const nextProduct = hogarColorants[currentIndex + 1];
-            
-            if (nextProduct) {
-                // Pequeño delay para asegurar que el re-render no interfiera con el foco
-                setTimeout(() => {
-                    const nextDesktopRef = un2Refs.current[`desktop-${nextProduct.code}`];
-                    const nextMobileRef = un2Refs.current[`mobile-${nextProduct.code}`];
-                    
-                    const targetRef = nextDesktopRef || nextMobileRef;
-                    if (targetRef) {
-                        targetRef.focus();
-                        targetRef.select();
-                        setFocusedRowCode(nextProduct.code);
-                    }
-                }, 10);
-            } else {
-                toast.info('Fin de la lista');
-            }
-        }
-    };
-
-    const requestWeightManual = async () => {
-        if (!port || !port.writable) {
-            toast.error('Balanza no conectada o puerto no escribible');
-            return;
-        }
-
-        const writer = port.writable.getWriter();
-        try {
-            // Comando ESC P (Standard Sartorius Interface Command)
-            // ESC=0x1B, P=0x50, CR=0x0D, LF=0x0A
-            const command = new Uint8Array([0x1B, 0x50, 0x0D, 0x0A]);
-            await writer.write(command);
-        } catch (error) {
-            console.error('Error enviando comando a balanza:', error);
-            toast.error('Error al solicitar peso');
-        } finally {
-            writer.releaseLock();
-        }
-    };
-
-    const handleWeightData = useCallback((line) => {
-        // Sartorius SBI Format: "+      123.45 g  "
-        // Buscamos el número (con signo y decimal) y la unidad (g, kg, lb, oz, t)
-        const weightMatch = line.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
-        const unitMatch = line.match(/(g|kg|lb|oz|t)\b/i);
-
-        if (weightMatch) {
-            const rawValue = weightMatch[0].replace(/\s+/g, '');
-            let val = parseFloat(rawValue);
-
-            // Detectamos la unidad y ajustamos el valor si es necesario
-            if (unitMatch) {
-                const detectedUnit = unitMatch[0].toLowerCase();
-                if (detectedUnit !== unit) {
-                    setUnit(detectedUnit);
-                }
-            }
-
-            if (!isNaN(val) && Math.abs(val - weight) > 0.00001) {
-                setWeight(val);
-                // Si estamos en Automotor y hay una fila enfocada, actualizamos su UN2 (gramos)
-                if (currentGroup === 'Automotor' && focusedRowCode) {
-                    handleListInputChange(focusedRowCode, 'un2', val.toString());
-                }
-            }
-        }
-    }, [weight, unit, currentGroup, focusedRowCode, handleListInputChange]);
-
-    useEffect(() => {
-        handleWeightDataRef.current = handleWeightData;
-    }, [handleWeightData]);
 
     // Hogar y Obra Calculator Logic
     useEffect(() => {
@@ -562,20 +380,204 @@ const PesajePage = () => {
     };
 
     // Helper to evaluate math expressions safely (only +, *, ., and numbers)
-    const evaluateMath = (str) => {
-        if (!str) return 0;
+    
+    // USB/Serial Connection Logic
+    const connectToScale = async () => {
+        if (!navigator.serial) {
+            toast.error('Web Serial no está soportado en este navegador/dispositivo. Use Chrome o Edge.');
+            return;
+        }
+
+        setIsConnecting(true);
         try {
-            // Limpiar espacios y validar caracteres permitidos
-            const cleanStr = str.replace(/\s+/g, '');
-            if (!/^[0-9+\-*./()]+$/.test(cleanStr)) {
-                return parseFloat(cleanStr) || 0;
+            const selectedPort = await navigator.serial.requestPort();
+            await selectedPort.open({
+                baudRate: baudRate,
+                parity: parity,
+                dataBits: dataBits,
+                stopBits: stopBits
+            });
+
+
+
+            setPort(selectedPort);
+            setIsConnected(true);
+            toast.success('Balanza conectada por USB');
+
+            readSerialData(selectedPort);
+
+            selectedPort.addEventListener('disconnect', () => {
+                setIsConnected(false);
+                setPort(null);
+                setReader(null);
+                toast.warning('Balanza desconectada');
+            });
+
+        } catch (error) {
+            console.error('Serial Error:', error);
+            if (error.name !== 'NotFoundError') {
+                toast.error('Error al conectar con la balanza USB');
             }
-            // Evaluación simple usando Function (seguro tras el regex)
-            return new Function(`return ${cleanStr}`)();
-        } catch (e) {
-            return parseFloat(str) || 0;
+        } finally {
+            setIsConnecting(false);
         }
     };
+
+    const disconnectScale = async () => {
+        if (reader) {
+            await reader.cancel();
+        }
+        if (port) {
+            await port.close();
+        }
+        setIsConnected(false);
+        setPort(null);
+        setReader(null);
+    };
+
+    const readSerialData = async (activePort) => {
+        const textDecoder = new TextDecoderStream();
+        const readableStreamClosed = activePort.readable.pipeTo(textDecoder.writable);
+        const reader = textDecoder.readable.getReader();
+        setReader(reader);
+
+        try {
+            while (true) {
+                try {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        // Guardamos en el buffer para procesar líneas completas
+                        bufferRef.current += value;
+
+                        // Convertimos a Hex para el visor RAW
+                        const hexVal = Array.from(value).map(char => {
+                            const code = char.charCodeAt(0);
+                            return (code < 32 || code > 126) ? `[${code.toString(16).toUpperCase()}]` : char;
+                        }).join('');
+
+                        setRawData(prev => (prev + hexVal).slice(-100));
+
+                        // Procesamos líneas completas (terminadas en \n o \r)
+                        if (bufferRef.current.includes('\n') || bufferRef.current.includes('\r')) {
+                            const lines = bufferRef.current.split(/[\r\n]+/);
+                            // Mantenemos el último fragmento incompleto en el buffer
+                            bufferRef.current = lines.pop() || '';
+
+                            // Procesamos cada línea completa
+                            for (const line of lines) {
+                                if (line.trim()) {
+                                    if (handleWeightDataRef.current) {
+                                        handleWeightDataRef.current(line);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (readError) {
+                    if (readError.name === 'BreakError') continue;
+                    if (readError.name === 'FramingError' || readError.name === 'ParityError') {
+                        // Intentamos limpiar los datos crudos para ver si algo pasa
+                        setRawData(prev => prev + '[ERR]');
+                        continue;
+                    }
+                    throw readError;
+                }
+            }
+        } catch (error) {
+            console.error('Serial Fatal Error:', error);
+            if (isConnectedRef.current) {
+                toast.error('Error crítico en la lectura USB.');
+                disconnectScale();
+            }
+        } finally {
+            reader.releaseLock();
+        }
+    };
+
+    const handleUn2KeyDown = (e, code) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            
+            // Guardar fila actual
+            const product = hogarColorants.find(p => p.code === code);
+            if (product) saveRow(product);
+
+            // Mover el foco al siguiente producto
+            const currentIndex = hogarColorants.findIndex(p => p.code === code);
+            const nextProduct = hogarColorants[currentIndex + 1];
+            
+            if (nextProduct) {
+                // Pequeño delay para asegurar que el re-render no interfiera con el foco
+                setTimeout(() => {
+                    const nextDesktopRef = un2Refs.current[`desktop-${nextProduct.code}`];
+                    const nextMobileRef = un2Refs.current[`mobile-${nextProduct.code}`];
+                    
+                    const targetRef = nextDesktopRef || nextMobileRef;
+                    if (targetRef) {
+                        targetRef.focus();
+                        targetRef.select();
+                        setFocusedRowCode(nextProduct.code);
+                    }
+                }, 10);
+            } else {
+                toast.info('Fin de la lista');
+            }
+        }
+    };
+
+    const requestWeightManual = async () => {
+        if (!port || !port.writable) {
+            toast.error('Balanza no conectada o puerto no escribible');
+            return;
+        }
+
+        const writer = port.writable.getWriter();
+        try {
+            // Comando ESC P (Standard Sartorius Interface Command)
+            // ESC=0x1B, P=0x50, CR=0x0D, LF=0x0A
+            const command = new Uint8Array([0x1B, 0x50, 0x0D, 0x0A]);
+            await writer.write(command);
+        } catch (error) {
+            console.error('Error enviando comando a balanza:', error);
+            toast.error('Error al solicitar peso');
+        } finally {
+            writer.releaseLock();
+        }
+    };
+
+    const handleWeightData = useCallback((line) => {
+        // Sartorius SBI Format: "+      123.45 g  "
+        // Buscamos el número (con signo y decimal) y la unidad (g, kg, lb, oz, t)
+        const weightMatch = line.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
+        const unitMatch = line.match(/(g|kg|lb|oz|t)\b/i);
+
+        if (weightMatch) {
+            const rawValue = weightMatch[0].replace(/\s+/g, '');
+            let val = parseFloat(rawValue);
+
+            // Detectamos la unidad y ajustamos el valor si es necesario
+            if (unitMatch) {
+                const detectedUnit = unitMatch[0].toLowerCase();
+                if (detectedUnit !== unit) {
+                    setUnit(detectedUnit);
+                }
+            }
+
+            if (!isNaN(val) && Math.abs(val - weight) > 0.00001) {
+                setWeight(val);
+                // Si estamos en Automotor y hay una fila enfocada, actualizamos su UN2 (gramos)
+                if (currentGroup === 'Automotor' && focusedRowCode) {
+                    handleListInputChange(focusedRowCode, 'un2', val.toString());
+                }
+            }
+        }
+    }, [weight, unit, currentGroup, focusedRowCode, handleListInputChange]);
+
+    useEffect(() => {
+        handleWeightDataRef.current = handleWeightData;
+    }, [handleWeightData]);
+
 
     // Product Search Logic
     const handleSearch = async (value) => {
