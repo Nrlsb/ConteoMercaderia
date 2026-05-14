@@ -451,7 +451,7 @@ router.get('/:id', verifyToken, verifyBranchAccess('egresos'), async (req, res) 
 // Scan/Control Egreso Item
 router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {
     const { id } = req.params;
-    const { code, quantity } = req.body;
+    const { code, quantity, scan_id } = req.body;
 
     if (!code) return res.status(400).json({ message: 'Missing code' });
     const qtyToAdd = quantity || 1;
@@ -477,6 +477,28 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req,
 
         if (!productCode) {
             return res.status(404).json({ message: 'Producto no encontrado' });
+        }
+
+        // Idempotency check: verify if this scan_id was already processed
+        if (scan_id) {
+            const { data: duplicateHistory } = await supabase
+                .from('egreso_items_history')
+                .select('id')
+                .eq('egreso_id', id)
+                .eq('product_code', productCode)
+                .eq('description', `SCAN_ID:${scan_id}`)
+                .maybeSingle();
+            
+            if (duplicateHistory) {
+                console.log(`[EGRESO IDEMPOTENCY] Ignoring duplicate scan_id: ${scan_id} for product ${productCode}`);
+                const { data: item } = await supabase
+                    .from('egreso_items')
+                    .select('*')
+                    .eq('egreso_id', id)
+                    .eq('product_code', productCode)
+                    .single();
+                return res.json(item);
+            }
         }
 
         const { data: existingItem } = await supabase
@@ -515,18 +537,17 @@ router.post('/:id/scan', verifyToken, verifyBranchAccess('egresos'), async (req,
 
         if (saveError) throw saveError;
 
-        // Log History
-        if (oldScanned !== newScanned) {
-            await supabase.from('egreso_items_history').insert({
-                egreso_id: id,
-                user_id: req.user.id,
-                operation: 'UPDATE_SCANNED',
-                product_code: productCode,
-                old_data: { scanned_quantity: oldScanned },
-                new_data: { scanned_quantity: newScanned },
-                changed_at: new Date().toISOString()
-            });
-        }
+        // Log History with scan_id in description for idempotency
+        await supabase.from('egreso_items_history').insert({
+            egreso_id: id,
+            user_id: req.user.id,
+            operation: 'UPDATE_SCANNED',
+            product_code: productCode,
+            old_data: { scanned_quantity: oldScanned },
+            new_data: { scanned_quantity: newScanned },
+            description: scan_id ? `SCAN_ID:${scan_id}` : null,
+            changed_at: new Date().toISOString()
+        });
 
         res.json(savedItem);
     } catch (error) {
@@ -547,7 +568,7 @@ router.post('/:id/scan/batch', verifyToken, verifyBranchAccess('egresos'), async
         const results = { success: [], failed: [] };
         
         for (const scan of scans) {
-            const { code, quantity } = scan;
+            const { code, quantity, scan_id } = scan;
             const qtyToAdd = Number(quantity) || 1;
             
             try {
@@ -567,6 +588,23 @@ router.post('/:id/scan/batch', verifyToken, verifyBranchAccess('egresos'), async
                 if (!productCode) {
                     results.failed.push({ code, error: 'Producto no encontrado' });
                     continue;
+                }
+
+                // Idempotency check for batch
+                if (scan_id) {
+                    const { data: duplicateHistory } = await supabase
+                        .from('egreso_items_history')
+                        .select('id')
+                        .eq('egreso_id', id)
+                        .eq('product_code', productCode)
+                        .eq('description', `SCAN_ID:${scan_id}`)
+                        .maybeSingle();
+                    
+                    if (duplicateHistory) {
+                        console.log(`[EGRESO BATCH IDEMPOTENCY] Ignoring duplicate scan_id: ${scan_id}`);
+                        results.success.push({ code: productCode, alreadySynced: true, originalIndex: scans.indexOf(scan) });
+                        continue;
+                    }
                 }
 
                 const { data: existingItem } = await supabase
@@ -607,6 +645,7 @@ router.post('/:id/scan/batch', verifyToken, verifyBranchAccess('egresos'), async
                     product_code: productCode,
                     old_data: { scanned_quantity: oldScanned },
                     new_data: { scanned_quantity: newScanned },
+                    description: scan_id ? `SCAN_ID:${scan_id}` : null,
                     changed_at: new Date().toISOString()
                 });
 
@@ -622,6 +661,7 @@ router.post('/:id/scan/batch', verifyToken, verifyBranchAccess('egresos'), async
         res.status(500).json({ message: 'Error processing batch scans' });
     }
 });
+
 
 // Resolve a failed PDF item by linking it to a correct catalog product
 router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('egresos'), async (req, res) => {

@@ -754,10 +754,10 @@ const PesajePage = () => {
     }, [recentMeasurements]);
 
     return (
-        <div className="max-w-7xl mx-auto p-4 space-y-6 animate-in fade-in duration-500">
+        <div className="max-w-7xl mx-auto p-2 sm:p-4 space-y-4 sm:space-y-6 animate-in fade-in duration-500 overflow-x-hidden">
             {/* Header section redesigned */}
-            <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-blue-900/5 border border-gray-100/50">
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+            <div className="bg-white rounded-3xl sm:rounded-[2rem] p-4 sm:p-6 shadow-xl shadow-blue-900/5 border border-gray-100/50">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 sm:gap-8">
                     {/* Brand & Title */}
                     <div className="flex items-center gap-5">
                         <div className="relative">
@@ -785,7 +785,7 @@ const PesajePage = () => {
                     </div>
 
                     {/* Dynamic Controls Bar */}
-                    <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-4">
                         {/* Superadmin Group Switch */}
                         {user?.role === 'superadmin' && (
                             <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
@@ -805,8 +805,8 @@ const PesajePage = () => {
                         )}
 
                         {/* Inventory Module */}
-                        <div className="flex items-center gap-2 bg-gray-50/50 p-1.5 rounded-[1.25rem] border border-gray-100">
-                            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-200/50 min-w-[240px] group focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-50/50 p-1.5 rounded-2xl sm:rounded-[1.25rem] border border-gray-100 w-full sm:w-auto">
+                            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-200/50 w-full sm:min-w-[240px] group focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
                                 <Layers className="w-4 h-4 text-blue-500" />
                                 <select
                                     value={selectedCount?.id || ''}
@@ -835,8 +835,8 @@ const PesajePage = () => {
                             </div>
                             
                             <label className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 cursor-pointer active:scale-95 group">
-                                <FileSpreadsheet className="w-4 h-4 transition-transform group-hover:scale-110" />
-                                <span>IMPORTAR EXCEL</span>
+                                <FileSpreadsheet className="w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110" />
+                                <span className="whitespace-nowrap">IMPORTAR EXCEL</span>
                                 <input
                                     type="file"
                                     accept=".xlsx, .xls"
@@ -848,22 +848,22 @@ const PesajePage = () => {
                             {selectedCount && (
                                 <button
                                     onClick={handleExportExcel}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 cursor-pointer active:scale-95 group"
+                                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 cursor-pointer active:scale-95 group w-full sm:w-auto"
                                 >
-                                    <Download className="w-4 h-4 transition-transform group-hover:scale-110" />
-                                    <span>DESCARGAR EXCEL</span>
+                                    <Download className="w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110" />
+                                    <span className="whitespace-nowrap">DESCARGAR EXCEL</span>
                                 </button>
                             )}
                         </div>
 
                         {/* Hardware Connectivity & Reset */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                             {currentGroup !== 'Hogar y Obra' && (
-                                <div className="flex items-center gap-2 bg-blue-50/50 p-1.5 rounded-[1.25rem] border border-blue-100">
+                                <div className="flex items-center justify-between gap-2 bg-blue-50/50 p-1.5 rounded-2xl border border-blue-100 flex-grow">
                                     <button
                                         onClick={isConnected ? disconnectScale : connectToScale}
                                         disabled={isConnecting}
-                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all duration-300 ${isConnected
+                                        className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all duration-300 flex-grow ${isConnected
                                             ? 'bg-white text-green-600 shadow-sm border border-green-100'
                                             : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
                                             }`}
@@ -875,7 +875,7 @@ const PesajePage = () => {
                                         ) : (
                                             <Cable className="w-4 h-4" />
                                         )}
-                                        {isConnecting ? 'CONECTANDO...' : isConnected ? 'BALANZA ACTIVA' : 'CONECTAR BALANZA'}
+                                        <span className="whitespace-nowrap">{isConnecting ? 'CONECTANDO...' : isConnected ? 'BALANZA ACTIVA' : 'CONECTAR BALANZA'}</span>
                                     </button>
 
                                     {!isConnected && (
@@ -897,7 +897,7 @@ const PesajePage = () => {
 
                             <button
                                 onClick={handleClearAll}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-white text-red-500 rounded-xl font-black text-xs hover:bg-red-50 transition-all border border-gray-200 shadow-sm active:scale-95"
+                                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-red-500 rounded-xl font-black text-xs hover:bg-red-50 transition-all border border-gray-200 shadow-sm active:scale-95 w-full sm:w-auto"
                             >
                                 <Trash2 className="w-4 h-4" />
                                 <span>LIMPIAR</span>
@@ -1075,7 +1075,7 @@ const PesajePage = () => {
                                     hogarColorants.map((p, idx) => {
                                         const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
                                         return (
-                                            <div key={p.code} className={`bg-white border rounded-2xl p-4 shadow-sm space-y-4 transition-colors ${focusedRowCode === p.code ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-100'}`}>
+                                            <div key={p.code} className={`bg-white border rounded-2xl p-3 sm:p-4 shadow-sm space-y-3 sm:space-y-4 transition-colors ${focusedRowCode === p.code ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-100'}`}>
                                                 <div className="flex justify-between items-start gap-2">
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2">
@@ -1095,7 +1095,7 @@ const PesajePage = () => {
                                                     </button>
                                                 </div>
 
-                                                <div className="grid grid-cols-3 gap-3">
+                                                <div className="grid grid-cols-2 gap-3">
                                                     <div className="space-y-1">
                                                         <label className="text-[10px] font-bold text-gray-400 uppercase">UN1</label>
                                                         <input
@@ -1169,7 +1169,7 @@ const PesajePage = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-xl border border-blue-50">
+                                                <div className="flex items-center justify-between bg-blue-50/50 p-2 sm:p-3 rounded-xl border border-blue-50">
                                                     <div className="flex flex-col">
                                                         <span className="text-[9px] font-bold text-blue-400 uppercase">{currentGroup === 'Automotor' ? 'Peso UN2' : 'UN2'}</span>
                                                         <span className="text-lg font-black text-blue-600 leading-none">{vals.un2}</span>

@@ -185,13 +185,14 @@ const EgresoDetailsPage = () => {
             const scans = queue.map(s => ({ 
                 queueId: s.id, 
                 code: s.data.code, 
-                quantity: s.data.quantity 
+                quantity: s.data.quantity,
+                scan_id: s.data.scan_id // Include the scan_id generated when the scan was made
             }));
             
             const response = await api.post(`/api/egresos/${id}/scan/batch`, { scans });
             const { results } = response.data;
 
-            // Delete only successful ones from local DB
+            // Delete only successful or already synced ones from local DB
             if (results && results.success) {
                 const successfulIds = results.success.map(res => scans[res.originalIndex].queueId);
                 if (successfulIds.length > 0) {
@@ -262,11 +263,23 @@ const EgresoDetailsPage = () => {
                 .toArray();
             
             // Combinar datos del servidor con los pendientes locales (optimista)
+            // Solo sumamos lo pendiente si el servidor NO tiene ya la cantidad esperada completa
             const mergedItems = baseItems.map(item => {
                 const localScans = pending.filter(p => p.data.code === item.product_code);
                 if (localScans.length > 0) {
+                    const expected = Number(item.expected_quantity) || 0;
+                    const serverScanned = Number(item.scanned_quantity) || 0;
+                    
+                    // Si el servidor ya llegó a lo esperado, es muy probable que esos pendientes 
+                    // locales ya hayan sido procesados por el servidor pero no borrados localmente
+                    if (serverScanned >= expected && expected > 0) {
+                        return item;
+                    }
+
                     const totalPending = localScans.reduce((sum, p) => sum + Number(p.data.quantity), 0);
-                    return { ...item, scanned_quantity: Number(item.scanned_quantity) + totalPending };
+                    // No permitir que la suma visual exceda lo esperado (evita ver dobles cantidades falsas)
+                    const finalScanned = Math.min(serverScanned + totalPending, expected);
+                    return { ...item, scanned_quantity: finalScanned };
                 }
                 return item;
             });
@@ -629,6 +642,7 @@ const EgresoDetailsPage = () => {
         setProcessing(true);
         const code = product.code;
         const qty = parseFloat(quantityToAdd) || 1;
+        const scan_id = "SID_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
 
         if (!navigator.onLine) {
             const existingItem = items.find(i => i.product_code === code);
@@ -647,7 +661,7 @@ const EgresoDetailsPage = () => {
             await db.pending_syncs.add({
                 document_id: id,
                 type: 'egreso',
-                data: { code, quantity: qty },
+                data: { code, quantity: qty, scan_id },
                 timestamp: Date.now()
             });
 
@@ -669,7 +683,9 @@ const EgresoDetailsPage = () => {
         // Optimistic local update
         setItems(prevItems => prevItems.map(item => {
             if (item.product_code === code) {
-                return { ...item, scanned_quantity: Number(item.scanned_quantity) + qty };
+                const expected = Number(item.expected_quantity) || 0;
+                const newQty = Number(item.scanned_quantity) + qty;
+                return { ...item, scanned_quantity: Math.min(newQty, expected) };
             }
             return item;
         }));
@@ -681,37 +697,28 @@ const EgresoDetailsPage = () => {
 
         // API call + refresh in background
         try {
-            await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
+            await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty, scan_id });
             if (activeTab === 'history') fetchHistory();
-            // optimistic update already applied, no re-fetch needed
         } catch (error) {
             console.error('Scan error:', error);
             
             const serverMsg = error.response?.data?.message;
             if (error.response?.status === 400 && serverMsg) {
-                // Rejection from server (likely exceeded quantity)
                 toast.error(serverMsg);
-                // Revert optimistic update
-                setItems(prevItems => prevItems.map(item => {
-                    if (item.product_code === code) {
-                        return { ...item, scanned_quantity: Number(item.scanned_quantity) - qty };
-                    }
-                    return item;
-                }));
-                fetchEgresoDetails(); 
+                fetchEgresoDetails(); // Revert to server truth
             } else if (error.response?.status === 404) {
                 toast.error(`Producto no encontrado: ${code}`);
-                fetchEgresoDetails(); // Revert: product doesn't exist on server
+                fetchEgresoDetails();
             } else {
-                // API failed (network/server error) — queue for later sync, keep optimistic state
+                // API failed (network error) — queue for later sync with the same scan_id
                 await db.pending_syncs.add({
                     document_id: id,
                     type: 'egreso',
-                    data: { code, quantity: qty },
+                    data: { code, quantity: qty, scan_id },
                     timestamp: Date.now()
                 });
                 checkPendingSync();
-                toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+                toast.warning('Sin conexión. Guardado localmente para sincronizar al reconectar.', { duration: 4000 });
             }
         }
     };
@@ -789,11 +796,14 @@ const EgresoDetailsPage = () => {
     const handleRapidConfirm = async (code, description) => {
         try {
             const qty = 1;
+            const scan_id = "SID_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
             
             // Optimistic local update
             setItems(prevItems => prevItems.map(item => {
                 if (item.product_code === code) {
-                    return { ...item, scanned_quantity: Number(item.scanned_quantity) + qty };
+                    const expected = Number(item.expected_quantity) || 0;
+                    const newQty = Number(item.scanned_quantity) + qty;
+                    return { ...item, scanned_quantity: Math.min(newQty, expected) };
                 }
                 return item;
             }));
@@ -819,12 +829,31 @@ const EgresoDetailsPage = () => {
                 await db.pending_syncs.add({
                     document_id: id,
                     type: 'egreso',
-                    data: { code, quantity: qty },
+                    data: { code, quantity: qty, scan_id },
                     timestamp: Date.now()
                 });
                 checkPendingSync();
             } else {
-                await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty });
+                try {
+                    await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty, scan_id });
+                } catch (apiErr) {
+                    if (apiErr.response) {
+                        // Error de lógica del servidor (ej: excede cantidad)
+                        if (apiErr.response.status === 400) {
+                             setScanStatus({ type: 'error', message: apiErr.response.data.message });
+                        }
+                        fetchEgresoDetails(); // Revertir a la verdad del servidor
+                    } else {
+                        // Error de red, guardar para después con el mismo ID
+                        await db.pending_syncs.add({
+                            document_id: id,
+                            type: 'egreso',
+                            data: { code, quantity: qty, scan_id },
+                            timestamp: Date.now()
+                        });
+                        checkPendingSync();
+                    }
+                }
             }
             if (activeTab === 'history') fetchHistory();
             debouncedFetch();
