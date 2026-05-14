@@ -291,7 +291,7 @@ router.get('/dye-counts/:id/export', verifyToken, async (req, res) => {
         const { data: measurements, error: measError } = await supabase
             .from('product_measurements')
             .select('*')
-            .contains('metadata', { conteoId: parseInt(id) });
+            .contains('metadata', { conteoId: id });
 
         if (measError) throw measError;
 

@@ -614,7 +614,8 @@ const PesajePage = () => {
                     un1: currentGroup === 'Hogar y Obra' ? parseFloat(un1Value) : null,
                     un2: currentGroup === 'Hogar y Obra' ? parseFloat(un2Value) : null,
                     cmValue: currentGroup === 'Hogar y Obra' ? cmValue : null,
-                    group: currentGroup
+                    group: currentGroup,
+                    conteoId: selectedCount?.id || null
                 }
             });
             toast.success('Registro guardado correctamente');
