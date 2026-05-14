@@ -510,7 +510,7 @@ const PesajePage = () => {
     }, [recentMeasurements]);
 
     return (
-        <div className="max-w-4xl mx-auto p-4 space-y-6 animate-in fade-in">
+        <div className={`${currentGroup === 'Hogar y Obra' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto p-4 space-y-6 animate-in fade-in`}>
             {/* Header section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -631,10 +631,10 @@ const PesajePage = () => {
                 {/* Main Action Card */}
                 <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
                     <div className="p-6 space-y-6">
-                        {/* Dynamic UI based on Branch Group */}
                         {currentGroup === 'Hogar y Obra' ? (
                             <div className="space-y-4">
-                                <div className="overflow-x-auto -mx-6">
+                                {/* Desktop Table View (Hidden on Mobile) */}
+                                <div className="hidden md:block overflow-x-auto -mx-6">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="bg-gray-50 border-y border-gray-100">
@@ -651,15 +651,15 @@ const PesajePage = () => {
                                         <tbody className="divide-y divide-gray-50">
                                             {isLoadingList ? (
                                                 <tr>
-                                                    <td colSpan="7" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
+                                                    <td colSpan="8" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
                                                 </tr>
                                             ) : hogarColorants.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="7" className="py-12 text-center text-gray-400">No hay colorantes marcados para Hogar y Obra</td>
+                                                    <td colSpan="8" className="py-12 text-center text-gray-400">No hay colorantes marcados para Hogar y Obra</td>
                                                 </tr>
                                             ) : (
                                                 hogarColorants.map((p) => {
-                                                    const vals = listInputs[p.code] || { un1: '', cm: '', un2: 0, total: 0 };
+                                                    const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
                                                     return (
                                                         <tr key={p.code} className="hover:bg-blue-50/20 transition-colors group">
                                                             <td className="px-4 py-2.5">
@@ -722,6 +722,82 @@ const PesajePage = () => {
                                             )}
                                         </tbody>
                                     </table>
+                                </div>
+
+                                {/* Mobile Card View (Hidden on Desktop) */}
+                                <div className="md:hidden space-y-4">
+                                    {isLoadingList ? (
+                                        <div className="py-12 text-center text-gray-400">Cargando colorantes...</div>
+                                    ) : hogarColorants.length === 0 ? (
+                                        <div className="py-12 text-center text-gray-400">No hay colorantes marcados</div>
+                                    ) : (
+                                        hogarColorants.map((p) => {
+                                            const vals = listInputs[p.code] || { un1: '', cm: '', impExtra: '', un2: 0, total: 0 };
+                                            return (
+                                                <div key={p.code} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-4">
+                                                    <div className="flex justify-between items-start gap-2">
+                                                        <div className="flex-1">
+                                                            <div className="text-sm font-bold text-gray-900 leading-tight">{p.description}</div>
+                                                            <div className="text-[10px] text-gray-400 font-mono mt-1">{p.code}</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => saveRow(p)}
+                                                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                                                        >
+                                                            <Save className="w-3.5 h-3.5" /> GUARDAR
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-3 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">UN1</label>
+                                                            <input
+                                                                type="text"
+                                                                value={vals.un1}
+                                                                onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
+                                                                onBlur={() => handleInputBlur(p.code, 'un1')}
+                                                                className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">CM</label>
+                                                            <input
+                                                                type="text"
+                                                                value={vals.cm}
+                                                                onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
+                                                                onBlur={() => handleInputBlur(p.code, 'cm')}
+                                                                className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Extra</label>
+                                                            <input
+                                                                type="text"
+                                                                value={vals.impExtra}
+                                                                onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
+                                                                onBlur={() => handleInputBlur(p.code, 'impExtra')}
+                                                                className="w-full text-center text-sm font-bold bg-blue-50 border border-blue-50 text-blue-700 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-xl border border-blue-50">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[9px] font-bold text-blue-400 uppercase">Imp. Totales</span>
+                                                            <span className="text-lg font-black text-blue-600 leading-none">{vals.un2}</span>
+                                                        </div>
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-[9px] font-bold text-blue-400 uppercase">Unidades Totales</span>
+                                                            <span className="text-xl font-black text-blue-700 leading-none">{vals.total.toFixed(3)} <span className="text-[10px]">un</span></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
                                 </div>
                             </div>
                         ) : (
