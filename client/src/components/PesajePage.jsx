@@ -273,6 +273,9 @@ const PesajePage = () => {
 
     const handleListInputChange = (code, field, value) => {
         setListInputs(prev => {
+            // Protección contra actualizaciones redundantes
+            if (prev[code] && prev[code][field] === value) return prev;
+            
             const current = { ...prev[code], [field]: value };
             const product = hogarColorants.find(p => p.code === code);
             const convFactor = parseFloat(product?.conversion_factor);
@@ -564,9 +567,14 @@ const PesajePage = () => {
                 }
             }
 
-            if (!isNaN(val) && Math.abs(val - weight) > 0.00001) {
-                setWeight(val);
-                // Si estamos en Automotor y hay una fila enfocada, actualizamos su UN2 (gramos)
+            if (!isNaN(val)) {
+                // Actualizamos el estado global del peso si cambió
+                if (Math.abs(val - weight) > 0.00001) {
+                    setWeight(val);
+                }
+
+                // En modo Automotor, siempre intentamos actualizar la fila enfocada
+                // (handleListInputChange ya tiene protección contra valores idénticos)
                 if (currentGroup === 'Automotor' && focusedRowCode) {
                     handleListInputChange(focusedRowCode, 'un2', val.toString());
                 }
@@ -942,6 +950,9 @@ const PesajePage = () => {
                                                                 onFocus={(e) => {
                                                                     setFocusedRowCode(p.code);
                                                                     e.target.select();
+                                                                    if (currentGroup === 'Automotor') {
+                                                                        handleListInputChange(p.code, 'un2', weight.toString());
+                                                                    }
                                                                 }}
                                                                 className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                 placeholder="0"
@@ -974,6 +985,9 @@ const PesajePage = () => {
                                                                 onFocus={(e) => {
                                                                     setFocusedRowCode(p.code);
                                                                     e.target.select();
+                                                                    if (currentGroup === 'Automotor') {
+                                                                        handleListInputChange(p.code, 'un2', weight.toString());
+                                                                    }
                                                                 }}
                                                                 className="w-20 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                 placeholder="0"
@@ -988,6 +1002,9 @@ const PesajePage = () => {
                                                                 onFocus={(e) => {
                                                                     setFocusedRowCode(p.code);
                                                                     e.target.select();
+                                                                    if (currentGroup === 'Automotor') {
+                                                                        handleListInputChange(p.code, 'un2', weight.toString());
+                                                                    }
                                                                 }}
                                                                 onKeyDown={(e) => handleUn2KeyDown(e, p.code)}
                                                                 className={`w-24 text-center text-sm font-bold rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border border-green-100 text-green-700' : 'bg-transparent text-blue-600 border-none'}`}
@@ -1053,7 +1070,12 @@ const PesajePage = () => {
                                                             type="text"
                                                             value={vals.un1}
                                                             onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
-                                                            onFocus={() => setFocusedRowCode(p.code)}
+                                                            onFocus={() => {
+                                                                setFocusedRowCode(p.code);
+                                                                if (currentGroup === 'Automotor') {
+                                                                    handleListInputChange(p.code, 'un2', weight.toString());
+                                                                }
+                                                            }}
                                                             className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
                                                             placeholder="0"
                                                         />
@@ -1065,7 +1087,12 @@ const PesajePage = () => {
                                                                 type="text"
                                                                 value={vals.cm}
                                                                 onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
-                                                                onFocus={() => setFocusedRowCode(p.code)}
+                                                                onFocus={() => {
+                                                                setFocusedRowCode(p.code);
+                                                                if (currentGroup === 'Automotor') {
+                                                                    handleListInputChange(p.code, 'un2', weight.toString());
+                                                                }
+                                                            }}
                                                                 className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
                                                                 placeholder="0"
                                                             />
@@ -1080,6 +1107,9 @@ const PesajePage = () => {
                                                             onFocus={(e) => {
                                                                 setFocusedRowCode(p.code);
                                                                 e.target.select();
+                                                                if (currentGroup === 'Automotor') {
+                                                                    handleListInputChange(p.code, 'un2', weight.toString());
+                                                                }
                                                             }}
                                                             className="w-full text-center text-sm font-bold bg-blue-50 border border-blue-50 text-blue-700 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
                                                             placeholder="0"
@@ -1095,6 +1125,9 @@ const PesajePage = () => {
                                                             onFocus={(e) => {
                                                                 setFocusedRowCode(p.code);
                                                                 e.target.select();
+                                                                if (currentGroup === 'Automotor') {
+                                                                    handleListInputChange(p.code, 'un2', weight.toString());
+                                                                }
                                                             }}
                                                             onKeyDown={(e) => handleUn2KeyDown(e, p.code)}
                                                             readOnly={currentGroup === 'Hogar y Obra'}
