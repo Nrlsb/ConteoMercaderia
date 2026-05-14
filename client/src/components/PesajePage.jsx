@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -363,15 +363,46 @@ const PesajePage = () => {
         }
     };
 
-    const handleDeleteMeasurement = async (id) => {
+    const handleDeleteMeasurement = async (ids) => {
+        if (!Array.isArray(ids)) ids = [ids];
         try {
-            await api.delete(`/api/measurements/${id}`);
-            toast.success('Registro eliminado');
+            await Promise.all(ids.map(id => api.delete(`/api/measurements/${id}`)));
+            toast.success(ids.length > 1 ? 'Registros eliminados' : 'Registro eliminado');
             fetchRecentMeasurements();
         } catch (error) {
             toast.error('Error al eliminar');
         }
     };
+
+    const groupedMeasurements = useMemo(() => {
+        const groups = {};
+        recentMeasurements.forEach(m => {
+            const key = m.product_code;
+            const currentUn1 = m.metadata?.un1 || (m.metadata?.countingMode === 'closed' ? parseFloat(m.weight) : 0);
+            const currentUn2 = m.metadata?.un2 || (m.metadata?.countingMode === 'machine' ? parseFloat(m.metadata?.impulses) : 0);
+            const currentWeight = parseFloat(m.weight) || 0;
+
+            if (!groups[key]) {
+                groups[key] = {
+                    ...m,
+                    un1: currentUn1,
+                    un2: currentUn2,
+                    totalWeight: currentWeight,
+                    ids: [m.id]
+                };
+            } else {
+                groups[key].un1 += currentUn1;
+                groups[key].un2 += currentUn2;
+                groups[key].totalWeight += currentWeight;
+                groups[key].ids.push(m.id);
+                // Keep the latest timestamp
+                if (new Date(m.timestamp) > new Date(groups[key].timestamp)) {
+                    groups[key].timestamp = m.timestamp;
+                }
+            }
+        });
+        return Object.values(groups).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }, [recentMeasurements]);
 
     return (
         <div className="max-w-4xl mx-auto p-4 space-y-6 animate-in fade-in">
@@ -707,12 +738,9 @@ const PesajePage = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    recentMeasurements.map((m) => {
-                                        const un1 = m.metadata?.un1 || (m.metadata?.countingMode === 'closed' ? m.weight : 0);
-                                        const un2 = m.metadata?.un2 || (m.metadata?.countingMode === 'machine' ? m.metadata?.impulses : 0);
-
+                                    groupedMeasurements.map((m) => {
                                         return (
-                                            <tr key={m.id} className="group hover:bg-blue-50/30 transition-colors">
+                                            <tr key={m.product_code} className="group hover:bg-blue-50/30 transition-colors">
                                                 <td className="p-3">
                                                     <div className="font-bold text-gray-900 text-sm truncate max-w-[200px]" title={m.product_description}>
                                                         {m.product_description || 'Desconocido'}
@@ -724,20 +752,20 @@ const PesajePage = () => {
                                                     </div>
                                                 </td>
                                                 <td className="p-3 text-center text-sm font-semibold text-gray-600">
-                                                    {un1 > 0 ? un1 : '-'}
+                                                    {m.un1 > 0 ? m.un1 : '-'}
                                                 </td>
                                                 <td className="p-3 text-center text-sm font-semibold text-gray-600">
-                                                    {un2 > 0 ? un2 : '-'}
+                                                    {m.un2 > 0 ? m.un2 : '-'}
                                                 </td>
                                                 <td className="p-3 text-right">
                                                     <span className="text-sm font-black text-blue-600">
-                                                        {m.unit === 'un' ? parseFloat(m.weight).toFixed(3) : parseFloat(m.weight).toFixed(1)}
+                                                        {m.unit === 'un' ? parseFloat(m.totalWeight).toFixed(3) : parseFloat(m.totalWeight).toFixed(1)}
                                                         <span className="ml-1 text-[10px] font-bold text-gray-400 uppercase">{m.unit}</span>
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     <button
-                                                        onClick={() => handleDeleteMeasurement(m.id)}
+                                                        onClick={() => handleDeleteMeasurement(m.ids)}
                                                         className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
