@@ -155,7 +155,8 @@ const PesajePage = () => {
             e.target.value = '';
         } catch (error) {
             console.error('Error importing dye excel:', error);
-            toast.error('Error al importar el archivo', { id: toastId });
+            const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Error al importar el archivo';
+            toast.error(errorMsg, { id: toastId });
         }
     };
 

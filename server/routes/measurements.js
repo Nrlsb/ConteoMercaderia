@@ -112,8 +112,12 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
             totalItems: items.length 
         });
     } catch (error) {
-        console.error('Error importing dye excel:', error);
-        res.status(500).json({ message: 'Error al procesar el Excel de colorantes' });
+        console.error('Error detallado importing dye excel:', error);
+        res.status(500).json({ 
+            message: 'Error al procesar el Excel de colorantes', 
+            error: error.message,
+            details: error.details || (error.code ? `Código de error: ${error.code}` : null)
+        });
     }
 });
 
