@@ -4,6 +4,30 @@ import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, Histor
 import { toast } from 'sonner';
 import api from '../api';
 import { useProductSync } from '../hooks/useProductSync';
+import { useAuth } from '../context/AuthContext';
+
+// Configuración de grupos de colorantes por sucursal
+const COLORANT_GROUPS = {
+    'Hogar y Obra': {
+        brands: ['SINTEPLAST SISTEMA', 'ALBA TINTING', 'TERSUAVE SISTEMA', 'PLAVICON SISTEMA', 'EXPERTO'],
+    },
+    'Automotor': {
+        brands: ['SINTEPLAST INDUSTRIA', 'TERSUAVE INDUSTRIA', 'NORTON'],
+    }
+};
+
+// Mapeo de sucursales a grupos
+const BRANCH_GROUP_MAP = {
+    // Ejemplo: Sucursales que cuentan Hogar y Obra
+    'Sucursal 01': 'Hogar y Obra',
+    'Sucursal 02': 'Hogar y Obra',
+    
+    // Ejemplo: Sucursales que cuentan Automotor
+    'Sucursal 25': 'Automotor',
+    'Sucursal 26': 'Automotor',
+    
+    // Puedes seguir agregando el resto aquí...
+};
 
 const PesajePage = () => {
     const [weight, setWeight] = useState(0);
@@ -20,6 +44,13 @@ const PesajePage = () => {
     const [recentMeasurements, setRecentMeasurements] = useState([]);
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Hogar y Obra specific state
+    const [countingMode, setCountingMode] = useState('machine'); // 'machine' or 'closed'
+    const [cmValue, setCmValue] = useState('');
+    const [closedQuantity, setClosedQuantity] = useState('1');
+    const [calculatedImpulses, setCalculatedImpulses] = useState(0);
+    const [calculatedUnits, setCalculatedUnits] = useState(0);
 
     const [baudRate, setBaudRate] = useState(2400);
     const [parity, setParity] = useState('odd');
@@ -28,6 +59,7 @@ const PesajePage = () => {
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [rawData, setRawData] = useState('');
     const { searchProductsLocally } = useProductSync();
+    const { user } = useAuth();
 
     const bufferRef = useRef('');
     const searchTimeoutRef = useRef(null);
@@ -185,7 +217,7 @@ const PesajePage = () => {
 
     const handleWeightData = (line) => {
         // Sartorius SBI Format: "+      123.45 g  "
-        // Buscamos el número (con signo y decimal) y la unidad (g, kg, t, etc)
+        // Buscamos el número (con signo y decimal) y la unidad (g, kg, lb, oz, t)
         const weightMatch = line.match(/[+-]?\s*([0-9]+\.[0-9]+|[0-9]+)/);
         const unitMatch = line.match(/(g|kg|lb|oz|t)\b/i);
         
@@ -207,6 +239,25 @@ const PesajePage = () => {
         }
     };
 
+    // Hogar y Obra Calculator Logic
+    useEffect(() => {
+        if (BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra') {
+            if (countingMode === 'machine') {
+                const cm = parseFloat(cmValue) || 0;
+                const impulses = Math.round(cm * 220); // 10cm = 2200 => 1cm = 220
+                const units = cm / 10; // 10cm = 1 unit
+                setCalculatedImpulses(impulses);
+                setCalculatedUnits(units);
+                setWeight(units); // Store units in weight field for DB consistency
+                setUnit('un');
+            } else if (countingMode === 'closed') {
+                const qty = parseFloat(closedQuantity) || 0;
+                setWeight(qty);
+                setUnit('un');
+            }
+        }
+    }, [cmValue, closedQuantity, countingMode, user?.sucursal_name]);
+
     // Product Search Logic
     const handleSearch = async (value) => {
         setSearchQuery(value);
@@ -219,7 +270,19 @@ const PesajePage = () => {
 
         searchTimeoutRef.current = setTimeout(async () => {
             try {
-                const results = await searchProductsLocally(value);
+                let results = await searchProductsLocally(value);
+                
+                // Filtrar por sucursal si es necesario (Superadmin ve todo)
+                const userBranch = user?.sucursal_name;
+                const groupName = BRANCH_GROUP_MAP[userBranch];
+                
+                if (user?.role !== 'superadmin' && groupName && COLORANT_GROUPS[groupName]) {
+                    const allowedBrands = COLORANT_GROUPS[groupName].brands;
+                    results = results.filter(p => 
+                        allowedBrands.includes(p.brand?.toUpperCase())
+                    );
+                }
+
                 setSuggestions(results.slice(0, 8));
             } catch (error) {
                 console.error('Search error:', error);
@@ -243,13 +306,20 @@ const PesajePage = () => {
                 productCode: selectedProduct.code,
                 productDescription: selectedProduct.description,
                 weight: weight,
-                unit: unit
+                unit: unit,
+                metadata: {
+                    countingMode,
+                    cmValue: countingMode === 'machine' ? cmValue : null,
+                    impulses: countingMode === 'machine' ? calculatedImpulses : null,
+                    group: BRANCH_GROUP_MAP[user?.sucursal_name]
+                }
             });
-            toast.success('Pesaje guardado correctamente');
+            toast.success('Registro guardado correctamente');
             fetchRecentMeasurements();
             // Reset for next
             setSelectedProduct(null);
             setSearchQuery('');
+            setCmValue('');
         } catch (error) {
             console.error('Save error:', error);
             toast.error('Error al guardar el pesaje');
@@ -274,32 +344,33 @@ const PesajePage = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Scale className="text-blue-600" /> Balanza Sartorius
+                        <Scale className="text-blue-600" /> {BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra' ? 'Conteo Colorantes' : 'Balanza Sartorius'}
                     </h1>
-                    <p className="text-gray-500">Configurada para Sartorius PMA Evolution (SBI)</p>
+                    <p className="text-gray-500">{BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra' ? 'Sistema de impulsos y unidades' : 'Configurada para Sartorius PMA Evolution (SBI)'}</p>
                 </div>
                 
-                <button
-                    onClick={isConnected ? disconnectScale : connectToScale}
-                    disabled={isConnecting}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-sm ${
-                        isConnected 
-                        ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' 
-                        : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-                    }`}
-                >
-                    {isConnecting ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                    ) : isConnected ? (
-                        <Zap className="w-5 h-5 text-green-600" />
-                    ) : (
-                        <Cable className="w-5 h-5" />
-                    )}
-                    {isConnecting ? 'Conectando...' : isConnected ? 'Balanza Conectada (USB)' : 'Conectar Balanza (USB)'}
+                {BRANCH_GROUP_MAP[user?.sucursal_name] !== 'Hogar y Obra' && (
+                    <button
+                        onClick={isConnected ? disconnectScale : connectToScale}
+                        disabled={isConnecting}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-sm ${
+                            isConnected 
+                            ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' 
+                            : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+                        }`}
+                    >
+                        {isConnecting ? (
+                            <RefreshCw className="w-5 h-5 animate-spin" />
+                        ) : isConnected ? (
+                            <Zap className="w-5 h-5 text-green-600" />
+                        ) : (
+                            <Cable className="w-5 h-5" />
+                        )}
+                        {isConnecting ? 'Conectando...' : isConnected ? 'Balanza Conectada (USB)' : 'Conectar Balanza (USB)'}
+                    </button>
+                )}
 
-                </button>
-
-                {!isConnected && (
+                {BRANCH_GROUP_MAP[user?.sucursal_name] !== 'Hogar y Obra' && !isConnected && (
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
                             <span className="pl-3 text-xs font-bold text-gray-400 uppercase">Bauds:</span>
@@ -373,48 +444,108 @@ const PesajePage = () => {
                 {/* Main Action Card */}
                 <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
                     <div className="p-6 space-y-6">
-                        {/* Weight Display */}
-                        <div className="bg-gray-50 rounded-2xl p-8 flex flex-col items-center justify-center border border-gray-100 relative group">
-                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest absolute top-4 left-6">Peso Actual</span>
-                            <div className="flex items-baseline gap-2">
-                                <span className={`text-7xl font-black tracking-tighter transition-all duration-300 ${weight > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
-                                    {unit === 'g' ? weight.toFixed(1) : weight.toFixed(3)}
-                                </span>
-                                <span className="text-2xl font-bold text-gray-400">{unit}</span>
-                            </div>
-                            
-                            {!isConnected && (
-                                <div className="mt-4 flex gap-2">
+                        {/* Dynamic UI based on Branch Group */}
+                        {BRANCH_GROUP_MAP[user?.sucursal_name] === 'Hogar y Obra' ? (
+                            <div className="space-y-6">
+                                <div className="flex bg-gray-100 p-1 rounded-xl">
                                     <button 
-                                        onClick={() => setWeight(Math.max(0, weight - 0.1))}
-                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                    > -0.1 </button>
+                                        onClick={() => setCountingMode('machine')}
+                                        className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${countingMode === 'machine' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        EN MÁQUINA (CM)
+                                    </button>
                                     <button 
-                                        onClick={() => setWeight(weight + 0.1)}
-                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                    > +0.1 </button>
-                                    <button 
-                                        onClick={() => setWeight(0)}
-                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                    > Reset </button>
+                                        onClick={() => setCountingMode('closed')}
+                                        className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${countingMode === 'closed' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        UNIDADES CERRADAS
+                                    </button>
                                 </div>
-                            )}
 
-                            {isConnected && (
-                                <button
-                                    onClick={requestWeightManual}
-                                    className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors font-bold text-sm"
-                                >
-                                    <RefreshCw className="w-4 h-4" /> SOLICITAR PESO (ESC P)
-                                </button>
-                            )}
+                                {countingMode === 'machine' ? (
+                                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Medida en CM</label>
+                                            <input 
+                                                type="number"
+                                                value={cmValue}
+                                                onChange={(e) => setCmValue(e.target.value)}
+                                                placeholder="Ej: 5.5"
+                                                className="w-full text-4xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Impulsos</div>
+                                                <div className="text-xl font-black text-gray-900">{calculatedImpulses}</div>
+                                            </div>
+                                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Unidades</div>
+                                                <div className="text-xl font-black text-gray-900">{calculatedUnits.toFixed(2)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Cantidad Cerrada (Unidades)</label>
+                                        <input 
+                                            type="number"
+                                            value={closedQuantity}
+                                            onChange={(e) => setClosedQuantity(e.target.value)}
+                                            className="w-full text-4xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            /* Automotor Mode (Original Scale UI) */
+                            <div className="bg-gray-50 rounded-2xl p-8 flex flex-col items-center justify-center border border-gray-100 relative group">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest absolute top-4 left-6">Peso Actual</span>
+                                <div className="flex items-baseline gap-2">
+                                    <span className={`text-7xl font-black tracking-tighter transition-all duration-300 ${weight > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
+                                        {unit === 'g' ? weight.toFixed(1) : weight.toFixed(3)}
+                                    </span>
+                                    <span className="text-2xl font-bold text-gray-400">{unit}</span>
+                                </div>
+                                
+                                {!isConnected && (
+                                    <div className="mt-4 flex gap-2">
+                                        <button 
+                                            onClick={() => setWeight(Math.max(0, weight - 0.1))}
+                                            className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                        > -0.1 </button>
+                                        <button 
+                                            onClick={() => setWeight(weight + 0.1)}
+                                            className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                        > +0.1 </button>
+                                        <button 
+                                            onClick={() => setWeight(0)}
+                                            className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                        > Reset </button>
+                                    </div>
+                                )}
 
-
-                        </div>
+                                {isConnected && (
+                                    <button
+                                        onClick={requestWeightManual}
+                                        className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors font-bold text-sm"
+                                    >
+                                        <RefreshCw className="w-4 h-4" /> SOLICITAR PESO (ESC P)
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {/* Product Search */}
                         <div className="space-y-4">
-                            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Producto a Asociar</label>
+                            <div className="flex justify-between items-end">
+                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Producto a Asociar</label>
+                                {user?.sucursal_name && BRANCH_GROUP_MAP[user?.sucursal_name] && (
+                                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">
+                                        Grupo: {BRANCH_GROUP_MAP[user?.sucursal_name]}
+                                    </span>
+                                )}
+                            </div>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <Package className="h-5 w-5 text-gray-400" />
