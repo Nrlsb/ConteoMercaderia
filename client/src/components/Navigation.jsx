@@ -113,7 +113,7 @@ const Navigation = () => {
                                 <Link to="/etiquetas" className={getLinkClass('/etiquetas')}>Etiquetas</Link>
                             )}
                             {showPesaje && (
-                                <Link to="/pesaje" className={getLinkClass('/pesaje')}>Pesaje</Link>
+                                <Link to="/pesaje" className={getLinkClass('/pesaje')}>Colorantes</Link>
                             )}
                             <Link to="/ayuda" className={getLinkClass('/ayuda')}>Ayuda</Link>
 
@@ -199,7 +199,7 @@ const Navigation = () => {
                             <Link to="/etiquetas" className={getMobileLinkClass('/etiquetas')} onClick={() => setIsOpen(false)}>Etiquetas</Link>
                         )}
                         {showPesaje && (
-                            <Link to="/pesaje" className={getMobileLinkClass('/pesaje')} onClick={() => setIsOpen(false)}>Pesaje</Link>
+                            <Link to="/pesaje" className={getMobileLinkClass('/pesaje')} onClick={() => setIsOpen(false)}>Colorantes</Link>
                         )}
                         <Link to="/ayuda" className={getMobileLinkClass('/ayuda')} onClick={() => setIsOpen(false)}>Ayuda</Link>
 

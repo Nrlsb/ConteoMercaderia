@@ -16,7 +16,7 @@ router.get('/', verifyToken, async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching measurements:', error);
-        res.status(500).json({ message: 'Error al obtener pesajes' });
+        res.status(500).json({ message: 'Error al obtener registros' });
     }
 });
 
@@ -46,7 +46,7 @@ router.post('/', verifyToken, async (req, res) => {
         res.status(201).json(data);
     } catch (error) {
         console.error('Error saving measurement:', error);
-        res.status(500).json({ message: 'Error al guardar el pesaje' });
+        res.status(500).json({ message: 'Error al guardar el registro' });
     }
 });
 
@@ -61,10 +61,10 @@ router.delete('/:id', verifyToken, async (req, res) => {
             .eq('id', id);
 
         if (error) throw error;
-        res.json({ message: 'Pesaje eliminado correctamente' });
+        res.json({ message: 'Registro eliminado correctamente' });
     } catch (error) {
         console.error('Error deleting measurement:', error);
-        res.status(500).json({ message: 'Error al eliminar el pesaje' });
+        res.status(500).json({ message: 'Error al eliminar el registro' });
     }
 });
 

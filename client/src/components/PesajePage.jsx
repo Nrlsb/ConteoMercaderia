@@ -76,10 +76,9 @@ const PesajePage = () => {
     const currentGroup = overrideGroup || BRANCH_GROUP_MAP[user?.sucursal_name] || 'Automotor';
 
     // Hogar y Obra specific state
-    const [countingMode, setCountingMode] = useState('machine'); // 'machine' or 'closed'
+    const [un1Value, setUn1Value] = useState('0'); // Cerradas
+    const [un2Value, setUn2Value] = useState('0'); // Impulsos
     const [cmValue, setCmValue] = useState('');
-    const [closedQuantity, setClosedQuantity] = useState('1');
-    const [calculatedImpulses, setCalculatedImpulses] = useState(0);
     const [calculatedUnits, setCalculatedUnits] = useState(0);
 
     const [baudRate, setBaudRate] = useState(2400);
@@ -102,7 +101,7 @@ const PesajePage = () => {
             setRecentMeasurements(res.data);
         } catch (error) {
             console.error('Error fetching measurements:', error);
-            toast.error('Error al cargar historial de pesajes');
+            toast.error('Error al cargar historial de colorantes');
         } finally {
             setIsLoadingRecent(false);
         }
@@ -271,21 +270,26 @@ const PesajePage = () => {
     // Hogar y Obra Calculator Logic
     useEffect(() => {
         if (currentGroup === 'Hogar y Obra') {
-            if (countingMode === 'machine') {
-                const cm = parseFloat(cmValue) || 0;
-                const impulses = Math.round(cm * 220); // 10cm = 2200 => 1cm = 220
-                const units = cm / 10; // 10cm = 1 unit
-                setCalculatedImpulses(impulses);
-                setCalculatedUnits(units);
-                setWeight(units); // Store units in weight field for DB consistency
-                setUnit('un');
-            } else if (countingMode === 'closed') {
-                const qty = parseFloat(closedQuantity) || 0;
-                setWeight(qty);
-                setUnit('un');
-            }
+            const un1 = parseFloat(un1Value) || 0;
+            const un2 = parseFloat(un2Value) || 0;
+            
+            // Si el usuario ingresa CM, actualizamos UN2 (impulses)
+            // Esto se manejará en el onChange del CM input
+            
+            const total = un1 + (un2 / 2200);
+            setCalculatedUnits(total);
+            setWeight(total);
+            setUnit('un');
         }
-    }, [cmValue, closedQuantity, countingMode, currentGroup]);
+    }, [un1Value, un2Value, currentGroup]);
+
+    const handleCmChange = (val) => {
+        setCmValue(val);
+        if (val) {
+            const impulses = Math.round(parseFloat(val) * 220);
+            setUn2Value(impulses.toString());
+        }
+    };
 
     // Product Search Logic
     const handleSearch = async (value) => {
@@ -337,9 +341,9 @@ const PesajePage = () => {
                 weight: weight,
                 unit: unit,
                 metadata: {
-                    countingMode,
-                    cmValue: countingMode === 'machine' ? cmValue : null,
-                    impulses: countingMode === 'machine' ? calculatedImpulses : null,
+                    un1: currentGroup === 'Hogar y Obra' ? parseFloat(un1Value) : null,
+                    un2: currentGroup === 'Hogar y Obra' ? parseFloat(un2Value) : null,
+                    cmValue: currentGroup === 'Hogar y Obra' ? cmValue : null,
                     group: currentGroup
                 }
             });
@@ -349,9 +353,11 @@ const PesajePage = () => {
             setSelectedProduct(null);
             setSearchQuery('');
             setCmValue('');
+            setUn1Value('0');
+            setUn2Value('0');
         } catch (error) {
             console.error('Save error:', error);
-            toast.error('Error al guardar el pesaje');
+            toast.error('Error al guardar el conteo');
         } finally {
             setIsSaving(false);
         }
@@ -492,55 +498,46 @@ const PesajePage = () => {
                         {/* Dynamic UI based on Branch Group */}
                         {currentGroup === 'Hogar y Obra' ? (
                             <div className="space-y-6">
-                                <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <button
-                                        onClick={() => setCountingMode('machine')}
-                                        className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${countingMode === 'machine' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        EN MÁQUINA (CM)
-                                    </button>
-                                    <button
-                                        onClick={() => setCountingMode('closed')}
-                                        className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${countingMode === 'closed' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        UNIDADES CERRADAS
-                                    </button>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
+                                        <label className="block text-xs font-bold text-gray-400 uppercase">Cerradas (UN1)</label>
+                                        <input
+                                            type="number"
+                                            value={un1Value}
+                                            onChange={(e) => setUn1Value(e.target.value)}
+                                            className="w-full text-2xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
+                                        <label className="block text-xs font-bold text-gray-400 uppercase">Impulsos (UN2)</label>
+                                        <input
+                                            type="number"
+                                            value={un2Value}
+                                            onChange={(e) => setUn2Value(e.target.value)}
+                                            className="w-full text-2xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
                                 </div>
 
-                                {countingMode === 'machine' ? (
-                                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Medida en CM</label>
+                                <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex items-center justify-between">
+                                    <div>
+                                        <label className="block text-xs font-bold text-blue-400 uppercase mb-1">Cálculo por CM (Opcional)</label>
+                                        <div className="flex items-center gap-2">
                                             <input
                                                 type="number"
                                                 value={cmValue}
-                                                onChange={(e) => setCmValue(e.target.value)}
+                                                onChange={(e) => handleCmChange(e.target.value)}
                                                 placeholder="Ej: 5.5"
-                                                className="w-full text-4xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-24 text-xl font-bold text-blue-700 bg-white border border-blue-200 rounded-lg p-2 outline-none"
                                             />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Impulsos</div>
-                                                <div className="text-xl font-black text-gray-900">{calculatedImpulses}</div>
-                                            </div>
-                                            <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Unidades</div>
-                                                <div className="text-xl font-black text-gray-900">{calculatedUnits.toFixed(2)}</div>
-                                            </div>
+                                            <span className="text-blue-400 font-bold">cm</span>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-                                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Cantidad Cerrada (Unidades)</label>
-                                        <input
-                                            type="number"
-                                            value={closedQuantity}
-                                            onChange={(e) => setClosedQuantity(e.target.value)}
-                                            className="w-full text-4xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-bold text-blue-400 uppercase">Total calculado</div>
+                                        <div className="text-3xl font-black text-blue-700">{calculatedUnits.toFixed(3)} <span className="text-sm font-bold">un</span></div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         ) : (
                             /* Automotor Mode (Original Scale UI) */
@@ -657,7 +654,7 @@ const PesajePage = () => {
                             className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-400 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {isSaving ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-                            GUARDAR PESO
+                            GUARDAR CONTEO
                         </button>
                     </div>
                 </div>
@@ -676,51 +673,87 @@ const PesajePage = () => {
                         </button>
                     </div>
 
-                    <div className="flex-grow overflow-y-auto p-4 space-y-3 no-scrollbar">
-                        {isLoadingRecent ? (
-                            <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                                <p className="text-gray-400 font-medium">Cargando historial...</p>
-                            </div>
-                        ) : recentMeasurements.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                                    <Scale className="w-8 h-8 text-gray-300" />
-                                </div>
-                                <h3 className="text-gray-900 font-bold">Sin pesajes</h3>
-                                <p className="text-gray-500 text-sm">Los pesajes que realices aparecerán aquí.</p>
-                            </div>
-                        ) : (
-                            recentMeasurements.map((m) => (
-                                <div key={m.id} className="group bg-gray-50 hover:bg-white hover:shadow-md border border-transparent hover:border-blue-100 p-4 rounded-xl transition-all duration-200">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex-grow min-w-0">
-                                            <div className="font-bold text-gray-900 pr-2">{m.product_description || 'Desconocido'}</div>
-                                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                                <Clock className="w-3 h-3" />
-                                                {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                <span className="text-gray-300">•</span>
-                                                <span className="font-mono">{m.product_code}</span>
+                    <div className="flex-grow overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="sticky top-0 bg-white shadow-sm z-10">
+                                <tr className="border-b border-gray-100">
+                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase">Descripción</th>
+                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
+                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
+                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
+                                    <th className="p-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {isLoadingRecent ? (
+                                    <tr>
+                                        <td colSpan="5" className="py-20">
+                                            <div className="flex flex-col items-center justify-center gap-4">
+                                                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                                                <p className="text-gray-400 font-medium">Cargando historial...</p>
                                             </div>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-1">
-                                            <span className="text-xl font-black text-blue-600">{m.weight} {m.unit}</span>
-                                            <button
-                                                onClick={() => handleDeleteMeasurement(m.id)}
-                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
+                                        </td>
+                                    </tr>
+                                ) : recentMeasurements.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="py-20 text-center px-6">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                                    <Scale className="w-8 h-8 text-gray-300" />
+                                                </div>
+                                                <h3 className="text-gray-900 font-bold">Sin registros</h3>
+                                                <p className="text-gray-500 text-sm">Los conteos que realices aparecerán aquí.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    recentMeasurements.map((m) => {
+                                        const un1 = m.metadata?.un1 || (m.metadata?.countingMode === 'closed' ? m.weight : 0);
+                                        const un2 = m.metadata?.un2 || (m.metadata?.countingMode === 'machine' ? m.metadata?.impulses : 0);
+
+                                        return (
+                                            <tr key={m.id} className="group hover:bg-blue-50/30 transition-colors">
+                                                <td className="p-3">
+                                                    <div className="font-bold text-gray-900 text-sm truncate max-w-[200px]" title={m.product_description}>
+                                                        {m.product_description || 'Desconocido'}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                                        <span className="font-mono">{m.product_code}</span>
+                                                        <span className="text-gray-300">•</span>
+                                                        {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </td>
+                                                <td className="p-3 text-center text-sm font-semibold text-gray-600">
+                                                    {un1 > 0 ? un1 : '-'}
+                                                </td>
+                                                <td className="p-3 text-center text-sm font-semibold text-gray-600">
+                                                    {un2 > 0 ? un2 : '-'}
+                                                </td>
+                                                <td className="p-3 text-right">
+                                                    <span className="text-sm font-black text-blue-600">
+                                                        {m.unit === 'un' ? parseFloat(m.weight).toFixed(3) : parseFloat(m.weight).toFixed(1)}
+                                                        <span className="ml-1 text-[10px] font-bold text-gray-400 uppercase">{m.unit}</span>
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <button
+                                                        onClick={() => handleDeleteMeasurement(m.id)}
+                                                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
                     </div>
 
                     <div className="p-4 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Total pesajes</span>
+                            <span className="text-gray-500">Total registros hoy</span>
                             <span className="font-bold text-blue-600">{recentMeasurements.length}</span>
                         </div>
                     </div>

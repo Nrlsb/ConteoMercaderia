@@ -210,9 +210,9 @@ const UsersManage = () => {
         },
         {
             id: 'tab_pesaje',
-            name: 'Balanza',
+            name: 'Colorantes',
             specialPermissions: [
-                { id: 'save_measurements', name: 'Guardar Pesajes' }
+                { id: 'save_measurements', name: 'Guardar Colorantes' }
             ]
         }
     ];
