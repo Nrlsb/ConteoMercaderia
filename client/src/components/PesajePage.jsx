@@ -708,9 +708,9 @@ const PesajePage = () => {
                         <table className="w-full text-left border-collapse table-fixed">
                             <thead className="sticky top-0 bg-white shadow-sm z-10">
                                 <tr className="border-b border-gray-100">
-                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase w-[40%] md:w-auto">Descripción</th>
-                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[15%]">UN1</th>
-                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[15%]">UN2</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase w-[45%] md:w-auto">Descripción</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[12%]">UN1</th>
+                                    <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[13%]">UN2</th>
                                     <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-right w-[20%]">Total</th>
                                     <th className="p-2 md:p-3 text-[9px] md:text-[10px] font-bold text-gray-400 uppercase text-center w-[10%]"></th>
                                 </tr>
@@ -742,7 +742,7 @@ const PesajePage = () => {
                                         return (
                                             <tr key={m.product_code} className="group hover:bg-blue-50/30 transition-colors">
                                                 <td className="p-2 md:p-3 align-top">
-                                                    <div className="font-bold text-gray-900 text-[11px] md:text-sm truncate" title={m.product_description}>
+                                                    <div className="font-bold text-gray-900 text-[11px] md:text-sm break-words leading-tight" title={m.product_description}>
                                                         {m.product_description || 'Desconocido'}
                                                     </div>
                                                     <div className="flex flex-wrap items-center gap-1 md:gap-2 text-[9px] text-gray-500 mt-0.5">
