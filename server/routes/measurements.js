@@ -61,10 +61,43 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
     try {
         const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]]; // Primera hoja
-        // range: 1 indica que empezamos desde la fila 2 (0-indexed es 1)
-        const rawData = xlsx.utils.sheet_to_json(sheet, { range: 1 });
+        
+        // Obtenemos todas las filas como arrays para buscar la cabecera
+        const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+        
+        let headerRowIndex = -1;
+        let codeColIndex = -1;
+        let descColIndex = -1;
+        let stockColIndex = -1;
+        let idColIndex = -1;
 
-        // 1. Crear el registro del conteo
+        // 1. Buscar la fila de cabecera
+        for (let i = 0; i < Math.min(rows.length, 10); i++) {
+            const row = rows[i];
+            if (!row || !Array.isArray(row)) continue;
+
+            const findInRow = (keywords) => row.findIndex(cell => 
+                cell && keywords.some(k => String(cell).toLowerCase().includes(k.toLowerCase()))
+            );
+
+            codeColIndex = findInRow(['codigo', 'código', 'producto', 'art', 'referencia']);
+            descColIndex = findInRow(['descripcion', 'descripción', 'nombre', 'detalle']);
+            stockColIndex = findInRow(['stock', 'cantidad', 'actual']);
+            idColIndex = findInRow(['id']);
+
+            // Si encontramos al menos código y descripción, esta es nuestra cabecera
+            if (codeColIndex !== -1 && descColIndex !== -1) {
+                headerRowIndex = i;
+                break;
+            }
+        }
+
+        if (headerRowIndex === -1) {
+            console.log('No se encontró cabecera en las primeras 10 filas. Filas:', rows.slice(0, 5));
+            return res.status(400).json({ message: 'No se pudo detectar la estructura del Excel. Asegúrese de que tenga columnas de Código y Descripción.' });
+        }
+
+        // 2. Crear el registro del conteo
         const fileName = req.file.originalname.replace('.xlsx', '').replace('.xls', '');
         const { data: dyeCount, error: countError } = await supabase
             .from('dye_counting_lists')
@@ -79,35 +112,25 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
 
         if (countError) throw countError;
 
-        // 2. Procesar ítems del Excel
+        // 3. Procesar datos a partir de la fila siguiente a la cabecera
         const items = [];
-        console.log('Primer registro del Excel:', rawData[0]);
-        
-        for (const row of rawData) {
-            const findKey = (partial) => Object.keys(row).find(k => k.trim().toLowerCase().includes(partial.toLowerCase()));
-            
-            const idKey = findKey('Id');
-            // Buscamos código, producto, art, o referencia
-            const codeKey = findKey('Codigo') || findKey('Código') || findKey('Producto') || findKey('art') || findKey('referencia');
-            const descKey = findKey('descripcion') || findKey('Descripción') || findKey('nombre');
-            const stockKey = findKey('stock actual') || findKey('Stock') || findKey('cantidad');
+        for (let i = headerRowIndex + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
 
-            const code = row[codeKey] ? String(row[codeKey]).trim() : null;
-            
-            if (!code) {
-                console.log('Fila sin código detectada:', row);
-                continue;
-            }
+            const code = row[codeColIndex] ? String(row[codeColIndex]).trim() : null;
+            if (!code) continue;
 
             items.push({
                 dye_count_id: dyeCount.id,
                 product_code: code,
-                description: row[descKey] ? String(row[descKey]).trim() : 'Sin descripción',
-                theoretical_stock: parseFloat(String(row[stockKey]).replace(',', '.')) || 0,
-                excel_id: row[idKey] ? String(row[idKey]).trim() : null
+                description: row[descColIndex] ? String(row[descColIndex]).trim() : 'Sin descripción',
+                theoretical_stock: parseFloat(String(row[stockColIndex] || 0).replace(',', '.')) || 0,
+                excel_id: idColIndex !== -1 && row[idColIndex] ? String(row[idColIndex]).trim() : null
             });
         }
-        console.log(`Se procesaron ${items.length} ítems para insertar.`);
+        
+        console.log(`Cabecera encontrada en fila ${headerRowIndex + 1}. Insertando ${items.length} ítems.`);
 
         // Insertar ítems en lotes
         if (items.length > 0) {
