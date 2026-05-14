@@ -80,25 +80,33 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
 
         // 2. Procesar ítems del Excel
         const items = [];
+        console.log('Primer registro del Excel:', rawData[0]);
+        
         for (const row of rawData) {
             const findKey = (partial) => Object.keys(row).find(k => k.trim().toLowerCase().includes(partial.toLowerCase()));
             
             const idKey = findKey('Id');
-            const codeKey = findKey('Codigo') || findKey('Código') || findKey('Producto');
-            const descKey = findKey('descripcion') || findKey('Descripción');
-            const stockKey = findKey('stock actual') || findKey('Stock');
+            // Buscamos código, producto, art, o referencia
+            const codeKey = findKey('Codigo') || findKey('Código') || findKey('Producto') || findKey('art') || findKey('referencia');
+            const descKey = findKey('descripcion') || findKey('Descripción') || findKey('nombre');
+            const stockKey = findKey('stock actual') || findKey('Stock') || findKey('cantidad');
 
             const code = row[codeKey] ? String(row[codeKey]).trim() : null;
-            if (!code) continue;
+            
+            if (!code) {
+                console.log('Fila sin código detectada:', row);
+                continue;
+            }
 
             items.push({
                 dye_count_id: dyeCount.id,
                 product_code: code,
                 description: row[descKey] ? String(row[descKey]).trim() : 'Sin descripción',
-                theoretical_stock: parseFloat(row[stockKey]) || 0,
+                theoretical_stock: parseFloat(String(row[stockKey]).replace(',', '.')) || 0,
                 excel_id: row[idKey] ? String(row[idKey]).trim() : null
             });
         }
+        console.log(`Se procesaron ${items.length} ítems para insertar.`);
 
         // Insertar ítems en lotes
         if (items.length > 0) {
@@ -107,7 +115,7 @@ router.post('/import-dye-excel', verifyToken, multer({ storage: multer.memorySto
         }
 
         res.json({ 
-            message: 'Excel de colorantes importado con éxito', 
+            message: `Excel de colorantes importado con éxito. Se cargaron ${items.length} productos.`, 
             countId: dyeCount.id,
             totalItems: items.length 
         });
