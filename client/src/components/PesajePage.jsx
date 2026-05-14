@@ -446,8 +446,8 @@ const PesajePage = () => {
                 // El factor de conversión en automotor es el peso en gramos de 1 unidad
                 const factor = convFactor || (capacity * 1000);
                 
-                // Total = unidades cerradas + (gramos / peso_unidad) + (impulsos_extra / 2200)
-                const total = un1 + (un2 / factor) + (impExtra / 2200);
+                // Total = unidades cerradas + (gramos + extra) / factor_del_producto
+                const total = un1 + (un2 / factor) + (impExtra / factor);
                 
                 return {
                     ...prev,
@@ -496,7 +496,7 @@ const PesajePage = () => {
                 metadata: {
                     un1: parseFloat(values.un1) || 0,
                     un2: values.un2,
-                    impExtra: currentGroup === 'Hogar y Obra' ? (parseFloat(values.impExtra) || 0) : null,
+                    impExtra: parseFloat(values.impExtra) || 0,
                     cmValue: currentGroup === 'Hogar y Obra' ? values.cm : null,
                     group: currentGroup,
                     conteoId: selectedCount?.id || null
