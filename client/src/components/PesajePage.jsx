@@ -5,16 +5,10 @@ import { toast } from 'sonner';
 import api from '../api';
 import { useProductSync } from '../hooks/useProductSync';
 import { useAuth } from '../context/AuthContext';
+import { db } from '../db';
+import { ArrowRight } from 'lucide-react';
 
-// Configuración de grupos de colorantes por sucursal
-const COLORANT_GROUPS = {
-    'Hogar y Obra': {
-        brands: ['SINTEPLAST SISTEMA', 'ALBA TINTING', 'TERSUAVE SISTEMA', 'PLAVICON SISTEMA', 'EXPERTO'],
-    },
-    'Automotor': {
-        brands: ['SINTEPLAST INDUSTRIA', 'TERSUAVE INDUSTRIA', 'NORTON'],
-    }
-};
+// Grupos eliminados (ahora se gestionan por producto en la DB)
 
 // Mapeo de sucursales a grupos
 const BRANCH_GROUP_MAP = {
@@ -80,6 +74,11 @@ const PesajePage = () => {
     const [un2Value, setUn2Value] = useState('0'); // Impulsos
     const [cmValue, setCmValue] = useState('');
     const [calculatedUnits, setCalculatedUnits] = useState(0);
+    
+    // Hogar y Obra List Mode
+    const [hogarColorants, setHogarColorants] = useState([]);
+    const [listInputs, setListInputs] = useState({}); // { code: { un1, cm, un2, total } }
+    const [isLoadingList, setIsLoadingList] = useState(false);
 
     const [baudRate, setBaudRate] = useState(2400);
     const [parity, setParity] = useState('odd');
@@ -283,6 +282,81 @@ const PesajePage = () => {
         }
     }, [un1Value, un2Value, currentGroup]);
 
+    // Fetch colorants for Hogar y Obra list
+    useEffect(() => {
+        if (currentGroup === 'Hogar y Obra') {
+            const loadList = async () => {
+                setIsLoadingList(true);
+                try {
+                    const colorants = await db.products
+                        .where('counting_category')
+                        .equals('Hogar y Obra')
+                        .toArray();
+                    
+                    const sorted = colorants.sort((a, b) => a.description.localeCompare(b.description));
+                    setHogarColorants(sorted);
+                    
+                    // Initialize inputs
+                    const initialInputs = {};
+                    sorted.forEach(p => {
+                        initialInputs[p.code] = { un1: '', cm: '', un2: 0, total: 0 };
+                    });
+                    setListInputs(initialInputs);
+                } catch (error) {
+                    console.error("Error loading colorant list:", error);
+                } finally {
+                    setIsLoadingList(false);
+                }
+            };
+            loadList();
+        }
+    }, [currentGroup]);
+
+    const handleListInputChange = (code, field, value) => {
+        setListInputs(prev => {
+            const current = { ...prev[code], [field]: value };
+            
+            // Recalculate UN2 and Total
+            const un1 = parseFloat(current.un1) || 0;
+            const cm = parseFloat(current.cm) || 0;
+            
+            const un2 = Math.round(cm * 220);
+            const total = un1 + (un2 / 2200);
+            
+            return {
+                ...prev,
+                [code]: { ...current, un2, total }
+            };
+        });
+    };
+
+    const saveRow = async (product) => {
+        const values = listInputs[product.code];
+        if (!values || (parseFloat(values.un1) === 0 && parseFloat(values.cm) === 0)) {
+            toast.error('Ingrese valores para guardar');
+            return;
+        }
+
+        try {
+            await api.post('/api/measurements', {
+                productCode: product.code,
+                productDescription: product.description,
+                weight: values.total,
+                unit: 'un',
+                metadata: {
+                    un1: parseFloat(values.un1) || 0,
+                    un2: values.un2,
+                    cmValue: values.cm,
+                    group: 'Hogar y Obra'
+                }
+            });
+            toast.success(`${product.description} guardado`);
+            fetchRecentMeasurements();
+        } catch (error) {
+            toast.error('Error al guardar fila');
+        }
+    };
+
     const handleCmChange = (val) => {
         setCmValue(val);
         if (val) {
@@ -309,11 +383,8 @@ const PesajePage = () => {
                 const userBranch = user?.sucursal_name;
                 const groupName = BRANCH_GROUP_MAP[userBranch];
 
-                if (user?.role !== 'superadmin' && groupName && COLORANT_GROUPS[groupName]) {
-                    const allowedBrands = COLORANT_GROUPS[groupName].brands;
-                    results = results.filter(p =>
-                        allowedBrands.includes(p.brand?.toUpperCase())
-                    );
+                if (user?.role !== 'superadmin' && groupName) {
+                    results = results.filter(p => p.counting_category === groupName);
                 }
 
                 setSuggestions(results.slice(0, 8));
@@ -528,46 +599,82 @@ const PesajePage = () => {
                     <div className="p-6 space-y-6">
                         {/* Dynamic UI based on Branch Group */}
                         {currentGroup === 'Hogar y Obra' ? (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
-                                        <label className="block text-xs font-bold text-gray-400 uppercase">Cerradas (UN1)</label>
-                                        <input
-                                            type="number"
-                                            value={un1Value}
-                                            onChange={(e) => setUn1Value(e.target.value)}
-                                            className="w-full text-2xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
-                                        <label className="block text-xs font-bold text-gray-400 uppercase">Impulsos (UN2)</label>
-                                        <input
-                                            type="number"
-                                            value={un2Value}
-                                            onChange={(e) => setUn2Value(e.target.value)}
-                                            className="w-full text-2xl font-black text-blue-600 bg-white border border-gray-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex items-center justify-between">
-                                    <div>
-                                        <label className="block text-xs font-bold text-blue-400 uppercase mb-1">Cálculo por CM (Opcional)</label>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="number"
-                                                value={cmValue}
-                                                onChange={(e) => handleCmChange(e.target.value)}
-                                                placeholder="Ej: 5.5"
-                                                className="w-24 text-xl font-bold text-blue-700 bg-white border border-blue-200 rounded-lg p-2 outline-none"
-                                            />
-                                            <span className="text-blue-400 font-bold">cm</span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-[10px] font-bold text-blue-400 uppercase">Total calculado</div>
-                                        <div className="text-3xl font-black text-blue-700">{calculatedUnits.toFixed(3)} <span className="text-sm font-bold">un</span></div>
-                                    </div>
+                            <div className="space-y-4">
+                                <div className="overflow-x-auto -mx-6">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-50 border-y border-gray-100">
+                                                <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase w-1/3">Colorante</th>
+                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN1</th>
+                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
+                                                <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">UN2</th>
+                                                <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Total</th>
+                                                <th className="px-4 py-3 w-10"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {isLoadingList ? (
+                                                <tr>
+                                                    <td colSpan="7" className="py-12 text-center text-gray-400">Cargando colorantes...</td>
+                                                </tr>
+                                            ) : hogarColorants.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" className="py-12 text-center text-gray-400">No hay colorantes marcados para Hogar y Obra</td>
+                                                </tr>
+                                            ) : (
+                                                hogarColorants.map((p) => {
+                                                    const vals = listInputs[p.code] || { un1: '', cm: '', un2: 0, total: 0 };
+                                                    return (
+                                                        <tr key={p.code} className="hover:bg-blue-50/20 transition-colors group">
+                                                            <td className="px-4 py-2.5">
+                                                                <div className="text-xs font-bold text-gray-900 leading-tight">{p.description}</div>
+                                                                <div className="text-[10px] text-gray-400 font-mono">{p.code}</div>
+                                                            </td>
+                                                            <td className="px-1 py-2">
+                                                                <input
+                                                                    type="number"
+                                                                    value={vals.un1}
+                                                                    onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
+                                                                    className="w-14 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+                                                            <td className="px-1 py-2">
+                                                                <input
+                                                                    type="number"
+                                                                    value={vals.cm}
+                                                                    onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
+                                                                    className="w-14 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+                                                            <td className="px-0 py-2 text-center">
+                                                                <ArrowRight className="w-3 h-3 text-gray-300" />
+                                                            </td>
+                                                            <td className="px-1 py-2 text-center">
+                                                                <div className="text-xs font-bold text-blue-600">{vals.un2}</div>
+                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">Imp</div>
+                                                            </td>
+                                                            <td className="px-2 py-2 text-right">
+                                                                <div className="text-sm font-black text-blue-700">{vals.total.toFixed(3)}</div>
+                                                                <div className="text-[8px] text-gray-400 uppercase font-bold">Un</div>
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                <button
+                                                                    onClick={() => saveRow(p)}
+                                                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                                                    title="Guardar fila"
+                                                                >
+                                                                    <Save className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         ) : (
@@ -609,84 +716,88 @@ const PesajePage = () => {
                             </div>
                         )}
 
-                        {/* Product Search */}
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-end">
-                                <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Producto a Asociar</label>
-                                {currentGroup && (
-                                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">
-                                        Grupo: {currentGroup}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <Package className="h-5 w-5 text-gray-400" />
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Buscar por nombre o código..."
-                                    value={searchQuery}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    className="block w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-lg"
-                                />
-                                {searchQuery && (
-                                    <button
-                                        onClick={() => { setSearchQuery(''); setSuggestions([]); }}
-                                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
-                                    >
-                                        <X className="h-5 w-5" />
-                                    </button>
-                                )}
-
-                                {/* Autocomplete Suggestions */}
-                                {suggestions.length > 0 && (
-                                    <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2">
-                                        {suggestions.map((p) => (
+                            {/* Product Search (Hidden in List Mode) */}
+                            {currentGroup !== 'Hogar y Obra' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-end">
+                                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Producto a Asociar</label>
+                                        {currentGroup && (
+                                            <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">
+                                                Grupo: {currentGroup}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                            <Package className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por nombre o código..."
+                                            value={searchQuery}
+                                            onChange={(e) => handleSearch(e.target.value)}
+                                            className="block w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-lg"
+                                        />
+                                        {searchQuery && (
                                             <button
-                                                key={p.code}
-                                                onClick={() => {
-                                                    setSelectedProduct(p);
-                                                    setSearchQuery(p.description);
-                                                    setSuggestions([]);
-                                                }}
-                                                className="w-full px-4 py-3 text-left hover:bg-blue-50 flex flex-col border-b border-gray-50 last:border-0 transition-colors"
+                                                onClick={() => { setSearchQuery(''); setSuggestions([]); }}
+                                                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
                                             >
-                                                <span className="font-semibold text-gray-900">{p.description}</span>
-                                                <span className="text-xs text-gray-500 font-mono">{p.code}</span>
+                                                <X className="h-5 w-5" />
                                             </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                        )}
 
-                            {selectedProduct && (
-                                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between animate-pop">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                            <Package className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-blue-900 leading-tight">{selectedProduct.description}</div>
-                                            <div className="text-xs text-blue-700 font-mono">{selectedProduct.code}</div>
-                                        </div>
+                                        {/* Autocomplete Suggestions */}
+                                        {suggestions.length > 0 && (
+                                            <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                                                {suggestions.map((p) => (
+                                                    <button
+                                                        key={p.code}
+                                                        onClick={() => {
+                                                            setSelectedProduct(p);
+                                                            setSearchQuery(p.description);
+                                                            setSuggestions([]);
+                                                        }}
+                                                        className="w-full px-4 py-3 text-left hover:bg-blue-50 flex flex-col border-b border-gray-50 last:border-0 transition-colors"
+                                                    >
+                                                        <span className="font-semibold text-gray-900">{p.description}</span>
+                                                        <span className="text-xs text-gray-500 font-mono">{p.code}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <button onClick={() => setSelectedProduct(null)} className="text-blue-400 hover:text-blue-600 p-1">
-                                        <X className="w-5 h-5" />
-                                    </button>
+
+                                    {selectedProduct && (
+                                        <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between animate-pop">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                                    <Package className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-blue-900 leading-tight">{selectedProduct.description}</div>
+                                                    <div className="text-xs text-blue-700 font-mono">{selectedProduct.code}</div>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => setSelectedProduct(null)} className="text-blue-400 hover:text-blue-600 p-1">
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </div>
 
-                        {/* Action Button */}
-                        <button
-                            onClick={handleSaveMeasurement}
-                            disabled={isSaving || !selectedProduct || weight === 0}
-                            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-400 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                        >
-                            {isSaving ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-                            GUARDAR CONTEO
-                        </button>
+                        {/* Action Button (Hidden in List Mode as rows have their own save) */}
+                        {currentGroup !== 'Hogar y Obra' && (
+                            <button
+                                onClick={handleSaveMeasurement}
+                                disabled={isSaving || !selectedProduct || weight === 0}
+                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-400 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                            >
+                                {isSaving ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+                                GUARDAR CONTEO
+                            </button>
+                        )}
                     </div>
                 </div>
 

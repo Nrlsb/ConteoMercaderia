@@ -51,7 +51,7 @@ exports.syncProducts = async (req, res) => {
         while (hasMore) {
             const { data, error, count } = await supabase
                 .from('products')
-                .select('id, code, barcode, barcode_secondary, description, brand, primary_unit, secondary_unit, conversion_factor, conversion_type, provider_description, provider_code', { count: 'exact' })
+                .select('id, code, barcode, barcode_secondary, description, brand, primary_unit, secondary_unit, conversion_factor, conversion_type, provider_description, provider_code, counting_category', { count: 'exact' })
                 .order('code', { ascending: true })
                 .range(from, from + step - 1);
 
