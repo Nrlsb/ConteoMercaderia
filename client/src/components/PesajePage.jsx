@@ -954,10 +954,9 @@ const PesajePage = () => {
                     </div>
                 </div>
 
-                {/* History Card (Hidden in Hogar y Obra) */}
-                {currentGroup !== 'Hogar y Obra' && (
-                    <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 flex flex-col h-[600px]">
-                        <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                {/* History Card */}
+                <div className={`bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 flex flex-col ${currentGroup === 'Hogar y Obra' ? 'w-full min-h-[400px]' : 'h-[600px]'}`}>
+                    <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <History className="text-blue-500 w-5 h-5" /> Historial de Hoy
                             </h2>
@@ -1053,7 +1052,6 @@ const PesajePage = () => {
                             </div>
                         </div>
                     </div>
-                )}
             </div>
         </div>
     );
