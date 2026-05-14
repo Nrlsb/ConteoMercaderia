@@ -175,19 +175,34 @@ router.get('/dye-counts/active', verifyToken, async (req, res) => {
 router.get('/dye-counts/:id/products', verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
-        const { data, error } = await supabase
+        const { data: items, error: itemsError } = await supabase
             .from('dye_count_items')
             .select('*')
             .eq('dye_count_id', id);
 
-        if (error) throw error;
+        if (itemsError) throw itemsError;
 
-        // Mapear al formato que espera la tabla (compatible con productos normales)
-        const formatted = data.map(item => ({
+        // Buscar los factores de conversión en la tabla de productos
+        const productCodes = items.map(i => i.product_code);
+        const { data: products, error: prodError } = await supabase
+            .from('products')
+            .select('code, conversion_factor')
+            .in('code', productCodes);
+
+        const factorMap = {};
+        if (products) {
+            products.forEach(p => {
+                factorMap[p.code] = p.conversion_factor;
+            });
+        }
+
+        // Mapear al formato que espera la tabla (incluyendo el factor de la tabla products)
+        const formatted = items.map(item => ({
             code: item.product_code,
             description: item.description,
             current_stock: item.theoretical_stock,
-            excel_id: item.excel_id
+            excel_id: item.excel_id,
+            conversion_factor: factorMap[item.product_code] || null
         }));
 
         res.json({ products: formatted });

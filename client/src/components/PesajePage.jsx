@@ -387,7 +387,7 @@ const PesajePage = () => {
             try {
                 let colorants = [];
                 if (selectedCount) {
-                    // NEW: Endpoint separado para productos de colorantes
+                    // NEW: Endpoint separado para productos de colorantes (Ahora incluye conversion_factor desde el servidor)
                     const res = await api.get(`/api/measurements/dye-counts/${selectedCount.id}/products`);
                     colorants = res.data.products || [];
                 } else if (currentGroup) {
