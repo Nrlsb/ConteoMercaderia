@@ -316,10 +316,10 @@ const PesajePage = () => {
         setListInputs(prev => {
             const current = { ...prev[code], [field]: value };
             
-            // Recalculate UN2 and Total
-            const un1 = parseFloat(current.un1) || 0;
-            const cm = parseFloat(current.cm) || 0;
-            const impExtra = parseFloat(current.impExtra) || 0;
+            // Evaluar expresiones matemáticas para los cálculos
+            const un1 = evaluateMath(current.un1);
+            const cm = evaluateMath(current.cm);
+            const impExtra = evaluateMath(current.impExtra);
             
             const un2FromCm = Math.round(cm * 220);
             const un2 = un2FromCm + impExtra;
@@ -329,6 +329,21 @@ const PesajePage = () => {
                 ...prev,
                 [code]: { ...current, un2, total }
             };
+        });
+    };
+
+    const handleInputBlur = (code, field) => {
+        // Al salir del campo, convertimos la fórmula en el resultado final
+        setListInputs(prev => {
+            const val = prev[code][field];
+            if (typeof val === 'string' && (val.includes('+') || val.includes('*'))) {
+                const result = evaluateMath(val);
+                return {
+                    ...prev,
+                    [code]: { ...prev[code], [field]: result.toString() }
+                };
+            }
+            return prev;
         });
     };
 
@@ -365,6 +380,22 @@ const PesajePage = () => {
         if (val) {
             const impulses = Math.round(parseFloat(val) * 220);
             setUn2Value(impulses.toString());
+        }
+    };
+
+    // Helper to evaluate math expressions safely (only +, *, ., and numbers)
+    const evaluateMath = (str) => {
+        if (!str) return 0;
+        try {
+            // Limpiar espacios y validar caracteres permitidos
+            const cleanStr = str.replace(/\s+/g, '');
+            if (!/^[0-9+\-*./()]+$/.test(cleanStr)) {
+                return parseFloat(cleanStr) || 0;
+            }
+            // Evaluación simple usando Function (seguro tras el regex)
+            return new Function(`return ${cleanStr}`)();
+        } catch (e) {
+            return parseFloat(str) || 0;
         }
     };
 
@@ -637,19 +668,21 @@ const PesajePage = () => {
                                                             </td>
                                                             <td className="px-1 py-2">
                                                                 <input
-                                                                    type="number"
+                                                                    type="text"
                                                                     value={vals.un1}
                                                                     onChange={(e) => handleListInputChange(p.code, 'un1', e.target.value)}
-                                                                    className="w-14 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    onBlur={() => handleInputBlur(p.code, 'un1')}
+                                                                    className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                     placeholder="0"
                                                                 />
                                                             </td>
                                                             <td className="px-1 py-2">
                                                                 <input
-                                                                    type="number"
+                                                                    type="text"
                                                                     value={vals.cm}
                                                                     onChange={(e) => handleListInputChange(p.code, 'cm', e.target.value)}
-                                                                    className="w-14 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    onBlur={() => handleInputBlur(p.code, 'cm')}
+                                                                    className="w-16 text-center text-sm font-bold bg-white border border-gray-200 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                     placeholder="0"
                                                                 />
                                                             </td>
@@ -658,10 +691,11 @@ const PesajePage = () => {
                                                             </td>
                                                             <td className="px-1 py-2 text-center">
                                                                 <input
-                                                                    type="number"
+                                                                    type="text"
                                                                     value={vals.impExtra}
                                                                     onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
-                                                                    className="w-16 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    onBlur={() => handleInputBlur(p.code, 'impExtra')}
+                                                                    className="w-20 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                     placeholder="0"
                                                                 />
                                                             </td>
