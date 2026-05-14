@@ -435,9 +435,10 @@ const PesajePage = () => {
             } else {
                 // Automotor
                 const un2 = parseFloat(current.un2) || 0; // Gramos de la balanza
+                const impExtra = evaluateMath(current.impExtra);
                 const product = hogarColorants.find(p => p.code === code);
                 const capacity = getCapacityFromDescription(product?.description || '');
-                const total = un1 + (un2 / 1000 / capacity);
+                const total = un1 + (un2 / 1000 / capacity) + (impExtra / 2200);
                 return {
                     ...prev,
                     [code]: { ...current, un2, total }
@@ -904,19 +905,18 @@ const PesajePage = () => {
                                                             </>
                                                         )}
                                                         <td className="px-1 py-2 text-center">
-                                                            {currentGroup === 'Hogar y Obra' ? (
-                                                                <input
-                                                                    type="text"
-                                                                    value={vals.impExtra}
-                                                                    onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
-                                                                    onBlur={() => handleInputBlur(p.code, 'impExtra')}
-                                                                    onFocus={() => setFocusedRowCode(p.code)}
-                                                                    className="w-20 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                    placeholder="0"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-20 text-center text-xs text-gray-300">-</div>
-                                                            )}
+                                                            <input
+                                                                type="text"
+                                                                value={vals.impExtra}
+                                                                onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
+                                                                onBlur={() => handleInputBlur(p.code, 'impExtra')}
+                                                                onFocus={(e) => {
+                                                                    setFocusedRowCode(p.code);
+                                                                    e.target.select();
+                                                                }}
+                                                                className="w-20 text-center text-sm font-bold bg-blue-50 border border-blue-100 text-blue-700 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                placeholder="0"
+                                                            />
                                                         </td>
                                                         <td className="px-1 py-2 text-center">
                                                             <input
@@ -1011,15 +1011,33 @@ const PesajePage = () => {
                                                         </div>
                                                     )}
                                                     <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? 'Gramos' : 'Extra'}</label>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Extra</label>
+                                                        <input
+                                                            type="text"
+                                                            value={vals.impExtra}
+                                                            onChange={(e) => handleListInputChange(p.code, 'impExtra', e.target.value)}
+                                                            onFocus={(e) => {
+                                                                setFocusedRowCode(p.code);
+                                                                e.target.select();
+                                                            }}
+                                                            className="w-full text-center text-sm font-bold bg-blue-50 border border-blue-50 text-blue-700 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">{currentGroup === 'Automotor' ? 'Gramos' : 'UN2'}</label>
                                                         <input
                                                             ref={el => { if (el) un2Refs.current[`mobile-${p.code}`] = el }}
                                                             type="text"
-                                                            value={currentGroup === 'Automotor' ? vals.un2 : vals.impExtra}
-                                                            onChange={(e) => handleListInputChange(p.code, currentGroup === 'Automotor' ? 'un2' : 'impExtra', e.target.value)}
-                                                            onFocus={() => setFocusedRowCode(p.code)}
+                                                            value={vals.un2}
+                                                            onChange={(e) => handleListInputChange(p.code, 'un2', e.target.value)}
+                                                            onFocus={(e) => {
+                                                                setFocusedRowCode(p.code);
+                                                                e.target.select();
+                                                            }}
                                                             onKeyDown={(e) => handleUn2KeyDown(e, p.code)}
-                                                            className={`w-full text-center text-sm font-bold rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-blue-50 border-blue-50 text-blue-700'}`}
+                                                            readOnly={currentGroup === 'Hogar y Obra'}
+                                                            className={`w-full text-center text-sm font-bold rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500 ${currentGroup === 'Automotor' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-600'}`}
                                                             placeholder="0"
                                                         />
                                                     </div>
