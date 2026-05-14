@@ -418,16 +418,21 @@ const PesajePage = () => {
     const handleListInputChange = (code, field, value) => {
         setListInputs(prev => {
             const current = { ...prev[code], [field]: value };
-            
-            // Evaluar expresiones matemáticas para los cálculos
+            const product = hogarColorants.find(p => p.code === code);
+            const convFactor = parseFloat(product?.conversion_factor);
             const un1 = evaluateMath(current.un1);
             
             if (currentGroup === 'Hogar y Obra') {
+                const factor = convFactor || 2200;
                 const cm = evaluateMath(current.cm);
                 const impExtra = evaluateMath(current.impExtra);
-                const un2FromCm = Math.round(cm * 220);
+                
+                // Calculamos impulsos a partir de CM usando el factor del producto
+                // (Asumiendo que 10cm equivalen a 1 unidad completa en la varilla)
+                const un2FromCm = Math.round(cm * (factor / 10));
                 const un2 = un2FromCm + impExtra;
-                const total = un1 + (un2 / 2200);
+                const total = un1 + (un2 / factor);
+                
                 return {
                     ...prev,
                     [code]: { ...current, un2, total }
@@ -436,9 +441,14 @@ const PesajePage = () => {
                 // Automotor
                 const un2 = parseFloat(current.un2) || 0; // Gramos de la balanza
                 const impExtra = evaluateMath(current.impExtra);
-                const product = hogarColorants.find(p => p.code === code);
                 const capacity = getCapacityFromDescription(product?.description || '');
-                const total = un1 + (un2 / 1000 / capacity) + (impExtra / 2200);
+                
+                // El factor de conversión en automotor es el peso en gramos de 1 unidad
+                const factor = convFactor || (capacity * 1000);
+                
+                // Total = unidades cerradas + (gramos / peso_unidad) + (impulsos_extra / 2200)
+                const total = un1 + (un2 / factor) + (impExtra / 2200);
+                
                 return {
                     ...prev,
                     [code]: { ...current, un2, total }
