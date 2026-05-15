@@ -74,6 +74,15 @@ const PesajePage = () => {
     const [un2Value, setUn2Value] = useState('0'); // Impulsos
     const [cmValue, setCmValue] = useState('');
     const [calculatedUnits, setCalculatedUnits] = useState(0);
+
+    // Altura de referencia (persiste localmente)
+    const [alturaRef, setAlturaRef] = useState(() => {
+        return parseFloat(localStorage.getItem('altura_ref_ho')) || 10;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('altura_ref_ho', alturaRef);
+    }, [alturaRef]);
     
     // Hogar y Obra List Mode
     const [hogarColorants, setHogarColorants] = useState([]);
@@ -255,7 +264,7 @@ const PesajePage = () => {
             setWeight(total);
             setUnit('un');
         }
-    }, [un1Value, un2Value, currentGroup]);
+    }, [un1Value, un2Value, currentGroup, alturaRef]);
 
     // Fetch colorants for the current group list
     useEffect(() => {
@@ -307,9 +316,9 @@ const PesajePage = () => {
                 const cm = evaluateMath(current.cm);
                 const impExtra = evaluateMath(current.impExtra);
                 
-                // Calculamos impulsos a partir de CM usando el factor del producto
-                // (Asumiendo que 10cm equivalen a 1 unidad completa en la varilla)
-                const un2FromCm = Math.round(cm * (factor / 10));
+                // Calculamos impulsos a partir de CM usando el factor del producto y altura de referencia
+                // Fórmula: UN2 = (CM * (FACTOR / ALTURA_REF)) + EXTRA
+                const un2FromCm = Math.round(cm * (factor / alturaRef));
                 const un2 = un2FromCm + impExtra;
                 const total = un1 + (un2 / factor);
                 
@@ -398,7 +407,8 @@ const PesajePage = () => {
     const handleCmChange = (val) => {
         setCmValue(val);
         if (val) {
-            const impulses = Math.round(parseFloat(val) * 220);
+            // Usamos 2200 como factor default para el calculador individual
+            const impulses = Math.round(parseFloat(val) * (2200 / alturaRef));
             setUn2Value(impulses.toString());
         }
     };
@@ -892,6 +902,24 @@ const PesajePage = () => {
                                             </select>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {currentGroup === 'Hogar y Obra' && (
+                                <div className="flex items-center gap-2 bg-orange-50 p-1.5 rounded-2xl border border-orange-100 px-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black text-orange-600 uppercase">Altura Ref</span>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                value={alturaRef}
+                                                onChange={(e) => setAlturaRef(parseFloat(e.target.value) || 1)}
+                                                className="w-12 bg-transparent text-sm font-black text-orange-700 outline-none"
+                                            />
+                                            <span className="text-[10px] font-bold text-orange-400">CM</span>
+                                        </div>
+                                    </div>
+                                    <Info className="w-3.5 h-3.5 text-orange-300" title="Define cuántos CM equivalen a 1 unidad llena" />
                                 </div>
                             )}
 
