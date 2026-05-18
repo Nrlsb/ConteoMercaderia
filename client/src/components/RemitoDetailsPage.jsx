@@ -66,7 +66,7 @@ const RemitoDetailsPage = () => {
             if (data?.remito?.remito_number) {
                 try {
                     const response = await api.get(`/api/history/${data.remito.remito_number}`);
-                    setHistoryData(response.data);
+                    setHistoryData(response.data.data || []);
                 } catch (err) {
                     console.error('Error loading history for search:', err);
                 }
