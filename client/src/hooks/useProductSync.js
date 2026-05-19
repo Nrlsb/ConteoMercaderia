@@ -137,8 +137,8 @@ export const useProductSync = () => {
             console.error("Error in primary search:", e);
         }
 
-        // 2. Si hay pocos resultados y no es una búsqueda de código específico de tipo barcode/internal/provider, buscar en descripción
-        if (results.length < 15 && type === 'any' && isNaN(firstTerm)) {
+        // 2. Si hay pocos resultados o es una búsqueda de múltiples palabras, buscar en descripción completa
+        if ((results.length < 50 || terms.length > 1) && type === 'any' && isNaN(firstTerm)) {
             try {
                 const containsMatches = await db.products
                     .filter(p => normalizeText(p.description).includes(firstTerm))
