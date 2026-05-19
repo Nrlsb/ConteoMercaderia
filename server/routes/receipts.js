@@ -816,8 +816,8 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                             
                             REGLAS CRÍTICAS:
                             1. Devuelve SOLO un array JSON válido de objetos.
-                            2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
-                            3. El "code" es el código del producto del PROVEEDOR.
+                            2. Cada objeto DEBE tener: "code" (string o null), "quantity" (number), "description" (string).
+                            3. El "code" es el código del producto del PROVEEDOR. Si el remito no especifica un código de proveedor para un producto, deja "code" como null. NO inventes códigos ni uses otros campos (como la cantidad o el número de bultos) en el campo "code".
                             4. La "quantity" es la cantidad enviada.
                                - IMPORTANTE: Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
                                - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
@@ -828,6 +828,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                             Formato esperado:
                             [
                               {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+                              {"code": null, "quantity": 5, "description": "PRODUCTO SIN CODIGO DE PROVEEDOR"},
                               ...
                             ]
                         `;
@@ -868,8 +869,8 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                                 
                                 REGLAS CRÍTICAS:
                                 1. Devuelve SOLO un array JSON válido de objetos.
-                                2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
-                                3. El "code" es el código que aparece en el remito (Código Interno si es sobrestock).
+                                2. Cada objeto DEBE tener: "code" (string o null), "quantity" (number), "description" (string).
+                                3. El "code" es el código que aparece en el remito (Código Interno si es sobrestock). Si el remito no especifica un código para un producto, deja "code" como null. NO inventes un código ni uses otros campos (como la cantidad o el número de bultos) en el campo "code".
                                 4. La "quantity" es la cantidad.
                                    - IMPORTANTE: Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
                                    - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
@@ -879,6 +880,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                                 Formato esperado:
                                 [
                                   {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
+                                  {"code": null, "quantity": 5, "description": "PRODUCTO SIN CODIGO"},
                                   ...
                                 ]
                             `;
@@ -1085,11 +1087,15 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
                 continue;
             }
 
-            // Auto-update provider info if missing in catalog
-            const needsUpdate = (item.code && !product.provider_code) || (item.description && !product.provider_description);
+            // Auto-update provider info if missing in catalog (with sanity checks to avoid noisy values like quantities)
+            const isCodeSuspicious = item.code && (
+                String(item.code).trim() === String(item.quantity).trim() ||
+                /^\d{1,2}$/.test(String(item.code).trim())
+            );
+            const needsUpdate = (item.code && !isCodeSuspicious && !product.provider_code) || (item.description && !product.provider_description);
             if (needsUpdate && type === 'normal') {
                 const updateData = {};
-                if (item.code && !product.provider_code) updateData.provider_code = item.code;
+                if (item.code && !isCodeSuspicious && !product.provider_code) updateData.provider_code = item.code;
                 if (item.description && !product.provider_description) updateData.provider_description = item.description;
                 
                 if (Object.keys(updateData).length > 0) {
