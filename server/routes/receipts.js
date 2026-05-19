@@ -1057,9 +1057,9 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             let product = productMap.get(item.code);
             
             // Try stripping leading zeros if not found (mostly for provider codes)
-            if (!product) {
-                const stripped = item.code.replace(/^0+/, '');
-                if (stripped && stripped !== item.code) {
+            if (!product && item.code) {
+                const stripped = String(item.code).replace(/^0+/, '');
+                if (stripped && stripped !== String(item.code)) {
                     product = productMap.get(stripped);
                 }
             }
