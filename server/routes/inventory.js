@@ -2175,20 +2175,41 @@ router.put('/general-counts/:id/close', verifyToken, hasPermission('close_counts
             };
         });
 
-        // Add any scanned items that might not exist in products table
+        // Add any scanned items that might not exist in pre-remito items
         const productCodes = new Set(allProducts.map(p => p.code));
-        codes.forEach(scannedCode => {
-            if (!productCodes.has(scannedCode)) {
+        const unexpectedCodes = codes.filter(scannedCode => !productCodes.has(scannedCode));
+
+        if (unexpectedCodes.length > 0) {
+            console.log(`[CLOSE_COUNT] ${id}: Resolving details for ${unexpectedCodes.length} unexpected scanned items from database`);
+            const dbProductMap = new Map();
+            const batchSize = 1000;
+            
+            for (let i = 0; i < unexpectedCodes.length; i += batchSize) {
+                const batch = unexpectedCodes.slice(i, i + batchSize);
+                const { data: dbProds, error: dbProdsError } = await supabase
+                    .from('products')
+                    .select('code, barcode, description')
+                    .in('code', batch);
+
+                if (dbProdsError) {
+                    console.error(`[CLOSE_COUNT] ${id}: Error fetching unexpected products batch:`, dbProdsError);
+                } else if (dbProds) {
+                    dbProds.forEach(p => dbProductMap.set(p.code, p));
+                }
+            }
+
+            unexpectedCodes.forEach(scannedCode => {
+                const dbProduct = dbProductMap.get(scannedCode);
                 report.push({
                     code: scannedCode,
-                    barcode: '',
-                    description: 'Producto Desconocido (No en BD)',
+                    barcode: dbProduct?.barcode || '',
+                    description: dbProduct?.description || 'Producto Desconocido (No en BD)',
                     quantity: totals[scannedCode],
                     stock: 0,
                     difference: totals[scannedCode]
                 });
-            }
-        });
+            });
+        }
 
         report.sort((a, b) => {
             const descA = String(a.description || '');
