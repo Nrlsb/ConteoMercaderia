@@ -968,19 +968,30 @@ router.get('/:id/history', verifyToken, verifyBranchAccess('egresos'), async (re
         const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
         const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
 
-        const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-        const { data: products } = await supabase.from('products').select('code, description').in('code', productCodes);
+        let users = [];
+        if (userIds.length > 0) {
+            const { data: userData, error: userError } = await supabase.from('users').select('id, username').in('id', userIds);
+            if (userError) console.error('Error fetching users for egreso history:', userError);
+            else users = userData || [];
+        }
+
+        let products = [];
+        if (productCodes.length > 0) {
+            const { data: productData, error: productError } = await supabase.from('products').select('code, description').in('code', productCodes);
+            if (productError) console.error('Error fetching products for egreso history:', productError);
+            else products = productData || [];
+        }
 
         const userMap = {};
-        if (users) users.forEach(u => userMap[u.id] = u.username);
+        users.forEach(u => userMap[u.id] = u.username);
 
         const productMap = {};
-        if (products) products.forEach(p => productMap[p.code] = p.description);
+        products.forEach(p => productMap[p.code] = p.description);
 
         const enrichedHistory = history.map(entry => ({
             ...entry,
             username: userMap[entry.user_id] || 'Desconocido',
-            description: productMap[entry.product_code] || 'Sin descripción'
+            description: productMap[entry.product_code] || entry.description || 'Sin descripción'
         }));
 
         res.json(enrichedHistory);

@@ -472,14 +472,23 @@ router.get('/:id/history', verifyToken, verifyBranchAccess('receipts'), async (r
         const userIds = [...new Set(history.map(h => h.user_id).filter(Boolean))];
         const productCodes = [...new Set(history.map(h => h.product_code).filter(Boolean))];
 
-        const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-        const products = await fetchProductsByCodes(productCodes);
+        let users = [];
+        if (userIds.length > 0) {
+            const { data: userData, error: userError } = await supabase.from('users').select('id, username').in('id', userIds);
+            if (userError) console.error('Error fetching users for receipt history:', userError);
+            else users = userData || [];
+        }
+
+        let products = [];
+        if (productCodes.length > 0) {
+            products = await fetchProductsByCodes(productCodes);
+        }
 
         const userMap = {};
-        if (users) users.forEach(u => userMap[u.id] = u.username);
+        users.forEach(u => userMap[u.id] = u.username);
 
         const productMap = {};
-        if (products) products.forEach(p => {
+        products.forEach(p => {
             productMap[p.code] = {
                 description: p.description,
                 provider_code: p.provider_code
@@ -487,7 +496,7 @@ router.get('/:id/history', verifyToken, verifyBranchAccess('receipts'), async (r
         });
 
         const enrichedHistory = history.map(entry => {
-            const product = productMap[entry.product_code] || { description: 'Sin descripción', provider_code: null };
+            const product = productMap[entry.product_code] || { description: entry.description || 'Sin descripción', provider_code: null };
             return {
                 ...entry,
                 username: userMap[entry.user_id] || 'Desconocido',
