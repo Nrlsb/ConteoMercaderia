@@ -9,6 +9,7 @@ const { fetchProductsByCodes, findProductByAnyCode } = require('../utils/dbHelpe
 const { parseRemitoPdf } = require('../pdfParser');
 const { parseExcelXml } = require('../xmlParser');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const crypto = require('crypto');
 
 // Initialize Gemini AI model
 let model = null;
@@ -97,7 +98,14 @@ router.get('/:id', verifyToken, verifyBranchAccess('receipts'), async (req, res)
 
         if (itemsError) throw itemsError;
 
-        res.json({ ...receipt, items });
+        const failedItems = (receipt.failed_items || []).map((item, idx) => {
+            if (!item.id) {
+                return { ...item, id: `legacy-${idx}` };
+            }
+            return item;
+        });
+
+        res.json({ ...receipt, failed_items: failedItems, items });
     } catch (error) {
         console.error('Error fetching receipt details:', error);
         res.status(500).json({ message: 'Error fetching receipt details' });
@@ -1087,6 +1095,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             
             if (!product) {
                 results.failed.push({
+                    id: crypto.randomUUID(),
                     code: item.code,
                     description: item.description,
                     quantity: item.quantity,
@@ -1178,10 +1187,10 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
 
 router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('receipts'), async (req, res) => {
     const { id } = req.params;
-    const { index, productCode } = req.body;
+    const { index, tempId, productCode } = req.body;
 
-    if (index === undefined || !productCode) {
-        return res.status(400).json({ message: 'Missing index or productCode' });
+    if (tempId === undefined && index === undefined || !productCode) {
+        return res.status(400).json({ message: 'Missing index/tempId or productCode' });
     }
 
     try {
@@ -1196,18 +1205,22 @@ router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('receipts'), 
         if (receipt.status === 'finalized') return res.status(400).json({ message: 'No se puede modificar un remito finalizado' });
 
         const failedItems = receipt.failed_items || [];
-        if (index < 0 || index >= failedItems.length) {
+        let targetIndex = -1;
+
+        if (tempId !== undefined) {
+            targetIndex = failedItems.findIndex((item, idx) => item.id === tempId || `legacy-${idx}` === tempId);
+        } else if (index !== undefined) {
+            targetIndex = index;
+        }
+
+        if (targetIndex < 0 || targetIndex >= failedItems.length) {
             return res.status(404).json({ message: 'Item fallido no encontrado en la lista' });
         }
 
-        const itemToResolve = failedItems[index];
+        const itemToResolve = failedItems[targetIndex];
 
-        // 2. Fetch the correct product
-        const { data: product } = await supabase
-            .from('products')
-            .select('code, description')
-            .eq('code', productCode)
-            .maybeSingle();
+        // 2. Fetch the correct product using any code (internal, provider, barcode)
+        const product = await findProductByAnyCode(productCode, 'any');
 
         if (!product) return res.status(404).json({ message: 'Producto del catálogo no encontrado' });
 
@@ -1245,7 +1258,7 @@ router.post('/:id/resolve-failed', verifyToken, verifyBranchAccess('receipts'), 
 
         // 4. Remove from failed_items
         const updatedFailedItems = [...failedItems];
-        updatedFailedItems.splice(index, 1);
+        updatedFailedItems.splice(targetIndex, 1);
 
         const { error: updateReceiptError } = await supabase
             .from('receipts')

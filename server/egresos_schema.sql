@@ -36,6 +36,7 @@ create table if not exists egreso_items_history (
   product_code text,
   old_data jsonb,
   new_data jsonb,
+  description text,
   changed_at timestamp with time zone default now()
 );
 

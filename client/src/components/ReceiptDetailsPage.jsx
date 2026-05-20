@@ -1283,12 +1283,12 @@ const ReceiptDetailsPage = () => {
         });
     };
 
-    const handleResolveFailed = async (index, productCode) => {
+    const handleResolveFailed = async (tempId, productCode) => {
         if (processing) return;
         setProcessing(true);
         try {
             await api.post(`/api/receipts/${id}/resolve-failed`, {
-                index,
+                tempId,
                 productCode
             });
 
@@ -1311,7 +1311,6 @@ const ReceiptDetailsPage = () => {
     const handleRetryImport = async (item, index) => {
         if (processing) return;
         
-        // Si no hay código, intentamos buscar por descripción
         const searchCode = item.code || item.description;
         if (!searchCode) {
             toast.error('No hay código ni descripción para buscar');
@@ -1320,18 +1319,13 @@ const ReceiptDetailsPage = () => {
 
         setProcessing(true);
         try {
-            await api.post(`/api/receipts/${id}/items`, {
-                code: searchCode,
-                quantity: item.quantity,
-                searchType: receipt.type === 'overstock' ? 'internal' : (receipt.type === 'normal' ? 'provider' : 'any')
+            await api.post(`/api/receipts/${id}/resolve-failed`, {
+                tempId: item.id,
+                productCode: searchCode
             });
 
             toast.success(`¡Éxito! Producto importado: ${item.description}`);
-
-            // Remove from failed items
-            setImportFailedItems(prev => prev.filter((_, i) => i !== index));
             if (linkingItem === item) setLinkingItem(null);
-
             await fetchReceiptDetails();
         } catch (error) {
             console.error('Error re-importing item:', error);
@@ -1344,38 +1338,7 @@ const ReceiptDetailsPage = () => {
 
     const handleLinkProduct = async (product) => {
         if (!linkingItem || processing) return;
-
-        setProcessing(true);
-        try {
-            // 1. Update the product's provider_code and provider_description in the backend
-            const updatePayload = {};
-            if (linkingItem.code) updatePayload.provider_code = linkingItem.code;
-            if (linkingItem.description) updatePayload.provider_description = linkingItem.description;
-
-            if (Object.keys(updatePayload).length > 0) {
-                await api.put(`/api/products/${product.id}`, updatePayload);
-                toast.info(`Datos de proveedor actualizados para: ${product.description}`, { duration: 2000 });
-            }
-
-            // 2. Re-import the item with the correct internal code
-            await api.post(`/api/receipts/${id}/items`, {
-                code: product.code,
-                quantity: linkingItem.quantity
-            });
-
-            toast.success(`Vinculado con éxito: ${product.description}`);
-
-            // Remove from failed items
-            setImportFailedItems(prev => prev.filter(i => i !== linkingItem));
-            setLinkingItem(null);
-
-            await fetchReceiptDetails();
-        } catch (error) {
-            console.error('Error linking product:', error);
-            toast.error(error.response?.data?.message || 'Error al vincular el producto');
-        } finally {
-            setProcessing(false);
-        }
+        await handleResolveFailed(linkingItem.id, product.code);
     };
 
     const handleLinkingSearch = async (e) => {
@@ -1896,7 +1859,7 @@ const ReceiptDetailsPage = () => {
                                                     {linkingSuggestions.map((s, sIdx) => (
                                                         <button
                                                             key={sIdx}
-                                                            onClick={() => handleResolveFailed(idx, s.code)}
+                                                            onClick={() => handleResolveFailed(item.id, s.code)}
                                                             disabled={processing}
                                                             className="w-full text-left p-3 hover:bg-white rounded-xl border border-transparent hover:border-orange-200 transition-all group flex justify-between items-center"
                                                         >
@@ -1946,7 +1909,7 @@ const ReceiptDetailsPage = () => {
                                             <p className="text-[10px] font-bold text-blue-600 uppercase mb-2 tracking-wider">Sugerencias rápidas:</p>
                                             <QuickSuggestions 
                                                 description={item.description} 
-                                                onSelect={(product) => handleResolveFailed(idx, product.code)}
+                                                onSelect={(product) => handleResolveFailed(item.id, product.code)}
                                             />
                                         </div>
                                     </div>
