@@ -15,6 +15,7 @@ const authRateLimiter = rateLimit({
 
 router.get('/user', verifyToken, authController.getUserData);
 router.put('/active-count', verifyToken, authController.updateActiveCount);
+router.put('/preferences', verifyToken, authController.updatePreferences);
 router.post('/register', authRateLimiter, authController.register);
 router.post('/login', authRateLimiter, authController.login);
 router.post('/logout', verifyToken, authController.logout);

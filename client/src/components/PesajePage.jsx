@@ -39,14 +39,45 @@ const PesajePage = () => {
     const [cmValue, setCmValue] = useState('');
     const [calculatedUnits, setCalculatedUnits] = useState(0);
 
-    // Altura de referencia (persiste localmente)
+    // Altura de referencia - se carga desde preferencias del usuario (BD) con fallback a localStorage
     const [alturaRef, setAlturaRef] = useState(() => {
-        return parseFloat(localStorage.getItem('altura_ref_ho')) || 10;
+        // Intentar desde preferencias del usuario en memoria, luego localStorage como respaldo
+        return parseFloat(user?.preferences?.altura_ref) || parseFloat(localStorage.getItem('altura_ref_ho')) || 10;
     });
 
+    // Sincronizar alturaRef cuando el usuario cargue sus preferencias desde la BD
+    const alturaRefInitialized = useRef(false);
+    useEffect(() => {
+        if (user?.preferences?.altura_ref !== undefined && !alturaRefInitialized.current) {
+            alturaRefInitialized.current = true;
+            setAlturaRef(parseFloat(user.preferences.altura_ref) || 10);
+        }
+    }, [user]);
+
+    // Guardar alturaRef: localmente de inmediato, en la BD con debounce de 800ms
+    const saveAlturaRefTimeout = useRef(null);
+    const [isSavingAlturaRef, setIsSavingAlturaRef] = useState(false);
     useEffect(() => {
         localStorage.setItem('altura_ref_ho', alturaRef);
+
+        if (saveAlturaRefTimeout.current) clearTimeout(saveAlturaRefTimeout.current);
+        saveAlturaRefTimeout.current = setTimeout(async () => {
+            setIsSavingAlturaRef(true);
+            try {
+                await api.put('/api/auth/preferences', { preferences: { altura_ref: alturaRef } });
+            } catch (e) {
+                console.warn('No se pudo guardar altura_ref en la BD:', e.message);
+            } finally {
+                setIsSavingAlturaRef(false);
+            }
+        }, 800);
+
+        return () => {
+            if (saveAlturaRefTimeout.current) clearTimeout(saveAlturaRefTimeout.current);
+        };
     }, [alturaRef]);
+
+
     
     // Hogar y Obra List Mode
     const [hogarColorants, setHogarColorants] = useState([]);
@@ -885,20 +916,32 @@ const PesajePage = () => {
                             )}
 
                             {currentGroup === 'Hogar y Obra' && (
-                                <div className="flex items-center gap-2 bg-orange-50 p-1.5 rounded-2xl border border-orange-100 px-3">
+                                <div
+                                    className="flex items-center gap-2 bg-orange-50 p-1.5 rounded-2xl border border-orange-100 px-3 transition-all"
+                                    title="Altura de referencia del envase lleno. Se guarda por usuario."
+                                >
                                     <div className="flex flex-col">
-                                        <span className="text-[9px] font-black text-orange-600 uppercase">Altura Ref</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[9px] font-black text-orange-600 uppercase">Altura Ref</span>
+                                            {isSavingAlturaRef ? (
+                                                <RefreshCw className="w-2.5 h-2.5 text-orange-400 animate-spin" />
+                                            ) : (
+                                                <span className="text-[9px] text-green-500" title="Guardado en tu cuenta">✓</span>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-1">
                                             <input
                                                 type="number"
                                                 value={alturaRef}
                                                 onChange={(e) => setAlturaRef(parseFloat(e.target.value) || 1)}
                                                 className="w-12 bg-transparent text-sm font-black text-orange-700 outline-none"
+                                                min="1"
+                                                step="0.5"
                                             />
                                             <span className="text-[10px] font-bold text-orange-400">CM</span>
                                         </div>
                                     </div>
-                                    <Info className="w-3.5 h-3.5 text-orange-300" title="Define cuántos CM equivalen a 1 unidad llena" />
+                                    <Info className="w-3.5 h-3.5 text-orange-300" />
                                 </div>
                             )}
 

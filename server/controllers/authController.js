@@ -7,12 +7,12 @@ exports.getUserData = async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, sucursal_id, permissions, active_count_id, sucursales(name)')
+            .select('id, username, role, sucursal_id, permissions, active_count_id, preferences, sucursales(name)')
             .eq('id', req.user.id)
             .single();
 
         if (error) throw error;
-        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined });
+        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined, preferences: user.preferences || {} });
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ message: 'Server error' });
@@ -32,6 +32,36 @@ exports.updateActiveCount = async (req, res) => {
     } catch (error) {
         console.error('Error updating active count:', error);
         res.status(500).json({ message: 'Error al actualizar el conteo activo' });
+    }
+};
+
+exports.updatePreferences = async (req, res) => {
+    const { preferences } = req.body;
+    if (!preferences || typeof preferences !== 'object') {
+        return res.status(400).json({ message: 'preferences debe ser un objeto' });
+    }
+    try {
+        // Merge con las preferencias existentes para no sobrescribir otras claves
+        const { data: current, error: fetchError } = await supabase
+            .from('users')
+            .select('preferences')
+            .eq('id', req.user.id)
+            .single();
+
+        if (fetchError) throw fetchError;
+
+        const merged = { ...(current?.preferences || {}), ...preferences };
+
+        const { error } = await supabase
+            .from('users')
+            .update({ preferences: merged })
+            .eq('id', req.user.id);
+
+        if (error) throw error;
+        res.json({ success: true, preferences: merged });
+    } catch (error) {
+        console.error('Error updating preferences:', error);
+        res.status(500).json({ message: 'Error al guardar preferencias' });
     }
 };
 
