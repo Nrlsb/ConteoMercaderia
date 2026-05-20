@@ -41,25 +41,38 @@ const PesajePage = () => {
 
     // Altura de referencia - se carga desde preferencias del usuario (BD) con fallback a localStorage
     const [alturaRef, setAlturaRef] = useState(() => {
-        // Intentar desde preferencias del usuario en memoria, luego localStorage como respaldo
         return parseFloat(user?.preferences?.altura_ref) || parseFloat(localStorage.getItem('altura_ref_ho')) || 10;
     });
 
-    // Sincronizar alturaRef cuando el usuario cargue sus preferencias desde la BD
+    // Modo: 'global' = una sola para todos | 'por-colorante' = una por producto
+    const [alturaRefMode, setAlturaRefMode] = useState(() => {
+        return user?.preferences?.altura_ref_mode || localStorage.getItem('altura_ref_mode') || 'global';
+    });
+
+    // Altura por colorante: { [code]: number }
+    const [alturaRefPorColorante, setAlturaRefPorColorante] = useState(() => {
+        return user?.preferences?.altura_ref_por_colorante || {};
+    });
+
+    // Sincronizar desde la BD cuando el usuario cargue
     const alturaRefInitialized = useRef(false);
     useEffect(() => {
-        if (user?.preferences?.altura_ref !== undefined && !alturaRefInitialized.current) {
+        if (user?.preferences && !alturaRefInitialized.current) {
             alturaRefInitialized.current = true;
-            setAlturaRef(parseFloat(user.preferences.altura_ref) || 10);
+            if (user.preferences.altura_ref !== undefined)
+                setAlturaRef(parseFloat(user.preferences.altura_ref) || 10);
+            if (user.preferences.altura_ref_mode !== undefined)
+                setAlturaRefMode(user.preferences.altura_ref_mode);
+            if (user.preferences.altura_ref_por_colorante !== undefined)
+                setAlturaRefPorColorante(user.preferences.altura_ref_por_colorante || {});
         }
     }, [user]);
 
-    // Guardar alturaRef: localmente de inmediato, en la BD con debounce de 800ms
+    // Guardar alturaRef global con debounce
     const saveAlturaRefTimeout = useRef(null);
     const [isSavingAlturaRef, setIsSavingAlturaRef] = useState(false);
     useEffect(() => {
         localStorage.setItem('altura_ref_ho', alturaRef);
-
         if (saveAlturaRefTimeout.current) clearTimeout(saveAlturaRefTimeout.current);
         saveAlturaRefTimeout.current = setTimeout(async () => {
             setIsSavingAlturaRef(true);
@@ -71,12 +84,45 @@ const PesajePage = () => {
                 setIsSavingAlturaRef(false);
             }
         }, 800);
-
-        return () => {
-            if (saveAlturaRefTimeout.current) clearTimeout(saveAlturaRefTimeout.current);
-        };
+        return () => { if (saveAlturaRefTimeout.current) clearTimeout(saveAlturaRefTimeout.current); };
     }, [alturaRef]);
 
+    // Guardar modo con debounce
+    const saveModeTimeout = useRef(null);
+    useEffect(() => {
+        localStorage.setItem('altura_ref_mode', alturaRefMode);
+        if (saveModeTimeout.current) clearTimeout(saveModeTimeout.current);
+        saveModeTimeout.current = setTimeout(async () => {
+            try {
+                await api.put('/api/auth/preferences', { preferences: { altura_ref_mode: alturaRefMode } });
+            } catch (e) {
+                console.warn('No se pudo guardar altura_ref_mode:', e.message);
+            }
+        }, 800);
+        return () => { if (saveModeTimeout.current) clearTimeout(saveModeTimeout.current); };
+    }, [alturaRefMode]);
+
+    // Guardar alturas por colorante con debounce
+    const savePerColorantTimeout = useRef(null);
+    const saveAlturaRefPorColorante = useCallback((newMap) => {
+        setAlturaRefPorColorante(newMap);
+        if (savePerColorantTimeout.current) clearTimeout(savePerColorantTimeout.current);
+        savePerColorantTimeout.current = setTimeout(async () => {
+            try {
+                await api.put('/api/auth/preferences', { preferences: { altura_ref_por_colorante: newMap } });
+            } catch (e) {
+                console.warn('No se pudo guardar altura_ref_por_colorante:', e.message);
+            }
+        }, 800);
+    }, []);
+
+    // Helper: obtiene alturaRef efectiva para un código de colorante
+    const getAlturaRefForCode = useCallback((code) => {
+        if (alturaRefMode === 'por-colorante' && alturaRefPorColorante[code] !== undefined) {
+            return parseFloat(alturaRefPorColorante[code]) || alturaRef;
+        }
+        return alturaRef;
+    }, [alturaRefMode, alturaRefPorColorante, alturaRef]);
 
     
     // Hogar y Obra List Mode
@@ -313,7 +359,6 @@ const PesajePage = () => {
 
     const handleListInputChange = (code, field, value) => {
         setListInputs(prev => {
-            // Protección contra actualizaciones redundantes
             if (prev[code] && prev[code][field] === value) return prev;
             
             const current = { ...prev[code], [field]: value };
@@ -326,32 +371,20 @@ const PesajePage = () => {
                 const cm = evaluateMath(current.cm);
                 const impExtra = evaluateMath(current.impExtra);
                 
-                // Calculamos impulsos a partir de CM usando el factor del producto y altura de referencia
-                // Fórmula: UN2 = (CM * (FACTOR / ALTURA_REF)) + EXTRA
-                const un2FromCm = Math.round(cm * (factor / alturaRef));
+                // Usa alturaRef específica del colorante o la global
+                const alturaEfectiva = getAlturaRefForCode(code);
+                const un2FromCm = Math.round(cm * (factor / alturaEfectiva));
                 const un2 = un2FromCm + impExtra;
                 const total = un1 + (un2 / factor);
                 
-                return {
-                    ...prev,
-                    [code]: { ...current, un2, total }
-                };
+                return { ...prev, [code]: { ...current, un2, total } };
             } else {
-                // Automotor
-                const un2 = parseFloat(current.un2) || 0; // Gramos de la balanza
+                const un2 = parseFloat(current.un2) || 0;
                 const impExtra = evaluateMath(current.impExtra);
                 const capacity = getCapacityFromDescription(product?.description || '');
-                
-                // El factor de conversión en automotor es el peso en gramos de 1 unidad
                 const factor = convFactor || (capacity * 1000);
-                
-                // Total = unidades cerradas + (gramos + extra) / factor_del_producto
                 const total = un1 + (un2 / factor) + (impExtra / factor);
-                
-                return {
-                    ...prev,
-                    [code]: { ...current, un2, total }
-                };
+                return { ...prev, [code]: { ...current, un2, total } };
             }
         });
     };
@@ -917,12 +950,34 @@ const PesajePage = () => {
 
                             {currentGroup === 'Hogar y Obra' && (
                                 <div
-                                    className="flex items-center gap-2 bg-orange-50 p-1.5 rounded-2xl border border-orange-100 px-3 transition-all"
+                                    className="flex items-center gap-3 bg-orange-50 p-1.5 rounded-2xl border border-orange-100 px-3 transition-all"
                                     title="Altura de referencia del envase lleno. Se guarda por usuario."
                                 >
+                                    {/* Toggle modo */}
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[9px] font-black text-orange-600 uppercase">Modo Altura</span>
+                                        <div className="flex bg-orange-100 rounded-lg p-0.5 gap-0.5">
+                                            <button
+                                                onClick={() => setAlturaRefMode('global')}
+                                                className={`px-2 py-1 rounded-md text-[9px] font-black transition-all ${alturaRefMode === 'global' ? 'bg-white text-orange-700 shadow-sm' : 'text-orange-400 hover:text-orange-600'}`}
+                                            >
+                                                Global
+                                            </button>
+                                            <button
+                                                onClick={() => setAlturaRefMode('por-colorante')}
+                                                className={`px-2 py-1 rounded-md text-[9px] font-black transition-all ${alturaRefMode === 'por-colorante' ? 'bg-white text-orange-700 shadow-sm' : 'text-orange-400 hover:text-orange-600'}`}
+                                            >
+                                                Por item
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Valor global */}
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-1">
-                                            <span className="text-[9px] font-black text-orange-600 uppercase">Altura Ref</span>
+                                            <span className="text-[9px] font-black text-orange-600 uppercase">
+                                                {alturaRefMode === 'global' ? 'Altura Ref' : 'Default'}
+                                            </span>
                                             {isSavingAlturaRef ? (
                                                 <RefreshCw className="w-2.5 h-2.5 text-orange-400 animate-spin" />
                                             ) : (
@@ -934,14 +989,15 @@ const PesajePage = () => {
                                                 type="number"
                                                 value={alturaRef}
                                                 onChange={(e) => setAlturaRef(parseFloat(e.target.value) || 1)}
-                                                className="w-12 bg-transparent text-sm font-black text-orange-700 outline-none"
+                                                className={`w-12 bg-transparent text-sm font-black outline-none ${alturaRefMode === 'por-colorante' ? 'text-orange-400' : 'text-orange-700'}`}
                                                 min="1"
                                                 step="0.5"
+                                                title={alturaRefMode === 'por-colorante' ? 'Valor por defecto cuando no hay altura individual asignada' : 'Altura de referencia global'}
                                             />
                                             <span className="text-[10px] font-bold text-orange-400">CM</span>
                                         </div>
                                     </div>
-                                    <Info className="w-3.5 h-3.5 text-orange-300" />
+                                    <Info className="w-3.5 h-3.5 text-orange-300 flex-shrink-0" />
                                 </div>
                             )}
 
@@ -993,6 +1049,9 @@ const PesajePage = () => {
                                                 <>
                                                     <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">CM</th>
                                                     <th className="px-1 py-3 text-[10px] font-bold text-gray-400 uppercase text-center"></th>
+                                                    {alturaRefMode === 'por-colorante' && (
+                                                        <th className="px-2 py-3 text-[10px] font-bold text-orange-400 uppercase text-center" title="Altura individual">Alt</th>
+                                                    )}
                                                 </>
                                             )}
                                             <th className="px-2 py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Extra</th>
@@ -1056,6 +1115,25 @@ const PesajePage = () => {
                                                                 <td className="px-0 py-2 text-center">
                                                                     <ArrowRight className="w-3 h-3 text-gray-300" />
                                                                 </td>
+                                                                {alturaRefMode === 'por-colorante' && (
+                                                                    <td className="px-1 py-2">
+                                                                        <input
+                                                                            type="number"
+                                                                            value={alturaRefPorColorante[p.code] ?? alturaRef}
+                                                                            onChange={(e) => {
+                                                                                const newVal = parseFloat(e.target.value) || alturaRef;
+                                                                                const newMap = { ...alturaRefPorColorante, [p.code]: newVal };
+                                                                                saveAlturaRefPorColorante(newMap);
+                                                                                if (vals.cm) handleListInputChange(p.code, 'cm', vals.cm);
+                                                                            }}
+                                                                            className="w-14 text-center text-xs font-bold bg-orange-50 border border-orange-200 text-orange-700 rounded-lg p-1.5 focus:ring-2 focus:ring-orange-400 outline-none"
+                                                                            min="1"
+                                                                            step="0.5"
+                                                                            title="Altura de referencia para este colorante"
+                                                                        />
+                                                                        <div className="text-[8px] text-orange-400 font-bold text-center">CM</div>
+                                                                    </td>
+                                                                )}
                                                             </>
                                                         )}
                                                         <td className="px-1 py-2 text-center">
@@ -1177,6 +1255,25 @@ const PesajePage = () => {
                                                             }}
                                                                 className="w-full text-center text-sm font-bold bg-gray-50 border border-gray-100 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-500"
                                                                 placeholder="0"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    {currentGroup === 'Hogar y Obra' && alturaRefMode === 'por-colorante' && (
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-orange-400 uppercase">Alt Ref</label>
+                                                            <input
+                                                                type="number"
+                                                                value={alturaRefPorColorante[p.code] ?? alturaRef}
+                                                                onChange={(e) => {
+                                                                    const newVal = parseFloat(e.target.value) || alturaRef;
+                                                                    const newMap = { ...alturaRefPorColorante, [p.code]: newVal };
+                                                                    saveAlturaRefPorColorante(newMap);
+                                                                    if (vals.cm) handleListInputChange(p.code, 'cm', vals.cm);
+                                                                }}
+                                                                className="w-full text-center text-sm font-bold bg-orange-50 border border-orange-200 text-orange-700 rounded-xl p-2 outline-none focus:ring-2 focus:ring-orange-400"
+                                                                min="1"
+                                                                step="0.5"
+                                                                placeholder={alturaRef}
                                                             />
                                                         </div>
                                                     )}
