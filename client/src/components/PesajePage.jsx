@@ -8,46 +8,6 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../db';
 import { ArrowRight } from 'lucide-react';
 
-// Grupos eliminados (ahora se gestionan por producto en la DB)
-
-// Mapeo de sucursales a grupos
-const BRANCH_GROUP_MAP = {
-    // Ejemplo: Sucursales que cuentan Hogar y Obra
-    'Sucursal 01': 'Hogar y Obra',
-    'Sucursal 02': 'Hogar y Obra',
-    'Sucursal 03': 'Hogar y Obra',
-    'Sucursal 04': 'Hogar y Obra',
-    'Sucursal 05': 'Hogar y Obra',
-    'Sucursal 07': 'Hogar y Obra',
-    'Sucursal 08': 'Hogar y Obra',
-    'Sucursal 09': 'Hogar y Obra',
-    'Sucursal 10': 'Hogar y Obra',
-    'Sucursal 11': 'Hogar y Obra',
-    'Sucursal 12': 'Hogar y Obra',
-    'Sucursal 15': 'Hogar y Obra',
-    'Sucursal 16': 'Hogar y Obra',
-    'Sucursal 17': 'Hogar y Obra',
-    'Sucursal 20': 'Hogar y Obra',
-    'Sucursal 21': 'Hogar y Obra',
-    'Sucursal 24': 'Hogar y Obra',
-    'Sucursal 25': 'Hogar y Obra',
-    'Sucursal 26': 'Hogar y Obra',
-    'Sucursal 27': 'Hogar y Obra',
-    'Sucursal 28': 'Hogar y Obra',
-    'Sucursal 29': 'Hogar y Obra',
-    'Sucursal 30': 'Hogar y Obra',
-    'Sucursal 31': 'Hogar y Obra',
-    'Sucursal 32': 'Hogar y Obra',
-    'Sucursal 33': 'Hogar y Obra',
-
-    // Ejemplo: Sucursales que cuentan Automotor
-    'Sucursal 13': 'Automotor',
-    'Sucursal 22': 'Automotor',
-    'Sucursal 23': 'Automotor',
-
-    // Puedes seguir agregando el resto aquí...
-};
-
 const PesajePage = () => {
     const [weight, setWeight] = useState(0);
     const [unit, setUnit] = useState('g');
@@ -64,10 +24,14 @@ const PesajePage = () => {
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Branch dye types config loaded from API
+    const [branchDyeTypesMap, setBranchDyeTypesMap] = useState({});
+    const [isLoadingDyeTypes, setIsLoadingDyeTypes] = useState(true);
+
     // Group differentiation logic
     const [overrideGroup, setOverrideGroup] = useState(null);
     const { user } = useAuth();
-    const currentGroup = overrideGroup || BRANCH_GROUP_MAP[user?.sucursal_name] || 'Automotor';
+    const currentGroup = overrideGroup || branchDyeTypesMap[user?.sucursal_name] || 'Automotor';
 
     // Hogar y Obra specific state
     const [un1Value, setUn1Value] = useState('0'); // Cerradas
@@ -129,6 +93,23 @@ const PesajePage = () => {
     useEffect(() => {
         fetchRecentMeasurements();
     }, [fetchRecentMeasurements]);
+
+    // Load branch dye types configuration from API
+    useEffect(() => {
+        const fetchBranchDyeTypes = async () => {
+            try {
+                setIsLoadingDyeTypes(true);
+                const res = await api.get('/api/branch-dye-types');
+                setBranchDyeTypesMap(res.data || {});
+            } catch (error) {
+                console.error('Error fetching branch dye types:', error);
+                // Fallback to empty map, default 'Automotor' will be used
+            } finally {
+                setIsLoadingDyeTypes(false);
+            }
+        };
+        fetchBranchDyeTypes();
+    }, []);
 
     const fetchDyeCounts = useCallback(async () => {
         try {

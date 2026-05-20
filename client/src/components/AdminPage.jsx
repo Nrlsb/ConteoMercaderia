@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import api from '../api';
-import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
+import { useNavigate } from 'react-router-dom';
+import BranchDyeTypesManager from './BranchDyeTypesManager';
+
+const AdminPage = () => {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -194,6 +197,11 @@ import { useNavigate } from 'react-router-dom'; const AdminPage = () => {
                         {status}
                     </div>
                 )}
+
+                {/* Branch Dye Types Configuration */}
+                <div className="mt-8 bg-white shadow-md rounded px-8 pt-6 pb-8 border-t-4 border-purple-500">
+                    <BranchDyeTypesManager />
+                </div>
             </>            <div className="mt-8">
                 <button
                     onClick={() => navigate('/')}

@@ -79,6 +79,7 @@ const stockRoutes = require('./routes/stock');
 const productsRoutes = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
 const measurementsRoutes = require('./routes/measurements');
+const branchDyeTypesRoutes = require('./routes/branchDyeTypes');
 
 
 // --- Import Services ---
@@ -140,6 +141,7 @@ app.use('/api/barcode-history', barcodesRoutes);
 app.use('/api/labels', labelsRoutes);
 app.use('/api', inventoryRoutes);
 app.use('/api/measurements', measurementsRoutes);
+app.use('/api/branch-dye-types', branchDyeTypesRoutes);
 
 
 // --- Catch-All: Serve React App ---
