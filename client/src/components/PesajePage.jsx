@@ -283,8 +283,8 @@ const PesajePage = () => {
     const evaluateMath = (str) => {
         if (!str) return 0;
         try {
-            // Limpiar espacios y validar caracteres permitidos
-            const cleanStr = str.replace(/\s+/g, '');
+            // Normalizar coma decimal a punto (teclados en español usan coma)
+            const cleanStr = str.replace(/\s+/g, '').replace(/,/g, '.');
             if (!/^[0-9+\-*./()]+$/.test(cleanStr)) {
                 return parseFloat(cleanStr) || 0;
             }
@@ -1173,7 +1173,7 @@ const PesajePage = () => {
                                                             <div className="text-[8px] text-gray-400 uppercase font-bold">{currentGroup === 'Automotor' ? 'Gramos' : 'UN2'}</div>
                                                         </td>
                                                         <td className="px-2 py-2 text-right">
-                                                            <div className="text-sm font-black text-blue-700">{vals.total.toFixed(3)}</div>
+                                                            <div className="text-sm font-black text-blue-700">{vals.total.toFixed(2)}</div>
                                                             <div className="text-[8px] text-gray-400 uppercase font-bold">Un</div>
                                                         </td>
                                                         <td className="px-4 py-2">
@@ -1323,7 +1323,7 @@ const PesajePage = () => {
                                                     </div>
                                                     <div className="flex flex-col items-end">
                                                         <span className="text-[9px] font-bold text-blue-400 uppercase">Unidades Totales</span>
-                                                        <span className="text-xl font-black text-blue-700 leading-none">{vals.total.toFixed(3)} <span className="text-[10px]">un</span></span>
+                                                        <span className="text-xl font-black text-blue-700 leading-none">{vals.total.toFixed(2)} <span className="text-[10px]">un</span></span>
                                                     </div>
                                                 </div>
                                             </div>
