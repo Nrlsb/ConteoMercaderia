@@ -368,11 +368,17 @@ const RemitoForm = () => {
             toast.success('Sincronización offline completada', { id: 'offline-sync' });
         } catch (error) {
             console.error('Error sincronizando scans offline:', error);
-            toast.error('Error al sincronizar algunos datos offline. Se reintentará luego.', { id: 'offline-sync' });
-            
-            // On failure, we should ideally put them back in the queue, but carefully
-            const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
-            localStorage.setItem(pendingKey, JSON.stringify([...queue, ...currentQueue]));
+            if (error.response?.status === 403) {
+                const serverMsg = error.response.data?.message || 'Algunos de tus escaneos offline fueron rechazados por reglas de re-control.';
+                triggerModal('Sincronización Rechazada', serverMsg, 'error');
+                // Al ser 403, descartamos la cola que causó el error para evitar bucles infinitos de intentos fallidos
+                restoreSession(selectedCount.id, true);
+            } else {
+                toast.error('Error al sincronizar algunos datos offline. Se reintentará luego.', { id: 'offline-sync' });
+                // En caso de otros errores (red, servidor temporal), devolvemos a la cola
+                const currentQueue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                localStorage.setItem(pendingKey, JSON.stringify([...queue, ...currentQueue]));
+            }
             checkPendingSync();
         } finally {
             isSyncingRef.current = false;
@@ -1463,8 +1469,12 @@ const RemitoForm = () => {
             debouncedFetch();
         } catch (error) {
             console.error('Error in syncTotalToInventory:', error);
-            // No bloqueamos al usuario con un modal aquí para evitar interrumpir el flujo de edición rápida,
-            // pero lo logueamos por si acaso.
+            if (error.response?.status === 403) {
+                const serverMsg = error.response.data?.message || 'Acción denegada por reglas de re-control.';
+                triggerModal('Acción Bloqueada', serverMsg, 'error');
+                // Restauramos la sesión para revertir el cambio local
+                restoreSession(selectedCount.id, true);
+            }
         }
     };
 
@@ -1497,6 +1507,11 @@ const RemitoForm = () => {
             console.error('[DEBUG_FRONTEND] Error syncing to inventory_scans:', error);
             if (error.response?.status === 401) {
                 triggerModal('Error de Sincronización', 'No se pudo guardar el escaneo. Sesión expirada.', 'error');
+            } else if (error.response?.status === 403) {
+                const serverMsg = error.response.data?.message || 'Acción denegada por reglas de re-control.';
+                triggerModal('Acción Bloqueada', serverMsg, 'error');
+                // Restauramos la sesión para revertir el cambio local
+                restoreSession(selectedCount.id, true);
             } else {
                 // API failed (network/server error) — queue for later sync, keep optimistic state
                 const pendingKey = `pending_inventory_scans_${selectedCount.id}`;

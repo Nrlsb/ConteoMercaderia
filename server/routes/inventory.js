@@ -2659,7 +2659,7 @@ router.post('/inventory/scan', verifyToken, async (req, res) => {
         }
 
         // --- RE-CONTROL RULE ENFORCEMENT ---
-        if (countCheck && countCheck.parent_count_id) {
+        if (countCheck && countCheck.parent_count_id && !['admin', 'superadmin', 'branch_admin'].includes(req.user.role)) {
             const parentId = countCheck.parent_count_id;
             const itemCodes = items.map(i => i.code);
 
@@ -2737,7 +2737,7 @@ router.post('/inventory/scan-incremental', verifyToken, async (req, res) => {
                 .eq('id', orderNumber)
                 .maybeSingle();
 
-            if (countCheck && countCheck.parent_count_id) {
+            if (countCheck && countCheck.parent_count_id && !['admin', 'superadmin', 'branch_admin'].includes(req.user.role)) {
                 const { data: previous } = await supabase
                     .from('inventory_scans')
                     .select('id')
