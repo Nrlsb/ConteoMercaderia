@@ -2077,7 +2077,8 @@ router.put('/general-counts/:id/close', verifyToken, hasPermission('close_counts
         step = 'resolve_references';
         // Check if grouped stock import
         const parts = (currentCount.name || '').split(',').map(s => s.trim());
-        const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
+        const cleanParts = parts.map(p => p.replace(/^re-control:\s*/i, ''));
+        const linkedOrderNumbers = cleanParts.filter(p => p.startsWith('STOCK-'));
 
         if (linkedOrderNumbers.length > 0) {
             console.log(`[CLOSE_COUNT] ${id}: Resolving products from ${linkedOrderNumbers.length} orders`);
@@ -2158,6 +2159,11 @@ router.put('/general-counts/:id/close', verifyToken, hasPermission('close_counts
             step = 'fallback_get_all_products';
             console.log(`[CLOSE_COUNT] ${id}: Using fallback (FULL products list)`);
             allProducts = await getAllProducts();
+        }
+
+        // If it is a re-control count, filter reference products to only those needing re-control
+        if (currentCount.product_codes && Array.isArray(currentCount.product_codes) && currentCount.product_codes.length > 0) {
+            allProducts = allProducts.filter(p => currentCount.product_codes.includes(p.code));
         }
 
         step = 'build_report';
@@ -2339,7 +2345,8 @@ router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_
         // 3. Get expected stock (simplified for now, using the same logic as close)
         let allProducts = [];
         const parts = (originalCount.name || '').split(',').map(s => s.trim());
-        const linkedOrderNumbers = parts.filter(p => p.startsWith('STOCK-'));
+        const cleanParts = parts.map(p => p.replace(/^re-control:\s*/i, ''));
+        const linkedOrderNumbers = cleanParts.filter(p => p.startsWith('STOCK-'));
 
         if (linkedOrderNumbers.length > 0) {
             const { data: linkedPreRemitos } = await supabase
@@ -2360,6 +2367,10 @@ router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_
 
         if (allProducts.length === 0) {
             allProducts = await getAllProducts();
+        }
+
+        if (originalCount.product_codes && Array.isArray(originalCount.product_codes) && originalCount.product_codes.length > 0) {
+            allProducts = allProducts.filter(p => originalCount.product_codes.includes(p.code));
         }
 
         // 4. Identify products with differences

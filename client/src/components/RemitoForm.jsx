@@ -534,12 +534,18 @@ const RemitoForm = () => {
             if (selectedCount && countMode === 'pre_remito' && !expectedItems && preRemitoStatus !== 'loading') {
                 // Determine if this count name looks like order numbers (Remito Mode)
                 // In this app, counts created from remitos have the order numbers as name
-                const orderNumbers = selectedCount.name.split(',').map(n => n.trim());
+                const cleanName = selectedCount.name.replace(/^re-control:\s*/i, '');
+                const orderNumbers = cleanName.split(',').map(n => n.trim());
                 if (orderNumbers.length > 0 && orderNumbers[0].length > 3) {
                     try {
                         setPreRemitoStatus('loading');
                         const mergedItems = await fetchItemsByOrders(orderNumbers);
-                        setExpectedItems(mergedItems);
+                        
+                        let finalItems = mergedItems;
+                        if (selectedCount.product_codes && Array.isArray(selectedCount.product_codes)) {
+                            finalItems = mergedItems.filter(item => selectedCount.product_codes.includes(item.code));
+                        }
+                        setExpectedItems(finalItems);
                         setPreRemitoStatus('found');
                         setRemitoNumber(orderNumbers.join(', '));
                     } catch (e) {
@@ -836,8 +842,14 @@ const RemitoForm = () => {
     const handleResumeActiveCount = async (count, orderNumbers) => {
         try {
             setPreRemitoStatus('loading');
-            const mergedItems = await fetchItemsByOrders(orderNumbers);
-            setExpectedItems(mergedItems);
+            const cleanOrderNumbers = orderNumbers.map(num => num.replace(/^re-control:\s*/i, ''));
+            const mergedItems = await fetchItemsByOrders(cleanOrderNumbers);
+            
+            let finalItems = mergedItems;
+            if (count.product_codes && Array.isArray(count.product_codes)) {
+                finalItems = mergedItems.filter(item => count.product_codes.includes(item.code));
+            }
+            setExpectedItems(finalItems);
 
             // Set the selected count to trigger the display of the active count
             selectionClearedRef.current = false;
@@ -2046,8 +2058,10 @@ const RemitoForm = () => {
                                                         <div className="flex-1 flex justify-between items-center">
                                                             <div>
                                                                 <div className="text-sm font-bold text-blue-900 max-h-24 overflow-y-auto break-all custom-scrollbar pr-2">
-                                                                    Conteo Activo: {count.name.split(',').map(n => n.trim()).map(num => {
-                                                                        const pre = preRemitoList.find(p => p.order_number === num);
+                                                                    {count.name.toUpperCase().startsWith('RE-CONTROL:') ? 'Re-control: ' : 'Conteo Activo: '}
+                                                                    {count.name.split(',').map(n => n.trim()).map(num => {
+                                                                        const cleanNum = num.replace(/^re-control:\s*/i, '');
+                                                                        const pre = preRemitoList.find(p => p.order_number === cleanNum);
                                                                         if (pre) {
                                                                             if (pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
                                                                                 return `Stock Inicial - ${pre.id_inventory}`;
@@ -2055,7 +2069,7 @@ const RemitoForm = () => {
                                                                                 return `PV: ${pre.numero_pv}`;
                                                                             }
                                                                         }
-                                                                        return num;
+                                                                        return cleanNum;
                                                                     }).join(', ')}
                                                                 </div>
                                                                 <div className="text-xs text-blue-700 flex gap-2 mt-0.5">
