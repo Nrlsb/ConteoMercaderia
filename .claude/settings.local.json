@@ -9,7 +9,12 @@
       "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" && npx --no cap sync android 2>&1 | tail -10)",
       "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\" && node_modules/.bin/cap sync android 2>&1 | tail -10)",
       "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\Proyectos\\\\ConteodeMercaderia\\\\client\" && node_modules/.bin/cap sync android 2>&1 | tail -10)",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(node -e \"const XLSX = require\\('xlsx'\\); const wb = XLSX.readFile\\('./server/COLORANTES PLAVICON.xlsx'\\); console.log\\(JSON.stringify\\(XLSX.utils.sheet_to_json\\(wb.Sheets[wb.SheetNames[0]]\\), null, 2\\)\\)\")",
+      "Bash(node -e \"const XLSX = require\\('xlsx'\\); const wb = XLSX.readFile\\('./server/COLORANTES PLAVICON.xlsx'\\); const sheet = wb.Sheets[wb.SheetNames[0]]; const data = XLSX.utils.sheet_to_json\\(sheet\\); console.log\\(JSON.stringify\\(data, null, 2\\)\\)\")",
+      "Bash(node -e \"const XLSX = require\\('xlsx'\\); const wb = XLSX.readFile\\('./server/COLORANTES PLAVICON.xlsx'\\); console.log\\('Hojas:', wb.SheetNames\\); wb.SheetNames.forEach\\(sheet => { console.log\\('\\\\n=== ' + sheet + ' ==='\\); const data = XLSX.utils.sheet_to_json\\(wb.Sheets[sheet]\\); console.log\\(JSON.stringify\\(data.slice\\(0, 10\\), null, 2\\)\\); }\\)\")",
+      "Bash(node server/import_plavicon_colorants.js)",
+      "Bash(node -e ' *)"
     ]
   }
 }

@@ -258,15 +258,13 @@ const PesajePage = () => {
                     const res = await api.get(`/api/measurements/dye-counts/${selectedCount.id}/products`);
                     colorants = res.data.products || [];
                 } else if (currentGroup) {
-                    colorants = await db.products
-                        .where('counting_category')
-                        .equals(currentGroup)
-                        .toArray();
-                    colorants.sort((a, b) => a.description.localeCompare(b.description));
+                    // Load colorants from server by category instead of IndexedDB
+                    const res = await api.get(`/api/products/colorants-by-category?category=${encodeURIComponent(currentGroup)}`);
+                    colorants = res.data || [];
                 }
-                
+
                 setHogarColorants(colorants);
-                
+
                 // Initialize inputs
                 const initialInputs = {};
                 colorants.forEach(p => {

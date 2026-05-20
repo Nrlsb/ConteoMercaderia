@@ -539,3 +539,27 @@ exports.updateBarcodeSecondary = async (req, res) => {
         res.status(500).json({ message: 'Error updating secondary barcode' });
     }
 };
+
+// Get colorants (products) by counting_category
+exports.getColorantsByCategory = async (req, res) => {
+    const { category } = req.query;
+
+    if (!category) {
+        return res.status(400).json({ message: 'Category parameter required' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .select('id, code, description, brand, counting_category, conversion_factor')
+            .eq('counting_category', category)
+            .order('description', { ascending: true });
+
+        if (error) throw error;
+
+        res.json(data || []);
+    } catch (error) {
+        console.error('Error fetching colorants by category:', error);
+        res.status(500).json({ message: 'Error al obtener colorantes' });
+    }
+};
