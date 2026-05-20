@@ -257,9 +257,9 @@ const PesajePage = () => {
                     // NEW: Endpoint separado para productos de colorantes (Ahora incluye conversion_factor desde el servidor)
                     const res = await api.get(`/api/measurements/dye-counts/${selectedCount.id}/products`);
                     colorants = res.data.products || [];
-                } else if (currentGroup) {
-                    // Load colorants from server by category instead of IndexedDB
-                    const res = await api.get(`/api/products/colorants-by-category?category=${encodeURIComponent(currentGroup)}`);
+                } else if (user?.sucursal_name) {
+                    // Load colorants from server by sucursal
+                    const res = await api.get(`/api/products/colorants-by-category?sucursal=${encodeURIComponent(user.sucursal_name)}`);
                     colorants = res.data || [];
                 }
 
