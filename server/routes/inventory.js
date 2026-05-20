@@ -2726,7 +2726,7 @@ router.post('/inventory/scan-incremental', verifyToken, async (req, res) => {
         // Process sequentially to avoid race conditions on same row if multiple items target same code (unlikely but possible)
         for (const item of items) {
             const internalCode = String(item.code).trim();
-            const delta = parseInt(item.quantity, 10);
+            const delta = parseFloat(item.quantity);
             if (isNaN(delta) || delta === 0) continue;
 
             // --- RE-CONTROL RULE ENFORCEMENT ---

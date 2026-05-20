@@ -1023,8 +1023,8 @@ const RemitoForm = () => {
     };
 
     const handleQuantityChange = (code, newQuantity) => {
-        const qty = parseInt(newQuantity, 10);
-        if (isNaN(qty) || qty < 1) return;
+        const qty = parseFloat(newQuantity);
+        if (isNaN(qty) || qty <= 0) return;
 
         setItems(prevItems => {
             const item = prevItems.find(i => i.code === code);
@@ -2624,20 +2624,21 @@ const RemitoForm = () => {
                                                         <div className="flex items-center bg-gray-100 rounded-lg p-1">
                                                             <button
                                                                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
-                                                                onClick={() => handleQuantityChange(item.code, Math.max(1, item.quantity - 1))}
+                                                                onClick={() => handleQuantityChange(item.code, Number((item.quantity - 1).toFixed(4)))}
                                                             >
                                                                 -
                                                             </button>
                                                             <input
                                                                 type="number"
-                                                                min="1"
+                                                                step="any"
+                                                                min="0.001"
                                                                 value={item.quantity}
                                                                 onChange={(e) => handleQuantityChange(item.code, e.target.value)}
                                                                 className="w-14 p-0 bg-transparent border-0 text-center font-bold text-brand-dark focus:ring-0 text-lg"
                                                             />
                                                             <button
                                                                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
-                                                                onClick={() => handleQuantityChange(item.code, item.quantity + 1)}
+                                                                onClick={() => handleQuantityChange(item.code, Number((item.quantity + 1).toFixed(4)))}
                                                             >
                                                                 +
                                                             </button>
@@ -2735,20 +2736,21 @@ const RemitoForm = () => {
                                                         <div className="flex items-center bg-gray-100 rounded-lg p-1">
                                                             <button
                                                                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
-                                                                onClick={() => handleQuantityChange(item.code, Math.max(1, item.quantity - 1))}
+                                                                onClick={() => handleQuantityChange(item.code, Number((item.quantity - 1).toFixed(4)))}
                                                             >
                                                                 -
                                                             </button>
                                                             <input
                                                                 type="number"
-                                                                min="1"
+                                                                step="any"
+                                                                min="0.001"
                                                                 value={item.quantity}
                                                                 onChange={(e) => handleQuantityChange(item.code, e.target.value)}
                                                                 className="w-14 p-0 bg-transparent border-0 text-center font-bold text-brand-dark focus:ring-0 text-lg"
                                                             />
                                                             <button
                                                                 className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm rounded transition text-lg"
-                                                                onClick={() => handleQuantityChange(item.code, item.quantity + 1)}
+                                                                onClick={() => handleQuantityChange(item.code, Number((item.quantity + 1).toFixed(4)))}
                                                             >
                                                                 +
                                                             </button>
