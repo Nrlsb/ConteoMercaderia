@@ -6,6 +6,7 @@ const Scanner = lazy(() => import('./Scanner'));
 const ReportModal = lazy(() => import('./ReportModal'));
 const BranchCountList = lazy(() => import('./BranchCountList'));
 const GuideModal = lazy(() => import('./GuideModal'));
+const InteractiveTour = lazy(() => import('./InteractiveTour'));
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import FichajeModal from './FichajeModal';
@@ -104,6 +105,8 @@ const RemitoForm = () => {
 
     // Guide Modal State
     const [isGuideOpen, setIsGuideOpen] = useState(false);
+    const [isTourOpen, setIsTourOpen] = useState(false);
+    const [showHelpChoice, setShowHelpChoice] = useState(false);
 
     // --- OPTIMIZED DATA STRUCTURES ---
     // Optimized lookup for expected quantities using a Map (O(1) instead of O(n))
@@ -1715,6 +1718,67 @@ const RemitoForm = () => {
     // Calculate total quantity of items scanned
     const totalQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
+    // Pasos de la guía interactiva
+    const tourSteps = [
+        {
+            target: null,
+            title: "¡Bienvenido a la Guía Interactiva!",
+            content: "Te daremos un paseo rápido por esta pantalla para que aprendas a realizar el conteo de mercadería de manera ágil y sin cometer errores.",
+            placement: "center"
+        },
+        ...(countMode === 'pre_remito' ? [
+            {
+                target: "#tour-cargar-conteo",
+                title: "1. Panel de Carga de Conteos",
+                content: "Aquí puedes visualizar y seleccionar el conteo activo de tu sucursal o crear uno nuevo (si eres administrador) basado en remitos/pedidos cargados.",
+                placement: "bottom"
+            }
+        ] : []),
+        {
+            target: "#tour-agregar-productos",
+            title: "2. Formulario de Ingreso",
+            content: "Este bloque te permite buscar y registrar productos en el conteo. Puedes cargarlos de tres formas distintas: manual, por voz o usando la cámara.",
+            placement: "right"
+        },
+        {
+            target: "#tour-manual-input",
+            title: "3. Entrada Manual / Autocompletado",
+            content: "Escribe el código o descripción del producto aquí. Verás sugerencias en tiempo real; haz clic en el producto correspondiente para agregarlo.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-voz-search-btn",
+            title: "4. Búsqueda por Voz",
+            content: "¡Ahorra tiempo de escritura! Toca este micrófono y di en voz alta el nombre del producto o su código para buscarlo automáticamente.",
+            placement: "top"
+        },
+        {
+            target: "#tour-usar-camara-btn",
+            title: "5. Escaneo por Cámara",
+            content: "Haz clic aquí para abrir la cámara de tu dispositivo. Podrás escanear códigos de barras de los productos de forma consecutiva e instantánea.",
+            placement: "top"
+        },
+        {
+            target: "#tour-items-escaneados",
+            title: "6. Lista de Productos Escaneados",
+            content: "Aquí se listan todos los productos que has escaneado. Puedes modificar sus cantidades utilizando los botones + / - o eliminarlos si te has equivocado.",
+            placement: "left"
+        },
+        ...(countMode === 'pre_remito' && !selectedCount ? [
+            {
+                target: "#tour-submit-conteo",
+                title: "7. Procesar y Cargar Conteo",
+                content: "Una vez que termines de escanear y registrar todos los productos, presiona este botón para enviar el conteo y comparar diferencias.",
+                placement: "top"
+            }
+        ] : []),
+        {
+            target: null,
+            title: "¡Guía Completada!",
+            content: "Ya sabes cómo usar la pestaña. Recuerda que la aplicación tiene soporte offline: si te quedas sin conexión, tus escaneos se guardan y se sincronizarán solos cuando vuelva el internet. ¡Excelente trabajo!",
+            placement: "center"
+        }
+    ];
 
     return (
         <div className="relative w-full h-full">
@@ -1762,6 +1826,68 @@ const RemitoForm = () => {
                     onClose={() => setIsGuideOpen(false)}
                 />
             </Suspense>
+
+            <Suspense fallback={null}>
+                <InteractiveTour
+                    isOpen={isTourOpen}
+                    onClose={() => setIsTourOpen(false)}
+                    steps={tourSteps}
+                />
+            </Suspense>
+
+            {showHelpChoice && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="text-center mb-6">
+                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <HelpCircle className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900">Guía de Ayuda</h3>
+                            <p className="text-sm text-gray-500 mt-1">¿Cómo deseas aprender a usar esta pestaña?</p>
+                        </div>
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => {
+                                    setShowHelpChoice(false);
+                                    setIsTourOpen(true);
+                                }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group"
+                            >
+                                <div className="p-3 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors animate-pulse">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900 text-sm">Guía Interactiva (Recomendado)</h4>
+                                    <p className="text-xs text-gray-500 mt-0.5">Un tour guiado paso a paso señalando cada parte de la pantalla.</p>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowHelpChoice(false);
+                                    setIsGuideOpen(true);
+                                }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group"
+                            >
+                                <div className="p-3 bg-gray-100 text-gray-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900 text-sm">Manual de Usuario</h4>
+                                    <p className="text-xs text-gray-500 mt-0.5">Ver instrucciones detalladas en formato de lectura.</p>
+                                </div>
+                            </button>
+                        </div>
+                        <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end">
+                            <button
+                                onClick={() => setShowHelpChoice(false)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Clarification Modal */}
             {showClarificationModal && (
@@ -1886,7 +2012,7 @@ const RemitoForm = () => {
                     <div className="flex items-center gap-3">
                         <h2 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Nuevo Conteo</h2>
                         <button
-                            onClick={() => setIsGuideOpen(true)}
+                            onClick={() => setShowHelpChoice(true)}
                             className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-all duration-200 group relative"
                             title="Guía de uso"
                         >
@@ -2039,7 +2165,7 @@ const RemitoForm = () => {
 
                 {/* Pre-Remito Section - Only Visible if countMode is 'pre_remito' */}
                 {countMode === 'pre_remito' && (
-                    <div className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm transition-all duration-300">
+                    <div id="tour-cargar-conteo" className="mb-8 p-4 md:p-6 bg-brand-bg rounded-xl border border-gray-200 shadow-sm transition-all duration-300">
                         <div
                             className="flex items-center justify-between cursor-pointer group"
                             onClick={() => setIsCargarConteoCollapsed(!isCargarConteoCollapsed)}
@@ -2423,7 +2549,7 @@ const RemitoForm = () => {
                             />
                         </div>
 
-                        <div className="bg-white p-4 md:p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <div id="tour-agregar-productos" className="bg-white p-4 md:p-6 rounded-xl border border-gray-200 shadow-sm">
                             <h3 className="text-lg font-semibold mb-4 text-brand-dark">Agregar Productos</h3>
 
                             {/* Manual Input */}
@@ -2431,6 +2557,7 @@ const RemitoForm = () => {
                                 <label className="block text-xs font-medium text-brand-gray mb-1 uppercase tracking-wide">Ingreso Manual</label>
                                 <div className="flex flex-col gap-3 relative">
                                     <input
+                                        id="tour-manual-input"
                                         type="text"
                                         value={manualCode}
                                         onChange={handleManualChangeDebounced}
@@ -2444,6 +2571,7 @@ const RemitoForm = () => {
 
                                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center mb-16">
                                         <button
+                                            id="tour-voz-search-btn"
                                             type="button" // Prevent form submit
                                             onClick={handleVoiceSearch}
                                             className={`p-1.5 rounded-full transition-colors focus:outline-none z-10 ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
@@ -2528,6 +2656,7 @@ const RemitoForm = () => {
                             <div className="mt-6">
                                 {!isScanning && (
                                     <button
+                                        id="tour-usar-camara-btn"
                                         onClick={() => setIsScanning(true)}
                                         className="w-full flex items-center justify-center px-4 py-3 rounded-lg border-2 border-brand-blue text-brand-blue hover:bg-blue-50 transition font-medium"
                                     >
@@ -2584,7 +2713,7 @@ const RemitoForm = () => {
 
                     {/* Right Column: Item List (Hidden in scan mode when a count is active to improve performance) */}
                     <div className={`lg:col-span-2 flex flex-col h-full ${selectedCount && countTab === 'scan' ? 'hidden' : ''}`}>
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
+                        <div id="tour-items-escaneados" className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
                             <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                                 <h3 className="font-semibold text-brand-dark flex items-center">
                                     <svg className="w-5 h-5 mr-2 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
@@ -2662,6 +2791,7 @@ const RemitoForm = () => {
                             {countMode !== 'products' && !selectedCount && (
                                 <div className="p-4 bg-white border-t border-gray-200">
                                     <button
+                                        id="tour-submit-conteo"
                                         onClick={handleSubmitRemito}
                                         disabled={items.length === 0 || !remitoNumber}
                                         className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center shadow-lg ${items.length > 0 && remitoNumber

@@ -43,10 +43,10 @@ const RemitoList = () => {
 
         // 1. Canal para cambios en los escaneos (actualiza progreso)
         const scansChannel = supabase.channel('history_scans')
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'inventory_scans' 
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'inventory_scans'
             }, () => {
                 debouncedFetch();
             })
@@ -54,17 +54,17 @@ const RemitoList = () => {
 
         // 2. Canal para nuevos conteos o cierres
         const documentsChannel = supabase.channel('history_docs')
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'general_counts' 
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'general_counts'
             }, () => {
                 debouncedFetch();
             })
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'remitos' 
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'remitos'
             }, () => {
                 debouncedFetch();
             })
@@ -199,7 +199,7 @@ const RemitoList = () => {
                 <div className="p-6 border-b border-gray-200 bg-white">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Historial de Conteos de Venta</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Historial de Conteos</h2>
                             <p className="text-sm text-gray-500 mt-1">Gestiona y audita los movimientos de mercadería</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -596,7 +596,7 @@ const RemitoList = () => {
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 5 8.268 7.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                                         </button>
                                                         {remito.is_finalized && (remito.type === 'general_count' || remito.type === 'remito') && (user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
-                                                            <button 
+                                                            <button
                                                                 onClick={async (e) => {
                                                                     e.stopPropagation();
                                                                     if (!window.confirm('¿Deseas iniciar un re-control de diferencias para este conteo? Se creará una nueva sesión con los productos que tuvieron discrepancias.')) return;
@@ -608,7 +608,7 @@ const RemitoList = () => {
                                                                         toast.error(err.response?.data?.message || 'Error al iniciar re-control');
                                                                     }
                                                                 }}
-                                                                className="text-gray-400 hover:text-orange-500 transition" 
+                                                                className="text-gray-400 hover:text-orange-500 transition"
                                                                 title="Iniciar Re-control"
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
