@@ -3,10 +3,47 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { HelpCircle } from 'lucide-react';
+
+const InteractiveTour = React.lazy(() => import('./InteractiveTour'));
 
 const BranchIncomingsList = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+
+    const [isTourOpen, setIsTourOpen] = useState(false);
+    const tourSteps = [
+        {
+            target: null,
+            title: "¡Bienvenido al Ingreso de Sucursal!",
+            content: "En esta pantalla podrás controlar la mercadería que llega a tu sucursal. Te guiaremos paso a paso para que aprendas cómo funciona.",
+            placement: "center"
+        },
+        {
+            target: "#tour-pendientes-seccion",
+            title: "Remitos Pendientes",
+            content: "Aquí se listan todos los remitos de mercadería que fueron despachados desde el depósito central u otra sucursal y que aún no has controlado.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-seleccion-multiple",
+            title: "Selección Múltiple",
+            content: "Si tienes varios remitos del mismo camión o proveedor, puedes seleccionarlos utilizando las casillas de verificación para realizar un único control unificado de todos los productos.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-boton-recibir",
+            title: "Iniciar Control",
+            content: "Haz clic en el botón 'Recibir' de un remito (o en 'Recibir Seleccionados' si marcaste varios) para comenzar el conteo físico de los productos.",
+            placement: "left"
+        },
+        {
+            target: "#tour-historial-seccion",
+            title: "Historial y Controles en Curso",
+            content: "Aquí verás los controles que dejaste abiertos (En Curso) para continuarlos, y también los ingresos que ya finalizaste.",
+            placement: "top"
+        }
+    ];
     
     // Transfers (Pending) State
     const [transfers, setTransfers] = useState([]);
@@ -191,7 +228,19 @@ const BranchIncomingsList = () => {
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
                 <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
                 
-                <h1 className="text-3xl font-extrabold text-white tracking-tight">Ingreso Sucursal</h1>
+                <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2" id="tour-ingreso-sucursal-titulo">
+                    Ingreso Sucursal
+                    <button
+                        onClick={() => setIsTourOpen(true)}
+                        className="p-1 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all duration-200 group relative animate-pulse"
+                        title="Guía de uso"
+                    >
+                        <HelpCircle className="w-5 h-5" />
+                        <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium shadow-xl border border-gray-700 z-[100]">
+                            ¿Cómo usar?
+                        </span>
+                    </button>
+                </h1>
                 <p className="text-blue-100/80 text-sm mt-2 max-w-md">
                     Gestiona los remitos de egreso destinados a tu sucursal y haz el seguimiento de tus ingresos.
                 </p>
@@ -223,7 +272,7 @@ const BranchIncomingsList = () => {
                     {(transfers.length > 0 || loadingPending) && (
                         <div className="relative">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-black text-gray-800 flex items-center gap-3">
+                                <h2 className="text-xl font-black text-gray-800 flex items-center gap-3" id="tour-pendientes-seccion">
                                     <span className="flex h-3 w-3 relative">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-sm shadow-emerald-200"></span>
@@ -241,7 +290,7 @@ const BranchIncomingsList = () => {
                                     <table className="min-w-full">
                                         <thead>
                                             <tr className="bg-gray-50/50 border-b border-gray-100">
-                                                <th className="px-6 py-4 text-left w-12">
+                                                <th id="tour-seleccion-multiple" className="px-6 py-4 text-left w-12">
                                                     <input 
                                                         type="checkbox" 
                                                         className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue cursor-pointer"
@@ -256,7 +305,7 @@ const BranchIncomingsList = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {transfers.map(transfer => (
+                                            {transfers.map((transfer, index) => (
                                                 <tr key={transfer.id} className={`hover:bg-blue-50/30 transition-colors group ${selectedTransfers.includes(transfer.id) ? 'bg-blue-50/50' : ''}`}>
                                                     <td className="px-6 py-5">
                                                         <input 
@@ -293,6 +342,7 @@ const BranchIncomingsList = () => {
                                                     <td className="px-6 py-5 text-right">
                                                         <button
                                                             onClick={() => handleReceive(transfer.id)}
+                                                            id={index === 0 ? "tour-boton-recibir" : undefined}
                                                             disabled={processingId === transfer.id || processingMultiple}
                                                             className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-2 px-5 rounded-xl shadow-lg shadow-emerald-100 transition-all disabled:opacity-50 disabled:active:scale-100"
                                                         >
@@ -405,7 +455,7 @@ const BranchIncomingsList = () => {
                     {(receiptHistory.length > 0 || loadingHistory) && (
                         <div>
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-black text-gray-800 flex items-center gap-3">
+                                <h2 className="text-xl font-black text-gray-800 flex items-center gap-3" id="tour-historial-seccion">
                                     <div className="p-1.5 bg-blue-100 rounded-lg">
                                         <svg className="w-4 h-4 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -542,9 +592,17 @@ const BranchIncomingsList = () => {
                     )}
                 </div>
             )}
+            <React.Suspense fallback={null}>
+                {isTourOpen && (
+                    <InteractiveTour
+                        steps={tourSteps}
+                        isOpen={isTourOpen}
+                        onClose={() => setIsTourOpen(false)}
+                    />
+                )}
+            </React.Suspense>
         </div>
     );
 };
 
 export default BranchIncomingsList;
-

@@ -17,6 +17,9 @@ import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import ReceiptHistory from './ReceiptHistory';
 import { normalizeText } from '../utils/textUtils';
+import { HelpCircle } from 'lucide-react';
+
+const InteractiveTour = React.lazy(() => import('./InteractiveTour'));
 
 const QuickSuggestions = ({ description, onSelect }) => {
     const [suggestions, setSuggestions] = useState([]);
@@ -66,6 +69,47 @@ const ReceiptDetailsPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth(); // token no se usa y no existe en AuthContext
+
+    const [isTourOpen, setIsTourOpen] = useState(false);
+    const tourSteps = [
+        {
+            target: null,
+            title: "¡Bienvenido al Control de Ingreso!",
+            content: "En esta pantalla realizarás el conteo de la mercadería recibida física frente a la cantidad teórica esperada.",
+            placement: "center"
+        },
+        {
+            target: "#tour-receipt-header",
+            title: "Datos y Exportación",
+            content: "Aquí tienes los datos del remito, su estado (Abierto/Finalizado) y las opciones para descargar el reporte en Excel o exportar diferencias.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-receipt-progress",
+            title: "Progreso del Control",
+            content: "Esta barra te muestra el avance del control: el porcentaje y la cantidad total de unidades controladas versus las esperadas.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-receipt-tabs",
+            title: "Pestañas de Trabajo",
+            content: "Cambia entre pestañas para 'Controlar' productos, ver los 'No Encontrados' en el catálogo, analizar 'Diferencias' de stock o revisar el 'Historial' de escaneos.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-receipt-input-area",
+            title: "Escanear / Buscar Producto",
+            content: "Elige el método de búsqueda (código de barras, código interno, etc.). Escribe o escanea el producto y confirma su cantidad. ¡También puedes usar búsqueda por voz con el micrófono!",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-finalize-button",
+            title: "Finalizar Ingreso",
+            content: "Una vez que hayas terminado de controlar todos los productos, haz clic aquí para 'Finalizar Ingreso' y registrar los resultados.",
+            placement: "left"
+        }
+    ];
+
     const [receipt, setReceipt] = useState(null);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1466,9 +1510,21 @@ const ReceiptDetailsPage = () => {
             </div>
             <div className={`container mx-auto p-4 max-w-lg md:max-w-5xl ${isBarcodeReaderActive || showScanner ? 'hidden' : 'block'}`}>
                 {/* Header */}
-                <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div id="tour-receipt-header" className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900 leading-tight">Remito: {receipt.remito_number}</h1>
+                        <h1 className="text-xl font-bold text-gray-900 leading-tight flex items-center gap-2">
+                            Remito: {receipt.remito_number}
+                            <button
+                                onClick={() => setIsTourOpen(true)}
+                                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 group relative animate-pulse"
+                                title="Guía de uso"
+                            >
+                                <HelpCircle className="w-5 h-5" />
+                                <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium shadow-xl border border-gray-700 z-[100]">
+                                    ¿Cómo usar?
+                                </span>
+                            </button>
+                        </h1>
                         <div className="text-sm mt-1 flex items-center gap-3">
                             <span>
                                 Estado: <span className={receipt.status === 'finalized' ? 'text-green-600 font-bold' : 'text-yellow-600 font-bold'}>
@@ -1584,6 +1640,7 @@ const ReceiptDetailsPage = () => {
                             canClose && (
                                 <button
                                     onClick={handleFinalize}
+                                    id="tour-finalize-button"
                                     className="bg-brand-alert text-white px-6 py-2.5 rounded-lg font-bold hover:bg-red-700 shadow-sm transition-colors"
                                 >
                                     Finalizar Ingreso
@@ -1603,7 +1660,7 @@ const ReceiptDetailsPage = () => {
                 </div>
 
                 {/* Progress */}
-                <div className="bg-white p-4 rounded shadow mb-4">
+                <div id="tour-receipt-progress" className="bg-white p-4 rounded shadow mb-4">
                     <div className="flex justify-between text-sm mb-1">
                         <span>Progreso Global</span>
                         <span>{Math.round(progress)}% ({totalScanned} / {totalExpected})</span>
@@ -1617,7 +1674,7 @@ const ReceiptDetailsPage = () => {
                 </div>
 
                 {/* Modes Tabs */}
-                <div className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-2 overflow-hidden">
+                <div id="tour-receipt-tabs" className="flex flex-col sm:flex-row mb-4 bg-gray-200/50 p-1.5 rounded-xl gap-2 overflow-hidden">
                     <div className="flex flex-1 gap-1 overflow-x-auto no-scrollbar pb-0.5 sm:pb-0">
                         {availableTabs.map(tab => (
                             <button
@@ -1666,7 +1723,7 @@ const ReceiptDetailsPage = () => {
 
                 {/* Input Area */}
                 {receipt.status !== 'finalized' && activeTab !== 'diff' && (
-                    <div className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100">
+                    <div id="tour-receipt-input-area" className="bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100">
                         <form onSubmit={handleScan} className="flex flex-col gap-4">
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <div className="flex-1">
@@ -2834,6 +2891,15 @@ const ReceiptDetailsPage = () => {
                     </div>
                 </div>
             )}
+            <React.Suspense fallback={null}>
+                {isTourOpen && (
+                    <InteractiveTour
+                        steps={tourSteps}
+                        isOpen={isTourOpen}
+                        onClose={() => setIsTourOpen(false)}
+                    />
+                )}
+            </React.Suspense>
         </div>
     );
 };
