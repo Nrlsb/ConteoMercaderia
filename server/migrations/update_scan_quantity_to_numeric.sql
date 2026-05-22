@@ -4,6 +4,10 @@
 ALTER TABLE inventory_scans ALTER COLUMN quantity TYPE numeric;
 
 -- 2. Redefine the increment function to accept numeric delta instead of integer
+-- Primero eliminamos la función anterior con delta integer para evitar duplicados / sobrecarga ambigua en PostgREST
+DROP FUNCTION IF EXISTS public.increment_inventory_scan(text, uuid, text, integer);
+DROP FUNCTION IF EXISTS public.increment_inventory_scan(p_order_number text, p_user_id uuid, p_code text, p_delta integer);
+
 CREATE OR REPLACE FUNCTION increment_inventory_scan(
     p_order_number text,
     p_user_id uuid,

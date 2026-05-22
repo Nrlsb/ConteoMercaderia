@@ -896,11 +896,11 @@ const RemitoForm = () => {
     };
 
     const handleDeletePreRemito = async (id, orderNumber) => {
-        if (!window.confirm(`¿Está seguro que desea eliminar permanentemente el pedido ${orderNumber}?`)) return;
+        if (!window.confirm(`¿Está seguro que desea eliminar permanentemente el conteo ${orderNumber}?`)) return;
 
         try {
             await api.delete(`/api/pre-remitos/${id}`);
-            triggerModal('Éxito', 'Pedido eliminado correctamente.', 'success');
+            triggerModal('Éxito', 'Conteo eliminado correctamente.', 'success');
 
             // Remove from selected list if it's there
             setSelectedPreRemitos(prev => prev.filter(num => num !== orderNumber));
@@ -912,7 +912,7 @@ const RemitoForm = () => {
             }
         } catch (error) {
             console.error('Error deleting pre-remito:', error);
-            triggerModal('Error', 'No se pudo eliminar el pedido. Verifique sus permisos.', 'error');
+            triggerModal('Error', 'No se pudo eliminar el conteo. Verifique sus permisos.', 'error');
         }
     };
 
@@ -948,7 +948,7 @@ const RemitoForm = () => {
             if (files.length > 1) {
                 triggerModal('Éxito', `${files.length} archivos importados correctamente.`, 'success');
             } else if (lastOrderNumber) {
-                triggerModal('Éxito', `Stock importado correctamente. Pedido: ${lastOrderNumber}`, 'success');
+                triggerModal('Éxito', `Stock importado correctamente. Conteo: ${lastOrderNumber}`, 'success');
             }
 
             // Refresh pre-remitos list
@@ -1219,8 +1219,8 @@ const RemitoForm = () => {
                 } else {
                     // STRICT MODE: Instead of blocking, ask for confirmation
                     triggerModal(
-                        'Producto no en pedido',
-                        `El producto "${inputCode}" no pertenece al pedido cargado. ¿Desea agregarlo de todas formas como un item extra?`,
+                        'Producto no en conteo',
+                        `El producto "${inputCode}" no pertenece al conteo cargado. ¿Desea agregarlo de todas formas como un item extra?`,
                         'warning',
                         () => {
                             isForcingUnexpectedRef.current = true;
@@ -1775,7 +1775,7 @@ const RemitoForm = () => {
                         </div>
                         <div className="p-6 overflow-y-auto custom-scrollbar">
                             <p className="text-gray-700 mb-4">
-                                Se han detectado diferencias entre el pedido y lo escaneado. Por favor, ingrese una aclaración para continuar.
+                                Se han detectado diferencias entre el conteo y lo escaneado. Por favor, ingrese una aclaración para continuar.
                             </p>
 
                             {pendingDiscrepancies && (
@@ -2114,7 +2114,7 @@ const RemitoForm = () => {
                                     {['admin', 'superadmin', 'branch_admin'].includes(user?.role) && (
                                         <>
                                             <div>
-                                                <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Pedidos ({selectedPreRemitos.length})</label>
+                                                <label className="block text-sm font-medium text-brand-gray mb-2">Seleccionar Conteos ({selectedPreRemitos.length})</label>
                                                 <div className="space-y-3">
                                                     <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white space-y-1 custom-scrollbar">
                                                         {Array.isArray(preRemitoList) && preRemitoList.length > 0 ? (
@@ -2153,7 +2153,7 @@ const RemitoForm = () => {
                                                                                     {
                                                                                         pre.order_number.startsWith('STOCK-')
                                                                                             ? (pre.id_inventory ? `Stock Inicial - ${pre.id_inventory} (${new Date(pre.created_at).toLocaleDateString()})` : `Stock Inicial (${new Date(pre.created_at).toLocaleDateString()})`)
-                                                                                            : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Pedido #${pre.order_number.slice(-8)}`)
+                                                                                            : (pre.numero_pv ? `PV: ${pre.numero_pv}` : `Conteo #${pre.order_number.slice(-8)}`)
                                                                                     }
                                                                                 </div>
                                                                                 <div className="text-xs text-brand-gray flex gap-2 mt-0.5">
@@ -2177,7 +2177,7 @@ const RemitoForm = () => {
                                                                                             handleDeletePreRemito(pre.id, pre.order_number);
                                                                                         }}
                                                                                         className="ml-2 text-gray-400 hover:text-red-500 transition p-1.5 rounded-md hover:bg-red-50 focus:outline-none"
-                                                                                        title="Eliminar Pedido"
+                                                                                        title="Eliminar Conteo"
                                                                                     >
                                                                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                                                                     </button>
@@ -2189,7 +2189,7 @@ const RemitoForm = () => {
                                                             })
                                                         ) : (
                                                             <div className="p-4 text-center text-gray-500 text-sm italic">
-                                                                No hay pedidos pendientes disponibles
+                                                                No hay conteos pendientes disponibles
                                                             </div>
                                                         )}
                                                     </div>
@@ -2208,7 +2208,7 @@ const RemitoForm = () => {
                                                                 Cargando...
                                                             </>
                                                         ) : (
-                                                            `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Pedidos` : 'Pedidos'}`
+                                                            `Cargar ${selectedPreRemitos.length > 0 ? `${selectedPreRemitos.length} Conteos` : 'Conteos'}`
                                                         )}
                                                     </button>
                                                 </div>
@@ -2267,7 +2267,7 @@ const RemitoForm = () => {
                                     <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
                                         <div className="flex items-center mb-2">
                                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                            <span className="font-bold text-lg">Pedidos cargados con éxito</span>
+                                            <span className="font-bold text-lg">Conteos cargados con éxito</span>
                                             <span className="ml-3 bg-green-200 text-green-900 text-xs font-bold px-2 py-0.5 rounded-full">{expectedItems.length} items consolidados</span>
                                         </div>
                                         {/* Show summary of IDs if multiple */}

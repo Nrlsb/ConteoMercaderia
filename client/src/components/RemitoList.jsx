@@ -199,7 +199,7 @@ const RemitoList = () => {
                 <div className="p-6 border-b border-gray-200 bg-white">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Historial de Pedidos de Venta</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Historial de Conteos de Venta</h2>
                             <p className="text-sm text-gray-500 mt-1">Gestiona y audita los movimientos de mercadería</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -259,7 +259,7 @@ const RemitoList = () => {
                             <input
                                 type="text"
                                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
-                                placeholder="Buscar por N° de pedido..."
+                                placeholder="Buscar por N° de conteo..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />

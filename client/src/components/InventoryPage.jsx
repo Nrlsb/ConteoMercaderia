@@ -110,7 +110,7 @@ const InventoryPage = () => {
         const expected = productLookup.get(trimmedCode);
 
         if (!expected) {
-            const msg = 'Producto no encontrado en el pedido (Modo Estricto)';
+            const msg = 'Producto no encontrado en el conteo (Modo Estricto)';
             toast.error(msg);
             setScanStatus({ type: 'error', message: msg });
             return;
@@ -280,7 +280,7 @@ const InventoryPage = () => {
                             className="flex-1 md:w-64 p-2 border rounded-lg shadow-sm"
                             disabled={localQueue.length > 0} // Lock change if unsaved data
                         >
-                            <option value="">Seleccionar Pedido...</option>
+                            <option value="">Seleccionar Conteo...</option>
                             {orderList.map(o => (
                                 <option key={o.id} value={o.order_number}>
                                     {o.order_number} {o.numero_pv ? `(PV: ${o.numero_pv})` : ''}
@@ -473,7 +473,7 @@ const InventoryPage = () => {
                     </div>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                        <p className="text-gray-500 text-lg">Seleccione un pedido para comenzar a contar</p>
+                        <p className="text-gray-500 text-lg">Seleccione un conteo para comenzar a contar</p>
                     </div>
                 )}
 

@@ -12,7 +12,7 @@ const GuideModal = ({ isOpen, onClose }) => {
             steps: [
                 'Si eres Administrador, puedes crear un nuevo conteo desde el panel superior, asignándole un nombre (ej: "Pasillo 1") y una sucursal.',
                 'Si ya existe un conteo activo, simplemente selecciónalo de la lista para comenzar a trabajar.',
-                'En modo "Pre-Remito", puedes seleccionar uno o varios pedidos pendientes (o subir un XML) para cargar la lista de productos esperados.'
+                'En modo "Pre-Remito", puedes seleccionar uno o varios conteos pendientes (o subir un XML) para cargar la lista de productos esperados.'
             ]
         },
         {
@@ -55,7 +55,7 @@ const GuideModal = ({ isOpen, onClose }) => {
             title: '5. Finalizar y Revisar',
             icon: <CheckCircle className="w-5 h-5 text-purple-600" />,
             steps: [
-                'Si trabajas con un pedido (Pre-Remito), al terminar pulsa "Cargar Conteo" para procesar los resultados.',
+                'Si trabajas con un conteo (Pre-Remito), al terminar pulsa "Cargar Conteo" para procesar los resultados.',
                 'En conteos generales, tus escaneos se guardan en tiempo real. El administrador cerrará el conteo cuando todo el equipo termine.',
                 'Puedes ver el resumen de lo escaneado en la pestaña "Lista de Conteo" (si está habilitada).'
             ]

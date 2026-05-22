@@ -117,7 +117,7 @@ const AdminPage = () => {
                                     const response = await api.post('/api/pre-remitos/import-xml', formData, {
                                         headers: { 'Content-Type': 'multipart/form-data' }
                                     });
-                                    setStatus(`Éxito: Stock importado correctamente. Pedido: ${response.data.orderNumber}`);
+                                    setStatus(`Éxito: Stock importado correctamente. Conteo: ${response.data.orderNumber}`);
                                 } catch (error) {
                                     console.error(error);
                                     setStatus('Error al importar XML Stock.');
