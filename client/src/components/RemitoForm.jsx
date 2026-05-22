@@ -1719,36 +1719,61 @@ const RemitoForm = () => {
     const totalQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
     // Pasos de la guía interactiva dinámicos según el estado del conteo
-    const tourSteps = !selectedCount ? [
-        {
-            target: null,
-            title: "¡Bienvenido a la Guía de Inicio!",
-            content: "Te enseñaremos cómo cargar o iniciar un conteo para que puedas comenzar a trabajar.",
-            placement: "center"
-        },
-        ...(countMode === 'pre_remito' ? [
+    const tourSteps = !selectedCount ? (
+        !['admin', 'superadmin', 'branch_admin'].includes(user?.role) ? [
+            {
+                target: null,
+                title: "¡Bienvenido a la Guía de Inicio!",
+                content: "Te enseñaremos cómo unirte a un conteo de mercadería de tu sucursal para que puedas comenzar a trabajar.",
+                placement: "center"
+            },
             {
                 target: "#tour-cargar-conteo",
-                title: "Cargar Conteo Pendiente",
-                content: "Aquí puedes ver la lista de conteos pendientes de la sucursal. Selecciona uno o varios y presiona 'Cargar Conteos'. También puedes subir un archivo XML del ERP para importar el stock inicial.",
+                title: "Unirse a un Conteo Activo",
+                content: "Si tu administrador ya inició un conteo para tu sucursal, aparecerá listado aquí en 'Conteos en Curso'. Solo debes hacer clic en 'Continuar' para unirte. Si no hay ninguno, deberás esperar a que el administrador lo cree.",
                 placement: "bottom"
-            }
-        ] : []),
-        ...(['admin', 'superadmin', 'branch_admin'].includes(user?.role) ? [
+            },
             {
-                target: "#tour-crear-conteo",
-                title: "Crear Nuevo Conteo General",
-                content: "Si eres administrador, puedes iniciar un nuevo conteo desde aquí. Introduce un nombre (ej: Pasillo 1), selecciona la sucursal y presiona '+ Crear'.",
-                placement: "bottom"
+                target: null,
+                title: "¡Siguiente Paso!",
+                content: "Una vez te unas al conteo activo, se habilitará la pantalla de escaneo. En ese momento, podrás reiniciar esta guía para aprender a registrar y controlar los productos.",
+                placement: "center"
             }
-        ] : []),
-        {
-            target: null,
-            title: "¡Siguiente Paso!",
-            content: "Una vez que selecciones un conteo de la lista o crees uno nuevo, se habilitará la pantalla de escaneo. Cuando lo hagas, ¡puedes volver a iniciar esta guía para ver cómo registrar los productos!",
-            placement: "center"
-        }
-    ] : [
+        ] : [
+            {
+                target: null,
+                title: "¡Bienvenido a la Guía de Inicio (Administrador)!",
+                content: "Te enseñaremos cómo iniciar o retomar un conteo de mercadería paso a paso utilizando remitos precargados o importaciones.",
+                placement: "center"
+            },
+            {
+                target: "#tour-cargar-conteo",
+                title: "Retomar o Iniciar desde Pendientes",
+                content: "En este panel puedes: 1. Retomar un conteo que ya esté activo en 'Conteos en Curso'. 2. Iniciar un nuevo conteo seleccionando uno o varios remitos de la lista de 'Conteos Pendientes' y haciendo clic en 'Cargar Conteos'.",
+                placement: "bottom"
+            },
+            {
+                target: "#tour-importar-xml-seccion",
+                title: "Importar Stock Inicial (XML / Excel)",
+                content: "Si deseas realizar un conteo desde un stock del ERP, selecciona la sucursal de destino y haz clic en '+ Subir DocConteo (XML / XLSX / XLS)' para cargar el archivo. El sistema procesará los productos y los dejará listos para el conteo.",
+                placement: "top"
+            },
+            ...(preRemitoStatus === 'found' ? [
+                {
+                    target: "#tour-iniciar-conteo-remito",
+                    title: "Asignar Nombre e Iniciar Conteo",
+                    content: "¡Los productos se han consolidado correctamente! Ahora puedes ingresar un nombre personalizado para el conteo (ej: 'Pasillo Lacteos A' o 'Carga Semanal') en el campo de texto. Luego, presiona 'Iniciar Conteo' para que el equipo pueda unirse y comenzar a escanear.",
+                    placement: "bottom"
+                }
+            ] : []),
+            {
+                target: null,
+                title: "¡Siguiente Paso!",
+                content: "Una vez que inicies o selecciones un conteo, se habilitará la interfaz de escaneo y tus operadores podrán unirse en tiempo real desde sus dispositivos.",
+                placement: "center"
+            }
+        ]
+    ) : [
         {
             target: null,
             title: "¡Guía de Conteo Activo!",
@@ -2131,26 +2156,37 @@ const RemitoForm = () => {
                                         </p>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                            {activeCounts.map(count => (
-                                                 <button
-                                                     key={count.id}
-                                                     onClick={() => handleSelectCount(count)}
-                                                     className={`p-4 bg-white hover:bg-blue-50 border rounded-lg text-left transition shadow-sm hover:shadow relative overflow-hidden ${count.parent_count_id ? 'border-orange-200' : 'border-gray-200 hover:border-blue-300'}`}
-                                                 >
-                                                     {count.parent_count_id && (
-                                                         <div className="absolute top-0 right-0">
-                                                             <div className="bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">
-                                                                 Re-control
+                                            {activeCounts.map(count => {
+                                                const parts = count.name.split(',').map(p => p.trim());
+                                                const isCustom = !parts[0].startsWith('STOCK-') && !parts[0].toUpperCase().startsWith('RE-CONTROL:');
+                                                const displayName = isCustom ? parts[0] : parts.join(', ');
+                                                
+                                                return (
+                                                     <button
+                                                         key={count.id}
+                                                         onClick={() => handleSelectCount(count)}
+                                                         className={`p-4 bg-white hover:bg-blue-50 border rounded-lg text-left transition shadow-sm hover:shadow relative overflow-hidden ${count.parent_count_id ? 'border-orange-200' : 'border-gray-200 hover:border-blue-300'}`}
+                                                     >
+                                                         {count.parent_count_id && (
+                                                             <div className="absolute top-0 right-0">
+                                                                 <div className="bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">
+                                                                     Re-control
+                                                                 </div>
                                                              </div>
+                                                         )}
+                                                         <div className="font-bold text-gray-800 mb-1 line-clamp-1">{displayName}</div>
+                                                         {isCustom && parts.length > 1 && (
+                                                             <div className="text-[10px] text-gray-400 mb-2 truncate">
+                                                                 Ref: {parts.slice(1).join(', ')}
+                                                             </div>
+                                                         )}
+                                                         <div className="text-xs text-gray-500 flex justify-between">
+                                                             <span>{count.sucursal_name || 'Global'}</span>
+                                                             <span>{new Date(count.created_at).toLocaleDateString()}</span>
                                                          </div>
-                                                     )}
-                                                     <div className="font-bold text-gray-800 mb-1">{count.name}</div>
-                                                     <div className="text-xs text-gray-500 flex justify-between">
-                                                         <span>{count.sucursal_name || 'Global'}</span>
-                                                         <span>{new Date(count.created_at).toLocaleDateString()}</span>
-                                                     </div>
-                                                 </button>
-                                            ))}
+                                                     </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -2162,19 +2198,37 @@ const RemitoForm = () => {
                                     <div className="p-2 rounded-full bg-green-100 text-green-600">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                                     </div>
-                                     <div>
+                                    <div>
                                          <h3 className="text-lg font-bold text-gray-800 max-h-32 overflow-y-auto break-all custom-scrollbar pr-2 leading-tight flex items-center gap-2">
-                                             Conteo: {selectedCount.name}
+                                             Conteo: {
+                                                 (() => {
+                                                     const parts = selectedCount.name.split(',').map(p => p.trim());
+                                                     const isCustom = !parts[0].startsWith('STOCK-') && !parts[0].toUpperCase().startsWith('RE-CONTROL:');
+                                                     return isCustom ? parts[0] : parts.join(', ');
+                                                 })()
+                                             }
                                              {selectedCount.parent_count_id && (
                                                  <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
                                                      Modo Re-control
                                                  </span>
                                              )}
                                          </h3>
-                                         <p className="text-sm text-gray-600">
+                                         {(() => {
+                                             const parts = selectedCount.name.split(',').map(p => p.trim());
+                                             const isCustom = !parts[0].startsWith('STOCK-') && !parts[0].toUpperCase().startsWith('RE-CONTROL:');
+                                             if (isCustom && parts.length > 1) {
+                                                 return (
+                                                     <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                                                         Referencias: {parts.slice(1).join(', ')}
+                                                     </p>
+                                                 );
+                                             }
+                                             return null;
+                                         })()}
+                                         <p className="text-sm text-gray-600 mt-0.5">
                                              {selectedCount.sucursal_name ? `Sucursal: ${selectedCount.sucursal_name}` : 'Depósito'}
                                          </p>
-                                     </div>
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center gap-2">
@@ -2387,9 +2441,9 @@ const RemitoForm = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="border-t border-gray-200 pt-6 mt-2">
+                                            <div id="tour-importar-xml-seccion" className="border-t border-gray-200 pt-6 mt-2">
                                                 <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
-
+                                                
                                                 {/* Branch Selector for XML Upload */}
                                                 <div className="mb-4">
                                                     <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
@@ -2437,7 +2491,7 @@ const RemitoForm = () => {
                                 </div>
 
                                 {['admin', 'superadmin', 'branch_admin'].includes(user?.role) && preRemitoStatus === 'found' && (
-                                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+                                    <div id="tour-iniciar-conteo-remito" className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
                                         <div className="flex items-center mb-2">
                                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                             <span className="font-bold text-lg">Conteos cargados con éxito</span>
@@ -2445,7 +2499,7 @@ const RemitoForm = () => {
                                         </div>
                                         {/* Show summary of IDs if multiple */}
                                         {selectedPreRemitos.length > 1 && (
-                                            <div className="ml-7 text-xs text-green-700 mt-1">
+                                            <div className="ml-7 text-xs text-green-700 mt-1 mb-3">
                                                 Consolidando: {selectedPreRemitos.map(num => {
                                                     const pre = preRemitoList.find(p => p.order_number === num);
                                                     if (pre && pre.order_number.startsWith('STOCK-') && pre.id_inventory) {
@@ -2456,16 +2510,42 @@ const RemitoForm = () => {
                                             </div>
                                         )}
 
-                                        <div className="mt-4 flex flex-col sm:flex-row items-end justify-end gap-3">
-                                            {selectedCount && (
+                                        {/* Campo para cambiar el nombre personalizado del conteo */}
+                                        <div className="mb-4 mt-3">
+                                            <label className="block text-xs font-bold text-green-700 uppercase mb-1.5 tracking-wider">
+                                                Nombre del Conteo (Personalizable)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={remitoNumber}
+                                                onChange={(e) => setRemitoNumber(e.target.value)}
+                                                className="w-full h-11 px-3 border border-green-300 rounded-lg text-sm bg-white text-green-950 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition shadow-sm font-medium"
+                                                placeholder="Ej: Pasillo Central - Carga del Remito"
+                                            />
+                                            <p className="text-[11px] text-green-600 mt-1">
+                                                Puedes asignar un nombre personalizado. Los identificadores técnicos se mantendrán internamente.
+                                            </p>
+                                        </div>
+
+                                        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                            {selectedCount ? (
                                                 <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold shadow-sm flex items-center border border-blue-200 text-sm max-h-24 overflow-y-auto break-all custom-scrollbar">
                                                     <svg className="w-4 h-4 mr-2 flex-shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                                    <span>Conteo en Curso: {selectedCount.name}</span>
+                                                    <span>Conteo en Curso: {
+                                                        (() => {
+                                                            const parts = selectedCount.name.split(',').map(p => p.trim());
+                                                            const isCustom = !parts[0].startsWith('STOCK-') && !parts[0].toUpperCase().startsWith('RE-CONTROL:');
+                                                            return isCustom ? parts[0] : parts.join(', ');
+                                                        })()
+                                                    }</span>
                                                 </div>
-                                            )}
+                                            ) : <div />}
                                             <button
                                                 onClick={async () => {
-                                                    if (!remitoNumber) return;
+                                                    if (!remitoNumber || !remitoNumber.trim()) {
+                                                        triggerModal('Atención', 'Debe ingresar un nombre para el conteo.', 'warning');
+                                                        return;
+                                                    }
                                                     try {
                                                         let countSucursalId = user?.sucursal_id || null;
 
@@ -2483,8 +2563,16 @@ const RemitoForm = () => {
                                                             ? expectedItems.map(i => i.code).filter(Boolean)
                                                             : [];
 
+                                                        // Combinamos de forma segura el nombre ingresado por el usuario con las referencias técnicas necesarias para el backend
+                                                        const originalRefsName = selectedPreRemitos.join(', ');
+                                                        let finalCountName = remitoNumber.trim();
+                                                        const containsAllRefs = selectedPreRemitos.every(ref => finalCountName.includes(ref));
+                                                        if (!containsAllRefs) {
+                                                            finalCountName = `${finalCountName}, ${originalRefsName}`;
+                                                        }
+
                                                         const res = await api.post('/api/general-counts', {
-                                                            name: remitoNumber,
+                                                            name: finalCountName,
                                                             sucursal_id: countSucursalId,
                                                             product_codes: productCodes.length > 0 ? productCodes : undefined
                                                         });
