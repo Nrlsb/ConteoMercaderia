@@ -15,153 +15,167 @@ const InteractiveTour = ({ isOpen, onClose, steps }) => {
         }
     }, [isOpen]);
 
-    // Calcular la posición del elemento objetivo
-    useEffect(() => {
+    const updatePosition = () => {
         if (!isOpen || currentStep >= steps.length) return;
-
         const step = steps[currentStep];
-        
-        const updatePosition = () => {
-            if (!step.target) {
-                setTargetRect(null);
-                setPopoverPosition({ top: 0, left: 0, placement: 'center' });
-                return;
-            }
 
-            const element = document.querySelector(step.target);
-            if (element) {
-                // Hacer scroll hasta el elemento
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                
-                // Esperar a que el scroll termine para calcular las coordenadas exactas
-                setTimeout(() => {
-                    const rect = element.getBoundingClientRect();
-                    setTargetRect(rect);
+        if (!step.target) {
+            setTargetRect(null);
+            setPopoverPosition({ top: 0, left: 0, placement: 'center' });
+            return;
+        }
 
-                    // Posicionar el popover respecto al elemento
-                    const margin = 16;
-                    const popoverWidth = 340;
-                    const popoverHeight = popoverRef.current ? popoverRef.current.offsetHeight : 180;
-                    const viewportWidth = window.innerWidth;
-                    const viewportHeight = window.innerHeight;
+        const element = document.querySelector(step.target);
+        if (element) {
+            const rect = element.getBoundingClientRect();
+            setTargetRect(rect);
 
-                    let placement = step.placement || 'bottom';
-                    let top = 0;
-                    let left = 0;
+            const popoverWidth = 340;
+            const popoverHeight = popoverRef.current ? popoverRef.current.offsetHeight : 180;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
 
-                    // Fallback para pantallas pequeñas si no cabe a los lados
-                    if (viewportWidth < 768 && (placement === 'left' || placement === 'right')) {
-                        placement = 'bottom';
-                    }
+            const margin = 16;
+            let placement = step.placement || 'bottom';
+            let top = 0;
+            let left = 0;
 
-                    if (placement === 'bottom') {
-                        top = rect.bottom + margin;
-                        left = rect.left + (rect.width - popoverWidth) / 2;
-                        // Si se sale por abajo de la pantalla
-                        if (top + popoverHeight > viewportHeight - 10) {
-                            top = rect.top - popoverHeight - margin;
-                            placement = 'top';
-                        }
-                    } else if (placement === 'top') {
-                        top = rect.top - popoverHeight - margin;
-                        left = rect.left + (rect.width - popoverWidth) / 2;
-                        // Si se sale por arriba
-                        if (top < 10) {
-                            top = rect.bottom + margin;
-                            placement = 'bottom';
-                        }
-                    } else if (placement === 'left') {
-                        top = rect.top + (rect.height - popoverHeight) / 2;
-                        left = rect.left - popoverWidth - margin;
-                    } else if (placement === 'right') {
-                        top = rect.top + (rect.height - popoverHeight) / 2;
-                        left = rect.left + rect.width + margin;
-                    }
+            const isMobile = viewportWidth < 768;
 
-                    // Ajustar límites de pantalla horizontales
-                    if (left < 10) left = 10;
-                    if (left + popoverWidth > viewportWidth - 10) {
-                        left = viewportWidth - popoverWidth - 10;
-                    }
-
-                    // Ajustar límites verticales generales
-                    if (top < 10) top = 10;
-                    if (top + popoverHeight > viewportHeight - 10) {
-                        top = viewportHeight - popoverHeight - 10;
-                    }
-
-                    setPopoverPosition({ top, left, placement });
-                }, 350);
-            } else {
-                // Si el elemento objetivo no está en el DOM en este modo, mostrar como central
-                setTargetRect(null);
-                setPopoverPosition({ top: 0, left: 0, placement: 'center' });
-            }
-        };
-
-        updatePosition();
-        
-        // Agregar listeners para actualizar posición
-        window.addEventListener('resize', updatePosition);
-        window.addEventListener('scroll', updatePosition, true);
-
-        return () => {
-            window.removeEventListener('resize', updatePosition);
-            window.removeEventListener('scroll', updatePosition, true);
-        };
-    }, [isOpen, currentStep, steps]);
-
-    // Recalcular tamaño de popover cuando cambia el contenido
-    useEffect(() => {
-        if (isOpen && popoverRef.current) {
-            // Un pequeño re-calculo después del render
-            const step = steps[currentStep];
-            if (step && step.target) {
-                const element = document.querySelector(step.target);
-                if (element) {
-                    const rect = element.getBoundingClientRect();
-                    const margin = 16;
-                    const popoverWidth = 340;
-                    const popoverHeight = popoverRef.current.offsetHeight;
-                    const viewportWidth = window.innerWidth;
-                    const viewportHeight = window.innerHeight;
-
-                    let placement = step.placement || 'bottom';
-                    let top = 0;
-                    let left = 0;
-
-                    if (viewportWidth < 768 && (placement === 'left' || placement === 'right')) {
-                        placement = 'bottom';
-                    }
-
-                    if (placement === 'bottom') {
-                        top = rect.bottom + margin;
-                        left = rect.left + (rect.width - popoverWidth) / 2;
-                    } else if (placement === 'top') {
-                        top = rect.top - popoverHeight - margin;
-                        left = rect.left + (rect.width - popoverWidth) / 2;
-                    } else if (placement === 'left') {
-                        top = rect.top + (rect.height - popoverHeight) / 2;
-                        left = rect.left - popoverWidth - margin;
-                    } else if (placement === 'right') {
-                        top = rect.top + (rect.height - popoverHeight) / 2;
-                        left = rect.left + rect.width + margin;
-                    }
-
-                    if (left < 10) left = 10;
-                    if (left + popoverWidth > viewportWidth - 10) {
-                        left = viewportWidth - popoverWidth - 10;
-                    }
-                    if (top < 10) top = 10;
-                    if (top + popoverHeight > viewportHeight - 10) {
-                        top = viewportHeight - popoverHeight - 10;
-                    }
-
-                    setPopoverPosition({ top, left, placement });
+            if (isMobile) {
+                if (placement === 'left' || placement === 'right') {
+                    const elementCenterY = rect.top + rect.height / 2;
+                    placement = elementCenterY < viewportHeight / 2 ? 'bottom' : 'top';
                 }
             }
+
+            // Primera aproximación de posicionamiento
+            if (placement === 'bottom') {
+                top = rect.bottom + margin;
+                left = rect.left + (rect.width - popoverWidth) / 2;
+                if (top + popoverHeight > viewportHeight - 10) {
+                    if (rect.top - popoverHeight - margin > 10) {
+                        top = rect.top - popoverHeight - margin;
+                        placement = 'top';
+                    }
+                }
+            } else if (placement === 'top') {
+                top = rect.top - popoverHeight - margin;
+                left = rect.left + (rect.width - popoverWidth) / 2;
+                if (top < 10) {
+                    if (rect.bottom + popoverHeight + margin < viewportHeight - 10) {
+                        top = rect.bottom + margin;
+                        placement = 'bottom';
+                    }
+                }
+            } else if (placement === 'left') {
+                top = rect.top + (rect.height - popoverHeight) / 2;
+                left = rect.left - popoverWidth - margin;
+                if (left < 10) {
+                    left = rect.right + margin;
+                    placement = 'right';
+                }
+            } else if (placement === 'right') {
+                top = rect.top + (rect.height - popoverHeight) / 2;
+                left = rect.right + margin;
+                if (left + popoverWidth > viewportWidth - 10 && !isMobile) {
+                    left = rect.left - popoverWidth - margin;
+                    placement = 'left';
+                }
+            }
+
+            // Fallback a vertical si se sale en horizontal
+            if ((placement === 'left' || placement === 'right') && (left < 10 || left + popoverWidth > viewportWidth - 10)) {
+                const spaceBelow = viewportHeight - rect.bottom;
+                const spaceAbove = rect.top;
+                if (spaceAbove > spaceBelow) {
+                    top = rect.top - popoverHeight - margin;
+                    placement = 'top';
+                } else {
+                    top = rect.bottom + margin;
+                    placement = 'bottom';
+                }
+                left = rect.left + (rect.width - popoverWidth) / 2;
+            }
+
+            // Límites de seguridad horizontales
+            if (left < 10) left = 10;
+            if (left + popoverWidth > viewportWidth - 10) {
+                left = viewportWidth - popoverWidth - 10;
+            }
+
+            // Evitar superposición vertical estricta
+            if (placement === 'bottom' && top < rect.bottom + 4) {
+                top = rect.bottom + margin;
+            }
+            if (placement === 'top' && top + popoverHeight > rect.top - 4) {
+                top = rect.top - popoverHeight - margin;
+            }
+
+            // Límites de seguridad verticales
+            if (top < 10) top = 10;
+            if (top + popoverHeight > viewportHeight - 10) {
+                top = viewportHeight - popoverHeight - 10;
+            }
+
+            setPopoverPosition({ top, left, placement });
+        } else {
+            setTargetRect(null);
+            setPopoverPosition({ top: 0, left: 0, placement: 'center' });
         }
-    }, [currentStep, isOpen]);
+    };
+
+    // Controlar el scroll inteligente cuando cambia de paso
+    useEffect(() => {
+        if (!isOpen || currentStep >= steps.length) return;
+        const step = steps[currentStep];
+
+        if (step.target) {
+            const element = document.querySelector(step.target);
+            if (element) {
+                let scrollBlock = 'center';
+                if (step.placement === 'bottom') {
+                    scrollBlock = 'start';
+                } else if (step.placement === 'top') {
+                    scrollBlock = 'end';
+                }
+                element.scrollIntoView({ behavior: 'smooth', block: scrollBlock });
+            }
+        }
+    }, [isOpen, currentStep, steps]);
+
+    // Sincronizar la posición con el ResizeObserver y eventos
+    useEffect(() => {
+        if (!isOpen) return;
+
+        // Ejecutar inmediatamente
+        updatePosition();
+
+        let resizeObserver;
+        if (popoverRef.current) {
+            resizeObserver = new ResizeObserver(() => {
+                updatePosition();
+            });
+            resizeObserver.observe(popoverRef.current);
+        }
+
+        const handleScrollAndResize = () => {
+            updatePosition();
+        };
+
+        window.addEventListener('resize', handleScrollAndResize);
+        window.addEventListener('scroll', handleScrollAndResize, true);
+
+        // Timeout de respaldo tras completarse el scroll suave
+        const timer = setTimeout(updatePosition, 350);
+
+        return () => {
+            if (resizeObserver) resizeObserver.disconnect();
+            window.removeEventListener('resize', handleScrollAndResize);
+            window.removeEventListener('scroll', handleScrollAndResize, true);
+            clearTimeout(timer);
+        };
+    }, [isOpen, currentStep]);
 
     if (!isOpen) return null;
 

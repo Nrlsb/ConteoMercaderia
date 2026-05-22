@@ -1764,14 +1764,6 @@ const RemitoForm = () => {
             content: "Aquí se listan todos los productos que has escaneado. Puedes modificar sus cantidades utilizando los botones + / - o eliminarlos si te has equivocado.",
             placement: "left"
         },
-        ...(countMode === 'pre_remito' && !selectedCount ? [
-            {
-                target: "#tour-submit-conteo",
-                title: "7. Procesar y Cargar Conteo",
-                content: "Una vez que termines de escanear y registrar todos los productos, presiona este botón para enviar el conteo y comparar diferencias.",
-                placement: "top"
-            }
-        ] : []),
         {
             target: null,
             title: "¡Guía Completada!",
@@ -2787,29 +2779,7 @@ const RemitoForm = () => {
                                 )}
                             </div>
 
-                            {/* Solo mostrar botón de submit en modo pre-remito y SI NO hay un conteo activo (se usa el de la cabecera) */}
-                            {countMode !== 'products' && !selectedCount && (
-                                <div className="p-4 bg-white border-t border-gray-200">
-                                    <button
-                                        id="tour-submit-conteo"
-                                        onClick={handleSubmitRemito}
-                                        disabled={items.length === 0 || !remitoNumber}
-                                        className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center shadow-lg ${items.length > 0 && remitoNumber
-                                            ? 'bg-brand-success text-white hover:bg-green-600 hover:shadow-xl transform hover:-translate-y-0.5'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                                            }`}
-                                    >
-                                        {items.length > 0 && remitoNumber ? (
-                                            <>
-                                                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                                Cargar Conteo
-                                            </>
-                                        ) : (
-                                            'Cargar Conteo'
-                                        )}
-                                    </button>
-                                </div>
-                            )}
+
 
                             {/* Mensaje informativo en modo general */}
                             {countMode === 'products' && selectedCount && (
