@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { downloadFile } from '../utils/downloadUtils';
@@ -7,6 +7,9 @@ import { db } from '../db';
 import RemitoHistory from './RemitoHistory';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
+import { HelpCircle } from 'lucide-react';
+
+const InteractiveTour = lazy(() => import('./InteractiveTour'));
 
 const RemitoDetailsPage = () => {
     const { id } = useParams();
@@ -22,6 +25,61 @@ const RemitoDetailsPage = () => {
     const [visibleCount, setVisibleCount] = useState(20); // State for pagination
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [historyData, setHistoryData] = useState([]);
+    const [isTourOpen, setIsTourOpen] = useState(false);
+
+    const tourSteps = [
+        {
+            target: null,
+            title: "¡Detalle de Conteo!",
+            content: "En esta pantalla puedes analizar detalladamente la información del conteo, ver los participantes, buscar productos y auditar las diferencias o el historial.",
+            placement: "center"
+        },
+        {
+            target: "#export-dropdown",
+            title: "Exportación de Reportes",
+            content: "Haz clic aquí para exportar los resultados a Excel. Puedes elegir entre descargar solo los productos con diferencias o el reporte completo con todos los ítems.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-buscar-detalle-input",
+            title: "Búsqueda de Productos",
+            content: "Busca cualquier producto del conteo ingresando su código o nombre. También puedes usar la búsqueda por voz presionando el ícono del micrófono.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-tabs-detalle",
+            title: "Pestañas de Auditoría",
+            content: "Navega entre las distintas vistas: 'Conteo por Usuario' muestra lo escaneado por cada integrante, 'Pendiente de contar / Diferencias' indica los desvíos, e 'Historial' detalla cada cambio realizado.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-seccion-contenido",
+            title: "Conteo por Usuario",
+            content: "En esta pestaña verás el listado de participantes. Al hacer clic en cada usuario o marca, podrás desplegar el detalle de los productos escaneados y sus cantidades exactas.",
+            placement: "top",
+            onEnter: () => setActiveTab('users')
+        },
+        {
+            target: "#tour-seccion-contenido",
+            title: "Pendientes / Diferencias",
+            content: "Esta pestaña te muestra los productos pendientes de contar (si está en curso) o las discrepancias finales entre lo esperado y lo escaneado (si está finalizado).",
+            placement: "top",
+            onEnter: () => setActiveTab('discrepancies')
+        },
+        {
+            target: "#tour-seccion-contenido",
+            title: "Historial de Cambios",
+            content: "Aquí puedes auditar el historial completo de modificaciones, viendo exactamente quién, cuándo y qué cantidad fue creada, editada o eliminada.",
+            placement: "top",
+            onEnter: () => setActiveTab('history')
+        },
+        {
+            target: null,
+            title: "¡Guía Completada!",
+            content: "¡Listo! Ya conoces todas las herramientas para auditar un conteo en detalle. ¡Excelente trabajo!",
+            placement: "center"
+        }
+    ];
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -224,8 +282,18 @@ const RemitoDetailsPage = () => {
 
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">
+                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                                 {remito.count_name ? `Conteo: ${remito.count_name}` : `Remito #${remito.remito_number}`}
+                                <button
+                                    onClick={() => setIsTourOpen(true)}
+                                    className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-all duration-200 group relative animate-pulse"
+                                    title="Guía de uso"
+                                >
+                                    <HelpCircle className="w-5 h-5" />
+                                    <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium shadow-xl border border-gray-700 z-[100]">
+                                        ¿Cómo usar?
+                                    </span>
+                                </button>
                             </h1>
                             <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                                 <span className="flex items-center">
@@ -351,6 +419,7 @@ const RemitoDetailsPage = () => {
                         </div>
                         <input
                             type="text"
+                            id="tour-buscar-detalle-input"
                             placeholder="Buscar producto por código o nombre..."
                             className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-brand-blue focus:border-brand-blue sm:text-sm"
                             value={searchTerm}
@@ -373,7 +442,7 @@ const RemitoDetailsPage = () => {
 
                 {/* Navigation Tabs */}
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 overflow-x-auto">
-                    <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                    <nav id="tour-tabs-detalle" className="-mb-px flex space-x-8" aria-label="Tabs">
                         <button
                             onClick={() => setActiveTab('users')}
                             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition ${activeTab === 'users'
@@ -411,7 +480,7 @@ const RemitoDetailsPage = () => {
             </div>
 
             {/* Content Area */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div id="tour-seccion-contenido" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
                 {/* SEARCH RESULTS */}
                 {searchTerm ? (
@@ -874,6 +943,14 @@ const RemitoDetailsPage = () => {
                     </>
                 )}
             </div>
+
+            <Suspense fallback={null}>
+                <InteractiveTour
+                    isOpen={isTourOpen}
+                    onClose={() => setIsTourOpen(false)}
+                    steps={tourSteps}
+                />
+            </Suspense>
         </div>
     );
 };

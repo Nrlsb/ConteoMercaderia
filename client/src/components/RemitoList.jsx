@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from './Modal';
@@ -6,6 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { db } from '../db';
 import { supabase } from '../supabaseClient';
+import { HelpCircle } from 'lucide-react';
+
+const InteractiveTour = lazy(() => import('./InteractiveTour'));
 
 
 const RemitoList = () => {
@@ -14,6 +17,53 @@ const RemitoList = () => {
     const [loading, setLoading] = useState(true);
     const [selectedRemito, setSelectedRemito] = useState(null);
     const [visibleCount, setVisibleCount] = useState(20); // Limit display to 20 initially
+    const [isTourOpen, setIsTourOpen] = useState(false);
+
+    // Pasos de la guía interactiva
+    const tourSteps = [
+        {
+            target: null,
+            title: "¡Bienvenido al Historial de Conteos!",
+            content: "Aquí podrás supervisar, auditar y exportar todos los conteos de mercadería realizados en tu sucursal o depósito.",
+            placement: "center"
+        },
+        {
+            target: "#tour-buscar-conteo-input",
+            title: "Búsqueda Rápida",
+            content: "Escribe el número de conteo o de remito aquí para encontrar rápidamente un registro específico.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-filtro-fechas",
+            title: "Filtro por Rango de Fechas",
+            content: "Selecciona una fecha de inicio y una de fin para acotar la búsqueda y visualizar solo los conteos realizados en ese período.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-exportar-excel-btn",
+            title: "Exportar Historial",
+            content: "Haz clic en este botón para descargar un reporte general en formato Excel con el listado completo de todos los conteos filtrados.",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-tabla-historial",
+            title: "Detalle de los Conteos",
+            content: "En esta tabla se muestran los datos clave de cada conteo: fecha, nombre/número, cantidad de ítems, usuario que lo creó y su estado actual (En curso o Finalizado).",
+            placement: "top"
+        },
+        {
+            target: "#tour-acciones-row",
+            title: "Operaciones y Auditoría",
+            content: "Aquí podrás: 1. Ver detalles completos del conteo (ojo). 2. Iniciar un re-control de diferencias (flechas circulares, si el conteo tiene discrepancias y está finalizado). 3. Eliminar el conteo permanentemente (tacho de basura).",
+            placement: "left"
+        },
+        {
+            target: null,
+            title: "¡Guía Completada!",
+            content: "¡Listo! Ya conoces todas las herramientas del historial. Haz clic en el ojo de cualquier conteo para ver su desglose.",
+            placement: "center"
+        }
+    ];
 
     // Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -198,9 +248,23 @@ const RemitoList = () => {
                 {/* Header & Filters */}
                 <div className="p-6 border-b border-gray-200 bg-white">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Historial de Conteos</h2>
-                            <p className="text-sm text-gray-500 mt-1">Gestiona y audita los movimientos de mercadería</p>
+                        <div className="flex items-center gap-3">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                                    Historial de Conteos
+                                    <button
+                                        onClick={() => setIsTourOpen(true)}
+                                        className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-all duration-200 group relative animate-pulse"
+                                        title="Guía de uso"
+                                    >
+                                        <HelpCircle className="w-5 h-5" />
+                                        <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium shadow-xl border border-gray-700 z-[100]">
+                                            ¿Cómo usar?
+                                        </span>
+                                    </button>
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">Gestiona y audita los movimientos de mercadería</p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold border border-blue-100">
@@ -233,6 +297,7 @@ const RemitoList = () => {
                                         toast.error('Ocurrió un error al intentar exportar');
                                     }
                                 }}
+                                id="tour-exportar-excel-btn"
                                 className="hidden md:flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg transition-all shadow-sm border border-green-500 whitespace-nowrap"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -258,29 +323,32 @@ const RemitoList = () => {
                             </div>
                             <input
                                 type="text"
+                                id="tour-buscar-conteo-input"
                                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
                                 placeholder="Buscar por N° de conteo..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <div className="md:col-span-3">
-                            <input
-                                type="date"
-                                className="block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                placeholder="Fecha desde"
-                            />
-                        </div>
-                        <div className="md:col-span-3">
-                            <input
-                                type="date"
-                                className="block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                placeholder="Fecha hasta"
-                            />
+                        <div id="tour-filtro-fechas" className="md:col-span-6 grid grid-cols-2 gap-4">
+                            <div>
+                                <input
+                                    type="date"
+                                    className="block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    placeholder="Fecha desde"
+                                />
+                            </div>
+                            <div>
+                                <input
+                                    type="date"
+                                    className="block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    placeholder="Fecha hasta"
+                                />
+                            </div>
                         </div>
                         <div className="md:col-span-1 flex justify-end">
                             {(searchTerm || startDate || endDate) && (
@@ -485,7 +553,7 @@ const RemitoList = () => {
                         </div>
 
                         {/* Desktop Table View */}
-                        <table className="hidden md:table min-w-full divide-y divide-gray-200">
+                        <table id="tour-tabla-historial" className="hidden md:table min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
@@ -523,7 +591,7 @@ const RemitoList = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredRemitos.slice(0, visibleCount).map((remito) => (
+                                    filteredRemitos.slice(0, visibleCount).map((remito, rowIndex) => (
                                         <tr key={remito.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900">
@@ -591,7 +659,10 @@ const RemitoList = () => {
                                             </td>
                                             {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <div className="flex justify-end gap-2">
+                                                    <div 
+                                                        id={rowIndex === 0 ? "tour-acciones-row" : undefined}
+                                                        className="flex justify-end gap-2"
+                                                    >
                                                         <button onClick={() => handleViewDetails(remito)} className="text-gray-400 hover:text-brand-blue transition" title="Ver detalles">
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 5 8.268 7.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                                         </button>
@@ -647,6 +718,14 @@ const RemitoList = () => {
                     </button>
                 </div>
             )}
+
+            <Suspense fallback={null}>
+                <InteractiveTour
+                    isOpen={isTourOpen}
+                    onClose={() => setIsTourOpen(false)}
+                    steps={tourSteps}
+                />
+            </Suspense>
         </div>
     );
 };
