@@ -1718,56 +1718,110 @@ const RemitoForm = () => {
     // Calculate total quantity of items scanned
     const totalQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
-    // Pasos de la guía interactiva
-    const tourSteps = [
+    // Pasos de la guía interactiva dinámicos según el estado del conteo
+    const tourSteps = !selectedCount ? [
         {
             target: null,
-            title: "¡Bienvenido a la Guía Interactiva!",
-            content: "Te daremos un paseo rápido por esta pantalla para que aprendas a realizar el conteo de mercadería de manera ágil y sin cometer errores.",
+            title: "¡Bienvenido a la Guía de Inicio!",
+            content: "Te enseñaremos cómo cargar o iniciar un conteo para que puedas comenzar a trabajar.",
             placement: "center"
         },
         ...(countMode === 'pre_remito' ? [
             {
                 target: "#tour-cargar-conteo",
-                title: "1. Panel de Carga de Conteos",
-                content: "Aquí puedes visualizar y seleccionar el conteo activo de tu sucursal o crear uno nuevo (si eres administrador) basado en remitos/pedidos cargados.",
+                title: "Cargar Conteo Pendiente",
+                content: "Aquí puedes ver la lista de conteos pendientes de la sucursal. Selecciona uno o varios y presiona 'Cargar Conteos'. También puedes subir un archivo XML del ERP para importar el stock inicial.",
+                placement: "bottom"
+            }
+        ] : []),
+        ...(['admin', 'superadmin', 'branch_admin'].includes(user?.role) ? [
+            {
+                target: "#tour-crear-conteo",
+                title: "Crear Nuevo Conteo General",
+                content: "Si eres administrador, puedes iniciar un nuevo conteo desde aquí. Introduce un nombre (ej: Pasillo 1), selecciona la sucursal y presiona '+ Crear'.",
                 placement: "bottom"
             }
         ] : []),
         {
-            target: "#tour-agregar-productos",
-            title: "2. Formulario de Ingreso",
-            content: "Este bloque te permite buscar y registrar productos en el conteo. Puedes cargarlos de tres formas distintas: manual, por voz o usando la cámara.",
-            placement: "right"
+            target: null,
+            title: "¡Siguiente Paso!",
+            content: "Una vez que selecciones un conteo de la lista o crees uno nuevo, se habilitará la pantalla de escaneo. Cuando lo hagas, ¡puedes volver a iniciar esta guía para ver cómo registrar los productos!",
+            placement: "center"
+        }
+    ] : [
+        {
+            target: null,
+            title: "¡Guía de Conteo Activo!",
+            content: "Ya tienes un conteo cargado. Te mostraremos cómo usar las herramientas de registro y control de productos.",
+            placement: "center"
         },
         {
-            target: "#tour-manual-input",
-            title: "3. Entrada Manual / Autocompletado",
-            content: "Escribe el código o descripción del producto aquí. Verás sugerencias en tiempo real; haz clic en el producto correspondiente para agregarlo.",
+            target: "#tour-active-count-header",
+            title: "Información del Conteo",
+            content: "Aquí ves el nombre del conteo actual y su sucursal. Los administradores también verán botones para cambiar de conteo o finalizarlo definitivamente.",
             placement: "bottom"
         },
         {
+            target: "#tour-tab-selector",
+            title: "Pestañas de Trabajo",
+            content: "Puedes navegar entre tres vistas principales: 'Escanear' (para el ingreso de productos), 'Historial' (para verificar y editar) y 'Lista de Conteo' (para el consolidado general).",
+            placement: "bottom"
+        },
+        {
+            target: "#tour-agregar-productos",
+            title: "Formulario de Ingreso",
+            content: "Esta sección es el panel de carga. Puedes agregar productos buscando de forma manual, usando la voz o la cámara.",
+            placement: "right",
+            onEnter: () => setCountTab('scan')
+        },
+        {
+            target: "#tour-manual-input",
+            title: "Ingreso Manual / Autocompletado",
+            content: "Escribe el código o nombre del producto aquí. Verás sugerencias en tiempo real y podrás hacer clic para agregarlo.",
+            placement: "bottom",
+            onEnter: () => setCountTab('scan')
+        },
+        {
             target: "#tour-voz-search-btn",
-            title: "4. Búsqueda por Voz",
-            content: "¡Ahorra tiempo de escritura! Toca este micrófono y di en voz alta el nombre del producto o su código para buscarlo automáticamente.",
-            placement: "top"
+            title: "Búsqueda por Voz",
+            content: "Toca el micrófono y di el nombre del producto en voz alta para buscarlo rápidamente sin tener que escribir.",
+            placement: "top",
+            onEnter: () => setCountTab('scan')
         },
         {
             target: "#tour-usar-camara-btn",
-            title: "5. Escaneo por Cámara",
-            content: "Haz clic aquí para abrir la cámara de tu dispositivo. Podrás escanear códigos de barras de los productos de forma consecutiva e instantánea.",
-            placement: "top"
+            title: "Escáner por Cámara",
+            content: "Abre la cámara del dispositivo para escanear de forma consecutiva los códigos de barras. Es la forma más rápida de ingresar mercadería.",
+            placement: "top",
+            onEnter: () => setCountTab('scan')
         },
         {
             target: "#tour-items-escaneados",
-            title: "6. Lista de Productos Escaneados",
-            content: "Aquí se listan todos los productos que has escaneado. Puedes modificar sus cantidades utilizando los botones + / - o eliminarlos si te has equivocado.",
-            placement: "left"
+            title: "Historial de Escaneos",
+            content: "Hemos cambiado a la pestaña 'Historial'. Aquí verás la lista de productos que ya registraste en este dispositivo. Podrás ajustar sus cantidades con los botones + y - o eliminar los que cargaste por error.",
+            placement: "left",
+            onEnter: () => setCountTab('history')
         },
+        {
+            target: "#tour-branch-count-list",
+            title: "Lista de Conteo (Avance General)",
+            content: "Hemos cambiado a la pestaña 'Lista de Conteo'. Aquí puedes observar todo lo que ha escaneado el equipo completo para esta sucursal en tiempo real. Es ideal para validar y hacer cierres.",
+            placement: "bottom",
+            onEnter: () => setCountTab('list')
+        },
+        ...(['admin', 'superadmin', 'branch_admin'].includes(user?.role) ? [
+            {
+                target: "#tour-finalizar-conteo-btn",
+                title: "Finalizar y Cerrar Conteo",
+                content: "Al completar el control, como administrador puedes cerrar el conteo desde aquí. Si hay diferencias con lo esperado (en modo Remito/Pedido), se te pedirá detallar los motivos (sin stock, dañado, etc.) y se generará el reporte final.",
+                placement: "bottom",
+                onEnter: () => setCountTab('scan')
+            }
+        ] : []),
         {
             target: null,
             title: "¡Guía Completada!",
-            content: "Ya sabes cómo usar la pestaña. Recuerda que la aplicación tiene soporte offline: si te quedas sin conexión, tus escaneos se guardan y se sincronizarán solos cuando vuelva el internet. ¡Excelente trabajo!",
+            content: "¡Listo! Ya conoces todas las herramientas. Recuerda que la app funciona offline: tus escaneos se guardan en el celular y se subirán al servidor automáticamente al volver la conexión. ¡Buen trabajo!",
             placement: "center"
         }
     ];
@@ -2041,7 +2095,7 @@ const RemitoForm = () => {
                                     </p>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-4" id="tour-crear-conteo">
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                                         <h3 className="text-lg font-bold text-gray-800">Seleccionar Conteo Activo</h3>
                                         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
@@ -2103,7 +2157,7 @@ const RemitoForm = () => {
                             )
                         ) : (
                             /* Active Mode: Working on a Conteo */
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4" id="tour-active-count-header">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 rounded-full bg-green-100 text-green-600">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
@@ -2143,6 +2197,7 @@ const RemitoForm = () => {
                                     )}
                                     {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'branch_admin') && (
                                         <button
+                                            id="tour-finalizar-conteo-btn"
                                             onClick={handleStopGeneralCount}
                                             className="px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 border border-red-200"
                                         >
@@ -2466,7 +2521,7 @@ const RemitoForm = () => {
 
                 {/* Tab switcher: shown when any count is active */}
                 {selectedCount && (
-                    <div className="flex border-b border-gray-200 mb-0 mt-4 overflow-x-auto no-scrollbar">
+                    <div className="flex border-b border-gray-200 mb-0 mt-4 overflow-x-auto no-scrollbar" id="tour-tab-selector">
                         <button
                             onClick={() => setCountTab('scan')}
                             className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${countTab === 'scan'
@@ -2514,7 +2569,7 @@ const RemitoForm = () => {
 
                 {/* Branch count list tab content */}
                 {selectedCount && countTab === 'list' && (
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-0" style={{ minHeight: '600px' }}>
+                    <div id="tour-branch-count-list" className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-0" style={{ minHeight: '600px' }}>
                         <Suspense fallback={
                             <div className="flex items-center justify-center py-16 text-gray-400">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3"></div>

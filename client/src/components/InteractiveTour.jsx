@@ -125,22 +125,29 @@ const InteractiveTour = ({ isOpen, onClose, steps }) => {
         }
     };
 
-    // Controlar el scroll inteligente cuando cambia de paso
+    // Controlar el scroll inteligente y eventos de entrada al cambiar de paso
     useEffect(() => {
         if (!isOpen || currentStep >= steps.length) return;
         const step = steps[currentStep];
 
+        if (typeof step.onEnter === 'function') {
+            step.onEnter();
+        }
+
         if (step.target) {
-            const element = document.querySelector(step.target);
-            if (element) {
-                let scrollBlock = 'center';
-                if (step.placement === 'bottom') {
-                    scrollBlock = 'start';
-                } else if (step.placement === 'top') {
-                    scrollBlock = 'end';
+            const timer = setTimeout(() => {
+                const element = document.querySelector(step.target);
+                if (element) {
+                    let scrollBlock = 'center';
+                    if (step.placement === 'bottom') {
+                        scrollBlock = 'start';
+                    } else if (step.placement === 'top') {
+                        scrollBlock = 'end';
+                    }
+                    element.scrollIntoView({ behavior: 'smooth', block: scrollBlock });
                 }
-                element.scrollIntoView({ behavior: 'smooth', block: scrollBlock });
-            }
+            }, 100);
+            return () => clearTimeout(timer);
         }
     }, [isOpen, currentStep, steps]);
 
