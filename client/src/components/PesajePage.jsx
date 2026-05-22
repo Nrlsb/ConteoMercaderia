@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus, Upload, FileSpreadsheet, Settings2, Activity, Info, Layers, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
+import { Scale, Search, Save, Trash2, Cable, Zap, ZapOff, Package, Clock, History, ChevronRight, X, RefreshCw, Plus, Upload, FileSpreadsheet, Settings2, Activity, Info, Layers, Download, HelpCircle } from 'lucide-react';
 
 import { toast } from 'sonner';
 import api from '../api';
@@ -7,6 +7,8 @@ import { useProductSync } from '../hooks/useProductSync';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../db';
 import { ArrowRight } from 'lucide-react';
+
+const InteractiveTour = lazy(() => import('./InteractiveTour'));
 
 const PesajePage = () => {
     const [weight, setWeight] = useState(0);
@@ -126,6 +128,7 @@ const PesajePage = () => {
 
     
     // Hogar y Obra List Mode
+    const [isTourOpen, setIsTourOpen] = useState(false);
     const [hogarColorants, setHogarColorants] = useState([]);
     const [listInputs, setListInputs] = useState({}); // { code: { un1, cm, un2, total } }
     const [isLoadingList, setIsLoadingList] = useState(false);
@@ -151,6 +154,86 @@ const PesajePage = () => {
     useEffect(() => {
         isConnectedRef.current = isConnected;
     }, [isConnected]);
+
+    // Pasos de la guía interactiva para el conteo de colorantes
+    const tourSteps = useMemo(() => {
+        const isHogar = currentGroup === 'Hogar y Obra';
+        const steps = [
+            {
+                target: null,
+                title: isHogar ? "¡Bienvenido al Conteo de Colorantes (Hogar)!" : "¡Bienvenido al Conteo de Colorantes (Automotor)!",
+                content: isHogar 
+                    ? "Esta sección está diseñada para registrar el stock de colorantes mediante unidades enteras e impulsos (basados en la altura del producto en centímetros)." 
+                    : "Esta sección está diseñada para pesar los colorantes automotrices en gramos y calcular el stock exacto con alta precisión.",
+                placement: "center"
+            },
+            {
+                target: "#tour-seleccionar-conteo",
+                title: "Seleccionar Conteo Activo",
+                content: "Asocia tus mediciones a un conteo específico. Al seleccionarlo, se cargarán los productos y su stock teórico correspondiente.",
+                placement: "bottom"
+            },
+            {
+                target: "#tour-importar-excel",
+                title: "Importar Excel",
+                content: "Carga la planilla de colorantes provista por el sistema para actualizar o iniciar un nuevo conteo.",
+                placement: "bottom"
+            }
+        ];
+
+        if (isHogar) {
+            steps.push({
+                target: "#tour-altura-config",
+                title: "Configuración de Altura de Referencia",
+                content: "Define la altura de referencia (en CM) de los envases llenos. Puedes usar un modo 'Global' para todos, o 'Por item' para personalizar la altura de cada colorante. Esto permite calcular los impulsos a partir de la medida en CM.",
+                placement: "bottom"
+            });
+        } else {
+            steps.push({
+                target: "#tour-balanza-btn",
+                title: "Conectar Balanza Digital",
+                content: "Conecta tu balanza digital Sartorius por USB (Web Serial). Una vez activa, el peso en gramos se transmitirá en tiempo real a la columna de gramos (UN2) al enfocarte en ella.",
+                placement: "bottom"
+            });
+        }
+
+        steps.push(
+            {
+                target: "#tour-limpiar-btn",
+                title: "Limpiar Todo",
+                content: "Si deseas resetear todos los campos ingresados y borrar las mediciones locales del día para empezar de cero, utiliza este botón.",
+                placement: "bottom"
+            },
+            {
+                target: "#tour-tabla-colorantes",
+                title: "Tabla de Carga",
+                content: isHogar 
+                    ? "Aquí cargas los datos: 'UN1' (envases cerrados), 'CM' (altura medida en centímetros) y 'Extra' (impulsos adicionales). El sistema calcula automáticamente la equivalencia en UN2 y el total."
+                    : "Aquí cargas las unidades enteras (UN1) y los gramos (UN2). Si tienes la balanza conectada, el valor en gramos se completará automáticamente al posicionarte sobre la casilla UN2.",
+                placement: "top"
+            },
+            {
+                target: "#tour-guardar-fila-btn",
+                title: "Guardar Fila",
+                content: "Haz clic en el botón de guardar de la fila o presiona la tecla 'Enter' desde la casilla UN2 para guardar el registro. El foco se moverá automáticamente al siguiente colorante para agilizar la carga.",
+                placement: "top"
+            },
+            {
+                target: "#tour-historial-hoy",
+                title: "Historial del Día",
+                content: "Visualiza todas las mediciones registradas hoy. Si cometiste algún error, puedes eliminar la medición haciendo clic en el ícono del tacho de basura.",
+                placement: "top"
+            },
+            {
+                target: null,
+                title: "¡Guía Completada!",
+                content: "Ya estás listo para realizar el conteo de colorantes de manera eficiente y precisa.",
+                placement: "center"
+            }
+        );
+
+        return steps;
+    }, [currentGroup, alturaRefMode, alturaRef, alturaRefPorColorante]);
 
 
     // Fetch recent measurements on mount
@@ -830,6 +913,16 @@ const PesajePage = () => {
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${currentGroup === 'Hogar y Obra' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
                                     {currentGroup === 'Hogar y Obra' ? 'H&O' : 'AUTO'}
                                 </span>
+                                <button
+                                    onClick={() => setIsTourOpen(true)}
+                                    className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-all duration-200 group relative animate-pulse"
+                                    title="Guía de uso"
+                                >
+                                    <HelpCircle className="w-5 h-5" />
+                                    <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium shadow-xl border border-gray-700 z-[100]">
+                                        ¿Cómo usar?
+                                    </span>
+                                </button>
                             </div>
                             <p className="text-sm font-medium text-gray-400">
                                 {currentGroup === 'Hogar y Obra' ? 'Gestión por impulsos y unidades' : 'Pesaje de alta precisión por gramos'}
@@ -859,7 +952,7 @@ const PesajePage = () => {
 
                         {/* Inventory Module */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-50/50 p-1.5 rounded-2xl sm:rounded-[1.25rem] border border-gray-100 w-full sm:w-auto">
-                            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-200/50 w-full sm:min-w-[240px] group focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                            <div id="tour-seleccionar-conteo" className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-200/50 w-full sm:min-w-[240px] group focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
                                 <Layers className="w-4 h-4 text-blue-500" />
                                 <select
                                     value={selectedCount?.id || ''}
@@ -887,7 +980,7 @@ const PesajePage = () => {
                                 )}
                             </div>
                             
-                            <label className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 cursor-pointer active:scale-95 group">
+                            <label id="tour-importar-excel" className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 cursor-pointer active:scale-95 group">
                                 <FileSpreadsheet className="w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110" />
                                 <span className="whitespace-nowrap">IMPORTAR EXCEL</span>
                                 <input
@@ -912,7 +1005,7 @@ const PesajePage = () => {
                         {/* Hardware Connectivity & Reset */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                             {currentGroup !== 'Hogar y Obra' && (
-                                <div className="flex items-center justify-between gap-2 bg-blue-50/50 p-1.5 rounded-2xl border border-blue-100 flex-grow">
+                                <div id="tour-balanza-btn" className="flex items-center justify-between gap-2 bg-blue-50/50 p-1.5 rounded-2xl border border-blue-100 flex-grow">
                                     <button
                                         onClick={isConnected ? disconnectScale : connectToScale}
                                         disabled={isConnecting}
@@ -950,6 +1043,7 @@ const PesajePage = () => {
 
                             {currentGroup === 'Hogar y Obra' && (
                                 <div
+                                    id="tour-altura-config"
                                     className="flex items-center gap-3 bg-orange-50 p-1.5 rounded-2xl border border-orange-100 px-3 transition-all"
                                     title="Altura de referencia del envase lleno. Se guarda por usuario."
                                 >
@@ -1002,6 +1096,7 @@ const PesajePage = () => {
                             )}
 
                             <button
+                                id="tour-limpiar-btn"
                                 onClick={handleClearAll}
                                 className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-red-500 rounded-xl font-black text-xs hover:bg-red-50 transition-all border border-gray-200 shadow-sm active:scale-95 w-full sm:w-auto"
                             >
@@ -1018,7 +1113,7 @@ const PesajePage = () => {
                 {/* Main Action Card */}
                 <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
                     <div className="p-6 space-y-6">
-                        <div className="space-y-4">
+                        <div id="tour-tabla-colorantes" className="space-y-4">
                             {currentGroup === 'Automotor' && (
                                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between mb-4 animate-in slide-in-from-top-2">
                                     <div className="flex items-center gap-3">
@@ -1178,6 +1273,7 @@ const PesajePage = () => {
                                                         </td>
                                                         <td className="px-4 py-2">
                                                             <button
+                                                                id={idx === 0 ? "tour-guardar-fila-btn" : undefined}
                                                                 onClick={() => saveRow(p)}
                                                                 className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
                                                                 title="Guardar fila"
@@ -1216,6 +1312,7 @@ const PesajePage = () => {
                                                         </div>
                                                     </div>
                                                     <button
+                                                        id={idx === 0 ? "tour-guardar-fila-btn" : undefined}
                                                         onClick={() => saveRow(p)}
                                                         className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
                                                     >
@@ -1336,7 +1433,7 @@ const PesajePage = () => {
             </div>
 
             {/* History Card */}
-            <div className={`bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 flex flex-col ${currentGroup === 'Hogar y Obra' ? 'w-full min-h-[400px]' : 'h-[600px]'}`}>
+            <div id="tour-historial-hoy" className={`bg-white rounded-2xl shadow-xl shadow-blue-900/5 border border-gray-100 flex flex-col ${currentGroup === 'Hogar y Obra' ? 'w-full min-h-[400px]' : 'h-[600px]'}`}>
                     <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <History className="text-blue-500 w-5 h-5" /> Historial de Hoy
@@ -1434,6 +1531,13 @@ const PesajePage = () => {
                         </div>
                     </div>
             </div>
+            <Suspense fallback={null}>
+                <InteractiveTour
+                    isOpen={isTourOpen}
+                    onClose={() => setIsTourOpen(false)}
+                    steps={tourSteps}
+                />
+            </Suspense>
         </div>
     );
 };
