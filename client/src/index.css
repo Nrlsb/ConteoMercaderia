@@ -152,3 +152,8 @@ html.barcode-scanner-active body {
 .duration-700 {
   animation-duration: 700ms;
 }
+
+/* Soporte para scroll del tour interactivo evitando que los targets queden tapados por el navbar sticky */
+[id^="tour-"] {
+  scroll-margin-top: 80px;
+}
