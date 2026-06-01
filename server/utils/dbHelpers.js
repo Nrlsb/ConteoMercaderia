@@ -159,6 +159,42 @@ async function fetchProductsByCodes(codes) {
 }
 
 /**
+ * Helper to generate all variations of spaces and leading-zeros for a provider code.
+ * This ensures spacing mismatches (e.g., '2000AGUA  00060' vs '2000AGUA 00060') are resolved.
+ */
+function getCodeVariations(code) {
+    if (!code) return [];
+    const trimmed = String(code).trim();
+    const variations = new Set();
+    
+    // Add variations with different numbers of spaces
+    const addSpaceVariations = (val) => {
+        variations.add(val);
+        variations.add(val.replace(/\s+/g, ' ')); // Colapse multiple spaces into one space
+        variations.add(val.replace(/\s+/g, ''));  // Remove all spaces
+        if (val.includes(' ')) {
+            const parts = val.split(/\s+/);
+            variations.add(parts.join('  '));  // 2 spaces
+            variations.add(parts.join('   ')); // 3 spaces
+        }
+    };
+
+    // Add variations for the original trimmed code
+    addSpaceVariations(trimmed);
+
+    // Try stripping leading zeros (e.g. scanned "012345" → stored "12345")
+    const stripped = trimmed.replace(/^0+/, '');
+    if (stripped && stripped !== trimmed) {
+        addSpaceVariations(stripped);
+    }
+
+    // Try adding a leading zero (e.g. scanned "12345" → stored "012345")
+    addSpaceVariations('0' + trimmed);
+
+    return Array.from(variations);
+}
+
+/**
  * Helper unified product search function:
  * Order: Barcode -> Internal Code -> Provider Code
  * @param {string} inputCode - The code to search for
@@ -186,22 +222,22 @@ async function findProductByAnyCode(inputCode, type = 'any') {
             if (pCode && pCode.length > 0) return pCode[0];
         }
 
-        // 3. Try provider code (with leading-zero tolerance)
+        // 3. Try provider code (with spacing and leading-zero tolerance)
         if (type === 'any' || type === 'provider') {
-            const { data: pProv } = await supabase.from('products').select('*').eq('provider_code', codeStr).limit(1);
-            if (pProv && pProv.length > 0) return pProv[0];
+            const variations = getCodeVariations(codeStr);
+            if (variations.length > 0) {
+                const { data: pProv, error: pProvError } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('provider_code', variations)
+                    .limit(1);
 
-            // Try stripping leading zeros (e.g. scanned "012345" → stored "12345")
-            const stripped = codeStr.replace(/^0+/, '');
-            if (stripped && stripped !== codeStr) {
-                const { data: pStripped } = await supabase.from('products').select('*').eq('provider_code', stripped).limit(1);
-                if (pStripped && pStripped.length > 0) return pStripped[0];
+                if (pProvError) {
+                    console.error('[DB_HELPERS] Error searching provider_code with variations:', pProvError);
+                } else if (pProv && pProv.length > 0) {
+                    return pProv[0];
+                }
             }
-
-            // Try adding a leading zero (e.g. scanned "12345" → stored "012345")
-            const withZero = '0' + codeStr;
-            const { data: pWithZero } = await supabase.from('products').select('*').eq('provider_code', withZero).limit(1);
-            if (pWithZero && pWithZero.length > 0) return pWithZero[0];
         }
 
         // 4. Try provider description (Case-insensitive & High Precision)
@@ -227,5 +263,6 @@ module.exports = {
     recordBarcodeHistory,
     getAllBarcodeHistory,
     fetchProductsByCodes,
-    findProductByAnyCode
+    findProductByAnyCode,
+    getCodeVariations
 };

@@ -5,7 +5,7 @@ const supabase = require('../services/supabaseClient');
 const { verifyToken, verifyAdmin, verifySuperAdmin, hasPermission, verifyBranchAccess } = require('../middleware/auth');
 const multer = require('multer');
 const xlsx = require('xlsx');
-const { fetchProductsByCodes, findProductByAnyCode } = require('../utils/dbHelpers');
+const { fetchProductsByCodes, findProductByAnyCode, getCodeVariations } = require('../utils/dbHelpers');
 const { parseRemitoPdf } = require('../pdfParser');
 const { parseExcelXml } = require('../xmlParser');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -1043,7 +1043,7 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
 
         // Product Matching Logic according to Type
         const results = { success: [], failed: [] };
-        const uniqueCodes = allExtractedItems.map(i => i.code);
+        const uniqueCodes = allExtractedItems.map(i => i.code).filter(Boolean);
         
         let productMap = new Map();
 
@@ -1057,27 +1057,43 @@ router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).
             if (prodError) throw prodError;
             if (foundProducts) foundProducts.forEach(p => productMap.set(p.code, p));
         } else {
-            // NORMAL: Match by Provider Code first, then handle fallback to description later
+            // NORMAL: Match by Provider Code first (with spacing and leading-zero tolerance), then handle fallback to description later
+            const queryCodes = [];
+            uniqueCodes.forEach(code => {
+                const variations = getCodeVariations(code);
+                variations.forEach(v => {
+                    if (!queryCodes.includes(v)) queryCodes.push(v);
+                });
+            });
+
             const { data: foundProducts, error: prodError } = await supabase
                 .from('products')
                 .select('code, description, provider_description, provider_code')
-                .in('provider_code', uniqueCodes);
+                .in('provider_code', queryCodes);
             
             if (prodError) throw prodError;
-            if (foundProducts) foundProducts.forEach(p => productMap.set(p.provider_code, p));
+            if (foundProducts) {
+                foundProducts.forEach(p => {
+                    if (p.provider_code) {
+                        const pVariations = getCodeVariations(p.provider_code);
+                        pVariations.forEach(v => productMap.set(v, p));
+                    }
+                });
+            }
         }
 
         const itemsToInsert = [];
         const historyToInsert = [];
         
         for (const item of allExtractedItems) {
-            let product = productMap.get(item.code);
-            
-            // Try stripping leading zeros if not found (mostly for provider codes)
-            if (!product && item.code) {
-                const stripped = String(item.code).replace(/^0+/, '');
-                if (stripped && stripped !== String(item.code)) {
-                    product = productMap.get(stripped);
+            let product = null;
+            if (item.code) {
+                const itemVariations = getCodeVariations(item.code);
+                for (const v of itemVariations) {
+                    if (productMap.has(v)) {
+                        product = productMap.get(v);
+                        break;
+                    }
                 }
             }
             
