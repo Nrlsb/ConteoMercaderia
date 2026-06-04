@@ -109,9 +109,10 @@ const NotificationBell = () => {
         fetchNotifications();
         requestNotificationPermission();
 
-        // Suscribirse a cambios en tiempo real en la tabla de notificaciones para el usuario actual
+        // Suscribirse a cambios en tiempo real en la tabla de notificaciones para el usuario actual con un canal único
+        const channelId = `user-notifications-${user.id}-${Math.random().toString(36).substring(2, 9)}`;
         const channel = supabase
-            .channel(`user-notifications-${user.id}`)
+            .channel(channelId)
             .on(
                 'postgres_changes',
                 {
