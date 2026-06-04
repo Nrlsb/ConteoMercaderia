@@ -161,7 +161,7 @@ const AppContent = () => {
 
   return (
     <>
-      <Toaster richColors position="top-center" swipeDirections={['left', 'right']} />
+      <Toaster richColors closeButton position="top-center" swipeDirections={['left', 'right']} />
       <Modal
         isOpen={sessionExpired}
         onClose={closeSessionExpiredModal}

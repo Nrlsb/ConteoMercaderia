@@ -205,7 +205,7 @@ export const NotificationProvider = ({ children }) => {
             // Mostrar toast visual dentro de la app (móvil)
             toast.info(notification.title, {
                 description: notification.body,
-                duration: 6000,
+                duration: Infinity,
                 action: {
                     label: 'Ver Pedido',
                     onClick: () => {
@@ -272,7 +272,7 @@ export const NotificationProvider = ({ children }) => {
                         // 1. Mostrar toast visual dentro de la app
                         toast.info(newNotif.title, {
                             description: newNotif.message,
-                            duration: 6000,
+                            duration: Infinity,
                             action: {
                                 label: 'Ver Pedido',
                                 onClick: () => {
