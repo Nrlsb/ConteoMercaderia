@@ -30,3 +30,9 @@ supabase_roles.sql
 server/scratch/
 scratch/
 
+# Firebase Credentials (Notificaciones Push)
+firebase-service-account.json
+server/firebase-service-account.json
+*firebase-adminsdk*.json
+client/android/app/google-services.json
+

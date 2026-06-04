@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const NotificationBell = () => {
     const { user, isAuthenticated } = useAuth();
@@ -30,6 +31,25 @@ const NotificationBell = () => {
             }
         } catch (error) {
             console.warn('Error al solicitar permisos de notificación de sistema:', error);
+        }
+    };
+
+    // Registrar y solicitar permisos para Push Notifications de Firebase (APK)
+    const registerPushNotifications = async () => {
+        if (!Capacitor.isNativePlatform()) return;
+
+        try {
+            let permStatus = await PushNotifications.checkPermissions();
+            if (permStatus.receive !== 'granted') {
+                permStatus = await PushNotifications.requestPermissions();
+            }
+
+            if (permStatus.receive === 'granted') {
+                // Registrar para recibir el token FCM de Google
+                await PushNotifications.register();
+            }
+        } catch (e) {
+            console.error('Error al inicializar Push Notifications nativas:', e);
         }
     };
 
@@ -82,7 +102,7 @@ const NotificationBell = () => {
         }
     };
 
-    // Registrar listener para clicks de notificaciones en la APK
+    // Registrar listener para clicks de notificaciones locales en la APK
     useEffect(() => {
         let isMounted = true;
         
@@ -102,6 +122,62 @@ const NotificationBell = () => {
             }
         };
     }, [navigate]);
+
+    // Registrar y gestionar listeners de Push Notifications de Firebase (APK)
+    useEffect(() => {
+        if (!isAuthenticated || !user?.id || !Capacitor.isNativePlatform()) return;
+
+        registerPushNotifications();
+
+        // 1. Obtener y enviar el token FCM al servidor
+        const regListener = PushNotifications.addListener('registration', async (token) => {
+            console.log('[PUSH] Token FCM obtenido en dispositivo:', token.value);
+            try {
+                await api.post('/api/notifications/register-token', {
+                    token: token.value,
+                    deviceType: 'android'
+                });
+                console.log('[PUSH] Token registrado en base de datos correctamente');
+            } catch (err) {
+                console.error('[PUSH] Error al registrar token en backend:', err);
+            }
+        });
+
+        // 2. Error de registro
+        const errListener = PushNotifications.addListener('registrationError', (error) => {
+            console.error('[PUSH] Error en registro de Firebase:', error);
+        });
+
+        // 3. Notificación Push recibida en primer plano
+        const notifListener = PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            console.log('[PUSH] Recibida en primer plano:', notification);
+            fetchNotifications(); // Recargar campanita
+            
+            toast.info(notification.title, {
+                description: notification.body,
+                duration: 6000,
+                action: {
+                    label: 'Ver Pedido',
+                    onClick: () => {
+                        navigate('/seguimiento-pedidos');
+                    }
+                }
+            });
+        });
+
+        // 4. Acción sobre notificación Push en segundo plano / barra
+        const actionListener = PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+            console.log('[PUSH] Notificación pulsada desde la barra de Android:', action);
+            navigate('/seguimiento-pedidos');
+        });
+
+        return () => {
+            regListener.remove();
+            errListener.remove();
+            notifListener.remove();
+            actionListener.remove();
+        };
+    }, [isAuthenticated, user?.id, navigate]);
 
     useEffect(() => {
         if (!isAuthenticated || !user?.id) return;

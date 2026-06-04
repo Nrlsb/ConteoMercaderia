@@ -5,6 +5,7 @@ const notificationController = require('../controllers/notificationController');
 
 // Rutas de notificaciones
 router.get('/', verifyToken, notificationController.getNotifications);
+router.post('/register-token', verifyToken, notificationController.registerFcmToken);
 router.put('/mark-all-read', verifyToken, notificationController.markAllAsRead);
 router.put('/:id/read', verifyToken, notificationController.markAsRead);
 

@@ -64,3 +64,35 @@ exports.markAllAsRead = async (req, res) => {
         res.status(500).json({ message: 'Error al actualizar las notificaciones' });
     }
 };
+
+// Registrar o actualizar un token FCM asociado a un usuario
+exports.registerFcmToken = async (req, res) => {
+    const { token, deviceType } = req.body;
+    try {
+        const userId = req.user.id;
+
+        if (!token) {
+            return res.status(400).json({ message: 'Token de registro FCM requerido' });
+        }
+
+        const { data, error } = await supabase
+            .from('user_fcm_tokens')
+            .upsert(
+                {
+                    user_id: userId,
+                    token: token,
+                    device_type: deviceType || 'android',
+                    created_at: new Date().toISOString()
+                },
+                { onConflict: 'token' }
+            )
+            .select();
+
+        if (error) throw error;
+
+        res.json({ message: 'Token FCM registrado exitosamente', data });
+    } catch (error) {
+        console.error('Error registering FCM token:', error);
+        res.status(500).json({ message: 'Error al registrar token de notificaciones' });
+    }
+};

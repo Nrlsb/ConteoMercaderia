@@ -1,5 +1,6 @@
 const supabase = require('../services/supabaseClient');
 const pdf = require('pdf-parse');
+const firebase = require('../services/firebase');
 
 // Función helper para crear notificaciones asociadas al pedido
 async function createOrderNotifications(pedido, actorUsername, actionType) {
@@ -54,12 +55,52 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             };
         });
 
+        // 1. Guardar notificaciones en base de datos para que aparezcan en la campanita
         const { error: insertError } = await supabase
             .from('notifications')
             .insert(notifications);
 
         if (insertError) {
             console.error('Error inserting order notifications:', insertError);
+        }
+
+        // 2. Enviar notificaciones push mediante Firebase Cloud Messaging
+        const userIds = users.map(u => u.id);
+        const { data: tokenRecords, error: tokenError } = await supabase
+            .from('user_fcm_tokens')
+            .select('token')
+            .in('user_id', userIds);
+
+        if (tokenError) {
+            console.error('Error fetching FCM tokens for push notification:', tokenError);
+            return;
+        }
+
+        if (tokenRecords && tokenRecords.length > 0) {
+            const tokens = tokenRecords.map(t => t.token);
+            
+            // Usar título y mensaje genérico de la acción
+            const sampleNotif = notifications[0];
+            
+            console.log(`[PUSH] Enviando notificación push a ${tokens.length} dispositivos para los usuarios: ${Array.from(usernamesToNotify).join(', ')}`);
+            const pushResult = await firebase.sendPushNotification(
+                tokens,
+                sampleNotif.title,
+                sampleNotif.message,
+                {
+                    pedido_id: pedido.id ? String(pedido.id) : '',
+                    type: String(sampleNotif.type)
+                }
+            );
+
+            // Limpiar de la BD los tokens obsoletos o inválidos reportados por Firebase
+            if (pushResult.success && pushResult.invalidTokens && pushResult.invalidTokens.length > 0) {
+                console.log(`[PUSH] Limpiando ${pushResult.invalidTokens.length} tokens obsoletos de la base de datos`);
+                await supabase
+                    .from('user_fcm_tokens')
+                    .delete()
+                    .in('token', pushResult.invalidTokens);
+            }
         }
     } catch (err) {
         console.error('Error in createOrderNotifications:', err);

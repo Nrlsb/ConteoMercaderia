@@ -21,6 +21,7 @@
     "@capacitor/filesystem": "^8.1.1",
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/local-notifications": "^8.2.0",
+    "@capacitor/push-notifications": "^8.0.1",
     "@capacitor/share": "^8.0.0",
     "@capgo/capacitor-printer": "^8.0.12",
     "@pantrist/capacitor-plugin-ml-kit-text-recognition": "^8.0.0",
