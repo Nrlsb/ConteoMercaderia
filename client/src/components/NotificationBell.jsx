@@ -1,263 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Check } from 'lucide-react';
-import { toast } from 'sonner';
-import api from '../api';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { PushNotifications } from '@capacitor/push-notifications';
+import { useNotifications } from '../context/NotificationContext';
 
 const NotificationBell = () => {
-    const { user, isAuthenticated } = useAuth();
-    const [notifications, setNotifications] = useState([]);
+    const {
+        notifications,
+        unreadCount,
+        browserPermission,
+        handleEnableWebNotifications,
+        handleMarkAsRead,
+        handleMarkAllAsRead,
+        handleNotificationClick
+    } = useNotifications();
+
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
     const navigate = useNavigate();
-
-    const [browserPermission, setBrowserPermission] = useState('default');
-
-    useEffect(() => {
-        if ('Notification' in window) {
-            setBrowserPermission(Notification.permission);
-        }
-    }, []);
-
-    // Solicitar permisos de notificación en el Sistema (Web / APK)
-    const requestNotificationPermission = async () => {
-        try {
-            if (Capacitor.isNativePlatform()) {
-                const permStatus = await LocalNotifications.checkPermissions();
-                if (permStatus.display !== 'granted') {
-                    await LocalNotifications.requestPermissions();
-                }
-            } else {
-                if ('Notification' in window) {
-                    setBrowserPermission(Notification.permission);
-                }
-            }
-        } catch (error) {
-            console.warn('Error al solicitar permisos de notificación de sistema:', error);
-        }
-    };
-
-    // Solicitar permiso de forma interactiva en la web
-    const handleEnableWebNotifications = async () => {
-        try {
-            if ('Notification' in window) {
-                const permission = await Notification.requestPermission();
-                setBrowserPermission(permission);
-                if (permission === 'granted') {
-                    toast.success('Notificaciones de escritorio activadas');
-                    showSystemNotification('¡Notificaciones Activas!', 'Ahora recibirás alertas de tus pedidos en el navegador.');
-                } else if (permission === 'denied') {
-                    toast.error('Has bloqueado las notificaciones. Actívalas desde la configuración de tu navegador.');
-                }
-            }
-        } catch (error) {
-            console.error('Error al solicitar permiso de notificaciones:', error);
-        }
-    };
-
-    // Registrar y solicitar permisos para Push Notifications de Firebase (APK)
-    const registerPushNotifications = async () => {
-        if (!Capacitor.isNativePlatform()) return;
-
-        try {
-            let permStatus = await PushNotifications.checkPermissions();
-            if (permStatus.receive !== 'granted') {
-                permStatus = await PushNotifications.requestPermissions();
-            }
-
-            if (permStatus.receive === 'granted') {
-                // Registrar para recibir el token FCM de Google
-                await PushNotifications.register();
-            }
-        } catch (e) {
-            console.error('Error al inicializar Push Notifications nativas:', e);
-        }
-    };
-
-    // Lanzar notificación en la barra del sistema (Web / APK)
-    const showSystemNotification = async (title, message, pedidoId) => {
-        try {
-            if (Capacitor.isNativePlatform()) {
-                // Notificación nativa en la barra de Android/APK
-                await LocalNotifications.schedule({
-                    notifications: [
-                        {
-                            title,
-                            body: message,
-                            id: Math.floor(Math.random() * 100000),
-                            extra: {
-                                pedidoId
-                            },
-                            smallIcon: 'res://ic_stat_bell', // Icono configurado en Android
-                            sound: 'res://platform_default',
-                            actionTypeId: 'OPEN_PEDIDO'
-                        }
-                    ]
-                });
-            } else {
-                // Notificación nativa en la barra del Navegador Web
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    const notif = new Notification(title, {
-                        body: message,
-                        icon: '/favicon.ico',
-                        tag: pedidoId || 'pedido'
-                    });
-                    notif.onclick = () => {
-                        window.focus();
-                        navigate('/seguimiento-pedidos');
-                    };
-                }
-            }
-        } catch (error) {
-            console.error('Error al mostrar notificación de sistema:', error);
-        }
-    };
-
-    // Cargar notificaciones del servidor
-    const fetchNotifications = async () => {
-        try {
-            const res = await api.get('/api/notifications');
-            setNotifications(res.data);
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
-        }
-    };
-
-    // Registrar listener para clicks de notificaciones locales en la APK
-    useEffect(() => {
-        let isMounted = true;
-        
-        if (Capacitor.isNativePlatform()) {
-            LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-                console.log('Notificación pulsada en APK:', action);
-                if (isMounted) {
-                    navigate('/seguimiento-pedidos');
-                }
-            });
-        }
-
-        return () => {
-            isMounted = false;
-            if (Capacitor.isNativePlatform()) {
-                LocalNotifications.removeAllListeners();
-            }
-        };
-    }, [navigate]);
-
-    // Registrar y gestionar listeners de Push Notifications de Firebase (APK)
-    useEffect(() => {
-        if (!isAuthenticated || !user?.id || !Capacitor.isNativePlatform()) return;
-
-        registerPushNotifications();
-
-        // 1. Obtener y enviar el token FCM al servidor
-        const regListener = PushNotifications.addListener('registration', async (token) => {
-            console.log('[PUSH] Token FCM obtenido en dispositivo:', token.value);
-            try {
-                await api.post('/api/notifications/register-token', {
-                    token: token.value,
-                    deviceType: 'android'
-                });
-                console.log('[PUSH] Token registrado en base de datos correctamente');
-            } catch (err) {
-                console.error('[PUSH] Error al registrar token en backend:', err);
-            }
-        });
-
-        // 2. Error de registro
-        const errListener = PushNotifications.addListener('registrationError', (error) => {
-            console.error('[PUSH] Error en registro de Firebase:', error);
-        });
-
-        // 3. Notificación Push recibida en primer plano
-        const notifListener = PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('[PUSH] Recibida en primer plano:', notification);
-            fetchNotifications(); // Recargar campanita
-            
-            toast.info(notification.title, {
-                description: notification.body,
-                duration: 6000,
-                action: {
-                    label: 'Ver Pedido',
-                    onClick: () => {
-                        navigate('/seguimiento-pedidos');
-                    }
-                }
-            });
-        });
-
-        // 4. Acción sobre notificación Push en segundo plano / barra
-        const actionListener = PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-            console.log('[PUSH] Notificación pulsada desde la barra de Android:', action);
-            navigate('/seguimiento-pedidos');
-        });
-
-        return () => {
-            regListener.remove();
-            errListener.remove();
-            notifListener.remove();
-            actionListener.remove();
-        };
-    }, [isAuthenticated, user?.id, navigate]);
-
-    useEffect(() => {
-        if (!isAuthenticated || !user?.id) return;
-
-        fetchNotifications();
-        requestNotificationPermission();
-
-        // Suscribirse a cambios en tiempo real en la tabla de notificaciones para el usuario actual con un canal único
-        const channelId = `user-notifications-${user.id}-${Math.random().toString(36).substring(2, 9)}`;
-        console.log(`[REALTIME] Intentando suscribir al canal '${channelId}' para el usuario:`, user.username, "ID:", user.id);
-        
-        const channel = supabase
-            .channel(channelId)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'notifications',
-                    filter: `user_id=eq.${user.id}`
-                },
-                (payload) => {
-                    console.log('[REALTIME] ¡Nueva notificación recibida en tiempo real!', payload);
-                    const newNotif = payload.new;
-                    setNotifications((prev) => [newNotif, ...prev]);
-                    
-                    // 1. Mostrar toast visual dentro de la app (Web o la APK)
-                    toast.info(newNotif.title, {
-                        description: newNotif.message,
-                        duration: 6000,
-                        action: {
-                            label: 'Ver Pedido',
-                            onClick: () => {
-                                setIsOpen(true);
-                                navigate('/seguimiento-pedidos');
-                            }
-                        }
-                    });
-
-                    // 2. Enviar notificación a la barra de notificaciones del sistema
-                    showSystemNotification(newNotif.title, newNotif.message, newNotif.pedido_id);
-                }
-            )
-            .subscribe((status, err) => {
-                console.log(`[REALTIME] Estado de la suscripción para ${user.username}:`, status);
-                if (err) {
-                    console.error('[REALTIME] Error en la suscripción:', err);
-                }
-            });
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [isAuthenticated, user?.id, navigate]);
 
     // Cerrar dropdown al hacer click afuera
     useEffect(() => {
@@ -269,50 +29,6 @@ const NotificationBell = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
-    const unreadCount = notifications.filter(n => !n.read).length;
-
-    const handleMarkAsRead = async (id, e) => {
-        e.stopPropagation();
-        try {
-            await api.put(`/api/notifications/${id}/read`);
-            setNotifications(prev =>
-                prev.map(n => n.id === id ? { ...n, read: true } : n)
-            );
-            toast.success('Notificación marcada como leída');
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-        }
-    };
-
-    const handleMarkAllAsRead = async () => {
-        if (unreadCount === 0) return;
-        try {
-            await api.put('/api/notifications/mark-all-read');
-            setNotifications(prev =>
-                prev.map(n => ({ ...n, read: true }))
-            );
-            toast.success('Todas las notificaciones marcadas como leídas');
-        } catch (error) {
-            console.error('Error marking all notifications as read:', error);
-        }
-    };
-
-    const handleNotificationClick = (notification) => {
-        if (!notification.read) {
-            api.put(`/api/notifications/${notification.id}/read`)
-                .then(() => {
-                    setNotifications(prev =>
-                        prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
-                    );
-                })
-                .catch(err => console.error(err));
-        }
-        setIsOpen(false);
-        if (notification.pedido_id) {
-            navigate('/seguimiento-pedidos');
-        }
-    };
 
     return (
         <div className="relative" ref={dropdownRef}>
@@ -381,7 +97,7 @@ const NotificationBell = () => {
                             notifications.map((notif) => (
                                 <div
                                     key={notif.id}
-                                    onClick={() => handleNotificationClick(notif)}
+                                    onClick={() => handleNotificationClick(notif, () => setIsOpen(false))}
                                     className={`p-4 flex gap-3 cursor-pointer hover:bg-blue-50/50 transition-all duration-150 relative ${
                                         !notif.read ? 'bg-blue-50/20 font-medium' : ''
                                     }`}
@@ -405,7 +121,7 @@ const NotificationBell = () => {
                                     </div>
 
                                     {!notif.read && (
-                                        <div className="flex items-center">
+                                        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 onClick={(e) => handleMarkAsRead(notif.id, e)}
                                                 className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
@@ -416,7 +132,7 @@ const NotificationBell = () => {
                                         </div>
                                     )}
                                 </div>
-                            ))
+                              ))
                         )}
                     </div>
 
@@ -439,4 +155,3 @@ const NotificationBell = () => {
 };
 
 export default NotificationBell;
-

@@ -9,6 +9,7 @@ import Navigation from './components/Navigation';
 import Modal from './components/Modal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { NotificationProvider } from './context/NotificationContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import UpdateNotifier from './components/UpdateNotifier';
 
@@ -277,7 +278,9 @@ function App() {
     <AuthProvider>
       <SettingsProvider>
         <Router>
-          <AppContent />
+          <NotificationProvider>
+            <AppContent />
+          </NotificationProvider>
         </Router>
       </SettingsProvider>
     </AuthProvider>
