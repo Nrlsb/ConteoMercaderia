@@ -602,8 +602,8 @@ const SeguimientoPedidosPage = () => {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex flex-col">
-                          <span className="font-semibold text-gray-900">{pedido.quien_solicita}</span>
-                          <span className="text-[11px] text-gray-400">Para: {pedido.para_quien || '-'}</span>
+                          <span className="font-semibold text-gray-900">{pedido.para_quien || '-'}</span>
+                          <span className="text-[11px] text-gray-400">De: {pedido.quien_solicita}</span>
                         </div>
                       </td>
                       <td className="py-4 px-4">
@@ -673,10 +673,8 @@ const SeguimientoPedidosPage = () => {
                     </span>
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Origen / Destino</span>
-                      <span className="font-bold text-gray-900">{pedido.quien_solicita}</span>
-                      {pedido.para_quien && (
-                        <span className="text-[11px] text-gray-400">Para: {pedido.para_quien}</span>
-                      )}
+                      <span className="font-bold text-gray-900">{pedido.para_quien || '-'}</span>
+                      <span className="text-[11px] text-gray-400">De: {pedido.quien_solicita}</span>
                     </div>
                   </div>
                   <div>{getStatusBadge(pedido.estado)}</div>
