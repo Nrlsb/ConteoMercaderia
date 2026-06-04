@@ -222,12 +222,15 @@ export const NotificationProvider = ({ children }) => {
                 {
                     event: 'INSERT',
                     schema: 'public',
-                    table: 'notifications',
-                    filter: `user_id=eq.${user.id}`
+                    table: 'notifications'
                 },
                 (payload) => {
-                    console.log('[REALTIME] ¡Nueva notificación recibida en tiempo real!', payload);
                     const newNotif = payload.new;
+                    
+                    // Filtrar en el cliente: ignorar si no es para el usuario actual
+                    if (newNotif.user_id !== user.id) return;
+                    
+                    console.log('[REALTIME] ¡Nueva notificación recibida en tiempo real!', payload);
                     
                     // Evitar duplicados en la lista local
                     setNotifications((prev) => {
