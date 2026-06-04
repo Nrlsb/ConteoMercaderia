@@ -214,6 +214,11 @@ const UsersManage = () => {
             specialPermissions: [
                 { id: 'save_measurements', name: 'Guardar Colorantes' }
             ]
+        },
+        {
+            id: 'tab_seguimiento_pedidos',
+            name: 'Seguimiento Pedidos',
+            specialPermissions: []
         }
     ];
 

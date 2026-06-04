@@ -60,6 +60,7 @@ const Navigation = () => {
     const showIngresoSucursal = canSeeTab('tab_ingreso_sucursal', user?.role === 'admin' || user?.role === 'superadmin' || (user?.sucursal_name && user?.sucursal_name !== 'Deposito'));
     const showEtiquetas = canSeeTab('tab_etiquetas', true);
     const showPesaje = canSeeTab('tab_pesaje', true);
+    const showSeguimientoPedidos = canSeeTab('tab_seguimiento_pedidos', true);
 
 
     const getRoleName = () => {
@@ -114,6 +115,9 @@ const Navigation = () => {
                             )}
                             {showPesaje && (
                                 <Link to="/pesaje" className={getLinkClass('/pesaje')}>Colorantes</Link>
+                            )}
+                            {showSeguimientoPedidos && (
+                                <Link to="/seguimiento-pedidos" className={getLinkClass('/seguimiento-pedidos')}>Seguimiento Pedidos</Link>
                             )}
                             <Link to="/ayuda" className={getLinkClass('/ayuda')}>Ayuda</Link>
 
@@ -200,6 +204,9 @@ const Navigation = () => {
                         )}
                         {showPesaje && (
                             <Link to="/pesaje" className={getMobileLinkClass('/pesaje')} onClick={() => setIsOpen(false)}>Colorantes</Link>
+                        )}
+                        {showSeguimientoPedidos && (
+                            <Link to="/seguimiento-pedidos" className={getMobileLinkClass('/seguimiento-pedidos')} onClick={() => setIsOpen(false)}>Seguimiento Pedidos</Link>
                         )}
                         <Link to="/ayuda" className={getMobileLinkClass('/ayuda')} onClick={() => setIsOpen(false)}>Ayuda</Link>
 

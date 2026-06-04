@@ -29,6 +29,7 @@ const BranchIncomingsList = lazy(() => import('./components/BranchIncomingsList'
 const EtiquetasPage = lazy(() => import('./components/EtiquetasPage'));
 const HelpPage = lazy(() => import('./components/HelpPage'));
 const PesajePage = lazy(() => import('./components/PesajePage'));
+const SeguimientoPedidosPage = lazy(() => import('./components/SeguimientoPedidosPage'));
 
 
 const ProtectedRoute = ({ children, role, tabPermission }) => {
@@ -89,6 +90,7 @@ const RoleBasedHome = () => {
       'tab_egresos': '/egresos',
       'tab_ingreso_sucursal': '/branch-incomings',
       'tab_etiquetas': '/etiquetas',
+      'tab_seguimiento_pedidos': '/seguimiento-pedidos',
     };
     // Find the first allowed tab and redirect
     for (const perm of userPermissions) {
@@ -253,6 +255,11 @@ const AppContent = () => {
                 <Route path="/pesaje" element={
                   <ProtectedRoute>
                     <PesajePage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/seguimiento-pedidos" element={
+                  <ProtectedRoute tabPermission="tab_seguimiento_pedidos">
+                    <SeguimientoPedidosPage />
                   </ProtectedRoute>
                 } />
 
