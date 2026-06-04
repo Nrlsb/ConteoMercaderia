@@ -24,6 +24,7 @@ export const NotificationProvider = ({ children }) => {
     const isAuthenticatedRef = useRef(isAuthenticated);
     const userIdRef = useRef(user?.id);
     const userUsernameRef = useRef(user?.username);
+    const processedNotificationsRef = useRef(new Set());
 
     useEffect(() => {
         isAuthenticatedRef.current = isAuthenticated;
@@ -151,6 +152,42 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
+    // Lanzar notificación visual y de sistema deduplicada (Web)
+    const triggerVisualNotification = (title, body, pedidoId) => {
+        if (Capacitor.isNativePlatform()) return;
+
+        // Clave única basada en título y cuerpo
+        const key = `${title}|${body}`;
+        if (processedNotificationsRef.current.has(key)) {
+            console.log('[NOTIFICACION] Ya procesada recientemente en primer plano, omitiendo duplicada:', key);
+            return;
+        }
+
+        // Registrar clave en el set deduplicador
+        processedNotificationsRef.current.add(key);
+        // Expirar la clave en 15 segundos
+        setTimeout(() => {
+            processedNotificationsRef.current.delete(key);
+        }, 15000);
+
+        console.log('[NOTIFICACION] Disparando alerta visual en primer plano:', title, body);
+
+        // 1. Mostrar toast visual dentro de la app
+        toast.info(title, {
+            description: body,
+            duration: Infinity,
+            action: {
+                label: 'Ver Pedido',
+                onClick: () => {
+                    navigate('/seguimiento-pedidos');
+                }
+            }
+        });
+
+        // 2. Enviar notificación a la barra de notificaciones del sistema
+        showSystemNotification(title, body, pedidoId);
+    };
+
     // Registrar listeners locales en la APK (Acciones sobre notificaciones locales)
     useEffect(() => {
         let isMounted = true;
@@ -269,20 +306,7 @@ export const NotificationProvider = ({ children }) => {
                     // las gestiona exclusivamente el plugin de Firebase FCM (en foreground/background).
                     // En el navegador web (Desktop), las gestionamos nosotros a través del realtime y LocalNotifications.
                     if (!Capacitor.isNativePlatform()) {
-                        // 1. Mostrar toast visual dentro de la app
-                        toast.info(newNotif.title, {
-                            description: newNotif.message,
-                            duration: Infinity,
-                            action: {
-                                label: 'Ver Pedido',
-                                onClick: () => {
-                                    navigate('/seguimiento-pedidos');
-                                }
-                            }
-                        });
-
-                        // 2. Enviar notificación a la barra de notificaciones del sistema
-                        showSystemNotification(newNotif.title, newNotif.message, newNotif.pedido_id);
+                        triggerVisualNotification(newNotif.title, newNotif.message, newNotif.pedido_id);
                     }
                 }
             )
@@ -309,9 +333,14 @@ export const NotificationProvider = ({ children }) => {
                 console.log('[PUSH WEB] Mensaje recibido en primer plano:', payload);
                 fetchNotifications(); // Recargar campanita de notificaciones
                 
-                // Nota: No disparamos un toast/notificación del sistema aquí para evitar duplicar
-                // con el canal de Supabase Realtime, el cual ya se encarga de mostrar la alerta
-                // visual cuando la app está abierta en primer plano.
+                // Si viene un payload con notificación, disparar la alerta visual
+                // usando el deduplicador (por si también llega por Supabase Realtime)
+                if (payload.notification) {
+                    const title = payload.notification.title || 'Nueva notificación';
+                    const body = payload.notification.body || '';
+                    const pedidoId = payload.data?.pedido_id;
+                    triggerVisualNotification(title, body, pedidoId);
+                }
             });
         } catch (error) {
             console.error('[PUSH WEB] Error al configurar el listener en primer plano:', error);
