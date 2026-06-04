@@ -333,6 +333,7 @@ exports.exportPedidosExcel = async (req, res) => {
             'N° Pedido Venta': p.nro_pedido_venta || '',
             'Proveedor/Marca': p.proveedor_marca || '',
             'N° de Pedido': p.nro_pedido || '',
+            'Código Producto Proveed.': p.codigo_producto_proveed || '',
             'Urgencia': p.urgencia ? 'SÍ' : 'NO',
             'Rotación': p.rotacion ? 'SÍ' : 'NO',
             'Transp. Mercurio': p.transp_mercurio ? 'SÍ' : 'NO',
@@ -342,10 +343,13 @@ exports.exportPedidosExcel = async (req, res) => {
             'Cant. Pedido': p.cant_pedido || 0,
             'Prev. Entrada': p.prev_entrada || '',
             'N° Pedido Compra': p.nro_pedido_compra || '',
-            'Recepción Parcial': p.recepcion_parcial || '',
-            'Contacto Mercurio': p.contacto_mercurio || '',
-            'Contacto Proveedor': p.contacto_proveedor || '',
-            'Estado / Recepción Total': p.estado || 'Pendiente'
+            'Recepción Parcial (Comentarios)': p.recepcion_parcial || '',
+            'Cant. Recep. Parcial': p.cant_recepcion_parcial || '',
+            'Contacto Mercurio - ¿Quién?': p.contacto_mercurio || '',
+            'Contacto Mercurio - ¿Fechas?': p.contacto_mercurio_fecha || '',
+            'Contacto Proveedor - ¿Quién?': p.contacto_proveedor || '',
+            'Contacto Proveedor - ¿Fechas?': p.contacto_proveedor_fecha || '',
+            'Estado': p.estado || 'Pendiente'
         }));
 
         const workbook = xlsx.utils.book_new();
