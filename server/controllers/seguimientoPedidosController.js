@@ -1,6 +1,71 @@
 const supabase = require('../services/supabaseClient');
 const pdf = require('pdf-parse');
 
+// Función helper para crear notificaciones asociadas al pedido
+async function createOrderNotifications(pedido, actorUsername, actionType) {
+    try {
+        const usernamesToNotify = new Set();
+        if (pedido.quien_solicita && pedido.quien_solicita !== actorUsername) {
+            usernamesToNotify.add(pedido.quien_solicita);
+        }
+        if (pedido.para_quien && pedido.para_quien !== actorUsername) {
+            usernamesToNotify.add(pedido.para_quien);
+        }
+        if (pedido.contacto_mercurio && pedido.contacto_mercurio !== actorUsername) {
+            usernamesToNotify.add(pedido.contacto_mercurio);
+        }
+
+        if (usernamesToNotify.size === 0) return;
+
+        // Buscar los user_ids de estos usernames en la base de datos
+        const { data: users, error: usersError } = await supabase
+            .from('users')
+            .select('id, username')
+            .in('username', Array.from(usernamesToNotify));
+
+        if (usersError) {
+            console.error('Error fetching users for order notifications:', usersError);
+            return;
+        }
+
+        if (!users || users.length === 0) return;
+
+        const notifications = users.map(user => {
+            let title = '';
+            let message = '';
+            const productoDesc = pedido.descripcion_capacidad || 'Producto sin especificar';
+            const proveedor = pedido.proveedor_marca || 'Proveedor';
+
+            if (actionType === 'create') {
+                title = 'Nuevo pedido registrado';
+                message = `El usuario ${actorUsername} registró un nuevo pedido para ${pedido.para_quien || 'Deposito'}: ${productoDesc} (${proveedor}).`;
+            } else if (actionType === 'update') {
+                title = 'Pedido actualizado';
+                message = `El pedido de ${proveedor} (${productoDesc}) fue actualizado por ${actorUsername}. Estado: ${pedido.estado || 'Pendiente'}.`;
+            }
+
+            return {
+                user_id: user.id,
+                title,
+                message,
+                type: actionType === 'create' ? 'pedido_creado' : 'pedido_modificado',
+                pedido_id: pedido.id,
+                read: false
+            };
+        });
+
+        const { error: insertError } = await supabase
+            .from('notifications')
+            .insert(notifications);
+
+        if (insertError) {
+            console.error('Error inserting order notifications:', insertError);
+        }
+    } catch (err) {
+        console.error('Error in createOrderNotifications:', err);
+    }
+}
+
 exports.getAllPedidos = async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -26,6 +91,10 @@ exports.createPedido = async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Crear notificaciones en segundo plano
+        createOrderNotifications(data, req.user?.username || 'Sistema', 'create');
+
         res.status(201).json(data);
     } catch (error) {
         console.error('Error creating pedido:', error);
@@ -44,12 +113,17 @@ exports.updatePedido = async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Crear notificaciones en segundo plano
+        createOrderNotifications(data, req.user?.username || 'Sistema', 'update');
+
         res.json(data);
     } catch (error) {
         console.error('Error updating pedido:', error);
         res.status(500).json({ message: 'Error al actualizar el pedido' });
     }
 };
+
 
 exports.deletePedido = async (req, res) => {
     const { id } = req.params;
