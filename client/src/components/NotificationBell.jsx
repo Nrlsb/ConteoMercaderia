@@ -111,6 +111,8 @@ const NotificationBell = () => {
 
         // Suscribirse a cambios en tiempo real en la tabla de notificaciones para el usuario actual con un canal único
         const channelId = `user-notifications-${user.id}-${Math.random().toString(36).substring(2, 9)}`;
+        console.log(`[REALTIME] Intentando suscribir al canal '${channelId}' para el usuario:`, user.username, "ID:", user.id);
+        
         const channel = supabase
             .channel(channelId)
             .on(
@@ -122,6 +124,7 @@ const NotificationBell = () => {
                     filter: `user_id=eq.${user.id}`
                 },
                 (payload) => {
+                    console.log('[REALTIME] ¡Nueva notificación recibida en tiempo real!', payload);
                     const newNotif = payload.new;
                     setNotifications((prev) => [newNotif, ...prev]);
                     
@@ -142,7 +145,12 @@ const NotificationBell = () => {
                     showSystemNotification(newNotif.title, newNotif.message, newNotif.pedido_id);
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                console.log(`[REALTIME] Estado de la suscripción para ${user.username}:`, status);
+                if (err) {
+                    console.error('[REALTIME] Error en la suscripción:', err);
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);

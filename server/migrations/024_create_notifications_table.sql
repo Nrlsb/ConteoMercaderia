@@ -10,18 +10,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable Row Level Security (RLS)
+-- 2. Habilitar RLS (Row Level Security)
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
--- Drop policy if it exists and create it
+-- 3. Crear política para que usuarios anon (frontend) y authenticated (backend) puedan operar
 DROP POLICY IF EXISTS "Allow users to see their own notifications" ON notifications;
 CREATE POLICY "Allow users to see their own notifications" ON notifications
     FOR ALL
-    TO authenticated
-    USING (true) -- Permitimos leer a usuarios autenticados, o mejor restringimos para que lean solo las suyas
+    TO anon, authenticated
+    USING (true)
     WITH CHECK (true);
 
--- Enable Realtime for notifications table
+-- 4. Habilitar Realtime para esta tabla
 ALTER TABLE notifications REPLICA IDENTITY FULL;
 
 -- Intenta añadir la tabla a la publicación de realtime si existe
