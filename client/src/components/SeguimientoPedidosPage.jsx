@@ -66,6 +66,17 @@ const SeguimientoPedidosPage = () => {
     fetchPedidos();
   }, []);
 
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModalOpen]);
+
   // Opciones de filtros dinámicos basados en los datos
   const filterOptions = useMemo(() => {
     const solicitantes = new Set();
@@ -593,10 +604,10 @@ const SeguimientoPedidosPage = () => {
 
       {/* Modal Crear / Editar Pedido */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200 my-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-6 py-4 flex items-center justify-between text-white">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-6 py-4 flex items-center justify-between text-white shrink-0">
               <div>
                 <h3 className="text-lg font-bold">
                   {editingPedido ? 'Editar Registro de Pedido' : 'Registrar Nuevo Pedido'}
@@ -612,243 +623,245 @@ const SeguimientoPedidosPage = () => {
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleSave} className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Primera Fila */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha de Registro</label>
-                  <input
-                    type="date"
-                    name="fecha"
-                    value={formData.fecha}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién solicita?</label>
-                  <input
-                    type="text"
-                    name="quien_solicita"
-                    placeholder="Ej. Sucursal 02, Compras..."
-                    value={formData.quien_solicita}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Para quién es?</label>
-                  <input
-                    type="text"
-                    name="para_quien"
-                    placeholder="Ej. Sucursal 02, Stock..."
-                    value={formData.para_quien}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-
-                {/* Segunda Fila */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido de Venta</label>
-                  <input
-                    type="text"
-                    name="nro_pedido_venta"
-                    placeholder="Ingrese número si aplica..."
-                    value={formData.nro_pedido_venta}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Proveedor / Marca</label>
-                  <input
-                    type="text"
-                    name="proveedor_marca"
-                    placeholder="Ej. Saint Gobain, Tersuave..."
-                    value={formData.proveedor_marca}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido del Proveedor</label>
-                  <input
-                    type="text"
-                    name="nro_pedido"
-                    placeholder="Ej. DC-3000..."
-                    value={formData.nro_pedido}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-
-                {/* Tercera Fila */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Código Mercurio</label>
-                  <input
-                    type="text"
-                    name="codigo_mercurio"
-                    placeholder="Ej. 001100..."
-                    value={formData.codigo_mercurio}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Descripción / Capacidad</label>
-                  <input
-                    type="text"
-                    name="descripcion_capacidad"
-                    placeholder="Ej. 1,000 UNIDAD, 20 LITROS..."
-                    value={formData.descripcion_capacidad}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Cantidad Pedida</label>
-                  <input
-                    type="number"
-                    step="any"
-                    name="cant_pedido"
-                    placeholder="Ej. 20, 100..."
-                    value={formData.cant_pedido}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-
-                {/* Cuarta Fila */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido Compra (OC)</label>
-                  <input
-                    type="text"
-                    name="nro_pedido_compra"
-                    placeholder="Ej. 175, 2664..."
-                    value={formData.nro_pedido_compra}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Prev. Entrada / Fechas</label>
-                  <input
-                    type="text"
-                    name="prev_entrada"
-                    placeholder="Ej. 12/05, 15/5..."
-                    value={formData.prev_entrada}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Estado del Pedido</label>
-                  <select
-                    name="estado"
-                    value={formData.estado}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                  >
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Recepción Parcial">Recepción Parcial</option>
-                    <option value="Recibido">Recibido</option>
-                    <option value="Recibido y entregado">Recibido y entregado</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Indicadores / Checkboxes */}
-              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-3">
-                <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Características Especiales</span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+            <form onSubmit={handleSave} className="flex flex-col flex-grow overflow-hidden">
+              <div className="p-6 space-y-6 overflow-y-auto flex-grow">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Primera Fila */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha de Registro</label>
                     <input
-                      type="checkbox"
-                      name="urgencia"
-                      checked={formData.urgencia}
+                      type="date"
+                      name="fecha"
+                      value={formData.fecha}
                       onChange={handleInputChange}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      required
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                     />
-                    Urgencia (URG)
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién solicita?</label>
                     <input
-                      type="checkbox"
-                      name="rotacion"
-                      checked={formData.rotacion}
+                      type="text"
+                      name="quien_solicita"
+                      placeholder="Ej. Sucursal 02, Compras..."
+                      value={formData.quien_solicita}
                       onChange={handleInputChange}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      required
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                     />
-                    Rotación (ROT)
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Para quién es?</label>
                     <input
-                      type="checkbox"
-                      name="transp_mercurio"
-                      checked={formData.transp_mercurio}
+                      type="text"
+                      name="para_quien"
+                      placeholder="Ej. Sucursal 02, Stock..."
+                      value={formData.para_quien}
                       onChange={handleInputChange}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                     />
-                    Transp. Mercurio (MERC)
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="otro_transporte"
-                      checked={formData.otro_transporte}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    Otro Transporte
-                  </label>
-                </div>
-              </div>
+                  </div>
 
-              {/* Detalles Adicionales */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Detalles / Recepción Parcial (Comentarios)</label>
-                  <input
-                    type="text"
-                    name="recepcion_parcial"
-                    placeholder="Notas o historial de recepciones..."
-                    value={formData.recepcion_parcial}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
+                  {/* Segunda Fila */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido de Venta</label>
+                    <input
+                      type="text"
+                      name="nro_pedido_venta"
+                      placeholder="Ingrese número si aplica..."
+                      value={formData.nro_pedido_venta}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Proveedor / Marca</label>
+                    <input
+                      type="text"
+                      name="proveedor_marca"
+                      placeholder="Ej. Saint Gobain, Tersuave..."
+                      value={formData.proveedor_marca}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido del Proveedor</label>
+                    <input
+                      type="text"
+                      name="nro_pedido"
+                      placeholder="Ej. DC-3000..."
+                      value={formData.nro_pedido}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+
+                  {/* Tercera Fila */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Código Mercurio</label>
+                    <input
+                      type="text"
+                      name="codigo_mercurio"
+                      placeholder="Ej. 001100..."
+                      value={formData.codigo_mercurio}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Descripción / Capacidad</label>
+                    <input
+                      type="text"
+                      name="descripcion_capacidad"
+                      placeholder="Ej. 1,000 UNIDAD, 20 LITROS..."
+                      value={formData.descripcion_capacidad}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Cantidad Pedida</label>
+                    <input
+                      type="number"
+                      step="any"
+                      name="cant_pedido"
+                      placeholder="Ej. 20, 100..."
+                      value={formData.cant_pedido}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+
+                  {/* Cuarta Fila */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido Compra (OC)</label>
+                    <input
+                      type="text"
+                      name="nro_pedido_compra"
+                      placeholder="Ej. 175, 2664..."
+                      value={formData.nro_pedido_compra}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Prev. Entrada / Fechas</label>
+                    <input
+                      type="text"
+                      name="prev_entrada"
+                      placeholder="Ej. 12/05, 15/5..."
+                      value={formData.prev_entrada}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Estado del Pedido</label>
+                    <select
+                      name="estado"
+                      value={formData.estado}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    >
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="Recepción Parcial">Recepción Parcial</option>
+                      <option value="Recibido">Recibido</option>
+                      <option value="Recibido y entregado">Recibido y entregado</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Contacto Mercurio</label>
-                  <input
-                    type="text"
-                    name="contacto_mercurio"
-                    placeholder="Nombre del responsable..."
-                    value={formData.contacto_mercurio}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
+
+                {/* Indicadores / Checkboxes */}
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-3">
+                  <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Características Especiales</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="urgencia"
+                        checked={formData.urgencia}
+                        onChange={handleInputChange}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      Urgencia (URG)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="rotacion"
+                        checked={formData.rotacion}
+                        onChange={handleInputChange}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      Rotación (ROT)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="transp_mercurio"
+                        checked={formData.transp_mercurio}
+                        onChange={handleInputChange}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      Transp. Mercurio (MERC)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="otro_transporte"
+                        checked={formData.otro_transporte}
+                        onChange={handleInputChange}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      Otro Transporte
+                    </label>
+                  </div>
                 </div>
-                <div className="sm:col-span-3">
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Contacto Proveedor / Notas adicionales</label>
-                  <input
-                    type="text"
-                    name="contacto_proveedor"
-                    placeholder="Nombre del contacto en el proveedor o comentarios extra..."
-                    value={formData.contacto_proveedor}
-                    onChange={handleInputChange}
-                    className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                  />
+
+                {/* Detalles Adicionales */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Detalles / Recepción Parcial (Comentarios)</label>
+                    <input
+                      type="text"
+                      name="recepcion_parcial"
+                      placeholder="Notas o historial de recepciones..."
+                      value={formData.recepcion_parcial}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Contacto Mercurio</label>
+                    <input
+                      type="text"
+                      name="contacto_mercurio"
+                      placeholder="Nombre del responsable..."
+                      value={formData.contacto_mercurio}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Contacto Proveedor / Notas adicionales</label>
+                    <input
+                      type="text"
+                      name="contacto_proveedor"
+                      placeholder="Nombre del contacto en el proveedor o comentarios extra..."
+                      value={formData.contacto_proveedor}
+                      onChange={handleInputChange}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Botones de acción */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-150">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
