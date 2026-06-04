@@ -173,7 +173,7 @@ const SeguimientoPedidosPage = () => {
         setFormData(prev => ({
           ...prev,
           descripcion: prod.description || prev.descripcion || '',
-          capacidad: prod.capacity || prev.capacidad || ''
+          capacidad: prod.real_weight || prod.capacity || prev.capacidad || ''
         }));
         toast.success(`Producto cargado: ${prod.description}`);
       } else {
