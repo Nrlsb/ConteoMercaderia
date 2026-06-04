@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, Download, Trash2, Edit, Calendar, Truck,
-  AlertCircle, CheckCircle2, Clock, Users, Package, Filter, X, Upload
+  AlertCircle, CheckCircle2, Clock, Users, Package, Filter, X, Upload, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -25,6 +25,7 @@ const SeguimientoPedidosPage = () => {
   const [editingPedido, setEditingPedido] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [viewingPedido, setViewingPedido] = useState(null);
 
   // Formulario de Pedido
   const initialFormState = {
@@ -584,21 +585,18 @@ const SeguimientoPedidosPage = () => {
                   <tr className="bg-gray-50 text-gray-500 text-[11px] font-bold uppercase tracking-wider border-b border-gray-100">
                     <th className="py-3.5 px-4">Fecha</th>
                     <th className="py-3.5 px-4">Origen / Destino</th>
-                    <th className="py-3.5 px-4">Proveedor</th>
-                    <th className="py-3.5 px-4">N° Pedido Venta</th>
-                    <th className="py-3.5 px-4">Ref. / Compra</th>
-                    <th className="py-3.5 px-4">Indicadores</th>
-                    <th className="py-3.5 px-4">Cód. Merc.</th>
-                    <th className="py-3.5 px-4">Descripción / Cant.</th>
-                    <th className="py-3.5 px-4">Prev. Entrada</th>
-                    <th className="py-3.5 px-4">Parcial / Total</th>
+                    <th className="py-3.5 px-4">Producto</th>
                     <th className="py-3.5 px-4">Estado</th>
                     <th className="py-3.5 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
                   {filteredPedidos.map((pedido) => (
-                    <tr key={pedido.id} className="hover:bg-blue-50/20 transition-all duration-150">
+                    <tr 
+                      key={pedido.id} 
+                      onClick={() => setViewingPedido(pedido)}
+                      className="hover:bg-blue-50/30 transition-all duration-150 cursor-pointer"
+                    >
                       <td className="py-4 px-4 whitespace-nowrap text-gray-600 font-medium">
                         {pedido.fecha ? new Date(pedido.fecha).toLocaleDateString('es-AR') : '-'}
                       </td>
@@ -606,84 +604,38 @@ const SeguimientoPedidosPage = () => {
                         <div className="flex flex-col">
                           <span className="font-semibold text-gray-900">{pedido.quien_solicita}</span>
                           <span className="text-[11px] text-gray-400">Para: {pedido.para_quien || '-'}</span>
-                          {pedido.contacto_mercurio && (
-                            <span className="text-[10px] text-sky-700 font-medium mt-0.5" title="Contacto Mercurio">
-                              Cont: {pedido.contacto_mercurio} {pedido.contacto_mercurio_fecha ? `(${pedido.contacto_mercurio_fecha})` : ''}
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-gray-900">{pedido.proveedor_marca}</span>
-                          {pedido.codigo_producto_proveed && (
-                            <span className="text-[11px] font-mono text-gray-500">Cód: {pedido.codigo_producto_proveed}</span>
-                          )}
-                          {pedido.contacto_proveedor && (
-                            <span className="text-[10px] text-rose-700 font-medium mt-0.5" title="Contacto Proveedor">
-                              Cont: {pedido.contacto_proveedor} {pedido.contacto_proveedor_fecha ? `(${pedido.contacto_proveedor_fecha})` : ''}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 whitespace-nowrap text-xs font-mono text-gray-600">
-                        {pedido.nro_pedido_venta || '-'}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-gray-800">Ped. Prov: {pedido.nro_pedido || '-'}</span>
-                          <span className="text-[11px] font-medium text-blue-600">OC: {pedido.nro_pedido_compra || '-'}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-wrap gap-1">
-                          {pedido.urgencia && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-700 rounded uppercase">Urg</span>
-                          )}
-                          {pedido.rotacion && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 rounded uppercase">Rot</span>
-                          )}
-                          {pedido.transp_mercurio && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-100 text-blue-700 rounded uppercase">Merc</span>
-                          )}
-                          {pedido.otro_transporte && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-purple-100 text-purple-700 rounded uppercase">Otro</span>
-                          )}
-                          {!pedido.urgencia && !pedido.rotacion && !pedido.transp_mercurio && !pedido.otro_transporte && (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-xs font-mono font-medium text-gray-600">{pedido.codigo_mercurio || '-'}</td>
-                      <td className="py-4 px-4">
-                        <div className="max-w-[200px]">
+                        <div className="max-w-[400px]">
                           <p className="font-semibold text-gray-800 truncate" title={pedido.descripcion_capacidad}>
                             {pedido.descripcion_capacidad}
                           </p>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Cant: <span className="font-bold text-gray-900">{pedido.cant_pedido || '-'}</span>
-                          </p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-xs text-gray-600 font-medium">{pedido.prev_entrada || '-'}</td>
-                      <td className="py-4 px-4">
-                        <div className="max-w-[150px] text-xs">
-                          <p className="text-gray-700 line-clamp-1" title={pedido.recepcion_parcial}>
-                            {pedido.recepcion_parcial || '-'}
-                          </p>
-                          {pedido.estado === 'Recepción Parcial' && pedido.cant_recepcion_parcial && (
-                            <p className="text-[11px] font-bold text-blue-600 mt-0.5">
-                              Cant. Rec.: {pedido.cant_recepcion_parcial}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {pedido.codigo_mercurio && (
+                              <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.2 rounded font-semibold">
+                                Cód: {pedido.codigo_mercurio}
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-500 font-medium">
+                              Cant: <span className="font-bold text-gray-900">{pedido.cant_pedido || '-'}</span>
+                            </span>
+                          </div>
                         </div>
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap">{getStatusBadge(pedido.estado)}</td>
-                      <td className="py-4 px-4 text-right whitespace-nowrap">
+                      <td className="py-4 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => handleOpenEdit(pedido)}
+                            onClick={() => setViewingPedido(pedido)}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Ver detalles completos"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenEdit(pedido)}
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
                             title="Editar pedido"
                           >
                             <Edit className="w-4 h-4" />
@@ -709,105 +661,46 @@ const SeguimientoPedidosPage = () => {
           {/* Tarjetas / Grid responsivo para pantallas medianas/móviles */}
           <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredPedidos.map((pedido) => (
-              <div key={pedido.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4 hover:border-blue-200 transition-all">
+              <div 
+                key={pedido.id} 
+                onClick={() => setViewingPedido(pedido)}
+                className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3 hover:border-blue-200 transition-all cursor-pointer"
+              >
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <span className="text-xs font-semibold text-gray-400">
                       {pedido.fecha ? new Date(pedido.fecha).toLocaleDateString('es-AR') : '-'}
                     </span>
-                    <h4 className="font-bold text-gray-900">{pedido.proveedor_marca}</h4>
-                    {pedido.codigo_producto_proveed && (
-                      <span className="inline-block text-[10px] bg-gray-100 text-gray-600 font-mono px-1.5 py-0.5 rounded">
-                        Cód: {pedido.codigo_producto_proveed}
-                      </span>
-                    )}
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Origen / Destino</span>
+                      <span className="font-bold text-gray-900">{pedido.quien_solicita}</span>
+                      {pedido.para_quien && (
+                        <span className="text-[11px] text-gray-400">Para: {pedido.para_quien}</span>
+                      )}
+                    </div>
                   </div>
                   <div>{getStatusBadge(pedido.estado)}</div>
                 </div>
 
-                <div className="border-t border-b border-gray-100 py-3 space-y-2 text-xs">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Solicita</span>
-                      <span className="font-semibold text-gray-800">{pedido.quien_solicita}</span>
-                      {pedido.contacto_mercurio && (
-                        <span className="text-[10px] text-sky-700 block mt-0.5">
-                          {pedido.contacto_mercurio} {pedido.contacto_mercurio_fecha ? `(${pedido.contacto_mercurio_fecha})` : ''}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Para</span>
-                      <span className="font-semibold text-gray-800">{pedido.para_quien || '-'}</span>
-                      {pedido.contacto_proveedor && (
-                        <span className="text-[10px] text-rose-700 block mt-0.5">
-                          {pedido.contacto_proveedor} {pedido.contacto_proveedor_fecha ? `(${pedido.contacto_proveedor_fecha})` : ''}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Producto / Cantidad</span>
-                    <span className="font-semibold text-gray-800 block truncate">
-                      {pedido.codigo_mercurio ? `[${pedido.codigo_mercurio}] ` : ''}
-                      {pedido.descripcion_capacidad}
-                    </span>
-                    <span className="text-[10px] text-gray-500 font-semibold">Cant. Pedida: {pedido.cant_pedido || '-'}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Ped. Prov / Compra</span>
-                      <span className="font-mono text-gray-800 font-medium">
-                        {pedido.nro_pedido || '-'} / {pedido.nro_pedido_compra || '-'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Prev. Entrada</span>
-                      <span className="font-semibold text-gray-800">{pedido.prev_entrada || '-'}</span>
-                    </div>
-                  </div>
-
-                  {pedido.nro_pedido_venta && (
-                    <div>
-                      <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">N° Pedido Venta</span>
-                      <span className="font-semibold text-gray-800">{pedido.nro_pedido_venta}</span>
-                    </div>
-                  )}
-
-                  {(pedido.recepcion_parcial || (pedido.estado === 'Recepción Parcial' && pedido.cant_recepcion_parcial)) && (
-                    <div>
-                      <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Recep. Parcial</span>
-                      {pedido.estado === 'Recepción Parcial' && pedido.cant_recepcion_parcial && (
-                        <p className="font-bold text-blue-600">Cant. Recibida: {pedido.cant_recepcion_parcial}</p>
-                      )}
-                      {pedido.recepcion_parcial && (
-                        <p className="text-gray-700 italic text-[11px]">{pedido.recepcion_parcial}</p>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex gap-1.5 pt-1">
-                    {pedido.urgencia && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-700 rounded uppercase">Urg</span>
-                    )}
-                    {pedido.rotacion && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 rounded uppercase">Rot</span>
-                    )}
-                    {pedido.transp_mercurio && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-100 text-blue-700 rounded uppercase">Merc</span>
-                    )}
-                    {pedido.otro_transporte && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-purple-100 text-purple-700 rounded uppercase">Otro</span>
-                    )}
-                  </div>
+                <div className="border-t border-gray-100 pt-3 text-xs">
+                  <span className="text-gray-400 block uppercase tracking-wider text-[9px] font-bold">Producto</span>
+                  <span className="font-semibold text-gray-800 block truncate">
+                    {pedido.codigo_mercurio ? `[${pedido.codigo_mercurio}] ` : ''}
+                    {pedido.descripcion_capacidad}
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-semibold">Cant. Pedida: {pedido.cant_pedido || '-'}</span>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 text-xs font-semibold pt-1">
+                <div className="flex items-center justify-end gap-3 text-xs font-semibold pt-1.5 border-t border-gray-100/50" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setViewingPedido(pedido)}
+                    className="flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Ver Detalle
+                  </button>
                   <button
                     onClick={() => handleOpenEdit(pedido)}
-                    className="flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
+                    className="flex items-center gap-1 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-all"
                   >
                     <Edit className="w-3.5 h-3.5" /> Editar
                   </button>
@@ -1258,6 +1151,243 @@ const SeguimientoPedidosPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Detalle de Pedido */}
+      {viewingPedido && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-6 py-4 flex items-center justify-between text-white shrink-0">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Package className="w-5 h-5" /> Ficha de Pedido Detallada
+                </h3>
+                <p className="text-xs text-blue-200 mt-0.5">
+                  Pedido del {viewingPedido.fecha ? new Date(viewingPedido.fecha).toLocaleDateString('es-AR') : '-'}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingPedido(null)}
+                className="p-1 rounded-full hover:bg-white/10 transition-all text-white/80 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-grow bg-gray-50/30">
+              {/* Estado y Clasificación */}
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado:</span>
+                  {getStatusBadge(viewingPedido.estado)}
+                </div>
+                <div className="flex gap-2">
+                  {viewingPedido.urgencia && (
+                    <span className="px-2.5 py-1 text-xs font-bold bg-red-100 text-red-700 rounded-full uppercase border border-red-200">
+                      Urgente (URG)
+                    </span>
+                  )}
+                  {viewingPedido.rotacion && (
+                    <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full uppercase border border-amber-200">
+                      Rotación (ROT)
+                    </span>
+                  )}
+                  {viewingPedido.transp_mercurio && (
+                    <span className="px-2.5 py-1 text-xs font-bold bg-blue-100 text-blue-700 rounded-full uppercase border border-blue-200">
+                      Transporte Mercurio (MERC)
+                    </span>
+                  )}
+                  {viewingPedido.otro_transporte && (
+                    <span className="px-2.5 py-1 text-xs font-bold bg-purple-100 text-purple-700 rounded-full uppercase border border-purple-200">
+                      Otro Transporte
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Destinatario y Solicitante */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <Users className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Solicitud y Destino</h4>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-xs text-gray-400 block">Quién Solicita:</span>
+                      <span className="font-semibold text-gray-800">{viewingPedido.quien_solicita || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">Para Quién:</span>
+                      <span className="font-semibold text-gray-800">{viewingPedido.para_quien || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">Nro Pedido Venta:</span>
+                      <span className="font-mono text-gray-800 font-medium">{viewingPedido.nro_pedido_venta || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Proveedor y Compra */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <Truck className="w-4 h-4 text-indigo-600" />
+                    <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Proveedor y Compra</h4>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-xs text-gray-400 block">Proveedor / Marca:</span>
+                      <span className="font-semibold text-gray-805">{viewingPedido.proveedor_marca || '-'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-xs text-gray-400 block">N° Pedido Prov:</span>
+                        <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400 block">Cód Prod Prov:</span>
+                        <span className="font-mono text-gray-700 text-xs">{viewingPedido.codigo_producto_proveed || '-'}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">N° Pedido Compra (OC):</span>
+                      <span className="font-mono text-blue-600 font-semibold">{viewingPedido.nro_pedido_compra || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Producto */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                  <Package className="w-4 h-4 text-emerald-600" />
+                  <h4 className="text-sm font-bold text-emerald-950 uppercase tracking-wider">Producto y Cantidad</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="md:col-span-2">
+                    <span className="text-xs text-gray-400 block">Descripción y Capacidad:</span>
+                    <span className="font-bold text-gray-800 text-base">{viewingPedido.descripcion_capacidad || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block">Código Mercurio:</span>
+                    <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs inline-block font-semibold">
+                      {viewingPedido.codigo_mercurio || '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block">Cantidad Pedida:</span>
+                    <span className="font-bold text-gray-900 text-lg">{viewingPedido.cant_pedido || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block">Prev. Entrada:</span>
+                    <span className="font-semibold text-gray-800">{viewingPedido.prev_entrada || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block">Fecha de Registro:</span>
+                    <span className="font-semibold text-gray-800">
+                      {viewingPedido.fecha ? new Date(viewingPedido.fecha).toLocaleDateString('es-AR') : '-'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contactos */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Contacto Mercurio */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
+                    <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wider">Contacto Mercurio</h4>
+                  </div>
+                  <div className="text-sm space-y-2">
+                    <div>
+                      <span className="text-xs text-gray-400 block">Responsable:</span>
+                      <span className="font-semibold text-gray-850">{viewingPedido.contacto_mercurio || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
+                      <span className="font-medium text-gray-700">{viewingPedido.contacto_mercurio_fecha || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contacto Proveedor */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+                    <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider">Contacto Proveedor</h4>
+                  </div>
+                  <div className="text-sm space-y-2">
+                    <div>
+                      <span className="text-xs text-gray-400 block">Responsable:</span>
+                      <span className="font-semibold text-gray-850">{viewingPedido.contacto_proveedor || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
+                      <span className="font-medium text-gray-700">{viewingPedido.contacto_proveedor_fecha || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recepción y comentarios */}
+              {(viewingPedido.recepcion_parcial || viewingPedido.cant_recepcion_parcial) && (
+                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-blue-100 pb-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider">Detalles de Recepción</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    {viewingPedido.cant_recepcion_parcial && (
+                      <div>
+                        <span className="text-xs text-blue-700 block">Cantidad Recibida:</span>
+                        <span className="font-bold text-blue-900 text-lg">{viewingPedido.cant_recepcion_parcial}</span>
+                      </div>
+                    )}
+                    <div className="md:col-span-2">
+                      <span className="text-xs text-blue-700 block">Comentarios / Historial:</span>
+                      <span className="font-semibold text-blue-950">{viewingPedido.recepcion_parcial || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-100 shrink-0">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    handleOpenEdit(viewingPedido);
+                    setViewingPedido(null);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
+                >
+                  <Edit className="w-4 h-4" /> Editar Pedido
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      handleDelete(viewingPedido.id);
+                      setViewingPedido(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 text-sm font-bold transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" /> Eliminar
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setViewingPedido(null)}
+                className="px-5 py-2.5 rounded-xl bg-gray-200 hover:bg-gray-300 text-sm font-semibold text-gray-700 transition-all border border-gray-300"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
