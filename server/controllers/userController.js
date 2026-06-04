@@ -156,3 +156,28 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ message: 'Error withdrawing user' });
     }
 };
+
+exports.getAllUsersForSelector = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('id, username, role, sucursal_id, sucursales(name)')
+            .order('username');
+
+        if (error) throw error;
+
+        const users = data.map(u => ({
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            sucursal_id: u.sucursal_id,
+            sucursal_name: u.sucursales ? u.sucursales.name : 'N/A'
+        }));
+
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching users for selector:', error);
+        res.status(500).json({ message: 'Error fetching users' });
+    }
+};
+

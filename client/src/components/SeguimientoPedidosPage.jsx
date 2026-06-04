@@ -23,6 +23,7 @@ const SeguimientoPedidosPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPedido, setEditingPedido] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
 
   // Formulario de Pedido
   const initialFormState = {
@@ -67,8 +68,18 @@ const SeguimientoPedidosPage = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/api/users/selector');
+      setRegisteredUsers(res.data);
+    } catch (error) {
+      console.error('Error fetching users for selector:', error);
+    }
+  };
+
   useEffect(() => {
     fetchPedidos();
+    fetchUsers();
   }, []);
 
   useEffect(() => {
@@ -81,6 +92,23 @@ const SeguimientoPedidosPage = () => {
       document.body.style.overflow = '';
     };
   }, [isModalOpen]);
+
+  // Opciones de usuarios registrados para los selectores del formulario
+  const userSelectOptions = useMemo(() => {
+    const options = registeredUsers.map(u => u.username);
+    if (formData.quien_solicita && !options.includes(formData.quien_solicita)) {
+      options.push(formData.quien_solicita);
+    }
+    return options.sort();
+  }, [registeredUsers, formData.quien_solicita]);
+
+  const targetSelectOptions = useMemo(() => {
+    const options = registeredUsers.map(u => u.username);
+    if (formData.para_quien && !options.includes(formData.para_quien)) {
+      options.push(formData.para_quien);
+    }
+    return options.sort();
+  }, [registeredUsers, formData.para_quien]);
 
   // Opciones de filtros dinámicos basados en los datos
   const filterOptions = useMemo(() => {
@@ -740,26 +768,32 @@ const SeguimientoPedidosPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién Solicita a Logística?</label>
-                      <input
-                        type="text"
+                      <select
                         name="quien_solicita"
-                        placeholder="Ej. Sucursal 02, Compras..."
                         value={formData.quien_solicita}
                         onChange={handleInputChange}
                         required
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                      />
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                      >
+                        <option value="" disabled>Seleccione un usuario...</option>
+                        {userSelectOptions.map(username => (
+                          <option key={username} value={username}>{username}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Para quién es?</label>
-                      <input
-                        type="text"
+                      <select
                         name="para_quien"
-                        placeholder="Ej. Sucursal 02, Stock..."
                         value={formData.para_quien}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                      />
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                      >
+                        <option value="">Seleccione un usuario (opcional)...</option>
+                        {targetSelectOptions.map(username => (
+                          <option key={username} value={username}>{username}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido de Venta</label>
