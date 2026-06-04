@@ -16,6 +16,14 @@ const NotificationBell = () => {
     const dropdownRef = useRef(null);
     const navigate = useNavigate();
 
+    const [browserPermission, setBrowserPermission] = useState('default');
+
+    useEffect(() => {
+        if ('Notification' in window) {
+            setBrowserPermission(Notification.permission);
+        }
+    }, []);
+
     // Solicitar permisos de notificación en el Sistema (Web / APK)
     const requestNotificationPermission = async () => {
         try {
@@ -25,12 +33,30 @@ const NotificationBell = () => {
                     await LocalNotifications.requestPermissions();
                 }
             } else {
-                if ('Notification' in window && Notification.permission !== 'granted') {
-                    await Notification.requestPermission();
+                if ('Notification' in window) {
+                    setBrowserPermission(Notification.permission);
                 }
             }
         } catch (error) {
             console.warn('Error al solicitar permisos de notificación de sistema:', error);
+        }
+    };
+
+    // Solicitar permiso de forma interactiva en la web
+    const handleEnableWebNotifications = async () => {
+        try {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                setBrowserPermission(permission);
+                if (permission === 'granted') {
+                    toast.success('Notificaciones de escritorio activadas');
+                    showSystemNotification('¡Notificaciones Activas!', 'Ahora recibirás alertas de tus pedidos en el navegador.');
+                } else if (permission === 'denied') {
+                    toast.error('Has bloqueado las notificaciones. Actívalas desde la configuración de tu navegador.');
+                }
+            }
+        } catch (error) {
+            console.error('Error al solicitar permiso de notificaciones:', error);
         }
     };
 
@@ -324,6 +350,25 @@ const NotificationBell = () => {
                             </button>
                         )}
                     </div>
+
+                    {/* Banner de Permiso de Notificaciones en Web */}
+                    {!Capacitor.isNativePlatform() && 'Notification' in window && browserPermission !== 'granted' && (
+                        <div className="px-4 py-2.5 bg-blue-50 border-b border-blue-100 flex flex-col gap-1.5">
+                            <p className="text-[11px] text-blue-800 leading-normal font-medium">
+                                {browserPermission === 'denied' 
+                                    ? '⚠️ Las notificaciones de escritorio están desactivadas en tu navegador. Habilítalas en el candado de la barra de dirección.' 
+                                    : '🔔 Activa las notificaciones en el navegador para enterarte al instante de nuevos pedidos.'}
+                            </p>
+                            {browserPermission !== 'denied' && (
+                                <button
+                                    onClick={handleEnableWebNotifications}
+                                    className="w-full text-center py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all duration-200 shadow-sm"
+                                >
+                                    Activar Notificaciones de Escritorio
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     {/* Lista de Notificaciones */}
                     <div className="max-h-[350px] overflow-y-auto divide-y divide-gray-100 bg-white/80">

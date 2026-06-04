@@ -86,7 +86,7 @@ const Navigation = () => {
                         </div>
 
                         {/* Desktop Menu */}
-                        <div className="hidden lg:flex items-center gap-0.5">
+                        <div className="hidden xl:flex items-center gap-0.5">
                             {showNuevoConteo && (
                                 <Link to="/" className={getLinkClass('/')}>Nuevo Conteo</Link>
                             )}
@@ -125,7 +125,7 @@ const Navigation = () => {
                         </div>
                     </div>
                     {/* Desktop Right Side - Hidden on Mobile */}
-                    <div className="hidden lg:flex items-center gap-4">
+                    <div className="hidden xl:flex items-center gap-4">
                         <NotificationBell />
                         <button
                             onClick={() => setIsReportModalOpen(true)}
@@ -158,7 +158,7 @@ const Navigation = () => {
                     </div>
 
                     {/* Mobile Hamburger Button - Now inside the flex container */}
-                    <div className="lg:hidden flex items-center gap-2">
+                    <div className="xl:hidden flex items-center gap-2">
                         <NotificationBell />
                         <button onClick={toggleMenu} className="focus:outline-none text-white hover:text-blue-200 p-2 rounded-lg hover:bg-white/10 transition-all duration-200">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -176,7 +176,7 @@ const Navigation = () => {
 
             {/* Mobile Menu Dropdown */}
             {isOpen && (
-                <div className="lg:hidden glass-nav mt-0 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
+                <div className="xl:hidden glass-nav mt-0 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
                     <div className="px-4 pt-2 pb-6 space-y-1">
                         {showNuevoConteo && (
                             <Link to="/" className={getMobileLinkClass('/')} onClick={() => setIsOpen(false)}>Nuevo Conteo</Link>
