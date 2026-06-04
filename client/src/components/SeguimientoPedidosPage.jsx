@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Plus, Search, Download, Trash2, Edit, Calendar, Truck, 
+import {
+  Plus, Search, Download, Trash2, Edit, Calendar, Truck,
   AlertCircle, CheckCircle2, Clock, Users, Package, Filter, X, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,8 +12,9 @@ const SeguimientoPedidosPage = () => {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Filtros
+  const [activeTab, setActiveTab] = useState('activos'); // 'activos' | 'historial'
   const [selectedEstado, setSelectedEstado] = useState('Todos');
   const [selectedSolicitante, setSelectedSolicitante] = useState('Todos');
   const [selectedProveedor, setSelectedProveedor] = useState('Todos');
@@ -115,7 +116,7 @@ const SeguimientoPedidosPage = () => {
   const filterOptions = useMemo(() => {
     const solicitantes = new Set();
     const proveedores = new Set();
-    
+
     pedidos.forEach(p => {
       if (p.quien_solicita) solicitantes.add(p.quien_solicita);
       if (p.proveedor_marca) proveedores.add(p.proveedor_marca);
@@ -128,17 +129,35 @@ const SeguimientoPedidosPage = () => {
     };
   }, [pedidos]);
 
+  // Filtrar pedidos por la pestaña activa
+  const pedidosPorPestaña = useMemo(() => {
+    return pedidos.filter(p => {
+      const lowerEstado = p.estado?.toLowerCase() || '';
+      const isFinalizado =
+        lowerEstado.includes('recibido') ||
+        lowerEstado.includes('total') ||
+        lowerEstado.includes('anulado') ||
+        lowerEstado.includes('entregado');
+
+      if (activeTab === 'historial') {
+        return isFinalizado;
+      } else {
+        return !isFinalizado;
+      }
+    });
+  }, [pedidos, activeTab]);
+
   // Filtrado de pedidos
   const filteredPedidos = useMemo(() => {
-    return pedidos.filter(p => {
-      const matchesSearch = 
+    return pedidosPorPestaña.filter(p => {
+      const matchesSearch =
         (p.descripcion_capacidad?.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (p.codigo_mercurio?.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (p.proveedor_marca?.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (p.nro_pedido?.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (p.nro_pedido_compra?.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchesEstado = selectedEstado === 'Todos' || 
+      const matchesEstado = selectedEstado === 'Todos' ||
         (selectedEstado === 'Pendiente' && p.estado?.toLowerCase().includes('pendiente')) ||
         (selectedEstado === 'Recibido' && p.estado?.toLowerCase().includes('recibido')) ||
         (selectedEstado === 'Recepción Parcial' && p.estado?.toLowerCase().includes('parcial'));
@@ -148,7 +167,7 @@ const SeguimientoPedidosPage = () => {
 
       return matchesSearch && matchesEstado && matchesSolicitante && matchesProveedor;
     });
-  }, [pedidos, searchQuery, selectedEstado, selectedSolicitante, selectedProveedor]);
+  }, [pedidosPorPestaña, searchQuery, selectedEstado, selectedSolicitante, selectedProveedor]);
 
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
@@ -162,12 +181,12 @@ const SeguimientoPedidosPage = () => {
   // Buscar producto por código interno (Código Mercurio)
   const buscarProductoPorCodigo = async (codigo) => {
     if (!codigo || codigo.trim().length < 2) return;
-    
+
     setIsSearchingProduct(true);
     try {
       const response = await api.get(`/api/products/${codigo.trim()}`);
       const product = response.data;
-      
+
       if (product && (!Array.isArray(product) || product.length > 0)) {
         const prod = Array.isArray(product) ? product[0] : product;
         setFormData(prev => ({
@@ -344,7 +363,7 @@ const SeguimientoPedidosPage = () => {
       const response = await api.get('/api/seguimiento-pedidos/export', {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -352,7 +371,7 @@ const SeguimientoPedidosPage = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
+
       toast.success('Excel descargado con éxito', { id: toastId });
     } catch (error) {
       console.error('Error exporting Excel:', error);
@@ -399,7 +418,7 @@ const SeguimientoPedidosPage = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-white p-6 rounded-2xl border border-gray-100 shadow-sm gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-800">
-            Seguimiento de Pedidos 2025
+            Seguimiento de Pedidos
           </h2>
           <p className="text-sm text-gray-500 mt-1">
             Visualiza, gestiona y controla los pedidos del año. Importa planillas y gestiona el flujo de recepción.
@@ -412,13 +431,13 @@ const SeguimientoPedidosPage = () => {
           >
             <Plus className="w-4 h-4" /> Registrar Pedido
           </button>
-          
+
           <label className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer">
             <Upload className="w-4 h-4" /> Importar PDF
-            <input 
-              type="file" 
-              accept=".pdf" 
-              className="hidden" 
+            <input
+              type="file"
+              accept=".pdf"
+              className="hidden"
               onChange={handleImportPdf}
               disabled={isImporting}
             />
@@ -431,6 +450,49 @@ const SeguimientoPedidosPage = () => {
             <Download className="w-4 h-4" /> Exportar
           </button>
         </div>
+      </div>
+
+      {/* Pestañas (Tabs) Activos / Historial */}
+      <div className="flex border-b border-gray-200 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm gap-2">
+        <button
+          onClick={() => setActiveTab('activos')}
+          className={`flex items-center gap-2 py-3 px-6 rounded-xl font-bold text-sm transition-all duration-200 ${
+            activeTab === 'activos'
+              ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
+          }`}
+        >
+          <Clock className="w-4.5 h-4.5" />
+          Pedidos Activos
+          <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
+            activeTab === 'activos' ? 'bg-blue-200 text-blue-800' : 'bg-gray-100 text-gray-600'
+          }`}>
+            {pedidos.filter(p => {
+              const le = p.estado?.toLowerCase() || '';
+              return !(le.includes('recibido') || le.includes('total') || le.includes('anulado') || le.includes('entregado'));
+            }).length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('historial')}
+          className={`flex items-center gap-2 py-3 px-6 rounded-xl font-bold text-sm transition-all duration-200 ${
+            activeTab === 'historial'
+              ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
+          }`}
+        >
+          <CheckCircle2 className="w-4.5 h-4.5" />
+          Historial / Finalizados
+          <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
+            activeTab === 'historial' ? 'bg-emerald-200 text-emerald-800' : 'bg-gray-100 text-gray-600'
+          }`}>
+            {pedidos.filter(p => {
+              const le = p.estado?.toLowerCase() || '';
+              return le.includes('recibido') || le.includes('total') || le.includes('anulado') || le.includes('entregado');
+            }).length}
+          </span>
+        </button>
       </div>
 
       {/* Control / Buscador y Filtros */}
@@ -448,9 +510,8 @@ const SeguimientoPedidosPage = () => {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center justify-center gap-2 border px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-              showFilters ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-            }`}
+            className={`flex items-center justify-center gap-2 border px-4 py-3 rounded-xl text-sm font-medium transition-all ${showFilters ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
           >
             <Filter className="w-4.5 h-4.5" /> Filtros
           </button>
@@ -777,7 +838,7 @@ const SeguimientoPedidosPage = () => {
                 </h3>
                 <p className="text-xs text-blue-200 mt-0.5">Completa los campos para hacer el seguimiento.</p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-1 rounded-full hover:bg-white/10 transition-all text-white/80 hover:text-white"
               >
@@ -801,10 +862,9 @@ const SeguimientoPedidosPage = () => {
                         name="quien_solicita"
                         value={formData.quien_solicita}
                         onChange={handleInputChange}
-                        required
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
                       >
-                        <option value="" disabled>Seleccione un usuario...</option>
+                        <option value="">Seleccione un usuario/sucursal (opcional)...</option>
                         {userSelectOptions.map(username => (
                           <option key={username} value={username}>{username}</option>
                         ))}
@@ -853,7 +913,6 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. Saint Gobain, Tersuave..."
                         value={formData.proveedor_marca}
                         onChange={handleInputChange}
-                        required
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                       />
                     </div>
@@ -896,22 +955,20 @@ const SeguimientoPedidosPage = () => {
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, urgencia: true, rotacion: false }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
-                            formData.urgencia 
-                              ? 'bg-red-600 text-white shadow-sm' 
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.urgencia
+                              ? 'bg-red-600 text-white shadow-sm'
                               : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                            }`}
                         >
                           Urgencia (URG)
                         </button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, urgencia: false, rotacion: true }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
-                            formData.rotacion 
-                              ? 'bg-amber-500 text-white shadow-sm' 
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.rotacion
+                              ? 'bg-amber-500 text-white shadow-sm'
                               : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                            }`}
                         >
                           Rotación (ROT)
                         </button>
@@ -931,22 +988,20 @@ const SeguimientoPedidosPage = () => {
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: true, otro_transporte: false }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
-                            formData.transp_mercurio 
-                              ? 'bg-blue-600 text-white shadow-sm' 
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.transp_mercurio
+                              ? 'bg-blue-600 text-white shadow-sm'
                               : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                            }`}
                         >
                           Transp. Mercurio (MERC)
                         </button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: false, otro_transporte: true }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
-                            formData.otro_transporte 
-                              ? 'bg-purple-600 text-white shadow-sm' 
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.otro_transporte
+                              ? 'bg-purple-600 text-white shadow-sm'
                               : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                            }`}
                         >
                           Otro Transporte
                         </button>
@@ -1003,7 +1058,6 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. Esmalte Sintetico, Latex..."
                         value={formData.descripcion}
                         onChange={handleInputChange}
-                        required
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                       />
                     </div>
@@ -1059,7 +1113,6 @@ const SeguimientoPedidosPage = () => {
                         name="fecha"
                         value={formData.fecha}
                         onChange={handleInputChange}
-                        required
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                       />
                     </div>
@@ -1146,7 +1199,6 @@ const SeguimientoPedidosPage = () => {
                         name="estado"
                         value={formData.estado}
                         onChange={handleInputChange}
-                        required
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
                       >
                         {!['Anulado', 'Recepción Parcial', 'Recepción Total'].includes(formData.estado) && (
