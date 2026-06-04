@@ -2,27 +2,36 @@ const supabase = require('../services/supabaseClient');
 const pdf = require('pdf-parse');
 const firebase = require('../services/firebase');
 
-// Función helper para crear notificaciones asociadas al pedido
+// Función helper para crear notificaciones asociadas al pedido de manera case-insensitive
 async function createOrderNotifications(pedido, actorUsername, actionType) {
     try {
+        const actorNormalized = actorUsername ? actorUsername.trim().toLowerCase() : '';
         const usernamesToNotify = new Set();
-        if (pedido.quien_solicita && pedido.quien_solicita !== actorUsername) {
-            usernamesToNotify.add(pedido.quien_solicita);
-        }
-        if (pedido.para_quien && pedido.para_quien !== actorUsername) {
-            usernamesToNotify.add(pedido.para_quien);
-        }
-        if (pedido.contacto_mercurio && pedido.contacto_mercurio !== actorUsername) {
-            usernamesToNotify.add(pedido.contacto_mercurio);
-        }
+
+        const addIfValid = (username) => {
+            if (username && typeof username === 'string') {
+                const trimmed = username.trim();
+                if (trimmed && trimmed.toLowerCase() !== actorNormalized) {
+                    usernamesToNotify.add(trimmed);
+                }
+            }
+        };
+
+        addIfValid(pedido.quien_solicita);
+        addIfValid(pedido.para_quien);
+        addIfValid(pedido.contacto_mercurio);
 
         if (usernamesToNotify.size === 0) return;
 
-        // Buscar los user_ids de estos usernames en la base de datos
+        // Buscar los user_ids de estos usernames de forma insensible a mayúsculas/minúsculas usando ilike en un filtro OR
+        const orFilter = Array.from(usernamesToNotify)
+            .map(username => `username.ilike.${username}`)
+            .join(',');
+
         const { data: users, error: usersError } = await supabase
             .from('users')
             .select('id, username')
-            .in('username', Array.from(usernamesToNotify));
+            .or(orFilter);
 
         if (usersError) {
             console.error('Error fetching users for order notifications:', usersError);
