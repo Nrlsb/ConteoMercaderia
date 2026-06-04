@@ -4,9 +4,11 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { onMessage } from 'firebase/messaging';
 import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
 import api from '../api';
+import { messaging, requestForToken } from '../firebase';
 
 const NotificationContext = createContext();
 
@@ -64,6 +66,27 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
+    // Registrar y solicitar permisos para Push Notifications de Firebase en la Web
+    const registerWebPushNotifications = async () => {
+        if (Capacitor.isNativePlatform()) return;
+
+        try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const token = await requestForToken();
+                if (token) {
+                    console.log('[PUSH WEB] Token Web FCM obtenido:', token);
+                    await api.post('/api/notifications/register-token', {
+                        token: token,
+                        deviceType: 'web'
+                    });
+                    console.log('[PUSH WEB] Token Web registrado en la base de datos correctamente');
+                }
+            }
+        } catch (e) {
+            console.error('[PUSH WEB] Error al registrar Web Push Notifications:', e);
+        }
+    };
+
     // Solicitar permiso de forma interactiva en la web
     const handleEnableWebNotifications = async () => {
         try {
@@ -73,6 +96,7 @@ export const NotificationProvider = ({ children }) => {
                 if (permission === 'granted') {
                     toast.success('Notificaciones de escritorio activadas');
                     showSystemNotification('¡Notificaciones Activas!', 'Ahora recibirás alertas de tus pedidos en el navegador.');
+                    await registerWebPushNotifications();
                 } else if (permission === 'denied') {
                     toast.error('Has bloqueado las notificaciones. Actívalas desde la configuración de tu navegador.');
                 }
@@ -211,6 +235,9 @@ export const NotificationProvider = ({ children }) => {
 
         fetchNotifications();
         requestNotificationPermission();
+        if (!Capacitor.isNativePlatform()) {
+            registerWebPushNotifications();
+        }
 
         const channelId = `user-notifications-${user.id}-${Math.random().toString(36).substring(2, 9)}`;
         console.log(`[REALTIME] Intentando suscribir al canal '${channelId}' para el usuario:`, user.username, "ID:", user.id);
@@ -270,6 +297,30 @@ export const NotificationProvider = ({ children }) => {
             supabase.removeChannel(channel);
         };
     }, [isAuthenticated, user?.id, navigate]);
+
+    // Listener en primer plano para Firebase Cloud Messaging en la Web
+    useEffect(() => {
+        if (!isAuthenticated || !user?.id || Capacitor.isNativePlatform()) return;
+
+        let unsubscribe = () => {};
+
+        try {
+            unsubscribe = onMessage(messaging, (payload) => {
+                console.log('[PUSH WEB] Mensaje recibido en primer plano:', payload);
+                fetchNotifications(); // Recargar campanita de notificaciones
+                
+                // Nota: No disparamos un toast/notificación del sistema aquí para evitar duplicar
+                // con el canal de Supabase Realtime, el cual ya se encarga de mostrar la alerta
+                // visual cuando la app está abierta en primer plano.
+            });
+        } catch (error) {
+            console.error('[PUSH WEB] Error al configurar el listener en primer plano:', error);
+        }
+
+        return () => {
+            unsubscribe();
+        };
+    }, [isAuthenticated, user?.id]);
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
