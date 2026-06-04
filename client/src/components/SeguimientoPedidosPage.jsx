@@ -53,6 +53,7 @@ const SeguimientoPedidosPage = () => {
     estado: 'Pendiente'
   };
   const [formData, setFormData] = useState(initialFormState);
+  const [isSearchingProduct, setIsSearchingProduct] = useState(false);
 
   // Cargar Pedidos
   const fetchPedidos = async () => {
@@ -156,6 +157,34 @@ const SeguimientoPedidosPage = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+
+  // Buscar producto por código interno (Código Mercurio)
+  const buscarProductoPorCodigo = async (codigo) => {
+    if (!codigo || codigo.trim().length < 2) return;
+    
+    setIsSearchingProduct(true);
+    try {
+      const response = await api.get(`/api/products/${codigo.trim()}`);
+      const product = response.data;
+      
+      if (product && (!Array.isArray(product) || product.length > 0)) {
+        const prod = Array.isArray(product) ? product[0] : product;
+        setFormData(prev => ({
+          ...prev,
+          descripcion: prod.description || prev.descripcion || '',
+          capacidad: prod.capacity || prev.capacidad || ''
+        }));
+        toast.success(`Producto cargado: ${prod.description}`);
+      } else {
+        toast.error('Producto no encontrado en el catálogo');
+      }
+    } catch (error) {
+      console.warn('Error al buscar producto:', error);
+      toast.error('No se encontró el producto con ese código');
+    } finally {
+      setIsSearchingProduct(false);
+    }
   };
 
   // Abrir Modal para crear
@@ -935,14 +964,36 @@ const SeguimientoPedidosPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Código Mercurio</label>
-                      <input
-                        type="text"
-                        name="codigo_mercurio"
-                        placeholder="Ej. 001100..."
-                        value={formData.codigo_mercurio}
-                        onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          name="codigo_mercurio"
+                          placeholder="Ej. 001100..."
+                          value={formData.codigo_mercurio}
+                          onChange={handleInputChange}
+                          onBlur={(e) => buscarProductoPorCodigo(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              buscarProductoPorCodigo(e.target.value);
+                            }
+                          }}
+                          className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => buscarProductoPorCodigo(formData.codigo_mercurio)}
+                          disabled={isSearchingProduct}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                          title="Buscar producto"
+                        >
+                          {isSearchingProduct ? (
+                            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Search className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Descripción</label>
