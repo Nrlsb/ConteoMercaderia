@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Bug } from 'lucide-react';
+import { Bug, ChevronDown } from 'lucide-react';
 import BugReportModal from './BugReportModal';
 import NotificationBell from './NotificationBell';
 
@@ -63,6 +63,23 @@ const Navigation = () => {
     const showPesaje = canSeeTab('tab_pesaje', true);
     const showSeguimientoPedidos = canSeeTab('tab_seguimiento_pedidos', true);
 
+    const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal;
+    const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings');
+    const isHerramientasActive = isActive('/barcode-control') || isActive('/etiquetas') || isActive('/pesaje') || isActive('/settings') || isActive('/ayuda');
+
+    const getDropdownTriggerClass = (activeState) => {
+        const baseClass = "flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ease-in-out border border-transparent cursor-pointer";
+        return activeState
+            ? `${baseClass} bg-white/15 text-white`
+            : `${baseClass} text-blue-100 hover:bg-white/10 hover:text-white hover:border-white/10`;
+    };
+
+    const getDropdownLinkClass = (path) => {
+        const baseClass = "block px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out";
+        return isActive(path)
+            ? `${baseClass} bg-blue-600/50 text-white`
+            : `${baseClass} text-blue-100 hover:bg-white/10 hover:text-white`;
+    };
 
     const getRoleName = () => {
         switch (user?.role) {
@@ -93,35 +110,53 @@ const Navigation = () => {
                             {showHistorial && (
                                 <Link to="/list" className={getLinkClass('/list')}>Historial</Link>
                             )}
-                            {showImportar && (
-                                <Link to="/admin" className={getLinkClass('/admin')}>Importar</Link>
-                            )}
-                            {showConfiguracion && (
-                                <Link to="/settings" className={getLinkClass('/settings')}>Configuración</Link>
-                            )}
-                            {showIngresos && (
-                                <Link to="/receipts" className={getLinkClass('/receipts')}>Ingresos</Link>
-                            )}
-                            {showControlCodigos && (
-                                <Link to="/barcode-control" className={getLinkClass('/barcode-control')}>Control Códigos</Link>
-                            )}
-                            {showEgresos && (
-                                <Link to="/egresos" className={getLinkClass('/egresos')}>Egresos</Link>
-                            )}
-                            {showIngresoSucursal && (
-                                <Link to="/branch-incomings" className={getLinkClass('/branch-incomings')}>Ingreso Sucursal</Link>
-                            )}
-                            {showEtiquetas && (
-                                <Link to="/etiquetas" className={getLinkClass('/etiquetas')}>Etiquetas</Link>
-                            )}
-                            {showPesaje && (
-                                <Link to="/pesaje" className={getLinkClass('/pesaje')}>Colorantes</Link>
-                            )}
                             {showSeguimientoPedidos && (
                                 <Link to="/seguimiento-pedidos" className={getLinkClass('/seguimiento-pedidos')}>Seguimiento Pedidos</Link>
                             )}
-                            <Link to="/ayuda" className={getLinkClass('/ayuda')}>Ayuda</Link>
 
+                            {/* Dropdown: Movimientos */}
+                            {hasMovimientos && (
+                                <div className="relative group">
+                                    <button className={getDropdownTriggerClass(isMovimientosActive)}>
+                                        <span>Movimientos</span>
+                                        <ChevronDown className="w-4 h-4 transition-transform group-hover:rotate-180" />
+                                    </button>
+                                    <div className="absolute left-0 mt-1 w-48 rounded-xl bg-blue-950/95 backdrop-blur-md border border-white/10 p-1.5 shadow-xl invisible opacity-0 scale-95 group-hover:visible group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 origin-top-left">
+                                        {showIngresos && (
+                                            <Link to="/receipts" className={getDropdownLinkClass('/receipts')}>Ingresos</Link>
+                                        )}
+                                        {showEgresos && (
+                                            <Link to="/egresos" className={getDropdownLinkClass('/egresos')}>Egresos</Link>
+                                        )}
+                                        {showIngresoSucursal && (
+                                            <Link to="/branch-incomings" className={getDropdownLinkClass('/branch-incomings')}>Ingreso Sucursal</Link>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Dropdown: Más */}
+                            <div className="relative group">
+                                <button className={getDropdownTriggerClass(isHerramientasActive)}>
+                                    <span>Más</span>
+                                    <ChevronDown className="w-4 h-4 transition-transform group-hover:rotate-180" />
+                                </button>
+                                <div className="absolute left-0 mt-1 w-48 rounded-xl bg-blue-950/95 backdrop-blur-md border border-white/10 p-1.5 shadow-xl invisible opacity-0 scale-95 group-hover:visible group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 origin-top-left">
+                                    {showControlCodigos && (
+                                        <Link to="/barcode-control" className={getDropdownLinkClass('/barcode-control')}>Control Códigos</Link>
+                                    )}
+                                    {showEtiquetas && (
+                                        <Link to="/etiquetas" className={getDropdownLinkClass('/etiquetas')}>Etiquetas</Link>
+                                    )}
+                                    {showPesaje && (
+                                        <Link to="/pesaje" className={getDropdownLinkClass('/pesaje')}>Colorantes</Link>
+                                    )}
+                                    {showConfiguracion && (
+                                        <Link to="/settings" className={getDropdownLinkClass('/settings')}>Configuración</Link>
+                                    )}
+                                    <Link to="/ayuda" className={getDropdownLinkClass('/ayuda')}>Ayuda</Link>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {/* Desktop Right Side - Hidden on Mobile */}
