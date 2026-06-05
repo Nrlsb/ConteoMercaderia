@@ -416,8 +416,6 @@ const SeguimientoPedidosPage = () => {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const canManage = user?.role === 'superadmin' || 
-                    user?.role === 'admin' || 
-                    user?.role === 'branch_admin' || 
                     (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
 
   return (
@@ -660,7 +658,7 @@ const SeguimientoPedidosPage = () => {
                               <Edit className="w-4 h-4" />
                             </button>
                           )}
-                          {isAdmin && (
+                          {isAdmin && canManage && (
                             <button
                               onClick={() => handleDelete(pedido.id)}
                               className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
@@ -731,7 +729,7 @@ const SeguimientoPedidosPage = () => {
                       <Edit className="w-3.5 h-3.5" /> Editar
                     </button>
                   )}
-                  {isAdmin && (
+                  {isAdmin && canManage && (
                     <button
                       onClick={() => handleDelete(pedido.id)}
                       className="flex items-center gap-1 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all"
@@ -1437,7 +1435,7 @@ const SeguimientoPedidosPage = () => {
                     <Edit className="w-4 h-4" /> Editar Pedido
                   </button>
                 )}
-                {isAdmin && (
+                {isAdmin && canManage && (
                   <button
                     onClick={() => {
                       handleDelete(viewingPedido.id);

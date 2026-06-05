@@ -65,6 +65,19 @@ const hasPermission = (permission) => {
     };
 };
 
+const hasStrictPermission = (permission) => {
+    return (req, res, next) => {
+        if (req.user && (
+            req.user.role === 'superadmin' ||
+            (req.user.permissions && req.user.permissions.includes(permission))
+        )) {
+            next();
+        } else {
+            res.status(403).json({ message: `Access denied: Missing permission '${permission}'` });
+        }
+    };
+};
+
 const verifyBranchAccess = (table) => {
     return async (req, res, next) => {
         const { id } = req.params;
@@ -131,5 +144,6 @@ module.exports = {
     verifyAdmin,
     verifySuperAdmin,
     hasPermission,
+    hasStrictPermission,
     verifyBranchAccess
 };

@@ -124,8 +124,6 @@ exports.getAllPedidos = async (req, res) => {
 
         const hasManagePermission = 
             req.user.role === 'superadmin' ||
-            req.user.role === 'admin' ||
-            req.user.role === 'branch_admin' ||
             (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
 
         if (!hasManagePermission) {
@@ -475,8 +473,6 @@ exports.exportPedidosExcel = async (req, res) => {
 
         const hasManagePermission = 
             req.user.role === 'superadmin' ||
-            req.user.role === 'admin' ||
-            req.user.role === 'branch_admin' ||
             (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
 
         if (!hasManagePermission) {
