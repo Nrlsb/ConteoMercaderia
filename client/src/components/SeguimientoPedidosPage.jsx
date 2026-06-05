@@ -415,6 +415,10 @@ const SeguimientoPedidosPage = () => {
   };
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const canManage = user?.role === 'superadmin' || 
+                    user?.role === 'admin' || 
+                    user?.role === 'branch_admin' || 
+                    (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -429,23 +433,27 @@ const SeguimientoPedidosPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md shadow-blue-500/20"
-          >
-            <Plus className="w-4 h-4" /> Registrar Pedido
-          </button>
+          {canManage && (
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md shadow-blue-500/20"
+            >
+              <Plus className="w-4 h-4" /> Registrar Pedido
+            </button>
+          )}
 
-          <label className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer">
-            <Upload className="w-4 h-4" /> Importar PDF
-            <input
-              type="file"
-              accept=".pdf"
-              className="hidden"
-              onChange={handleImportPdf}
-              disabled={isImporting}
-            />
-          </label>
+          {canManage && (
+            <label className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer">
+              <Upload className="w-4 h-4" /> Importar PDF
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={handleImportPdf}
+                disabled={isImporting}
+              />
+            </label>
+          )}
 
           <button
             onClick={handleExportExcel}
@@ -643,13 +651,15 @@ const SeguimientoPedidosPage = () => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleOpenEdit(pedido)}
-                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
-                            title="Editar pedido"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {canManage && (
+                            <button
+                              onClick={() => handleOpenEdit(pedido)}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                              title="Editar pedido"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
                           {isAdmin && (
                             <button
                               onClick={() => handleDelete(pedido.id)}
@@ -713,12 +723,14 @@ const SeguimientoPedidosPage = () => {
                   >
                     <Eye className="w-3.5 h-3.5" /> Ver Detalle
                   </button>
-                  <button
-                    onClick={() => handleOpenEdit(pedido)}
-                    className="flex items-center gap-1 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-all"
-                  >
-                    <Edit className="w-3.5 h-3.5" /> Editar
-                  </button>
+                  {canManage && (
+                    <button
+                      onClick={() => handleOpenEdit(pedido)}
+                      className="flex items-center gap-1 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      <Edit className="w-3.5 h-3.5" /> Editar
+                    </button>
+                  )}
                   {isAdmin && (
                     <button
                       onClick={() => handleDelete(pedido.id)}
@@ -1414,15 +1426,17 @@ const SeguimientoPedidosPage = () => {
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-100 shrink-0">
               <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    handleOpenEdit(viewingPedido);
-                    setViewingPedido(null);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
-                >
-                  <Edit className="w-4 h-4" /> Editar Pedido
-                </button>
+                {canManage && (
+                  <button
+                    onClick={() => {
+                      handleOpenEdit(viewingPedido);
+                      setViewingPedido(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
+                  >
+                    <Edit className="w-4 h-4" /> Editar Pedido
+                  </button>
+                )}
                 {isAdmin && (
                   <button
                     onClick={() => {

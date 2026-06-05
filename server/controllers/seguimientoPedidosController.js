@@ -118,9 +118,35 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
 
 exports.getAllPedidos = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('seguimiento_pedidos')
-            .select('*')
+            .select('*');
+
+        const hasManagePermission = 
+            req.user.role === 'superadmin' ||
+            req.user.role === 'admin' ||
+            req.user.role === 'branch_admin' ||
+            (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
+
+        if (!hasManagePermission) {
+            const username = req.user.username;
+            let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
+            
+            if (req.user.sucursal_id) {
+                const { data: sucursal } = await supabase
+                    .from('sucursales')
+                    .select('name')
+                    .eq('id', req.user.sucursal_id)
+                    .single();
+                if (sucursal && sucursal.name) {
+                    const sName = sucursal.name;
+                    filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
+                }
+            }
+            query = query.or(filter);
+        }
+
+        const { data, error } = await query
             .order('fecha', { ascending: false })
             .order('created_at', { ascending: false });
 
@@ -443,9 +469,35 @@ const xlsx = require('xlsx');
 
 exports.exportPedidosExcel = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('seguimiento_pedidos')
-            .select('*')
+            .select('*');
+
+        const hasManagePermission = 
+            req.user.role === 'superadmin' ||
+            req.user.role === 'admin' ||
+            req.user.role === 'branch_admin' ||
+            (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
+
+        if (!hasManagePermission) {
+            const username = req.user.username;
+            let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
+            
+            if (req.user.sucursal_id) {
+                const { data: sucursal } = await supabase
+                    .from('sucursales')
+                    .select('name')
+                    .eq('id', req.user.sucursal_id)
+                    .single();
+                if (sucursal && sucursal.name) {
+                    const sName = sucursal.name;
+                    filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
+                }
+            }
+            query = query.or(filter);
+        }
+
+        const { data, error } = await query
             .order('fecha', { ascending: false })
             .order('created_at', { ascending: false });
 

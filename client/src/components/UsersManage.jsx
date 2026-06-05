@@ -218,7 +218,9 @@ const UsersManage = () => {
         {
             id: 'tab_seguimiento_pedidos',
             name: 'Seguimiento Pedidos',
-            specialPermissions: []
+            specialPermissions: [
+                { id: 'manage_seguimiento_pedidos', name: 'Crear/Modificar Seguimientos' }
+            ]
         }
     ];
 
