@@ -101,11 +101,12 @@ async function checkAndSendProviderContactNotifications() {
         const todayStr = `${year}-${month}-${day}`;
         const today = new Date(`${todayStr}T00:00:00`);
 
-        // Buscamos pedidos que tengan contacto_proveedor_fecha cargado y notif_confirmacion_enviada = false
+        // Buscamos pedidos que tengan contacto_proveedor_fecha cargado, no estén confirmados y notif_confirmacion_enviada = false
         const { data: pedidos, error } = await supabase
             .from('seguimiento_pedidos')
             .select('*')
             .eq('notif_confirmacion_enviada', false)
+            .eq('fecha_confirmada', false)
             .not('contacto_proveedor_fecha', 'is', null)
             .not('contacto_proveedor_fecha', 'eq', '');
 

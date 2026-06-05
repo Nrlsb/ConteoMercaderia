@@ -2,6 +2,17 @@ const supabase = require('../services/supabaseClient');
 const pdf = require('pdf-parse');
 const firebase = require('../services/firebase');
 
+// Función helper para formatear fechas a DD/MM/YYYY
+function formatLocalDate(dateStr) {
+    if (!dateStr) return '-';
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (regex.test(dateStr)) {
+        const parts = dateStr.split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+}
+
 // Función helper para crear notificaciones asociadas al pedido de manera case-insensitive
 async function createOrderNotifications(pedido, actorUsername, actionType) {
     try {
@@ -45,11 +56,27 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             let message = '';
             const productoDesc = pedido.descripcion_capacidad || 'Producto sin especificar';
             const proveedor = pedido.proveedor_marca || 'Proveedor';
+            const fechaStr = pedido.contacto_proveedor_fecha ? formatLocalDate(pedido.contacto_proveedor_fecha) : '';
+            let notifType = 'pedido_modificado';
 
             if (actionType === 'create') {
-                title = 'Nuevo pedido registrado';
-                message = `El usuario ${actorUsername} registró un nuevo pedido para ${pedido.para_quien || 'Deposito'}: ${productoDesc} (${proveedor}).`;
-            } else if (actionType === 'update') {
+                notifType = 'pedido_creado';
+                if (pedido.contacto_proveedor_fecha) {
+                    title = 'Pedido con fecha de ingreso';
+                    message = `El usuario ${actorUsername} registró un nuevo pedido de ${proveedor} (${productoDesc}) con fecha de ingreso programada para el ${fechaStr}.`;
+                } else {
+                    title = 'Nuevo pedido registrado';
+                    message = `El usuario ${actorUsername} registró un nuevo pedido para ${pedido.para_quien || 'Deposito'}: ${productoDesc} (${proveedor}).`;
+                }
+            } else if (actionType === 'set_date') {
+                notifType = 'pedido_fecha_ingreso';
+                title = 'Pedido con fecha de ingreso';
+                message = `El pedido de ${proveedor} (${productoDesc}) ya tiene fecha de ingreso programada para el ${fechaStr} (cargado por ${actorUsername}).`;
+            } else if (actionType === 'confirm_date') {
+                notifType = 'pedido_fecha_confirmada';
+                title = 'Fecha de pedido confirmada';
+                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el pedido de ${proveedor} (${productoDesc}).`;
+            } else {
                 title = 'Pedido actualizado';
                 message = `El pedido de ${proveedor} (${productoDesc}) fue actualizado por ${actorUsername}. Estado: ${pedido.estado || 'Pendiente'}.`;
             }
@@ -58,7 +85,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 user_id: user.id,
                 title,
                 message,
-                type: actionType === 'create' ? 'pedido_creado' : 'pedido_modificado',
+                type: notifType,
                 pedido_id: pedido.id,
                 read: false
             };
@@ -115,6 +142,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
         console.error('Error in createOrderNotifications:', err);
     }
 }
+
 
 exports.getAllPedidos = async (req, res) => {
     try {
@@ -179,18 +207,36 @@ exports.createPedido = async (req, res) => {
 exports.updatePedido = async (req, res) => {
     const { id } = req.params;
     try {
-        // Consultar el pedido actual para verificar si las fechas o el contacto cambiaron
+        // Consultar el pedido actual para verificar si las fechas, el contacto o confirmación cambiaron
         const { data: currentPedido } = await supabase
             .from('seguimiento_pedidos')
-            .select('contacto_proveedor_fecha, contacto_mercurio')
+            .select('contacto_proveedor_fecha, contacto_mercurio, fecha_confirmada')
             .eq('id', id)
             .single();
+
+        let actionType = 'update';
 
         if (currentPedido) {
             const dateChanged = req.body.contacto_proveedor_fecha !== undefined && req.body.contacto_proveedor_fecha !== currentPedido.contacto_proveedor_fecha;
             const contactChanged = req.body.contacto_mercurio !== undefined && req.body.contacto_mercurio !== currentPedido.contacto_mercurio;
+            
             if (dateChanged || contactChanged) {
                 req.body.notif_confirmacion_enviada = false;
+            }
+
+            if (dateChanged) {
+                // Si la fecha cambia, reseteamos la confirmación previa
+                req.body.fecha_confirmada = false;
+                // Si la nueva fecha no es vacía, notificamos que se cargó/cambió la fecha
+                if (req.body.contacto_proveedor_fecha) {
+                    actionType = 'set_date';
+                }
+            } else {
+                // Si la fecha no cambió, verificamos si se confirmó justo ahora
+                const confirmedChanged = req.body.fecha_confirmada === true && !currentPedido.fecha_confirmada;
+                if (confirmedChanged) {
+                    actionType = 'confirm_date';
+                }
             }
         }
 
@@ -203,8 +249,8 @@ exports.updatePedido = async (req, res) => {
 
         if (error) throw error;
 
-        // Crear notificaciones en segundo plano
-        createOrderNotifications(data, req.user?.username || 'Sistema', 'update');
+        // Crear notificaciones en segundo plano con el tipo correspondiente
+        createOrderNotifications(data, req.user?.username || 'Sistema', actionType);
 
         res.json(data);
     } catch (error) {

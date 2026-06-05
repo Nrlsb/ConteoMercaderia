@@ -63,7 +63,8 @@ const SeguimientoPedidosPage = () => {
     contacto_proveedor: '',
     contacto_proveedor_fecha: '',
     estado: 'Pendiente',
-    abonado: true
+    abonado: true,
+    fecha_confirmada: false
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
@@ -275,7 +276,8 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor: pedido.contacto_proveedor || '',
       contacto_proveedor_fecha: pedido.contacto_proveedor_fecha || '',
       estado: pedido.estado || 'Pendiente',
-      abonado: pedido.abonado !== undefined ? pedido.abonado : true
+      abonado: pedido.abonado !== undefined ? pedido.abonado : true,
+      fecha_confirmada: pedido.fecha_confirmada || false
     });
     setIsModalOpen(true);
   };
@@ -319,7 +321,8 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor: formData.contacto_proveedor || '',
       contacto_proveedor_fecha: formData.contacto_proveedor_fecha || '',
       estado: formData.estado || 'Pendiente',
-      abonado: formData.abonado
+      abonado: formData.abonado,
+      fecha_confirmada: formData.fecha_confirmada || false
     };
 
     const toastId = toast.loading(editingPedido ? 'Actualizando pedido...' : 'Registrando pedido...');
@@ -1124,7 +1127,7 @@ const SeguimientoPedidosPage = () => {
                       <div className="w-2.5 h-5 bg-rose-500 rounded-full"></div>
                       <h4 className="text-sm font-bold text-rose-950 uppercase tracking-wider">Contacto Proveedor</h4>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién?</label>
                         <input
@@ -1145,6 +1148,32 @@ const SeguimientoPedidosPage = () => {
                           onChange={handleInputChange}
                           className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                         />
+                      </div>
+                      <div className="flex flex-col justify-end">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fecha Confirmada?</label>
+                        <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
+                          !formData.contacto_proveedor_fecha
+                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                            : formData.fecha_confirmada
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            name="fecha_confirmada"
+                            checked={formData.fecha_confirmada}
+                            onChange={(e) => {
+                              if (formData.contacto_proveedor_fecha) {
+                                handleInputChange(e);
+                              } else {
+                                toast.error('Debe ingresar una fecha antes de poder confirmarla');
+                              }
+                            }}
+                            disabled={!formData.contacto_proveedor_fecha}
+                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                          />
+                          <span>{formData.fecha_confirmada ? 'Confirmada' : 'Confirmar'}</span>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -1412,6 +1441,18 @@ const SeguimientoPedidosPage = () => {
                     <div>
                       <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
                       <span className="font-medium text-gray-700">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">Estado de Fecha:</span>
+                      {viewingPedido.fecha_confirmada ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mt-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Fecha Confirmada
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 mt-1">
+                          <Clock className="w-3.5 h-3.5" /> Pendiente de Confirmación
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
