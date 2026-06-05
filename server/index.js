@@ -85,7 +85,7 @@ const notificationsRoutes = require('./routes/notifications');
 
 
 // --- Import Services ---
-const { startLabelHistoryCleanupTask } = require('./services/cronJobs');
+const { startLabelHistoryCleanupTask, startProviderContactNotificationTask } = require('./services/cronJobs');
 
 // --- Health Check ---
 app.get('/api/health', (req, res) => {
@@ -174,6 +174,7 @@ app.use((err, req, res, next) => {
 
 // --- Start Scheduled Tasks ---
 startLabelHistoryCleanupTask();
+startProviderContactNotificationTask();
 
 // --- Start Server ---
 app.listen(port, () => {

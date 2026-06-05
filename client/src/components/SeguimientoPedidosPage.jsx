@@ -7,6 +7,16 @@ import { toast } from 'sonner';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 
+const formatLocalDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  if (regex.test(dateStr)) {
+    const parts = dateStr.split('-');
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
 const SeguimientoPedidosPage = () => {
   const { user } = useAuth();
   const [pedidos, setPedidos] = useState([]);
@@ -113,6 +123,14 @@ const SeguimientoPedidosPage = () => {
     }
     return options.sort();
   }, [registeredUsers, formData.para_quien]);
+
+  const contactoMercurioSelectOptions = useMemo(() => {
+    const options = registeredUsers.map(u => u.username);
+    if (formData.contacto_mercurio && !options.includes(formData.contacto_mercurio)) {
+      options.push(formData.contacto_mercurio);
+    }
+    return options.sort();
+  }, [registeredUsers, formData.contacto_mercurio]);
 
   // Opciones de filtros dinámicos basados en los datos
   const filterOptions = useMemo(() => {
@@ -421,7 +439,7 @@ const SeguimientoPedidosPage = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Header Panel */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-white p-6 rounded-2xl border border-gray-100 shadow-sm gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-white p-4 sm:p-6 rounded-2xl border border-gray-100 shadow-sm gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-800">
             Seguimiento de Pedidos
@@ -463,10 +481,10 @@ const SeguimientoPedidosPage = () => {
       </div>
 
       {/* Pestañas (Tabs) Activos / Historial */}
-      <div className="flex border-b border-gray-200 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm gap-2">
+      <div className="flex overflow-x-auto no-scrollbar border-b border-gray-200 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm gap-2">
         <button
           onClick={() => setActiveTab('activos')}
-          className={`flex items-center gap-2 py-3 px-6 rounded-xl font-bold text-sm transition-all duration-200 ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 px-3 sm:px-6 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
             activeTab === 'activos'
               ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100'
               : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
@@ -486,7 +504,7 @@ const SeguimientoPedidosPage = () => {
 
         <button
           onClick={() => setActiveTab('historial')}
-          className={`flex items-center gap-2 py-3 px-6 rounded-xl font-bold text-sm transition-all duration-200 ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 px-3 sm:px-6 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
             activeTab === 'historial'
               ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100'
               : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
@@ -714,17 +732,17 @@ const SeguimientoPedidosPage = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 text-xs font-semibold pt-1.5 border-t border-gray-100/50" onClick={(e) => e.stopPropagation()}>
+                <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] sm:text-xs font-semibold pt-1.5 border-t border-gray-100/50" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => setViewingPedido(pedido)}
-                    className="flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
+                    className="flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-2.5 py-1.5 rounded-lg transition-all"
                   >
                     <Eye className="w-3.5 h-3.5" /> Ver Detalle
                   </button>
                   {canManage && (
                     <button
                       onClick={() => handleOpenEdit(pedido)}
-                      className="flex items-center gap-1 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-all"
+                      className="flex items-center gap-1 text-amber-600 hover:bg-amber-50 px-2.5 py-1.5 rounded-lg transition-all"
                     >
                       <Edit className="w-3.5 h-3.5" /> Editar
                     </button>
@@ -732,7 +750,7 @@ const SeguimientoPedidosPage = () => {
                   {isAdmin && canManage && (
                     <button
                       onClick={() => handleDelete(pedido.id)}
-                      className="flex items-center gap-1 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all"
+                      className="flex items-center gap-1 text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-all"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Eliminar
                     </button>
@@ -1075,21 +1093,23 @@ const SeguimientoPedidosPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién?</label>
-                        <input
-                          type="text"
+                        <select
                           name="contacto_mercurio"
-                          placeholder="Nombre responsable..."
                           value={formData.contacto_mercurio}
                           onChange={handleInputChange}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                        />
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                        >
+                          <option value="">Seleccione un usuario (opcional)...</option>
+                          {contactoMercurioSelectOptions.map(username => (
+                            <option key={username} value={username}>{username}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fechas?</label>
                         <input
-                          type="text"
+                          type="date"
                           name="contacto_mercurio_fecha"
-                          placeholder="Ej. 10/06, 12/06..."
                           value={formData.contacto_mercurio_fecha}
                           onChange={handleInputChange}
                           className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
@@ -1119,9 +1139,8 @@ const SeguimientoPedidosPage = () => {
                       <div>
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fechas?</label>
                         <input
-                          type="text"
+                          type="date"
                           name="contacto_proveedor_fecha"
-                          placeholder="Ej. 14/06, 16/06..."
                           value={formData.contacto_proveedor_fecha}
                           onChange={handleInputChange}
                           className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
@@ -1374,7 +1393,7 @@ const SeguimientoPedidosPage = () => {
                     </div>
                     <div>
                       <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
-                      <span className="font-medium text-gray-700">{viewingPedido.contacto_mercurio_fecha || '-'}</span>
+                      <span className="font-medium text-gray-700">{formatLocalDate(viewingPedido.contacto_mercurio_fecha)}</span>
                     </div>
                   </div>
                 </div>
@@ -1392,7 +1411,7 @@ const SeguimientoPedidosPage = () => {
                     </div>
                     <div>
                       <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
-                      <span className="font-medium text-gray-700">{viewingPedido.contacto_proveedor_fecha || '-'}</span>
+                      <span className="font-medium text-gray-700">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
                     </div>
                   </div>
                 </div>

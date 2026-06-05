@@ -179,6 +179,21 @@ exports.createPedido = async (req, res) => {
 exports.updatePedido = async (req, res) => {
     const { id } = req.params;
     try {
+        // Consultar el pedido actual para verificar si las fechas o el contacto cambiaron
+        const { data: currentPedido } = await supabase
+            .from('seguimiento_pedidos')
+            .select('contacto_proveedor_fecha, contacto_mercurio')
+            .eq('id', id)
+            .single();
+
+        if (currentPedido) {
+            const dateChanged = req.body.contacto_proveedor_fecha !== undefined && req.body.contacto_proveedor_fecha !== currentPedido.contacto_proveedor_fecha;
+            const contactChanged = req.body.contacto_mercurio !== undefined && req.body.contacto_mercurio !== currentPedido.contacto_mercurio;
+            if (dateChanged || contactChanged) {
+                req.body.notif_confirmacion_enviada = false;
+            }
+        }
+
         const { data, error } = await supabase
             .from('seguimiento_pedidos')
             .update(req.body)

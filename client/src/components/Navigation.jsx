@@ -97,7 +97,7 @@ const Navigation = () => {
                 <div className="flex justify-between items-center h-16">
                     <div className="flex items-center gap-4">
                         <div className="flex-shrink-0 flex items-center">
-                            <h1 className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200 uppercase">
+                            <h1 className="text-sm sm:text-base md:text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200 uppercase">
                                 Control de Mercadería
                             </h1>
                         </div>

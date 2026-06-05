@@ -1,4 +1,5 @@
 const supabase = require('./supabaseClient');
+const firebase = require('./firebase');
 
 /**
  * Tarea programada para borrar el historial de etiquetas todos los días a las 23:00 hs (Buenos Aires).
@@ -48,6 +49,161 @@ function startLabelHistoryCleanupTask() {
     }, 60000); // Verificar cada 60 segundos
 }
 
+/**
+ * Tarea programada para revisar las fechas de contacto con el proveedor.
+ * Se ejecuta cada minuto, pero realiza el chequeo una vez al día a las 09:00 hs (Buenos Aires).
+ */
+function startProviderContactNotificationTask() {
+    console.log('[CRON] Iniciando monitor de notificaciones de contacto con proveedor (Programado: 09:00 BA)...');
+    let lastNotifDate = null;
+
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            const baFormatter = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                hour12: false
+            });
+            
+            const parts = baFormatter.formatToParts(now);
+            const hour = parseInt(parts.find(p => p.type === 'hour').value);
+            const minute = parseInt(parts.find(p => p.type === 'minute').value);
+            const day = parts.find(p => p.type === 'day').value;
+
+            // Ejecutar a las 09:00 si no se ha ejecutado ya en este día de Buenos Aires
+            if (hour === 9 && minute === 0 && lastNotifDate !== day) {
+                console.log(`[CRON] ${now.toISOString()} - Ejecutando chequeo de contacto con proveedores...`);
+                await checkAndSendProviderContactNotifications();
+                lastNotifDate = day;
+            }
+        } catch (err) {
+            console.error('[CRON ERROR] Falló la tarea de notificaciones de contacto:', err.message);
+        }
+    }, 60000); // Verificar cada 60 segundos
+}
+
+async function checkAndSendProviderContactNotifications() {
+    try {
+        // Obtener la fecha de hoy en Buenos Aires formateada como YYYY-MM-DD
+        const baFormatter = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'America/Argentina/Buenos_Aires',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        const parts = baFormatter.formatToParts(new Date());
+        const year = parts.find(p => p.type === 'year').value;
+        const month = parts.find(p => p.type === 'month').value;
+        const day = parts.find(p => p.type === 'day').value;
+        const todayStr = `${year}-${month}-${day}`;
+        const today = new Date(`${todayStr}T00:00:00`);
+
+        // Buscamos pedidos que tengan contacto_proveedor_fecha cargado y notif_confirmacion_enviada = false
+        const { data: pedidos, error } = await supabase
+            .from('seguimiento_pedidos')
+            .select('*')
+            .eq('notif_confirmacion_enviada', false)
+            .not('contacto_proveedor_fecha', 'is', null)
+            .not('contacto_proveedor_fecha', 'eq', '');
+
+        if (error) throw error;
+        if (!pedidos || pedidos.length === 0) {
+            return;
+        }
+
+        for (const pedido of pedidos) {
+            // Ignorar pedidos que ya fueron finalizados
+            const lowerEstado = pedido.estado?.toLowerCase() || '';
+            const isFinalizado =
+              lowerEstado.includes('recibido') ||
+              lowerEstado.includes('total') ||
+              lowerEstado.includes('anulado') ||
+              lowerEstado.includes('entregado');
+            if (isFinalizado) continue;
+
+            // Validar si tiene formato de fecha YYYY-MM-DD
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(pedido.contacto_proveedor_fecha)) {
+                continue;
+            }
+
+            const providerDate = new Date(`${pedido.contacto_proveedor_fecha}T00:00:00`);
+            const diffTime = providerDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // Si faltan exactamente 3 días (o entre 0 y 3 días, por si se carga tarde)
+            if (diffDays <= 3 && diffDays >= 0) {
+                if (!pedido.contacto_mercurio) continue;
+
+                // Buscar el usuario asignado en contacto_mercurio (case-insensitive)
+                const { data: userRecord, error: userError } = await supabase
+                    .from('users')
+                    .select('id, username')
+                    .ilike('username', pedido.contacto_mercurio.trim())
+                    .single();
+
+                if (userError || !userRecord) {
+                    console.log(`[CRON] No se encontró usuario para contacto_mercurio: "${pedido.contacto_mercurio}"`);
+                    continue;
+                }
+
+                const title = 'Confirmar fecha con proveedor';
+                const message = `Faltan ${diffDays} días para la fecha programada de contacto con el proveedor (${pedido.proveedor_marca}) en el pedido OC ${pedido.nro_pedido_compra || ''} (${pedido.descripcion_capacidad || 'producto'}). Por favor confirma la fecha.`;
+
+                // 1. Insertar en tabla de notificaciones
+                const { error: insertError } = await supabase
+                    .from('notifications')
+                    .insert([{
+                        user_id: userRecord.id,
+                        title,
+                        message,
+                        type: 'confirmacion_proveedor',
+                        pedido_id: pedido.id,
+                        read: false
+                    }]);
+
+                if (insertError) {
+                    console.error(`[CRON ERROR] Al guardar notificación para ${userRecord.username}:`, insertError.message);
+                    continue;
+                }
+
+                // 2. Enviar notificación push
+                const { data: tokenRecords, error: tokenError } = await supabase
+                    .from('user_fcm_tokens')
+                    .select('token')
+                    .eq('user_id', userRecord.id);
+
+                if (!tokenError && tokenRecords && tokenRecords.length > 0) {
+                    const tokens = tokenRecords.map(t => t.token);
+                    await firebase.sendPushNotification(
+                        tokens,
+                        title,
+                        message,
+                        {
+                            pedido_id: pedido.id ? String(pedido.id) : '',
+                            type: 'confirmacion_proveedor'
+                        }
+                    );
+                }
+
+                // 3. Marcar como notificado en seguimiento_pedidos
+                await supabase
+                    .from('seguimiento_pedidos')
+                    .update({ notif_confirmacion_enviada: true })
+                    .eq('id', pedido.id);
+
+                console.log(`[CRON] Notificación de confirmación enviada a ${userRecord.username} para el pedido ${pedido.id}`);
+            }
+        }
+    } catch (err) {
+        console.error('[CRON ERROR] Error en checkAndSendProviderContactNotifications:', err);
+    }
+}
+
 module.exports = {
-    startLabelHistoryCleanupTask
+    startLabelHistoryCleanupTask,
+    startProviderContactNotificationTask
 };
