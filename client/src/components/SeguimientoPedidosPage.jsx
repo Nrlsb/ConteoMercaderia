@@ -52,7 +52,8 @@ const SeguimientoPedidosPage = () => {
     contacto_mercurio_fecha: '',
     contacto_proveedor: '',
     contacto_proveedor_fecha: '',
-    estado: 'Pendiente'
+    estado: 'Pendiente',
+    abonado: true
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
@@ -255,7 +256,8 @@ const SeguimientoPedidosPage = () => {
       contacto_mercurio_fecha: pedido.contacto_mercurio_fecha || '',
       contacto_proveedor: pedido.contacto_proveedor || '',
       contacto_proveedor_fecha: pedido.contacto_proveedor_fecha || '',
-      estado: pedido.estado || 'Pendiente'
+      estado: pedido.estado || 'Pendiente',
+      abonado: pedido.abonado !== undefined ? pedido.abonado : true
     });
     setIsModalOpen(true);
   };
@@ -298,7 +300,8 @@ const SeguimientoPedidosPage = () => {
       contacto_mercurio_fecha: formData.contacto_mercurio_fecha || '',
       contacto_proveedor: formData.contacto_proveedor || '',
       contacto_proveedor_fecha: formData.contacto_proveedor_fecha || '',
-      estado: formData.estado || 'Pendiente'
+      estado: formData.estado || 'Pendiente',
+      abonado: formData.abonado
     };
 
     const toastId = toast.loading(editingPedido ? 'Actualizando pedido...' : 'Registrando pedido...');
@@ -620,6 +623,13 @@ const SeguimientoPedidosPage = () => {
                             <span className="text-xs text-gray-500 font-medium">
                               Cant: <span className="font-bold text-gray-900">{pedido.cant_pedido || '-'}</span>
                             </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
+                              pedido.abonado 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                                : 'bg-rose-50 text-rose-700 border-rose-100'
+                            }`}>
+                              {pedido.abonado ? 'Abonado' : 'No Abonado'}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -687,6 +697,13 @@ const SeguimientoPedidosPage = () => {
                     {pedido.descripcion_capacidad}
                   </span>
                   <span className="text-[10px] text-gray-500 font-semibold">Cant. Pedida: {pedido.cant_pedido || '-'}</span>
+                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-bold border inline-block ${
+                    pedido.abonado 
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                      : 'bg-rose-50 text-rose-700 border-rose-100'
+                  }`}>
+                    {pedido.abonado ? 'Abonado' : 'No Abonado'}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 text-xs font-semibold pt-1.5 border-t border-gray-100/50" onClick={(e) => e.stopPropagation()}>
@@ -795,7 +812,7 @@ const SeguimientoPedidosPage = () => {
                     <div className="w-2.5 h-5 bg-indigo-600 rounded-full"></div>
                     <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Proveedor</h4>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Proveedor / Marca</label>
                       <input
@@ -828,6 +845,33 @@ const SeguimientoPedidosPage = () => {
                         onChange={handleInputChange}
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Abonado?</label>
+                      <div className="flex p-1 bg-gray-50 rounded-xl border border-gray-200 h-[42px] items-center">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, abonado: true }))}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all h-full ${
+                            formData.abonado
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'text-gray-500 hover:bg-gray-100'
+                          }`}
+                        >
+                          SÍ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, abonado: false }))}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all h-full ${
+                            !formData.abonado
+                              ? 'bg-red-500 text-white shadow-sm'
+                              : 'text-gray-500 hover:bg-gray-100'
+                          }`}
+                        >
+                          NO
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1251,9 +1295,21 @@ const SeguimientoPedidosPage = () => {
                         <span className="font-mono text-gray-700 text-xs">{viewingPedido.codigo_producto_proveed || '-'}</span>
                       </div>
                     </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">N° Pedido Compra (OC):</span>
-                      <span className="font-mono text-blue-600 font-semibold">{viewingPedido.nro_pedido_compra || '-'}</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-xs text-gray-400 block">N° Pedido Compra (OC):</span>
+                        <span className="font-mono text-blue-600 font-semibold">{viewingPedido.nro_pedido_compra || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400 block">¿Abonado?:</span>
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
+                          viewingPedido.abonado 
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                            : 'bg-rose-100 text-rose-800 border-rose-200'
+                        }`}>
+                          {viewingPedido.abonado ? 'SÍ' : 'NO'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -410,7 +410,8 @@ exports.importPedidosPdf = async (req, res) => {
                 recepcion_parcial: '',
                 contacto_mercurio: contacto_mercurio || 'Operador',
                 contacto_proveedor: '',
-                estado: estado
+                estado: estado,
+                abonado: true
             });
         }
 
@@ -458,6 +459,7 @@ exports.exportPedidosExcel = async (req, res) => {
             'Proveedor/Marca': p.proveedor_marca || '',
             'N° de Pedido': p.nro_pedido || '',
             'Código Producto Proveed.': p.codigo_producto_proveed || '',
+            'Abonado': p.abonado ? 'SÍ' : 'NO',
             'Urgencia': p.urgencia ? 'SÍ' : 'NO',
             'Rotación': p.rotacion ? 'SÍ' : 'NO',
             'Transp. Mercurio': p.transp_mercurio ? 'SÍ' : 'NO',
