@@ -2319,6 +2319,206 @@ router.put('/general-counts/:id/close', verifyToken, hasPermission('close_counts
     }
 });
 
+// Reopen a closed count
+router.post('/general-counts/:id/reopen', verifyToken, hasPermission('close_counts'), async (req, res) => {
+    const { id } = req.params;
+    let step = 'init';
+
+    try {
+        step = 'fetch_count';
+        // 1. Fetch current count info
+        const { data: count, error: fetchError } = await supabase
+            .from('general_counts')
+            .select('*')
+            .eq('id', id)
+            .is('deleted_at', null)
+            .single();
+
+        if (fetchError || !count) {
+            return res.status(404).json({ message: 'Conteo no encontrado' });
+        }
+
+        if (count.status !== 'closed') {
+            return res.status(400).json({ message: 'El conteo no está finalizado' });
+        }
+
+        step = 'reopen_count';
+        // 2. Update status in general_counts
+        const { data: updatedCount, error: updateError } = await supabase
+            .from('general_counts')
+            .update({ status: 'open', closed_at: null })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) {
+            console.error(`[REOPEN_COUNT] ${id}: Error updating status:`, updateError);
+            throw updateError;
+        }
+
+        step = 'delete_remito_snapshot';
+        // 3. Delete from remitos table (snapshot)
+        const { error: deleteRemitoError } = await supabase
+            .from('remitos')
+            .delete()
+            .eq('remito_number', id);
+
+        if (deleteRemitoError) {
+            console.error(`[REOPEN_COUNT] ${id}: Error deleting remito snapshot:`, deleteRemitoError);
+            throw deleteRemitoError;
+        }
+
+        step = 'reopen_linked_pre_remitos';
+        // 4. Update linked pre-remitos to pending
+        const linkedOrdersRaw = (count.name || '').split(',').map(s => s.trim());
+        const stockOrders = linkedOrdersRaw.filter(o => o.startsWith('STOCK-'));
+
+        if (stockOrders.length > 0) {
+            const { error: preRemitosError } = await supabase
+                .from('pre_remitos')
+                .update({ status: 'pending' })
+                .in('order_number', stockOrders);
+
+            if (preRemitosError) {
+                console.error(`[REOPEN_COUNT] ${id}: Error updating pre-remitos status:`, preRemitosError);
+                throw preRemitosError;
+            }
+        }
+
+        console.log(`[REOPEN_COUNT] ${id}: Reopened successfully`);
+        res.json({ message: 'Conteo reabierto correctamente', count: updatedCount });
+
+    } catch (error) {
+        console.error(`[REOPEN_COUNT] CRITICAL ERROR at step [${step}] for count ${id}:`, error);
+        res.status(500).json({
+            message: 'Error al reabrir conteo',
+            details: error.message,
+            step: step
+        });
+    }
+});
+
+// Link additional pre-remitos to an open general count
+router.post('/general-counts/:id/link-pre-remitos', verifyToken, hasPermission('close_counts'), async (req, res) => {
+    const { id } = req.params;
+    const { preRemitoOrderNumbers } = req.body;
+    let step = 'init';
+
+    if (!Array.isArray(preRemitoOrderNumbers) || preRemitoOrderNumbers.length === 0) {
+        return res.status(400).json({ message: 'Debe proporcionar al menos un número de pre-remito' });
+    }
+
+    try {
+        step = 'fetch_count';
+        // 1. Fetch current count info
+        const { data: count, error: fetchError } = await supabase
+            .from('general_counts')
+            .select('*')
+            .eq('id', id)
+            .is('deleted_at', null)
+            .single();
+
+        if (fetchError || !count) {
+            return res.status(404).json({ message: 'Conteo no encontrado' });
+        }
+
+        if (count.status !== 'open') {
+            return res.status(400).json({ message: 'El conteo debe estar abierto para asociar nuevos pre-remitos' });
+        }
+
+        step = 'fetch_pre_remitos';
+        // 2. Fetch the pre-remitos to be linked
+        const { data: preRemitos, error: preRemitosError } = await supabase
+            .from('pre_remitos')
+            .select('order_number, items, status')
+            .in('order_number', preRemitoOrderNumbers);
+
+        if (preRemitosError) {
+            console.error(`[LINK_PRE_REMITOS] ${id}: Error fetching pre-remitos:`, preRemitosError);
+            throw preRemitosError;
+        }
+
+        if (!preRemitos || preRemitos.length === 0) {
+            return res.status(404).json({ message: 'No se encontraron los pre-remitos proporcionados' });
+        }
+
+        const validPreRemitos = preRemitos.filter(pr => pr.status === 'pending');
+        if (validPreRemitos.length === 0) {
+            return res.status(400).json({ message: 'Los pre-remitos seleccionados ya fueron procesados o no están pendientes' });
+        }
+
+        step = 'process_names_and_codes';
+        // 3. Extract order numbers and product codes
+        const currentParts = (count.name || '').split(',').map(s => s.trim());
+        const newOrderNumbers = validPreRemitos.map(pr => pr.order_number);
+        
+        // Deduplicate order numbers
+        const mergedPartsSet = new Set([...currentParts, ...newOrderNumbers]);
+        const updatedName = Array.from(mergedPartsSet).join(', ');
+
+        // Extract new product codes
+        const newProductCodes = [];
+        validPreRemitos.forEach(pr => {
+            (pr.items || []).forEach(item => {
+                if (item.code) {
+                    newProductCodes.push(String(item.code).trim());
+                }
+            });
+        });
+
+        let updatedProductCodes = count.product_codes;
+        if (Array.isArray(count.product_codes)) {
+            const mergedCodes = new Set([...count.product_codes, ...newProductCodes]);
+            updatedProductCodes = Array.from(mergedCodes);
+        }
+
+        step = 'update_count';
+        // 4. Update general_counts name and product_codes
+        const updatePayload = { name: updatedName };
+        if (updatedProductCodes !== undefined) {
+            updatePayload.product_codes = updatedProductCodes;
+        }
+
+        const { data: updatedCount, error: updateCountError } = await supabase
+            .from('general_counts')
+            .update(updatePayload)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateCountError) {
+            console.error(`[LINK_PRE_REMITOS] ${id}: Error updating general count:`, updateCountError);
+            throw updateCountError;
+        }
+
+        step = 'update_pre_remitos';
+        // 5. Update status of linked pre-remitos to processed
+        const { error: updatePreRemitosError } = await supabase
+            .from('pre_remitos')
+            .update({ status: 'processed' })
+            .in('order_number', newOrderNumbers);
+
+        if (updatePreRemitosError) {
+            console.error(`[LINK_PRE_REMITOS] ${id}: Error updating pre-remitos to processed:`, updatePreRemitosError);
+            throw updatePreRemitosError;
+        }
+
+        console.log(`[LINK_PRE_REMITOS] ${id}: Linked ${newOrderNumbers.length} pre-remitos successfully`);
+        res.json({
+            message: 'Pre-remitos vinculados correctamente al conteo',
+            count: updatedCount
+        });
+
+    } catch (error) {
+        console.error(`[LINK_PRE_REMITOS] CRITICAL ERROR at step [${step}] for count ${id}:`, error);
+        res.status(500).json({
+            message: 'Error al vincular pre-remitos',
+            details: error.message,
+            step: step
+        });
+    }
+});
+
 // Create a Re-control session for a closed count
 router.post('/general-counts/:id/re-control', verifyToken, hasPermission('close_counts'), async (req, res) => {
     const { id } = req.params;

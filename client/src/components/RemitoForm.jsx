@@ -2540,65 +2540,120 @@ const RemitoForm = () => {
                                                     }</span>
                                                 </div>
                                             ) : <div />}
-                                            <button
-                                                onClick={async () => {
-                                                    if (!remitoNumber || !remitoNumber.trim()) {
-                                                        triggerModal('Atención', 'Debe ingresar un nombre para el conteo.', 'warning');
-                                                        return;
-                                                    }
-                                                    try {
-                                                        let countSucursalId = user?.sucursal_id || null;
+                                            <div className="flex gap-2 flex-wrap justify-end flex-grow">
+                                                {selectedCount && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (selectedPreRemitos.length === 0) {
+                                                                triggerModal('Atención', 'Seleccione al menos un conteo pendiente para vincular.', 'warning');
+                                                                return;
+                                                            }
+                                                            const confirmLink = window.confirm(
+                                                                `¿Está seguro que desea vincular ${selectedPreRemitos.length} conteo(s) al conteo activo actual?\n\n` +
+                                                                `Esto agregará los productos esperados de los Excel seleccionados al control actual.`
+                                                            );
+                                                            if (!confirmLink) return;
 
-                                                        if (!countSucursalId && selectedPreRemitos.length > 0) {
-                                                            const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
-                                                            if (firstPre && firstPre.sucursal) {
-                                                                const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
-                                                                if (matchedBranch) {
-                                                                    countSucursalId = matchedBranch.id;
+                                                            try {
+                                                                await api.post(`/api/general-counts/${selectedCount.id}/link-pre-remitos`, {
+                                                                    preRemitoOrderNumbers: selectedPreRemitos
+                                                                });
+                                                                
+                                                                // Refresh active counts and selection
+                                                                const activeRes = await api.get('/api/general-counts/active');
+                                                                if (activeRes.data) {
+                                                                    const updatedCurrent = activeRes.data.find(c => c.id === selectedCount.id);
+                                                                    if (updatedCurrent) {
+                                                                        setSelectedCount(updatedCurrent);
+                                                                        localStorage.setItem('selectedCountId', updatedCurrent.id);
+                                                                        // Force reload of expected items in frontend
+                                                                        setExpectedItems(null);
+                                                                        setPreRemitoStatus('idle');
+                                                                    }
+                                                                }
+                                                                
+                                                                // Refresh pre-remitos list
+                                                                const refreshRes = await api.get('/api/pre-remitos');
+                                                                if (Array.isArray(refreshRes.data)) {
+                                                                    setPreRemitoList(refreshRes.data);
+                                                                }
+                                                                
+                                                                setSelectedPreRemitos([]);
+                                                                triggerModal('Éxito', 'Los conteos han sido vinculados correctamente al conteo activo.', 'success');
+                                                            } catch (err) {
+                                                                console.error('Error linking pre-remitos:', err);
+                                                                triggerModal('Error', err.response?.data?.message || 'Error al vincular los conteos.', 'error');
+                                                            }
+                                                        }}
+                                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-blue-700 transition flex items-center"
+                                                    >
+                                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                        </svg>
+                                                        Vincular al Conteo Activo
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!remitoNumber || !remitoNumber.trim()) {
+                                                            triggerModal('Atención', 'Debe ingresar un nombre para el conteo.', 'warning');
+                                                            return;
+                                                        }
+                                                        try {
+                                                            let countSucursalId = user?.sucursal_id || null;
+
+                                                            if (!countSucursalId && selectedPreRemitos.length > 0) {
+                                                                const firstPre = preRemitoList.find(p => p.order_number === selectedPreRemitos[0]);
+                                                                if (firstPre && firstPre.sucursal) {
+                                                                    const matchedBranch = branches.find(b => b.name.toLowerCase() === firstPre.sucursal.toLowerCase());
+                                                                    if (matchedBranch) {
+                                                                        countSucursalId = matchedBranch.id;
+                                                                    }
                                                                 }
                                                             }
+
+                                                            const productCodes = Array.isArray(expectedItems)
+                                                                ? expectedItems.map(i => i.code).filter(Boolean)
+                                                                : [];
+
+                                                            // Combinamos de forma segura el nombre ingresado por el usuario con las referencias técnicas necesarias para el backend
+                                                            const originalRefsName = selectedPreRemitos.join(', ');
+                                                            let finalCountName = remitoNumber.trim();
+                                                            const containsAllRefs = selectedPreRemitos.every(ref => finalCountName.includes(ref));
+                                                            if (!containsAllRefs) {
+                                                                finalCountName = `${finalCountName}, ${originalRefsName}`;
+                                                            }
+
+                                                            const res = await api.post('/api/general-counts', {
+                                                                name: finalCountName,
+                                                                sucursal_id: countSucursalId,
+                                                                product_codes: productCodes.length > 0 ? productCodes : undefined
+                                                            });
+
+                                                            selectionClearedRef.current = false;
+                                                            setActiveCounts(prev => [res.data, ...prev]);
+                                                            setSelectedCount(res.data);
+                                                            localStorage.setItem('selectedCountId', res.data.id);
+
+                                                            try {
+                                                                await api.put('/api/auth/active-count', { countId: res.data.id });
+                                                            } catch (e) {
+                                                                console.error('Error syncing pre-remito count to backend:', e);
+                                                            }
+
+                                                            triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
+                                                        } catch (error) {
+                                                            console.error('Error creating count from pre-remito:', error);
+                                                            triggerModal('Error', error.response?.data?.message || 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
                                                         }
-
-                                                        const productCodes = Array.isArray(expectedItems)
-                                                            ? expectedItems.map(i => i.code).filter(Boolean)
-                                                            : [];
-
-                                                        // Combinamos de forma segura el nombre ingresado por el usuario con las referencias técnicas necesarias para el backend
-                                                        const originalRefsName = selectedPreRemitos.join(', ');
-                                                        let finalCountName = remitoNumber.trim();
-                                                        const containsAllRefs = selectedPreRemitos.every(ref => finalCountName.includes(ref));
-                                                        if (!containsAllRefs) {
-                                                            finalCountName = `${finalCountName}, ${originalRefsName}`;
-                                                        }
-
-                                                        const res = await api.post('/api/general-counts', {
-                                                            name: finalCountName,
-                                                            sucursal_id: countSucursalId,
-                                                            product_codes: productCodes.length > 0 ? productCodes : undefined
-                                                        });
-
-                                                        selectionClearedRef.current = false;
-                                                        setActiveCounts(prev => [res.data, ...prev]);
-                                                        setSelectedCount(res.data);
-                                                        localStorage.setItem('selectedCountId', res.data.id);
-
-                                                        try {
-                                                            await api.put('/api/auth/active-count', { countId: res.data.id });
-                                                        } catch (e) {
-                                                            console.error('Error syncing pre-remito count to backend:', e);
-                                                        }
-
-                                                        triggerModal('Éxito', 'Conteo iniciado. Puede comenzar a escanear.', 'success');
-                                                    } catch (error) {
-                                                        console.error('Error creating count from pre-remito:', error);
-                                                        triggerModal('Error', error.response?.data?.message || 'No se pudo crear el conteo automático. Intente crear uno manual.', 'error');
-                                                    }
-                                                }}
-                                                className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
-                                            >
-                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                {selectedCount ? 'Iniciar Nuevo Conteo' : 'Iniciar Conteo'}
-                                            </button>
+                                                    }}
+                                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-green-700 transition flex items-center"
+                                                >
+                                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    {selectedCount ? 'Iniciar Nuevo Conteo' : 'Iniciar Conteo'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}

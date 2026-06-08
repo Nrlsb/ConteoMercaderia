@@ -8,10 +8,12 @@ import RemitoHistory from './RemitoHistory';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 import { HelpCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const InteractiveTour = lazy(() => import('./InteractiveTour'));
 
 const RemitoDetailsPage = () => {
+    const { user } = useAuth();
     const { id } = useParams();
     const navigate = useNavigate();
     const [data, setData] = useState(null);
@@ -313,8 +315,43 @@ const RemitoDetailsPage = () => {
                         </div>
 
                         {/* Top Actions */}
-                        <div className="flex gap-2 relative group" id="export-dropdown">
-                            <button
+                        <div className="flex items-center gap-2">
+                            {!isInProgress && ['admin', 'superadmin', 'branch_admin'].includes(user?.role) && (
+                                <button
+                                    onClick={async () => {
+                                        const confirmReopen = window.confirm(
+                                            '¿Está seguro de que desea reabrir este conteo?\n\n' +
+                                            'Esto eliminará el reporte final y el conteo volverá al estado "En Curso" ' +
+                                            'para que puedan cargar más archivos Excel o continuar escaneando.'
+                                        );
+                                        if (!confirmReopen) return;
+
+                                        try {
+                                            await api.post(`/api/general-counts/${id}/reopen`);
+                                            localStorage.setItem('selectedCountId', id);
+                                            try {
+                                                await api.put('/api/auth/active-count', { countId: id });
+                                            } catch (e) {
+                                                console.error('Error syncing active count to backend on reopen:', e);
+                                            }
+                                            toast.success('Conteo reabierto correctamente.');
+                                            navigate('/');
+                                        } catch (err) {
+                                            console.error('Error reopening count:', err);
+                                            toast.error(err.response?.data?.message || 'Error al reabrir el conteo.');
+                                        }
+                                    }}
+                                    className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-lg shadow-sm text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                                >
+                                    <svg className="h-4 w-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+                                    </svg>
+                                    Reabrir Conteo
+                                </button>
+                            )}
+
+                            <div className="flex gap-2 relative group" id="export-dropdown">
+                                <button
                                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue transition-colors"
                                 onClick={(e) => {
                                     const menu = document.getElementById('export-menu');
@@ -407,6 +444,7 @@ const RemitoDetailsPage = () => {
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 {/* Search Bar */}
