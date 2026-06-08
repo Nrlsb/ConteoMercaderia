@@ -75,12 +75,12 @@ export const NotificationProvider = ({ children }) => {
             if ('Notification' in window && Notification.permission === 'granted') {
                 const token = await requestForToken();
                 if (token) {
-                    console.log('[PUSH WEB] Token Web FCM obtenido:', token);
+                    // console.log('[PUSH WEB] Token Web FCM obtenido:', token);
                     await api.post('/api/notifications/register-token', {
                         token: token,
                         deviceType: 'web'
                     });
-                    console.log('[PUSH WEB] Token Web registrado en la base de datos correctamente');
+                    // console.log('[PUSH WEB] Token Web registrado en la base de datos correctamente');
                 }
             }
         } catch (e) {
@@ -159,7 +159,7 @@ export const NotificationProvider = ({ children }) => {
         // Clave única basada en título y cuerpo
         const key = `${title}|${body}`;
         if (processedNotificationsRef.current.has(key)) {
-            console.log('[NOTIFICACION] Ya procesada recientemente en primer plano, omitiendo duplicada:', key);
+            // console.log('[NOTIFICACION] Ya procesada recientemente en primer plano, omitiendo duplicada:', key);
             return;
         }
 
@@ -170,7 +170,7 @@ export const NotificationProvider = ({ children }) => {
             processedNotificationsRef.current.delete(key);
         }, 15000);
 
-        console.log('[NOTIFICACION] Disparando alerta visual en primer plano:', title, body);
+        // console.log('[NOTIFICACION] Disparando alerta visual en primer plano:', title, body);
 
         // 1. Mostrar toast visual dentro de la app
         toast.info(title, {
@@ -194,7 +194,7 @@ export const NotificationProvider = ({ children }) => {
         
         if (Capacitor.isNativePlatform()) {
             LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-                console.log('Notificación pulsada en APK:', action);
+                // console.log('Notificación pulsada en APK:', action);
                 if (isMounted) {
                     navigate('/seguimiento-pedidos');
                 }
@@ -217,13 +217,13 @@ export const NotificationProvider = ({ children }) => {
 
         // 1. Obtener y enviar el token FCM al servidor
         const regListener = PushNotifications.addListener('registration', async (token) => {
-            console.log('[PUSH] Token FCM obtenido en dispositivo:', token.value);
+            // console.log('[PUSH] Token FCM obtenido en dispositivo:', token.value);
             try {
                 await api.post('/api/notifications/register-token', {
                     token: token.value,
                     deviceType: 'android'
                 });
-                console.log('[PUSH] Token registrado en base de datos correctamente');
+                // console.log('[PUSH] Token registrado en base de datos correctamente');
             } catch (err) {
                 console.error('[PUSH] Error al registrar token en backend:', err);
             }
@@ -236,7 +236,7 @@ export const NotificationProvider = ({ children }) => {
 
         // 3. Notificación Push recibida en primer plano
         const notifListener = PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('[PUSH] Recibida en primer plano:', notification);
+            // console.log('[PUSH] Recibida en primer plano:', notification);
             fetchNotifications(); // Recargar campanita
             
             // Mostrar toast visual dentro de la app (móvil)
@@ -254,7 +254,7 @@ export const NotificationProvider = ({ children }) => {
 
         // 4. Acción sobre notificación Push en segundo plano / barra
         const actionListener = PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-            console.log('[PUSH] Notificación pulsada desde la barra de Android:', action);
+            // console.log('[PUSH] Notificación pulsada desde la barra de Android:', action);
             navigate('/seguimiento-pedidos');
         });
 
@@ -277,7 +277,7 @@ export const NotificationProvider = ({ children }) => {
         }
 
         const channelId = `user-notifications-${user.id}-${Math.random().toString(36).substring(2, 9)}`;
-        console.log(`[REALTIME] Intentando suscribir al canal '${channelId}' para el usuario:`, user.username, "ID:", user.id);
+        // console.log(`[REALTIME] Intentando suscribir al canal '${channelId}' para el usuario:`, user.username, "ID:", user.id);
         
         const channel = supabase
             .channel(channelId)
@@ -294,7 +294,7 @@ export const NotificationProvider = ({ children }) => {
                     // Filtrar en el cliente: ignorar si no es para el usuario actual
                     if (newNotif.user_id !== user.id) return;
                     
-                    console.log('[REALTIME] ¡Nueva notificación recibida en tiempo real!', payload);
+                    // console.log('[REALTIME] ¡Nueva notificación recibida en tiempo real!', payload);
                     
                     // Evitar duplicados en la lista local
                     setNotifications((prev) => {
@@ -311,7 +311,7 @@ export const NotificationProvider = ({ children }) => {
                 }
             )
             .subscribe((status, err) => {
-                console.log(`[REALTIME] Estado de la suscripción para ${user.username}:`, status);
+                // console.log(`[REALTIME] Estado de la suscripción para ${user.username}:`, status);
                 if (err) {
                     console.error('[REALTIME] Error en la suscripción:', err);
                 }
@@ -330,7 +330,7 @@ export const NotificationProvider = ({ children }) => {
 
         try {
             unsubscribe = onMessage(messaging, (payload) => {
-                console.log('[PUSH WEB] Mensaje recibido en primer plano:', payload);
+                // console.log('[PUSH WEB] Mensaje recibido en primer plano:', payload);
                 fetchNotifications(); // Recargar campanita de notificaciones
                 
                 // Si viene un payload con notificación, disparar la alerta visual
