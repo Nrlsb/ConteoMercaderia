@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const { fetchProductsByCodes } = require('./utils/dbHelpers');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -74,11 +75,7 @@ async function testRemitos() {
             if (uniqueScanCodes.length > 0) {
                 // To avoid large URIs in Supabase 'in' filter, maybe this is the issue?
                 console.log("Fetching products for these codes...");
-                const { data: productsData, error: productError } = await supabase
-                    .from('products')
-                    .select('code, description, brand')
-                    .in('code', uniqueScanCodes);
-                if (productError) throw productError;
+                const productsData = await fetchProductsByCodes(uniqueScanCodes);
                 console.log("Products fetched:", productsData.length);
             }
         }

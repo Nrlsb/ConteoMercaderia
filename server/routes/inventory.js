@@ -331,12 +331,7 @@ router.get('/remitos', verifyToken, async (req, res) => {
         let productMap = {};
 
         if (uniqueScanCodes.length > 0) {
-            const { data: productsData, error: productError } = await supabase
-                .from('products')
-                .select('code, description, brand')
-                .in('code', uniqueScanCodes);
-
-            if (productError) throw productError;
+            const productsData = await fetchProductsByCodes(uniqueScanCodes);
 
             if (productsData) {
                 productsData.forEach(p => {
