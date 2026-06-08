@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { downloadFile } from '../utils/downloadUtils';
@@ -28,6 +29,13 @@ const RemitoDetailsPage = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [historyData, setHistoryData] = useState([]);
     const [isTourOpen, setIsTourOpen] = useState(false);
+
+    // States for export to another count
+    const [showExportToModal, setShowExportToModal] = useState(false);
+    const [exportCountList, setExportCountList] = useState([]);
+    const [exportCountSearch, setExportCountSearch] = useState('');
+    const [loadingExportList, setLoadingExportList] = useState(false);
+    const [exportingTo, setExportingTo] = useState(false);
 
     const tourSteps = [
         {
@@ -134,6 +142,44 @@ const RemitoDetailsPage = () => {
         };
         loadHistory();
     }, [data?.remito?.remito_number]);
+
+    const handleOpenExportToModal = async () => {
+        // Calculate total scanned units to verify if there is anything to export
+        const totalScannedUnits = userCounts.reduce((acc, u) => acc + (u.totalUnits || 0), 0);
+        if (totalScannedUnits === 0) {
+            toast.error('No hay productos controlados para exportar');
+            return;
+        }
+
+        setExportCountSearch('');
+        setShowExportToModal(true);
+        setLoadingExportList(true);
+        try {
+            const { data: resData } = await api.get('/api/remitos');
+            // Filter to get only general counts that are not finalized and are different from current one
+            // In the response, general counts in progress have is_finalized === false
+            setExportCountList((resData || []).filter(r => r.id !== id && !r.is_finalized && (r.type === 'general_count' || r.type === 'pre_remito')));
+        } catch (error) {
+            console.error('Error loading counts for export:', error);
+            toast.error('Error al cargar conteos');
+        } finally {
+            setLoadingExportList(false);
+        }
+    };
+
+    const handleExportToCount = async (targetCountId) => {
+        setExportingTo(true);
+        try {
+            const { data: resData } = await api.post(`/api/general-counts/${id}/export-to-count`, { targetCountId });
+            toast.success(`${resData.exported} productos exportados al conteo "${resData.targetName}"`);
+            setShowExportToModal(false);
+        } catch (err) {
+            console.error('Error exporting count:', err);
+            toast.error(err?.response?.data?.message || 'Error al exportar');
+        } finally {
+            setExportingTo(false);
+        }
+    };
 
     const handleVoiceSearch = async () => {
         if (Capacitor.isNativePlatform()) {
@@ -347,6 +393,16 @@ const RemitoDetailsPage = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
                                     </svg>
                                     Reabrir Conteo
+                                </button>
+                            )}
+
+                            {['admin', 'superadmin', 'branch_admin'].includes(user?.role) && (
+                                <button
+                                    onClick={handleOpenExportToModal}
+                                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue transition-colors"
+                                >
+                                    <svg className="h-4 w-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                    Exportar a otro Conteo
                                 </button>
                             )}
 
@@ -989,6 +1045,78 @@ const RemitoDetailsPage = () => {
                     steps={tourSteps}
                 />
             </Suspense>
+
+            {/* Export to another count modal */}
+            {showExportToModal && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-2xl">
+                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 rounded-t-2xl flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-white">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold leading-tight">Exportar a otro Conteo</h2>
+                                    <p className="text-blue-100 text-xs">Seleccioná el conteo destino</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowExportToModal(false)} className="text-white/70 hover:text-white transition">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+
+                        <div className="p-4 border-b border-gray-100">
+                            <p className="text-sm text-gray-500 mb-3">
+                                Se exportarán las cantidades controladas a los productos del conteo seleccionado.
+                            </p>
+                            <input
+                                type="text"
+                                placeholder="Buscar conteo..."
+                                value={exportCountSearch}
+                                onChange={e => setExportCountSearch(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            />
+                        </div>
+
+                        <div className="overflow-y-auto max-h-72 p-2">
+                            {loadingExportList ? (
+                                <div className="p-6 text-center text-gray-400 text-sm">Cargando conteos...</div>
+                            ) : exportCountList.filter(r =>
+                                !exportCountSearch || (r.count_name || r.remito_number || '').toLowerCase().includes(exportCountSearch.toLowerCase())
+                            ).length === 0 ? (
+                                <div className="p-6 text-center text-gray-400 text-sm">No hay conteos abiertos disponibles</div>
+                            ) : (
+                                exportCountList
+                                    .filter(r => !exportCountSearch || (r.count_name || r.remito_number || '').toLowerCase().includes(exportCountSearch.toLowerCase()))
+                                    .map(r => (
+                                        <button
+                                            key={r.id}
+                                            onClick={() => handleExportToCount(r.id)}
+                                            disabled={exportingTo}
+                                            className="w-full text-left px-4 py-3 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-200 transition mb-1 flex items-center justify-between group disabled:opacity-50"
+                                        >
+                                            <div>
+                                                <div className="font-semibold text-gray-800 text-sm group-hover:text-blue-700">{r.count_name || r.remito_number}</div>
+                                                <div className="text-xs text-gray-400">{r.date ? new Date(r.date).toLocaleDateString('es-AR') : ''}</div>
+                                            </div>
+                                            <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                                        </button>
+                                    ))
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 flex justify-end">
+                            <button
+                                onClick={() => setShowExportToModal(false)}
+                                className="px-5 py-2 text-gray-500 font-medium hover:bg-gray-100 rounded-lg transition text-sm"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

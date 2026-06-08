@@ -3269,5 +3269,119 @@ router.post('/remitos/upload-pdf', verifyToken, multer({ storage: multer.memoryS
     }
 });
 
+// Export scanned items from one general count to another general count
+router.post('/general-counts/:id/export-to-count', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { targetCountId } = req.body;
+
+    if (!targetCountId) return res.status(400).json({ message: 'Falta el conteo destino' });
+    if (targetCountId === id) return res.status(400).json({ message: 'El conteo destino debe ser diferente al actual' });
+
+    try {
+        // 1. Verify target count exists and is open
+        const { data: targetCount, error: targetError } = await supabase
+            .from('general_counts')
+            .select('id, name, status, parent_count_id')
+            .eq('id', targetCountId)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+        if (targetError || !targetCount) return res.status(404).json({ message: 'Conteo destino no encontrado' });
+        if (targetCount.status !== 'open') return res.status(400).json({ message: 'El conteo destino no está abierto' });
+
+        // 2. Get scanned items from source count
+        const scans = await getAllScans(id);
+        if (!scans || scans.length === 0) {
+            return res.status(400).json({ message: 'No hay productos controlados en el conteo origen para exportar' });
+        }
+
+        // Group scans by product code (since multiple users might have scanned the same product)
+        const groupedScans = {};
+        scans.forEach(s => {
+            groupedScans[s.code] = (groupedScans[s.code] || 0) + (s.quantity || 0);
+        });
+
+        const sourceCodes = Object.keys(groupedScans);
+        if (sourceCodes.length === 0) {
+            return res.status(400).json({ message: 'No hay productos controlados para exportar' });
+        }
+
+        // 3. Get existing scans for the current user in the target count (to accumulate)
+        const { data: existingScans, error: existingError } = await supabase
+            .from('inventory_scans')
+            .select('code, quantity')
+            .eq('order_number', targetCountId)
+            .eq('user_id', req.user.id);
+
+        if (existingError) throw existingError;
+
+        const existingScansMap = {};
+        if (existingScans) {
+            existingScans.forEach(s => {
+                existingScansMap[s.code] = s.quantity || 0;
+            });
+        }
+
+        // --- RE-CONTROL RULE ENFORCEMENT ---
+        // If the target count is a re-control (has parent_count_id), and user is not admin,
+        // we must check if this user scanned the product in the parent count.
+        if (targetCount.parent_count_id && !['admin', 'superadmin', 'branch_admin'].includes(req.user.role)) {
+            const parentId = targetCount.parent_count_id;
+            
+            // Check if this user scanned any of these codes in the parent count
+            const { data: previousScans, error: checkError } = await supabase
+                .from('inventory_scans')
+                .select('code')
+                .eq('order_number', parentId)
+                .eq('user_id', req.user.id)
+                .in('code', sourceCodes);
+
+            if (checkError) console.error('Error checking previous scans for re-control in export:', checkError);
+
+            if (previousScans && previousScans.length > 0) {
+                const blockedCode = previousScans[0].code;
+                return res.status(403).json({ 
+                    message: `Regla de Re-control: No puedes exportar al conteo destino porque contiene el producto ${blockedCode} que ya contaste en el conteo original.`
+                });
+            }
+        }
+        // -----------------------------------
+
+        // 4. Prepare upsert data
+        const upsertData = sourceCodes.map(code => {
+            const existingQty = existingScansMap[code] || 0;
+            const newQty = existingQty + groupedScans[code];
+            return {
+                order_number: targetCountId,
+                user_id: req.user.id,
+                code: code,
+                quantity: newQty,
+                timestamp: new Date().toISOString()
+            };
+        });
+
+        // 5. Perform upsert in batches of 100 to avoid issues if there are many products
+        const chunkSize = 100;
+        let exportedCount = 0;
+        for (let i = 0; i < upsertData.length; i += chunkSize) {
+            const chunk = upsertData.slice(i, i + chunkSize);
+            const { error: upsertError } = await supabase
+                .from('inventory_scans')
+                .upsert(chunk, { onConflict: 'order_number, user_id, code' });
+
+            if (upsertError) throw upsertError;
+            exportedCount += chunk.length;
+        }
+
+        res.json({
+            exported: exportedCount,
+            targetName: targetCount.name || targetCount.id
+        });
+
+    } catch (error) {
+        console.error('Error exporting to count:', error);
+        res.status(500).json({ message: 'Error al exportar productos' });
+    }
+});
 
 module.exports = router;
