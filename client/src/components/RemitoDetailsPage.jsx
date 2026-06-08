@@ -327,10 +327,10 @@ const RemitoDetailsPage = () => {
                                         if (!confirmReopen) return;
 
                                         try {
-                                            await api.post(`/api/general-counts/${id}/reopen`);
-                                            localStorage.setItem('selectedCountId', id);
+                                            await api.post(`/api/general-counts/${remito.remito_number}/reopen`);
+                                            localStorage.setItem('selectedCountId', remito.remito_number);
                                             try {
-                                                await api.put('/api/auth/active-count', { countId: id });
+                                                await api.put('/api/auth/active-count', { countId: remito.remito_number });
                                             } catch (e) {
                                                 console.error('Error syncing active count to backend on reopen:', e);
                                             }
