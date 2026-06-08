@@ -3290,7 +3290,32 @@ router.post('/general-counts/:id/export-to-count', verifyToken, async (req, res)
         if (targetCount.status !== 'open') return res.status(400).json({ message: 'El conteo destino no está abierto' });
 
         // 2. Get scanned items from source count
-        const scans = await getAllScans(id);
+        let sourceOrderNumber = id;
+        
+        // Try Pre-Remito
+        const { data: preRemito } = await supabase
+            .from('pre_remitos')
+            .select('order_number')
+            .eq('id', id)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+        if (preRemito) {
+            sourceOrderNumber = preRemito.order_number;
+        } else {
+            // Try Finalized Remito
+            const { data: finalizedRemito } = await supabase
+                .from('remitos')
+                .select('remito_number')
+                .eq('id', id)
+                .is('deleted_at', null)
+                .maybeSingle();
+            if (finalizedRemito) {
+                sourceOrderNumber = finalizedRemito.remito_number;
+            }
+        }
+
+        const scans = await getAllScans(sourceOrderNumber);
         if (!scans || scans.length === 0) {
             return res.status(400).json({ message: 'No hay productos controlados en el conteo origen para exportar' });
         }
