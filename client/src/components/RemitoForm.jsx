@@ -148,8 +148,23 @@ const RemitoForm = () => {
 
     // --- HELPER FUNCTIONS ---
     const fetchItemsByOrders = async (orderNumbers) => {
+        const validOrderNumbers = orderNumbers.filter(num => {
+            if (!num) return false;
+            const cleanNum = num.trim();
+            if (cleanNum.startsWith('STOCK-')) return true;
+            if (/^\d+$/.test(cleanNum)) return true;
+            if (preRemitoList && preRemitoList.length > 0) {
+                return preRemitoList.some(p => p.order_number === cleanNum);
+            }
+            return false;
+        });
+
+        if (validOrderNumbers.length === 0) {
+            return [];
+        }
+
         const results = await Promise.all(
-            orderNumbers.map(num => api.get(`/api/pre-remitos/${num}`))
+            validOrderNumbers.map(num => api.get(`/api/pre-remitos/${num.trim()}`))
         );
 
         const mergedItemsMap = {};
@@ -545,10 +560,22 @@ const RemitoForm = () => {
                 // In this app, counts created from remitos have the order numbers as name
                 const cleanName = selectedCount.name.replace(/^re-control:\s*/i, '');
                 const orderNumbers = cleanName.split(',').map(n => n.trim());
-                if (orderNumbers.length > 0 && orderNumbers[0].length > 3) {
+                
+                const validOrderNumbers = orderNumbers.filter(num => {
+                    if (!num) return false;
+                    const cleanNum = num.trim();
+                    if (cleanNum.startsWith('STOCK-')) return true;
+                    if (/^\d+$/.test(cleanNum)) return true;
+                    if (preRemitoList && preRemitoList.length > 0) {
+                        return preRemitoList.some(p => p.order_number === cleanNum);
+                    }
+                    return false;
+                });
+
+                if (validOrderNumbers.length > 0) {
                     try {
                         setPreRemitoStatus('loading');
-                        const mergedItems = await fetchItemsByOrders(orderNumbers);
+                        const mergedItems = await fetchItemsByOrders(validOrderNumbers);
                         
                         let finalItems = mergedItems;
                         if (selectedCount.product_codes && Array.isArray(selectedCount.product_codes)) {
@@ -556,7 +583,7 @@ const RemitoForm = () => {
                         }
                         setExpectedItems(finalItems);
                         setPreRemitoStatus('found');
-                        setRemitoNumber(orderNumbers.join(', '));
+                        setRemitoNumber(validOrderNumbers.join(', '));
                     } catch (e) {
                         console.error('Failed to auto-load expected items:', e);
                         setPreRemitoStatus('error');
@@ -565,7 +592,7 @@ const RemitoForm = () => {
             }
         };
         autoLoadExpected();
-    }, [selectedCount, countMode, expectedItems, preRemitoStatus]);
+    }, [selectedCount, countMode, expectedItems, preRemitoStatus, preRemitoList]);
 
     const handleVoiceSearch = async () => {
         if (Capacitor.isNativePlatform()) {
@@ -850,15 +877,35 @@ const RemitoForm = () => {
 
     const handleResumeActiveCount = async (count, orderNumbers) => {
         try {
-            setPreRemitoStatus('loading');
             const cleanOrderNumbers = orderNumbers.map(num => num.replace(/^re-control:\s*/i, ''));
-            const mergedItems = await fetchItemsByOrders(cleanOrderNumbers);
-            
-            let finalItems = mergedItems;
-            if (count.product_codes && Array.isArray(count.product_codes)) {
-                finalItems = mergedItems.filter(item => count.product_codes.includes(item.code));
+            const validOrderNumbers = cleanOrderNumbers.filter(num => {
+                if (!num) return false;
+                const cleanNum = num.trim();
+                if (cleanNum.startsWith('STOCK-')) return true;
+                if (/^\d+$/.test(cleanNum)) return true;
+                if (preRemitoList && preRemitoList.length > 0) {
+                    return preRemitoList.some(p => p.order_number === cleanNum);
+                }
+                return false;
+            });
+
+            if (validOrderNumbers.length > 0) {
+                setPreRemitoStatus('loading');
+                const mergedItems = await fetchItemsByOrders(validOrderNumbers);
+                
+                let finalItems = mergedItems;
+                if (count.product_codes && Array.isArray(count.product_codes)) {
+                    finalItems = mergedItems.filter(item => count.product_codes.includes(item.code));
+                }
+                setExpectedItems(finalItems);
+                setPreRemitoStatus('found');
+                // Auto-set remito number from order numbers when resuming
+                setRemitoNumber(validOrderNumbers.join(', '));
+            } else {
+                setExpectedItems(null);
+                setPreRemitoStatus('');
+                setRemitoNumber('');
             }
-            setExpectedItems(finalItems);
 
             // Set the selected count to trigger the display of the active count
             selectionClearedRef.current = false;
@@ -871,10 +918,6 @@ const RemitoForm = () => {
             } catch (e) {
                 console.error('Error syncing resumed count to backend:', e);
             }
-
-            setPreRemitoStatus('found');
-            // Auto-set remito number from order numbers when resuming
-            setRemitoNumber(orderNumbers.join(', '));
         } catch (error) {
             console.error('Error resuming active count:', error);
             triggerModal('Error', 'No se pudo cargar el conteo activo. Intente nuevamente.', 'error');
