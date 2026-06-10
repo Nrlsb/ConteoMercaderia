@@ -45,10 +45,25 @@ const Navigation = () => {
     const canSeeTab = (tabPermission, defaultRoleCheck) => {
         // Superadmin always sees everything
         if (user?.role === 'superadmin') return true;
-        // If user has tab permissions assigned, only show those tabs
-        if (hasTabPermissions) return userPermissions.includes(tabPermission);
-        // Otherwise, fall back to the default role-based check
-        return defaultRoleCheck;
+        
+        let hasBasePermission = false;
+        if (hasTabPermissions) {
+            hasBasePermission = userPermissions.includes(tabPermission);
+        } else {
+            hasBasePermission = defaultRoleCheck;
+        }
+
+        if (!hasBasePermission) return false;
+
+        // Validar restricción horaria (tab_schedules) si existe para esta pestaña
+        const schedule = user?.tab_schedules?.[tabPermission];
+        if (schedule && schedule.from && schedule.to) {
+            const now = new Date();
+            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            return currentTime >= schedule.from && currentTime <= schedule.to;
+        }
+
+        return true;
     };
 
     const showNuevoConteo = canSeeTab('tab_nuevo_conteo', user?.role !== 'supervisor');

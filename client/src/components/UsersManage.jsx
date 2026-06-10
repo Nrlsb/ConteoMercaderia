@@ -9,7 +9,7 @@ const UsersManage = () => {
     const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [], allow_multiple_sessions: false });
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [], allow_multiple_sessions: false, tab_schedules: {} });
 
     // Get current user from storage or context (quick fix as we don't have context here)
     const [currentUser, setCurrentUser] = useState(null);
@@ -54,6 +54,7 @@ const UsersManage = () => {
             sucursal_id: user.sucursal_id || '',
             permissions: user.permissions || [],
             allow_multiple_sessions: user.allow_multiple_sessions || false,
+            tab_schedules: user.tab_schedules || {},
             password: '' // Reset password field
         });
     };
@@ -67,14 +68,15 @@ const UsersManage = () => {
             role: 'user',
             sucursal_id: '',
             permissions: [],
-            allow_multiple_sessions: false
+            allow_multiple_sessions: false,
+            tab_schedules: {}
         });
     }
 
     const handleCancel = () => {
         setEditingUser(null);
         setIsCreating(false);
-        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [], allow_multiple_sessions: false });
+        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [], allow_multiple_sessions: false, tab_schedules: {} });
     };
 
     const handleDelete = async (id) => {
@@ -102,7 +104,8 @@ const UsersManage = () => {
                     role: formData.role,
                     sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
                     permissions: formData.permissions,
-                    allow_multiple_sessions: formData.allow_multiple_sessions
+                    allow_multiple_sessions: formData.allow_multiple_sessions,
+                    tab_schedules: formData.tab_schedules
                 };
                 await axios.post('/api/users', payload);
                 toast.success('Usuario creado exitosamente');
@@ -111,7 +114,8 @@ const UsersManage = () => {
                     role: formData.role,
                     sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
                     permissions: formData.permissions,
-                    allow_multiple_sessions: formData.allow_multiple_sessions
+                    allow_multiple_sessions: formData.allow_multiple_sessions,
+                    tab_schedules: formData.tab_schedules
                 };
                 if (formData.password) {
                     payload.password = formData.password;
@@ -132,7 +136,28 @@ const UsersManage = () => {
         const newPermissions = formData.permissions.includes(perm)
             ? formData.permissions.filter(p => p !== perm)
             : [...formData.permissions, perm];
-        setFormData({ ...formData, permissions: newPermissions });
+        
+        // Si se quita el permiso de la pestaña, también limpiamos su restricción horaria
+        const newSchedules = { ...formData.tab_schedules };
+        if (formData.permissions.includes(perm)) {
+            delete newSchedules[perm];
+        }
+        
+        setFormData({ ...formData, permissions: newPermissions, tab_schedules: newSchedules });
+    };
+ 
+    const handleScheduleChange = (tabId, field, value) => {
+        const currentSchedules = { ...formData.tab_schedules };
+        if (!currentSchedules[tabId]) {
+            currentSchedules[tabId] = { from: '', to: '' };
+        }
+        currentSchedules[tabId][field] = value;
+        
+        if (!currentSchedules[tabId].from && !currentSchedules[tabId].to) {
+            delete currentSchedules[tabId];
+        }
+        
+        setFormData({ ...formData, tab_schedules: currentSchedules });
     };
 
     const tabPermissionsConfig = [
@@ -375,6 +400,31 @@ const UsersManage = () => {
                                                 <span>{tab.name}</span>
                                             </label>
                                         </div>
+                                        {formData.permissions.includes(tab.id) && (
+                                            <div className="mb-3 p-1.5 bg-blue-50/50 border border-blue-100/50 rounded flex flex-col gap-1">
+                                                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Restricción horaria</span>
+                                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[10px] text-gray-500">De:</span>
+                                                        <input 
+                                                            type="time" 
+                                                            value={formData.tab_schedules?.[tab.id]?.from || ''} 
+                                                            onChange={(e) => handleScheduleChange(tab.id, 'from', e.target.value)}
+                                                            className="border border-gray-300 rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[10px] text-gray-500">A:</span>
+                                                        <input 
+                                                            type="time" 
+                                                            value={formData.tab_schedules?.[tab.id]?.to || ''} 
+                                                            onChange={(e) => handleScheduleChange(tab.id, 'to', e.target.value)}
+                                                            className="border border-gray-300 rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="flex-1 flex flex-col justify-start">
                                             {tab.specialPermissions.length > 0 ? (
                                                 <div className="flex flex-col space-y-2">

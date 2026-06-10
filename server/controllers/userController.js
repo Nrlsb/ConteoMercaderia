@@ -6,7 +6,7 @@ exports.getAllUsers = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, permissions, allow_multiple_sessions, sucursales(name)')
+            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, permissions, allow_multiple_sessions, tab_schedules, sucursales(name)')
             .order('username');
 
         if (error) throw error;
@@ -25,7 +25,7 @@ exports.getAllUsers = async (req, res) => {
 };
 
 exports.createUser = async (req, res) => {
-    const { username, password, role, sucursal_id, permissions, allow_multiple_sessions } = req.body;
+    const { username, password, role, sucursal_id, permissions, allow_multiple_sessions, tab_schedules } = req.body;
 
     if (!username || !password || !role) {
         return res.status(400).json({ message: 'Faltan datos requeridos (usuario, contraseña, rol)' });
@@ -57,6 +57,7 @@ exports.createUser = async (req, res) => {
             sucursal_id: sucursal_id || null,
             permissions: permissions || [],
             allow_multiple_sessions: allow_multiple_sessions || false,
+            tab_schedules: tab_schedules || {},
             current_session_id: sessionId,
             is_session_active: false
         };
@@ -79,7 +80,7 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { role, sucursal_id, password, permissions, allow_multiple_sessions } = req.body;
+    const { role, sucursal_id, password, permissions, allow_multiple_sessions, tab_schedules } = req.body;
     const requesterRole = req.user.role;
 
     try {
@@ -101,6 +102,7 @@ exports.updateUser = async (req, res) => {
         if (sucursal_id !== undefined) updates.sucursal_id = sucursal_id; // Allow null to clear
         if (permissions !== undefined) updates.permissions = permissions; // Allow empty array
         if (allow_multiple_sessions !== undefined) updates.allow_multiple_sessions = allow_multiple_sessions;
+        if (tab_schedules !== undefined) updates.tab_schedules = tab_schedules;
         if (password) {
             const salt = await bcrypt.genSalt(10);
             updates.password = await bcrypt.hash(password, salt);

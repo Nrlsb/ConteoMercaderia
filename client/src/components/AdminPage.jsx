@@ -42,6 +42,39 @@ const AdminPage = () => {
         }
     };
 
+    const handleExportProtheus = async () => {
+        setIsLoading(true);
+        setStatus('Generando archivos CSV...');
+        try {
+            const response = await api.get('/api/products/export-protheus/csv');
+            if (response.data && response.data.files) {
+                response.data.files.forEach((file, index) => {
+                    setTimeout(() => {
+                        const blob = new Blob([file.content], { type: 'text/csv;charset=utf-8;' });
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = file.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(downloadUrl);
+                    }, index * 500); // Retardo entre descargas para evitar bloqueos del navegador
+                });
+                setStatus(`Éxito: Se generaron y descargaron ${response.data.files.length} archivo(s) CSV.`);
+            } else {
+                setStatus('No se recibieron archivos para descargar.');
+            }
+        } catch (error) {
+            console.error('Error al exportar productos Protheus:', error);
+            const errMsg = error.response?.data?.message || 'Error al exportar productos';
+            setStatus(`Error: ${errMsg}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-3xl font-bold mb-6 text-gray-800">Administración</h1>
@@ -191,6 +224,30 @@ const AdminPage = () => {
                         </div>
                     </div>
                 )}
+
+                {/* Export All Products with Barcode Section */}
+                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 border-t-4 border-blue-500 hover:shadow-lg transition-shadow duration-300">
+                    <h2 className="text-xl mb-4 text-blue-700 font-bold flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Exportar Productos para Protheus (CSV)
+                    </h2>
+                    <p className="mb-4 text-gray-600">
+                        Descarga todos los productos con código de barra en archivos CSV de máximo 299 líneas con el formato requerido por Protheus (<code className="bg-gray-100 px-1 py-0.5 rounded font-mono text-sm">B1_COD;B1_CODBAR</code>).
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={handleExportProtheus}
+                            disabled={isLoading}
+                            className={`bg-blue-600 hover:bg-blue-800 text-white font-bold py-2.5 px-6 rounded-lg focus:outline-none shadow-lg transition duration-200 flex items-center gap-2
+                                     ${isLoading ? 'opacity-50 cursor-not-allowed font-medium' : 'hover:scale-[1.02] active:scale-95'}`}
+                        >
+                            {isLoading ? 'Generando...' : 'Descargar Archivos CSV'}
+                        </button>
+                    </div>
+                </div>
 
                 {status && (
                     <div className={`mt-4 p-3 rounded ${status.startsWith('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>

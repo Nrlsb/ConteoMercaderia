@@ -60,6 +60,21 @@ const ProtectedRoute = ({ children, role, tabPermission }) => {
     if (hasTabPermissions && !requiredPermissions.some(p => userPermissions.includes(p))) {
       return <Navigate to="/" replace />;
     }
+
+    // Comprobar restricción horaria (tab_schedules) para cualquiera de los permisos requeridos
+    const isOutofSchedule = requiredPermissions.some(p => {
+      const schedule = user?.tab_schedules?.[p];
+      if (schedule && schedule.from && schedule.to) {
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        return currentTime < schedule.from || currentTime > schedule.to;
+      }
+      return false;
+    });
+
+    if (isOutofSchedule) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   if (role === 'admin' && (user?.role === 'superadmin' || user?.role === 'branch_admin')) {

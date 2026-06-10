@@ -533,6 +533,38 @@ const BarcodeControl = () => {
         }
     };
 
+    const handleExportProtheusCatalog = async () => {
+        setLoading(true);
+        try {
+            const response = await api.get('/api/products/export-protheus/csv');
+            if (response.data && response.data.files) {
+                response.data.files.forEach((file, index) => {
+                    setTimeout(() => {
+                        const blob = new Blob([file.content], { type: 'text/csv;charset=utf-8;' });
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = file.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(downloadUrl);
+                    }, index * 500); // Retardo entre descargas para evitar bloqueos del navegador
+                });
+                toast.success(`Catálogo Protheus exportado: ${response.data.files.length} archivo(s) CSV (bloques de 299 líneas)`);
+            } else {
+                toast.error('No se recibieron archivos para descargar.');
+            }
+        } catch (err) {
+            console.error('Error al exportar catálogo Protheus:', err);
+            const errMsg = err.response?.data?.message || 'Error al exportar catálogo';
+            toast.error(errMsg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
 
     // Focus input on mount and whenever we are not in edit mode or searching
     useEffect(() => {
@@ -2271,7 +2303,7 @@ const BarcodeControl = () => {
                                     >
                                         <Filter className="w-4 h-4" /> Filtrar
                                     </button>
-                                    <div className="flex gap-2 w-full sm:w-auto">
+                                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                                         <button
                                             onClick={() => handleExportCsv(true)}
                                             className="flex-1 sm:flex-none btn bg-green-600 hover:bg-green-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
@@ -2285,6 +2317,13 @@ const BarcodeControl = () => {
                                             disabled={layoutLoading}
                                         >
                                             <FileSpreadsheet className="w-4 h-4" /> Excel
+                                        </button>
+                                        <button
+                                            onClick={handleExportProtheusCatalog}
+                                            className="flex-1 sm:flex-none btn bg-purple-600 hover:bg-purple-700 text-white py-2 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                                            title="Exportar catálogo completo con barras en CSV formato Protheus (máx. 299 líneas)"
+                                        >
+                                            <Download className="w-4 h-4" /> Catálogo Protheus
                                         </button>
                                     </div>
                                 </div>

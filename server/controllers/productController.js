@@ -576,3 +576,70 @@ exports.getColorantsByCategory = async (req, res) => {
         res.status(500).json({ message: 'Error al obtener colorantes' });
     }
 };
+
+// Export all products with barcodes in Protheus CSV format (max 299 lines per file)
+exports.exportAllProductsProtheusCsv = async (req, res) => {
+    try {
+        let allProducts = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
+        console.log(`[EXPORT PROTHEUS] Iniciando exportación de productos con código de barra`);
+
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('products')
+                .select('code, barcode')
+                .not('barcode', 'is', null)
+                .order('code', { ascending: true })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                // Filtrar nulos o vacíos que puedan haberse pasado, o cadenas 'null'
+                const filtered = data.filter(p => p.barcode && p.barcode.trim() !== '' && p.barcode.trim().toLowerCase() !== 'null');
+                allProducts = allProducts.concat(filtered);
+                if (data.length < step) {
+                    hasMore = false;
+                } else {
+                    from += step;
+                }
+            } else {
+                hasMore = false;
+            }
+        }
+
+        if (allProducts.length === 0) {
+            return res.status(404).json({ message: 'No hay productos con código de barra para exportar' });
+        }
+
+        // Dividir en bloques de máximo 298 productos (298 productos + 1 cabecera = 299 líneas totales)
+        const MAX_PRODUCTS = 298;
+        const files = [];
+        let fileIndex = 1;
+
+        for (let i = 0; i < allProducts.length; i += MAX_PRODUCTS) {
+            const chunk = allProducts.slice(i, i + MAX_PRODUCTS);
+            let csvContent = "B1_COD;B1_CODBAR\n";
+            chunk.forEach(p => {
+                csvContent += `${p.code ? p.code.trim() : ''};${p.barcode ? p.barcode.trim() : ''}\n`;
+            });
+
+            // Formatear el índice con ceros a la izquierda
+            const formattedIndex = String(fileIndex).padStart(2, '0');
+            files.push({
+                filename: `productos_protheus_${formattedIndex}.csv`,
+                content: csvContent
+            });
+            fileIndex++;
+        }
+
+        res.json({ files });
+    } catch (error) {
+        console.error('Error al exportar productos en formato Protheus:', error);
+        res.status(500).json({ message: 'Error interno al exportar productos', details: error.message });
+    }
+};
+

@@ -8,6 +8,8 @@ const { verifyToken, hasPermission } = require('../middleware/auth');
 router.get('/search', verifyToken, productController.searchProducts);
 router.get('/sync', verifyToken, productController.syncProducts);
 router.get('/colorants-by-category', verifyToken, productController.getColorantsByCategory);
+router.get('/export-protheus/csv', verifyToken, productController.exportAllProductsProtheusCsv);
+
 
 // Get by exact barcode (must be before /:barcode to avoid conflict)
 router.get('/barcode/:barcode', verifyToken, productController.getByBarcode);
