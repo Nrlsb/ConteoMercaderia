@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { HelpCircle } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 const InteractiveTour = React.lazy(() => import('./InteractiveTour'));
 
@@ -58,7 +59,12 @@ const BranchIncomingsList = () => {
     const [processingId, setProcessingId] = useState(null);
     const [processingMultiple, setProcessingMultiple] = useState(false);
 
+    // Refs to track pagination state for real-time updates
+    const pendingPageRef = useRef(1);
+    const historyPageRef = useRef(1);
+
     const fetchTransfers = useCallback(async (page = 1) => {
+        pendingPageRef.current = page;
         setLoadingPending(true);
         try {
             const response = await api.get(`/api/branch-transfers/pending?page=${page}&limit=10`);
@@ -77,6 +83,7 @@ const BranchIncomingsList = () => {
     }, []);
 
     const fetchReceiptHistory = useCallback(async (page = 1) => {
+        historyPageRef.current = page;
         setLoadingHistory(true);
         try {
             const response = await api.get(`/api/branch-transfers/receipts?page=${page}&limit=15`);
@@ -98,6 +105,72 @@ const BranchIncomingsList = () => {
         fetchTransfers(1);
         fetchReceiptHistory(1);
     }, [fetchTransfers, fetchReceiptHistory]);
+
+    // Supabase Realtime Subscription for automatic synchronization
+    const refreshTimerRef = useRef(null);
+
+    const debouncedRefresh = useCallback(() => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = setTimeout(() => {
+            fetchTransfers(pendingPageRef.current);
+            fetchReceiptHistory(historyPageRef.current);
+        }, 1000);
+    }, [fetchTransfers, fetchReceiptHistory]);
+
+    useEffect(() => {
+        const branchId = user?.sucursal_id;
+        const isAdmin = ['superadmin', 'admin'].includes(user?.role);
+        
+        // Egresos channel configuration
+        const egresosConfig = {
+            event: '*',
+            schema: 'public',
+            table: 'egresos'
+        };
+        if (!isAdmin && branchId) {
+            egresosConfig.filter = `sucursal_id=eq.${branchId}`;
+        }
+        
+        const egresosChannelId = `branch_incomings_egresos-${Math.random().toString(36).substring(2, 9)}`;
+        const egresosChannel = supabase.channel(egresosChannelId)
+            .on('postgres_changes', egresosConfig, (payload) => {
+                console.log('⚡ Egresos change detected via Realtime:', payload);
+                debouncedRefresh();
+            })
+            .subscribe((status, err) => {
+                if (err) {
+                    console.error('[REALTIME] Error subscribing to egresos:', err);
+                }
+            });
+
+        // Receipts channel configuration
+        const receiptsConfig = {
+            event: '*',
+            schema: 'public',
+            table: 'receipts'
+        };
+        if (!isAdmin && branchId) {
+            receiptsConfig.filter = `sucursal_id=eq.${branchId}`;
+        }
+
+        const receiptsChannelId = `branch_incomings_receipts-${Math.random().toString(36).substring(2, 9)}`;
+        const receiptsChannel = supabase.channel(receiptsChannelId)
+            .on('postgres_changes', receiptsConfig, (payload) => {
+                console.log('⚡ Receipts change detected via Realtime:', payload);
+                debouncedRefresh();
+            })
+            .subscribe((status, err) => {
+                if (err) {
+                    console.error('[REALTIME] Error subscribing to receipts:', err);
+                }
+            });
+
+        return () => {
+            supabase.removeChannel(egresosChannel);
+            supabase.removeChannel(receiptsChannel);
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        };
+    }, [user, debouncedRefresh]);
 
     const handleReceive = async (transferId) => {
         if (!window.confirm('¿Desea iniciar la recepción de este remito? Se creará un nuevo control de ingreso.')) return;

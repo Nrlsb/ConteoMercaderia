@@ -100,20 +100,28 @@ const BranchCountList = ({ countId, countName }) => {
     useEffect(() => {
         if (!countId) return;
 
-        const channel = supabase.channel(`branch_list_scans_${countId}`)
+        const channelId = `branch_list_scans_${countId}-${Math.random().toString(36).substring(2, 9)}`;
+        const channel = supabase.channel(channelId)
             .on('postgres_changes', { 
                 event: '*', 
                 schema: 'public', 
                 table: 'inventory_scans',
                 filter: `order_number=eq.${countId}`
-            }, () => {
+            }, (payload) => {
+                console.log('⚡ Inventory scans change detected in BranchCountList:', payload);
                 // Debounced refresh to avoid excessive reloads
                 if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
                 refreshTimerRef.current = setTimeout(() => {
                     fetchPage(currentPageRef.current, currentSearchRef.current, currentFilterRef.current, true);
                 }, 1000);
             })
-            .subscribe();
+            .subscribe((status, err) => {
+                if (err) {
+                    console.error('[REALTIME] Error subscribing to branch count scans:', err);
+                } else {
+                    console.log(`[REALTIME] BranchCountList subscribed with status: ${status}`);
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);

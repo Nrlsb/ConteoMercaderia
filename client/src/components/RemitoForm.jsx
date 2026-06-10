@@ -530,18 +530,25 @@ const RemitoForm = () => {
 
         const countId = selectedCount.id;
 
-        const channel = supabase.channel(`inventory_scans_${countId}`)
+        const channelId = `inventory_scans_${countId}-${Math.random().toString(36).substring(2, 9)}`;
+        const channel = supabase.channel(channelId)
             .on('postgres_changes', { 
                 event: '*', 
                 schema: 'public', 
                 table: 'inventory_scans',
                 filter: `order_number=eq.${countId}`
             }, (payload) => {
+                console.log('⚡ Cambio detectado en inventory_scans por Realtime:', payload);
                 debouncedFetch();
             })
             .on('presence', { event: 'sync' }, () => {
             })
-            .subscribe(async (status) => {
+            .subscribe(async (status, err) => {
+                if (err) {
+                    console.error('[REALTIME] Error en la suscripción de RemitoForm:', err);
+                } else {
+                    console.log(`[REALTIME] RemitoForm suscrito con estado: ${status}`);
+                }
                 if (status === 'SUBSCRIBED') {
                     await channel.track({ device: navigator.userAgent, user: user?.username });
                 }
@@ -550,7 +557,7 @@ const RemitoForm = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [selectedCount?.id, debouncedFetch]);
+    }, [selectedCount?.id, debouncedFetch, user?.username]);
 
     // Auto-load expected items (pre-remitos) when a count is active and items are null
     useEffect(() => {
