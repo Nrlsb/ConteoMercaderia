@@ -63,6 +63,8 @@ const BarcodeControl = () => {
 
     // Scanner state
     const [showScanner, setShowScanner] = useState(false);
+    // Target for camera scanning ('edit_barcode' | 'edit_barcode_secondary' | 'link_barcode' | null)
+    const [scanningTarget, setScanningTarget] = useState(null);
 
     // Tabs state
     const [activeTab, setActiveTab] = useState('scanner'); // 'scanner' | 'history'
@@ -605,6 +607,7 @@ const BarcodeControl = () => {
     const lookupProduct = async (code) => {
         setLoading(true);
         setError(null);
+        const currentProduct = product; // Preserve the current product in case the lookup fails
         setProduct(null);
         setEditMode(false);
         setSearchQuery('');
@@ -666,6 +669,15 @@ const BarcodeControl = () => {
             setLoading(false);
             if (err.response && err.response.status === 404) {
                 setError('code_not_found');
+                // If we already had a product on screen, auto-select it for linking the new barcode
+                if (currentProduct) {
+                    setSelectedProductToLink(currentProduct);
+                    if (currentProduct.barcode) {
+                        setLinkAsType('barcode_secondary');
+                    } else {
+                        setLinkAsType('barcode');
+                    }
+                }
             } else {
                 const msg = err.response?.data?.message || 'Error al buscar el producto';
                 setError(msg);
@@ -1028,6 +1040,27 @@ const BarcodeControl = () => {
             setIsScanningFilter(false);
             return;
         }
+
+        if (scanningTarget === 'edit_barcode') {
+            setEditData(prev => ({ ...prev, barcode: code }));
+            setScanningTarget(null);
+            toast.success(`Código de barras principal escaneado: ${code}`);
+            return;
+        }
+
+        if (scanningTarget === 'edit_barcode_secondary') {
+            setEditData(prev => ({ ...prev, barcode_secondary: code }));
+            setScanningTarget(null);
+            toast.success(`Código de barras secundario escaneado: ${code}`);
+            return;
+        }
+
+        if (scanningTarget === 'link_barcode') {
+            setScannedBarcode(code);
+            setScanningTarget(null);
+            return;
+        }
+
         setScannedBarcode(code);
         await lookupProduct(code);
     };
@@ -1400,21 +1433,61 @@ const BarcodeControl = () => {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras Principal</label>
-                                                <input
-                                                    type="text"
-                                                    value={editData.barcode || ''}
-                                                    onChange={(e) => setEditData({ ...editData, barcode: e.target.value })}
-                                                    className="input-field bg-gray-50"
-                                                />
+                                                <div className="flex gap-1">
+                                                    <input
+                                                        type="text"
+                                                        value={editData.barcode || ''}
+                                                        onChange={(e) => setEditData({ ...editData, barcode: e.target.value })}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleSaveEdit();
+                                                            }
+                                                        }}
+                                                        className="input-field bg-gray-50 flex-grow"
+                                                        placeholder="Escanear o ingresar..."
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setScanningTarget('edit_barcode');
+                                                            setShowScanner(true);
+                                                        }}
+                                                        className="px-3 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center"
+                                                        title="Escanear código principal con cámara"
+                                                    >
+                                                        <Camera className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras Secundario</label>
-                                                <input
-                                                    type="text"
-                                                    value={editData.barcode_secondary || ''}
-                                                    onChange={(e) => setEditData({ ...editData, barcode_secondary: e.target.value })}
-                                                    className="input-field bg-gray-50"
-                                                />
+                                                <div className="flex gap-1">
+                                                    <input
+                                                        type="text"
+                                                        value={editData.barcode_secondary || ''}
+                                                        onChange={(e) => setEditData({ ...editData, barcode_secondary: e.target.value })}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleSaveEdit();
+                                                            }
+                                                        }}
+                                                        className="input-field bg-gray-50 flex-grow"
+                                                        placeholder="Escanear o ingresar..."
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setScanningTarget('edit_barcode_secondary');
+                                                            setShowScanner(true);
+                                                        }}
+                                                        className="px-3 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-200 transition-colors flex items-center justify-center"
+                                                        title="Escanear código secundario con cámara"
+                                                    >
+                                                        <Camera className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
@@ -1689,13 +1762,32 @@ const BarcodeControl = () => {
                                                 <label className="block text-[10px] text-amber-700 font-bold uppercase mb-1.5 cursor-pointer">
                                                     Nuevo Código a Vincular
                                                 </label>
-                                                <input
-                                                    type="text"
-                                                    value={scannedBarcode}
-                                                    onChange={(e) => setScannedBarcode(e.target.value)}
-                                                    className="w-full text-center text-lg sm:text-xl font-mono font-black text-amber-900 bg-white border border-amber-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm"
-                                                    placeholder="Ingrese o escanee el código"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={scannedBarcode}
+                                                        onChange={(e) => setScannedBarcode(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleLinkProduct(selectedProductToLink);
+                                                            }
+                                                        }}
+                                                        className="w-full text-center text-lg sm:text-xl font-mono font-black text-amber-900 bg-white border border-amber-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm flex-grow"
+                                                        placeholder="Ingrese o escanee el código"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setScanningTarget('link_barcode');
+                                                            setShowScanner(true);
+                                                        }}
+                                                        className="px-3 bg-amber-100 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-200 transition-colors flex items-center justify-center"
+                                                        title="Escanear código con cámara"
+                                                    >
+                                                        <Camera className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div className="flex gap-2 w-full">
