@@ -129,9 +129,38 @@ const EgresoDetailsPage = () => {
         fetchEgresoDetails();
         checkPendingSync();
         syncProducts(); // Sync catalog on mount
-        window.addEventListener('online', syncOfflineData);
-        return () => window.removeEventListener('online', syncOfflineData);
     }, [id]);
+
+    useEffect(() => {
+        const handleOnline = () => {
+            toast.success('Conexión restaurada. Sincronizando...', { duration: 3000 });
+            syncOfflineData();
+        };
+        const handleOffline = () => {
+            toast.error('Sin conexión a internet. Modo Offline activado.', { duration: 5000 });
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Intentar sincronizar al montar si hay pendientes
+        if (pendingSyncCount > 0) {
+            syncOfflineData();
+        }
+
+        // Intervalo de reintento controlado cada 15 segundos si hay pendientes
+        const intervalId = setInterval(() => {
+            if (pendingSyncCount > 0) {
+                syncOfflineData();
+            }
+        }, 15000);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            clearInterval(intervalId);
+        };
+    }, [id, pendingSyncCount]);
 
     // Supabase Realtime Subscription
     useEffect(() => {
@@ -645,42 +674,6 @@ const EgresoDetailsPage = () => {
         const qty = parseFloat(quantityToAdd) || 1;
         const scan_id = "SID_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
 
-        if (!navigator.onLine) {
-            const existingItem = items.find(i => i.product_code === code);
-            const currentExpected = Number(existingItem?.expected_quantity) || 0;
-            const alreadyScanned = Number(existingItem?.scanned_quantity) || 0;
-
-            if (alreadyScanned + qty > currentExpected) {
-                const errorMsg = `No se puede exceder la cantidad esperada (${currentExpected}).`;
-                toast.error(errorMsg);
-                setScanStatus({ type: 'error', message: errorMsg });
-                setFichajeState(prev => ({ ...prev, isOpen: false }));
-                setProcessing(false);
-                return;
-            }
-
-            await db.pending_syncs.add({
-                document_id: id,
-                type: 'egreso',
-                data: { code, quantity: qty, scan_id },
-                timestamp: Date.now()
-            });
-
-            setItems(prevItems => prevItems.map(item => {
-                if (item.product_code === code) {
-                    return { ...item, scanned_quantity: Number(item.scanned_quantity) + qty };
-                }
-                return item;
-            }));
-
-            toast.success(`Controlado offline: cantidad ${qty} (Se sincronizará al conectar)`, { duration: 4000 });
-            setFichajeState(prev => ({ ...prev, isOpen: false }));
-            checkPendingSync();
-            if (activeTab === 'history') fetchHistory();
-            setProcessing(false);
-            return;
-        }
-
         // Optimistic local update
         setItems(prevItems => prevItems.map(item => {
             if (item.product_code === code) {
@@ -698,8 +691,21 @@ const EgresoDetailsPage = () => {
 
         // API call + refresh in background
         try {
+            const existingItem = items.find(i => i.product_code === code);
+            const currentExpected = Number(existingItem?.expected_quantity) || 0;
+            const alreadyScanned = Number(existingItem?.scanned_quantity) || 0;
+
+            if (alreadyScanned + qty > currentExpected) {
+                const errorMsg = `No se puede exceder la cantidad esperada (${currentExpected}).`;
+                toast.error(errorMsg);
+                setScanStatus({ type: 'error', message: errorMsg });
+                fetchEgresoDetails(); // Revert to server truth
+                return;
+            }
+
             await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty, scan_id });
             if (activeTab === 'history') fetchHistory();
+            debouncedFetch();
         } catch (error) {
             console.error('Scan error:', error);
             
@@ -719,7 +725,7 @@ const EgresoDetailsPage = () => {
                     timestamp: Date.now()
                 });
                 checkPendingSync();
-                toast.warning('Sin conexión. Guardado localmente para sincronizar al reconectar.', { duration: 4000 });
+                toast.warning('Guardado localmente (Offline). Se sincronizará al reconectar.', { duration: 4000 });
             }
         }
     };
@@ -822,7 +828,7 @@ const EgresoDetailsPage = () => {
                 successAudioRef.current.play().catch(() => {});
             }
 
-            if (!navigator.onLine) {
+            try {
                 const existingItem = items.find(i => i.product_code === code);
                 const currentExpected = Number(existingItem?.expected_quantity) || 0;
                 const alreadyScanned = Number(existingItem?.scanned_quantity) || 0;
@@ -834,33 +840,24 @@ const EgresoDetailsPage = () => {
                     return;
                 }
 
-                await db.pending_syncs.add({
-                    document_id: id,
-                    type: 'egreso',
-                    data: { code, quantity: qty, scan_id },
-                    timestamp: Date.now()
-                });
-                checkPendingSync();
-            } else {
-                try {
-                    await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty, scan_id });
-                } catch (apiErr) {
-                    if (apiErr.response) {
-                        // Error de lógica del servidor (ej: excede cantidad)
-                        if (apiErr.response.status === 400) {
-                             setScanStatus({ type: 'error', message: apiErr.response.data.message });
-                        }
-                        fetchEgresoDetails(); // Revertir a la verdad del servidor
-                    } else {
-                        // Error de red, guardar para después con el mismo ID
-                        await db.pending_syncs.add({
-                            document_id: id,
-                            type: 'egreso',
-                            data: { code, quantity: qty, scan_id },
-                            timestamp: Date.now()
-                        });
-                        checkPendingSync();
+                await api.post(`/api/egresos/${id}/scan`, { code, quantity: qty, scan_id });
+            } catch (apiErr) {
+                if (apiErr.response) {
+                    // Error de lógica del servidor (ej: excede cantidad)
+                    if (apiErr.response.status === 400) {
+                         setScanStatus({ type: 'error', message: apiErr.response.data.message });
                     }
+                    fetchEgresoDetails(); // Revertir a la verdad del servidor
+                } else {
+                    // Error de red, guardar para después con el mismo ID
+                    await db.pending_syncs.add({
+                        document_id: id,
+                        type: 'egreso',
+                        data: { code, quantity: qty, scan_id },
+                        timestamp: Date.now()
+                    });
+                    checkPendingSync();
+                    toast.warning('Guardado localmente (Offline). Se sincronizará al reconectar.', { duration: 4000 });
                 }
             }
             if (activeTab === 'history') fetchHistory();

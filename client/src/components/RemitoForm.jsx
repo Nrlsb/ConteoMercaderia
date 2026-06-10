@@ -415,13 +415,22 @@ const RemitoForm = () => {
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
-        if (navigator.onLine && pendingSyncCount > 0) {
+        // Intentar sincronizar al montar si hay pendientes
+        if (pendingSyncCount > 0) {
             syncOfflineData();
         }
+
+        // Intervalo de reintento controlado cada 15 segundos si hay pendientes
+        const intervalId = setInterval(() => {
+            if (pendingSyncCount > 0) {
+                syncOfflineData();
+            }
+        }, 15000);
 
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            clearInterval(intervalId);
         };
     }, [selectedCount, pendingSyncCount]);
     // ----------------------
@@ -1518,18 +1527,6 @@ const RemitoForm = () => {
     const syncTotalToInventory = async (code, totalQuantity) => {
         if (!selectedCount) return;
 
-        if (!navigator.onLine) {
-            const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
-            const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
-            // Filter previous total updates for the same code to keep only the newest
-            const filteredQueue = queue.filter(q => !(q.type === 'total' && q.code === code));
-            filteredQueue.push({ type: 'total', code, quantity: totalQuantity });
-            localStorage.setItem(pendingKey, JSON.stringify(filteredQueue));
-            checkPendingSync();
-            // Optional visually friendly toast, though totals might be silent in current UX
-            return;
-        }
-
         try {
             await api.post('/api/inventory/scan', {
                 orderNumber: selectedCount.id,
@@ -1542,11 +1539,22 @@ const RemitoForm = () => {
             debouncedFetch();
         } catch (error) {
             console.error('Error in syncTotalToInventory:', error);
-            if (error.response?.status === 403) {
+            if (error.response?.status === 401) {
+                triggerModal('Error de Sincronización', 'No se pudo guardar el escaneo. Sesión expirada.', 'error');
+            } else if (error.response?.status === 403) {
                 const serverMsg = error.response.data?.message || 'Acción denegada por reglas de re-control.';
                 triggerModal('Acción Bloqueada', serverMsg, 'error');
                 // Restauramos la sesión para revertir el cambio local
                 restoreSession(selectedCount.id, true);
+            } else {
+                // API failed (network/server error) — queue for later sync
+                const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
+                const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                const filteredQueue = queue.filter(q => !(q.type === 'total' && q.code === code));
+                filteredQueue.push({ type: 'total', code, quantity: totalQuantity });
+                localStorage.setItem(pendingKey, JSON.stringify(filteredQueue));
+                checkPendingSync();
+                toast.warning('Guardado localmente (Offline). Se sincronizará al reconectar.', { duration: 4000 });
             }
         }
     };
@@ -1554,16 +1562,6 @@ const RemitoForm = () => {
     // Sync to inventory_scans for general count mode (incremental)
     const syncToInventoryScans = async (code, quantityToAdd) => {
         if (!selectedCount) return;
-
-        if (!navigator.onLine) {
-            const pendingKey = `pending_inventory_scans_${selectedCount.id}`;
-            const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
-            queue.push({ type: 'incremental', code, quantity: quantityToAdd });
-            localStorage.setItem(pendingKey, JSON.stringify(queue));
-            checkPendingSync();
-            toast.success('Guardado localmente (Offline)');
-            return;
-        }
 
         try {
             // Use new incremental endpoint - sends DELTA, not total.
@@ -1592,7 +1590,7 @@ const RemitoForm = () => {
                 queue.push({ type: 'incremental', code, quantity: quantityToAdd });
                 localStorage.setItem(pendingKey, JSON.stringify(queue));
                 checkPendingSync();
-                toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+                toast.warning('Guardado localmente (Offline). Se sincronizará al reconectar.', { duration: 4000 });
             }
         }
     };

@@ -380,13 +380,22 @@ const ReceiptDetailsPage = () => {
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
-        if (navigator.onLine && pendingSyncCount > 0) {
+        // Intentar sincronizar al montar si hay pendientes
+        if (pendingSyncCount > 0) {
             syncOfflineData();
         }
+
+        // Intervalo de reintento controlado cada 15 segundos si hay pendientes
+        const intervalId = setInterval(() => {
+            if (pendingSyncCount > 0) {
+                syncOfflineData();
+            }
+        }, 15000);
 
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            clearInterval(intervalId);
         };
     }, [id, pendingSyncCount]);
 
@@ -851,51 +860,6 @@ const ReceiptDetailsPage = () => {
         const code = product.code;
         const qty = parseFloat(quantityToAdd) || 1;
 
-        if (!navigator.onLine) {
-            // Guardar en cola offline IndexedDB
-            await db.pending_syncs.add({
-                document_id: id,
-                type: 'receipt',
-                data: { code, quantity: qty, type: activeTab },
-                timestamp: Date.now()
-            });
-
-            // Actualización optimista local
-            setItems(prevItems => {
-                const newItems = [...prevItems];
-                const itemIndex = newItems.findIndex(i => i.product_code === code || i.products?.provider_code === code);
-
-                if (itemIndex > -1) {
-                    if (activeTab === 'load') {
-                        newItems[itemIndex] = {
-                            ...newItems[itemIndex],
-                            expected_quantity: Number(newItems[itemIndex].expected_quantity || 0) + Number(qty)
-                        };
-                    } else {
-                        newItems[itemIndex] = {
-                            ...newItems[itemIndex],
-                            scanned_quantity: Number(newItems[itemIndex].scanned_quantity || 0) + Number(qty)
-                        };
-                    }
-                } else if (activeTab === 'load') {
-                    // Si se está cargando uno nuevo offline (simplificado para UI, backend lo resuelve real tras sync)
-                    newItems.push({
-                        expected_quantity: qty, scanned_quantity: 0,
-                        product_code: code,
-                        products: { description: product.description, provider_code: product.provider_code || '' }
-                    });
-                }
-                return newItems;
-            });
-            checkPendingSync();
-            toast.success('Guardado localmente (Offline)');
-            setScanInput('');
-            setQuantityInput(1);
-            setFichajeState(prev => ({ ...prev, isOpen: false }));
-            setProcessing(false);
-            return;
-        }
-
         // Optimistic local update
         setItems(prevItems => {
             const newItems = [...prevItems];
@@ -906,6 +870,12 @@ const ReceiptDetailsPage = () => {
                     ...newItems[itemIndex],
                     [field]: Number(newItems[itemIndex][field] || 0) + Number(qty)
                 };
+            } else if (activeTab === 'load') {
+                newItems.push({
+                    expected_quantity: qty, scanned_quantity: 0,
+                    product_code: code,
+                    products: { description: product.description, provider_code: product.provider_code || '' }
+                });
             }
             return newItems;
         });
@@ -942,7 +912,7 @@ const ReceiptDetailsPage = () => {
                     timestamp: Date.now()
                 });
                 checkPendingSync();
-                toast.warning('Sin conexión. Guardado localmente, se sincronizará al reconectar.', { duration: 4000 });
+                toast.warning('Guardado localmente (Offline). Se sincronizará al reconectar.', { duration: 4000 });
             }
         }
     };
