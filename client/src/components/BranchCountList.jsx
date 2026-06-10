@@ -58,7 +58,30 @@ const BranchCountList = ({ countId, countName }) => {
             const res = await api.get(`/api/general-counts/${countId}/product-list?${params}`);
             const data = res.data;
             
-            setProducts(data.products);
+            const pendingKey = `pending_inventory_scans_${countId}`;
+            const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+
+            // Mezclar datos del servidor con los pendientes locales
+            const mergedProducts = data.products.map(prod => {
+                const pendingTotal = queue.find(q => q.code === prod.code && q.type === 'total');
+                const pendingIncremental = queue.filter(q => q.code === prod.code && q.type === 'incremental');
+                
+                let qty = prod.quantity;
+                if (pendingTotal) {
+                    qty = pendingTotal.quantity;
+                }
+                if (pendingIncremental.length > 0) {
+                    const sumIncremental = pendingIncremental.reduce((acc, curr) => acc + Number(curr.quantity), 0);
+                    qty = Number(qty || 0) + sumIncremental;
+                }
+
+                return {
+                    ...prod,
+                    quantity: qty
+                };
+            });
+
+            setProducts(mergedProducts);
             setPage(data.page);
             setTotalPages(data.totalPages);
             setTotal(data.total);
@@ -73,7 +96,7 @@ const BranchCountList = ({ countId, countName }) => {
                                    Object.keys(inputRefs.current).find(code => inputRefs.current[code] === activeElement) : 
                                    null;
 
-                data.products.forEach(prod => {
+                mergedProducts.forEach(prod => {
                     if (prod.code === focusedCode) {
                         // Keep current local value for focused input
                         updated[prod.code] = prev[prod.code];
@@ -94,6 +117,15 @@ const BranchCountList = ({ countId, countName }) => {
     useEffect(() => {
         fetchPage(1, '', selectedSubId);
     }, [fetchPage, selectedSubId]);
+
+    // Listen for offline queue updates (when sync completes) to refresh data
+    useEffect(() => {
+        const handleQueueUpdated = () => {
+            fetchPage(page, search, selectedSubId, true);
+        };
+        window.addEventListener('offline-queue-updated', handleQueueUpdated);
+        return () => window.removeEventListener('offline-queue-updated', handleQueueUpdated);
+    }, [fetchPage, page, search, selectedSubId]);
 
     // Real-time subscription
     const refreshTimerRef = useRef(null);
@@ -155,7 +187,23 @@ const BranchCountList = ({ countId, countName }) => {
                 return wasEmpty ? prev + 1 : prev;
             });
         } catch (err) {
-            toast.error(`Error al guardar ${code}`);
+            console.error('Error in saveQuantity:', err);
+            if (err.response?.status === 401) {
+                toast.error('Sesión expirada. Por favor, inicia sesión de nuevo.');
+            } else {
+                // Network or server error -> save to localStorage queue
+                const pendingKey = `pending_inventory_scans_${countId}`;
+                const queue = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+                // Filter previous total updates for the same code to keep only the newest
+                const filteredQueue = queue.filter(q => !(q.type === 'total' && q.code === code));
+                filteredQueue.push({ type: 'total', code, quantity: qty });
+                localStorage.setItem(pendingKey, JSON.stringify(filteredQueue));
+                
+                toast.warning('Guardado localmente (Offline). Se sincronizará al reconectar.', { duration: 4000 });
+                
+                // Trigger event to notify RemitoForm of queue updates
+                window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+            }
         } finally {
             setIsSaving(false);
         }

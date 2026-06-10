@@ -411,9 +411,13 @@ const RemitoForm = () => {
         const handleOffline = () => {
             toast.error('Sin conexión a internet. Modo Offline activado.', { duration: 5000 });
         };
+        const handleQueueUpdated = () => {
+            checkPendingSync();
+        };
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
+        window.addEventListener('offline-queue-updated', handleQueueUpdated);
 
         // Intentar sincronizar al montar si hay pendientes
         if (pendingSyncCount > 0) {
@@ -430,6 +434,7 @@ const RemitoForm = () => {
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            window.removeEventListener('offline-queue-updated', handleQueueUpdated);
             clearInterval(intervalId);
         };
     }, [selectedCount, pendingSyncCount]);
