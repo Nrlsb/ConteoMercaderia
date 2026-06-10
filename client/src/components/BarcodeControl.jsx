@@ -44,6 +44,18 @@ const BarcodeControl = () => {
 
     // Selected product to link
     const [selectedProductToLink, setSelectedProductToLink] = useState(null);
+    const [linkAsType, setLinkAsType] = useState('barcode');
+
+    const handleSetSelectedProductToLink = (prod) => {
+        setSelectedProductToLink(prod);
+        if (prod) {
+            if (!prod.barcode) {
+                setLinkAsType('barcode');
+            } else {
+                setLinkAsType('barcode_secondary');
+            }
+        }
+    };
 
     // Duplicate product selection state
     const [duplicateProducts, setDuplicateProducts] = useState([]);
@@ -584,6 +596,7 @@ const BarcodeControl = () => {
             description: productData.description || '',
             code: productData.code || '',
             barcode: productData.barcode || '',
+            barcode_secondary: productData.barcode_secondary || '',
             provider_code: productData.provider_code || '',
             provider_description: productData.provider_description || ''
         });
@@ -837,15 +850,21 @@ const BarcodeControl = () => {
     };
 
     const handleLinkProduct = async (selectedProduct) => {
-        if (!window.confirm(`¿Estás seguro de que quieres asignar el código de barras "${scannedBarcode}" al producto:\n${selectedProduct.description}?`)) {
+        const typeLabel = linkAsType === 'barcode' ? 'principal' : 'secundario';
+        if (!window.confirm(`¿Estás seguro de que quieres asignar el código de barras "${scannedBarcode}" como código ${typeLabel} al producto:\n${selectedProduct.description}?`)) {
             return;
         }
 
         setLoading(true);
         try {
-            const response = await api.put(`/api/products/${selectedProduct.id}`, { barcode: scannedBarcode });
+            const payload = {};
+            if (linkAsType === 'barcode') {
+                payload.barcode = scannedBarcode;
+            } else {
+                payload.barcode_secondary = scannedBarcode;
+            }
+            const response = await api.put(`/api/products/${selectedProduct.id}`, payload);
             const updated = response.data;
-
 
             toast.success('Código de barras vinculado exitosamente');
             // Refresh the view to show the newly linked product
@@ -854,6 +873,7 @@ const BarcodeControl = () => {
                 description: updated.description || '',
                 code: updated.code || '',
                 barcode: updated.barcode || '',
+                barcode_secondary: updated.barcode_secondary || '',
                 provider_code: updated.provider_code || '',
                 provider_description: updated.provider_description || ''
             });
@@ -1379,11 +1399,20 @@ const BarcodeControl = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras Principal</label>
                                                 <input
                                                     type="text"
-                                                    value={editData.barcode}
+                                                    value={editData.barcode || ''}
                                                     onChange={(e) => setEditData({ ...editData, barcode: e.target.value })}
+                                                    className="input-field bg-gray-50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Cód. Barras Secundario</label>
+                                                <input
+                                                    type="text"
+                                                    value={editData.barcode_secondary || ''}
+                                                    onChange={(e) => setEditData({ ...editData, barcode_secondary: e.target.value })}
                                                     className="input-field bg-gray-50"
                                                 />
                                             </div>
@@ -1397,6 +1426,7 @@ const BarcodeControl = () => {
                                                         description: product.description || '',
                                                         code: product.code || '',
                                                         barcode: product.barcode || '',
+                                                        barcode_secondary: product.barcode_secondary || '',
                                                         provider_code: product.provider_code || '',
                                                         provider_description: product.provider_description || ''
                                                     });
@@ -1432,12 +1462,22 @@ const BarcodeControl = () => {
                                             <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Descripción del Proveedor (Remito)</p>
                                             <p className="text-sm sm:text-base text-gray-900 bg-gray-50 p-1.5 sm:p-2 rounded break-all italic">{product.provider_description || 'Sin descripción vinculada'}</p>
                                         </div>
-                                        <div className="col-span-1 sm:col-span-2 mt-1 sm:mt-2 pt-2 sm:pt-3 border-t border-gray-100">
-                                            <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
-                                                <Barcode className="w-4 h-4" /> Cód. Barras Activo
-                                            </p>
-                                            <div className="bg-blue-50 border border-blue-100 rounded-md sm:rounded-lg p-2 sm:p-3">
-                                                <p className="text-base sm:text-lg font-bold text-blue-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
+                                        <div className="col-span-1 sm:col-span-2 mt-1 sm:mt-2 pt-2 sm:pt-3 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
+                                                    <Barcode className="w-4 h-4 text-blue-600" /> Cód. Barras Principal
+                                                </p>
+                                                <div className="bg-blue-50 border border-blue-100 rounded-md sm:rounded-lg p-2 sm:p-3">
+                                                    <p className="text-base sm:text-lg font-bold text-blue-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode || '-'}</p>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-1.5 sm:mb-2">
+                                                    <Barcode className="w-4 h-4 text-purple-600" /> Cód. Barras Secundario
+                                                </p>
+                                                <div className="bg-purple-50/60 border border-purple-100 rounded-md sm:rounded-lg p-2 sm:p-3">
+                                                    <p className="text-base sm:text-lg font-bold text-purple-700 tracking-wider sm:tracking-widest break-all w-full text-center leading-tight">{product.barcode_secondary || 'Sin registrar'}</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1551,7 +1591,7 @@ const BarcodeControl = () => {
                                                             </div>
                                                         </div>
                                                         <button
-                                                            onClick={() => setSelectedProductToLink(item)}
+                                                            onClick={() => handleSetSelectedProductToLink(item)}
                                                             className="w-full sm:w-auto px-4 py-2 bg-amber-100 text-amber-800 hover:bg-amber-500 hover:text-white rounded-lg font-bold transition-all text-sm flex items-center justify-center gap-2 shrink-0"
                                                         >
                                                             Seleccionar
@@ -1588,17 +1628,60 @@ const BarcodeControl = () => {
                                                         <span className="text-[10px] uppercase font-bold text-gray-400 mr-1">Cód Prov</span>
                                                         <span className="font-mono text-gray-900">{selectedProductToLink.provider_code || '-'}</span>
                                                     </div>
-                                                    <div className="w-full flex items-center gap-2 mt-1">
-                                                        <span className="text-[10px] uppercase font-bold text-gray-400">Actual</span>
-                                                        {selectedProductToLink.barcode ? (
-                                                            <span className="bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                                                <Barcode className="w-3 h-3 mr-1 text-gray-400 inline" />
-                                                                {selectedProductToLink.barcode}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-gray-400 italic text-xs">Ninguno</span>
-                                                        )}
+                                                    <div className="w-full flex flex-col gap-1.5 mt-1.5 border-t border-gray-50 pt-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] uppercase font-bold text-gray-400">Principal:</span>
+                                                            {selectedProductToLink.barcode ? (
+                                                                <span className="bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
+                                                                    <Barcode className="w-3 h-3 mr-1 text-gray-400 inline" />
+                                                                    {selectedProductToLink.barcode}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-400 italic text-xs">Ninguno</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] uppercase font-bold text-gray-400">Secundario:</span>
+                                                            {selectedProductToLink.barcode_secondary ? (
+                                                                <span className="bg-purple-50 border border-purple-100 px-2 py-0.5 rounded text-purple-700 font-mono text-xs">
+                                                                    <Barcode className="w-3 h-3 mr-1 text-purple-400 inline" />
+                                                                    {selectedProductToLink.barcode_secondary}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-400 italic text-xs">Ninguno</span>
+                                                            )}
+                                                        </div>
                                                     </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-blue-50/50 border border-blue-200 p-3 rounded-xl mb-4">
+                                                <span className="block text-[10px] text-blue-700 font-bold uppercase mb-2">
+                                                    Vincular como:
+                                                </span>
+                                                <div className="flex gap-4">
+                                                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                                        <input 
+                                                            type="radio" 
+                                                            name="linkAsType" 
+                                                            value="barcode" 
+                                                            checked={linkAsType === 'barcode'} 
+                                                            onChange={() => setLinkAsType('barcode')}
+                                                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                                        />
+                                                        <span>Código Principal</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                                        <input 
+                                                            type="radio" 
+                                                            name="linkAsType" 
+                                                            value="barcode_secondary" 
+                                                            checked={linkAsType === 'barcode_secondary'} 
+                                                            onChange={() => setLinkAsType('barcode_secondary')}
+                                                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                                        />
+                                                        <span>Código Secundario</span>
+                                                    </label>
                                                 </div>
                                             </div>
 
