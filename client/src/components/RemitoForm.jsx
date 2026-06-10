@@ -47,7 +47,7 @@ const RemitoForm = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Local DB Sync
-    const { syncProducts, getProductByCode, searchProductsLocally, searchProductsFuzzy, isSyncing, lastSync } = useProductSync();
+    const { syncProducts, getProductByCode, getProductsByCode, searchProductsLocally, searchProductsFuzzy, isSyncing, lastSync } = useProductSync();
     const lockingRef = React.useRef(false); // Mutex for fichaje submission
     const selectedCountRef = React.useRef(null); // Ref to track current selectedCount without stale closures
     const selectionClearedRef = React.useRef(false); // Tracks if user explicitly cleared selection (prevents poll restore)
@@ -1356,24 +1356,44 @@ const RemitoForm = () => {
             setIsProcessingScan(true);
             try {
                 // 1. Try Local DB first (much faster + offline)
-                const localProduct = await getProductByCode(inputCode);
+                const localProducts = await getProductsByCode(inputCode);
 
-                if (localProduct) {
-                    const product = {
-                        code: localProduct.code || inputCode,
-                        name: localProduct.description || 'Producto Desconocido',
-                        description: localProduct.description,
-                        barcode: localProduct.barcode || inputCode,
-                        barcode_secondary: localProduct.barcode_secondary || '',
-                        brand: localProduct.brand,
-                        primary_unit: localProduct.primary_unit,
-                        secondary_unit: localProduct.secondary_unit,
-                        conversion_factor: localProduct.conversion_factor,
-                        conversion_type: localProduct.conversion_type
-                    };
-                    productCacheRef.current.set(inputCode, product);
-                    saveProductToLocalStorage(inputCode, product);
-                    openFichajeModal(product, null);
+                if (localProducts && localProducts.length > 0) {
+                    if (localProducts.length === 1) {
+                        const localProduct = localProducts[0];
+                        const product = {
+                            code: localProduct.code || inputCode,
+                            name: localProduct.description || 'Producto Desconocido',
+                            description: localProduct.description,
+                            barcode: localProduct.barcode || inputCode,
+                            barcode_secondary: localProduct.barcode_secondary || '',
+                            brand: localProduct.brand,
+                            primary_unit: localProduct.primary_unit,
+                            secondary_unit: localProduct.secondary_unit,
+                            conversion_factor: localProduct.conversion_factor,
+                            conversion_type: localProduct.conversion_type
+                        };
+                        productCacheRef.current.set(inputCode, product);
+                        saveProductToLocalStorage(inputCode, product);
+                        openFichajeModal(product, null);
+                    } else {
+                        const duplicates = localProducts.map(lp => ({
+                            code: lp.code || inputCode,
+                            name: lp.description || 'Producto Desconocido',
+                            description: lp.description,
+                            barcode: lp.barcode || inputCode,
+                            barcode_secondary: lp.barcode_secondary || '',
+                            brand: lp.brand,
+                            primary_unit: lp.primary_unit,
+                            secondary_unit: lp.secondary_unit,
+                            conversion_factor: lp.conversion_factor,
+                            conversion_type: lp.conversion_type
+                        }));
+                        productCacheRef.current.set(inputCode, duplicates);
+                        saveProductToLocalStorage(inputCode, duplicates);
+                        setDuplicateProducts(duplicates);
+                        setIsDuplicateModalOpen(true);
+                    }
                     setIsProcessingScan(false);
                     return;
                 }

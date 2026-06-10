@@ -1,5 +1,5 @@
 const supabase = require('../services/supabaseClient');
-const { recordBarcodeHistory, findProductByAnyCode } = require('../utils/dbHelpers');
+const { recordBarcodeHistory, findProductByAnyCode, findProductsByAnyCode } = require('../utils/dbHelpers');
 
 // Search products by query (smart search: description, code, or provider code)
 exports.searchProducts = async (req, res) => {
@@ -424,10 +424,13 @@ exports.getProductByCode = async (req, res) => {
     const { searchType } = req.query;
     try {
         // 1. Try unified exact match
-        const product = await findProductByAnyCode(barcode, searchType || 'any');
+        const products = await findProductsByAnyCode(barcode, searchType || 'any');
 
-        if (product) {
-            return res.json(product);
+        if (products && products.length > 0) {
+            if (products.length === 1) {
+                return res.json(products[0]);
+            }
+            return res.json(products);
         }
 
         // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)

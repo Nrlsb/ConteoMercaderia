@@ -95,6 +95,49 @@ export const useProductSync = () => {
         return await db.products.where('provider_code').equalsIgnoreCase(normalized).first();
     }, []);
 
+    const getProductsByCode = useCallback(async (code, type = 'any') => {
+        if (!code) return [];
+        const normalized = code.trim().toLowerCase();
+        const original = code.trim();
+
+        let results = [];
+
+        if (type === 'barcode') {
+            const byBar = await db.products.where('barcode').equalsIgnoreCase(normalized).toArray();
+            const bySec = await db.products.where('barcode_secondary').equalsIgnoreCase(normalized).toArray();
+            results = [...byBar, ...bySec];
+        } else if (type === 'internal') {
+            results = await db.products.where('code').equalsIgnoreCase(normalized).toArray();
+        } else if (type === 'provider') {
+            results = await db.products.where('provider_code').equalsIgnoreCase(normalized).toArray();
+        } else {
+            // type === 'any'
+            // Barcodes de scanner/cámara son todos dígitos >= 6. Probar índice correcto primero.
+            const looksLikeBarcode = /^\d{6,}$/.test(original);
+            if (looksLikeBarcode) {
+                const byBarcode = await db.products.where('barcode').equalsIgnoreCase(normalized).toArray();
+                const bySecondary = await db.products.where('barcode_secondary').equalsIgnoreCase(normalized).toArray();
+                const byCode = await db.products.where('code').equalsIgnoreCase(normalized).toArray();
+                results = [...byBarcode, ...bySecondary, ...byCode];
+            } else {
+                // Código alfanumérico: probar code → barcode → provider_code
+                const byCode = await db.products.where('code').equalsIgnoreCase(normalized).toArray();
+                const byBarcode = await db.products.where('barcode').equalsIgnoreCase(normalized).toArray();
+                const bySecondary = await db.products.where('barcode_secondary').equalsIgnoreCase(normalized).toArray();
+                const byProvider = await db.products.where('provider_code').equalsIgnoreCase(normalized).toArray();
+                results = [...byCode, ...byBarcode, ...bySecondary, ...byProvider];
+            }
+        }
+
+        // Deduplicar productos por su "code"
+        const seen = new Set();
+        return results.filter(p => {
+            if (!p || seen.has(p.code)) return false;
+            seen.add(p.code);
+            return true;
+        });
+    }, []);
+
     const searchProductsLocally = useCallback(async (query, type = 'any') => {
         if (!query || query.length < 2) return [];
 
@@ -296,6 +339,7 @@ export const useProductSync = () => {
         progress,
         syncProducts,
         getProductByCode,
+        getProductsByCode,
         searchProductsLocally,
         searchProductsFuzzy,
     };

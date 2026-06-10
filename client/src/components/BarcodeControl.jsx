@@ -22,7 +22,7 @@ const BarcodeControl = () => {
     const [error, setError] = useState(null);
     const inputRef = useRef(null);
     const productCacheRef = useRef({});
-    const { getProductByCode, searchProductsLocally, isSyncing, lastSync, syncProducts } = useProductSync();
+    const { getProductByCode, getProductsByCode, searchProductsLocally, isSyncing, lastSync, syncProducts } = useProductSync();
 
     useEffect(() => {
         syncProducts();
@@ -606,8 +606,8 @@ const BarcodeControl = () => {
                 data = productCacheRef.current[code];
             } else {
                 // 1. Try Local DB first (INSTANT)
-                const localData = await getProductByCode(code);
-                if (localData) {
+                const localData = await getProductsByCode(code);
+                if (localData && localData.length > 0) {
                     data = localData;
                 } else {
                     // 2. Fallback to API (ONLY if not found locally)

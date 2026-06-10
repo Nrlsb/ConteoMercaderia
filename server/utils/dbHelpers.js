@@ -259,10 +259,65 @@ async function findProductByAnyCode(inputCode, type = 'any') {
     }
 }
 
+/**
+ * Helper unified product search function returning all matches:
+ * Order: Barcode -> Internal Code -> Provider Code
+ * @param {string} inputCode - The code to search for
+ * @param {string} type - The type of search: 'any', 'barcode', 'internal', 'provider'
+ */
+async function findProductsByAnyCode(inputCode, type = 'any') {
+    if (!inputCode) return [];
+    const codeStr = String(inputCode).trim();
+    let results = [];
+
+    try {
+        // 1. Try exact barcode match (Primary and Secondary)
+        if (type === 'any' || type === 'barcode') {
+            const { data: pBar } = await supabase.from('products').select('*').eq('barcode', codeStr);
+            if (pBar && pBar.length > 0) results = [...results, ...pBar];
+
+            const { data: pBarSec } = await supabase.from('products').select('*').eq('barcode_secondary', codeStr);
+            if (pBarSec && pBarSec.length > 0) results = [...results, ...pBarSec];
+        }
+
+        // 2. Try internal code
+        if (type === 'any' || type === 'internal') {
+            const { data: pCode } = await supabase.from('products').select('*').eq('code', codeStr);
+            if (pCode && pCode.length > 0) results = [...results, ...pCode];
+        }
+
+        // 3. Try provider code
+        if (type === 'any' || type === 'provider') {
+            const variations = getCodeVariations(codeStr);
+            if (variations.length > 0) {
+                const { data: pProv } = await supabase
+                    .from('products')
+                    .select('*')
+                    .in('provider_code', variations);
+                if (pProv && pProv.length > 0) results = [...results, ...pProv];
+            }
+        }
+
+        // Deduplicar productos por code
+        const seen = new Set();
+        const deduplicated = results.filter(p => {
+            if (!p || seen.has(p.code)) return false;
+            seen.add(p.code);
+            return true;
+        });
+
+        return deduplicated;
+    } catch (error) {
+        console.error(`Error resolving products for code ${codeStr}:`, error);
+        return [];
+    }
+}
+
 module.exports = {
     recordBarcodeHistory,
     getAllBarcodeHistory,
     fetchProductsByCodes,
     findProductByAnyCode,
+    findProductsByAnyCode,
     getCodeVariations
 };

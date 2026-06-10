@@ -35,7 +35,7 @@ const EgresoDetailsPage = () => {
 
 
     // Local DB Sync
-    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
+    const { syncProducts, getProductByCode, getProductsByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
 
     const canUseScanner = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('use_scanner_egresos');
     const canClose = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'branch_admin' || user?.permissions?.includes('close_egresos');
@@ -611,13 +611,14 @@ const EgresoDetailsPage = () => {
             } else {
                 // Fallback: Check local catalog — cache first, then smart single IndexedDB call
                 const lowerFallback = code.toLowerCase();
-                let localProduct = productCacheRef.current.get(lowerFallback);
-                if (!localProduct) {
-                    localProduct = await getProductByCode(code);
-                    if (localProduct) productCacheRef.current.set(lowerFallback, localProduct);
+                let localProducts = productCacheRef.current.get(lowerFallback);
+                if (!localProducts) {
+                    localProducts = await getProductsByCode(code);
+                    if (localProducts && localProducts.length > 0) productCacheRef.current.set(lowerFallback, localProducts);
                 }
-                if (localProduct) {
-                    const errorMsg = `El producto "${localProduct.description}" (${code}) no forma parte de este remito de egreso.`;
+                if (localProducts && localProducts.length > 0) {
+                    const descriptions = localProducts.map(p => `"${p.description}"`).join(' o ');
+                    const errorMsg = `El/los producto(s) ${descriptions} (${code}) no forman parte de este remito de egreso.`;
                     toast.error(errorMsg, { duration: 4000 });
                     setScanStatus({ type: 'error', message: errorMsg });
                 } else {
@@ -770,14 +771,21 @@ const EgresoDetailsPage = () => {
         } else {
             // Check catalog
             try {
-                const localProduct = await getProductByCode(code);
-                if (localProduct) {
-                    // Verificar si está en el egreso
-                    const inEgreso = items.find(i => i.product_code === localProduct.code);
-                    if (inEgreso) {
-                        await handleRapidConfirm(localProduct.code, localProduct.description);
+                const localProducts = await getProductsByCode(code);
+                if (localProducts && localProducts.length > 0) {
+                    if (localProducts.length === 1) {
+                        const localProduct = localProducts[0];
+                        // Verificar si está en el egreso
+                        const inEgreso = items.find(i => i.product_code === localProduct.code);
+                        if (inEgreso) {
+                            await handleRapidConfirm(localProduct.code, localProduct.description);
+                        } else {
+                            setScanStatus({ type: 'error', message: `Producto no forma parte de este egreso.` });
+                            setTimeout(() => setScanStatus(null), 3000);
+                            setProcessing(false);
+                        }
                     } else {
-                        setScanStatus({ type: 'error', message: `Producto no forma parte de este egreso.` });
+                        setScanStatus({ type: 'error', message: 'Múltiples productos encontrados en catálogo local.' });
                         setTimeout(() => setScanStatus(null), 3000);
                         setProcessing(false);
                     }

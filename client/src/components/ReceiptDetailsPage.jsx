@@ -127,7 +127,7 @@ const ReceiptDetailsPage = () => {
     const [importHistory, setImportHistory] = useState([]); // Added for source traceability
 
     // Local DB Sync
-    const { syncProducts, getProductByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
+    const { syncProducts, getProductByCode, getProductsByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
 
     // Bulk Import State (OCR)
     const [isBulkImporting, setIsBulkImporting] = useState(false);
@@ -752,22 +752,42 @@ const ReceiptDetailsPage = () => {
             setProcessing(true);
             try {
                 // Priority fallback: Local Database (IndexedDB)
-                const localProduct = await getProductByCode(code, searchType);
-                if (localProduct) {
-                    const productObj = {
-                        code: localProduct.code,
-                        description: localProduct.description,
-                        barcode: localProduct.barcode || '',
-                        barcode_secondary: localProduct.barcode_secondary || '',
-                        provider_code: localProduct.provider_code || '',
-                        secondary_unit: localProduct.secondary_unit || null,
-                        primary_unit: localProduct.primary_unit || null,
-                        conversion_factor: localProduct.conversion_factor || null,
-                        conversion_type: localProduct.conversion_type || null
-                    };
-                    productCacheRef.current.set(code, productObj);
-                    setScanInput('');
-                    openModal(productObj, null, 0);
+                const localProducts = await getProductsByCode(code, searchType);
+                if (localProducts && localProducts.length > 0) {
+                    if (localProducts.length === 1) {
+                        const localProduct = localProducts[0];
+                        const productObj = {
+                            code: localProduct.code,
+                            description: localProduct.description,
+                            barcode: localProduct.barcode || '',
+                            barcode_secondary: localProduct.barcode_secondary || '',
+                            provider_code: localProduct.provider_code || '',
+                            secondary_unit: localProduct.secondary_unit || null,
+                            primary_unit: localProduct.primary_unit || null,
+                            conversion_factor: localProduct.conversion_factor || null,
+                            conversion_type: localProduct.conversion_type || null
+                        };
+                        productCacheRef.current.set(code, productObj);
+                        setScanInput('');
+                        openModal(productObj, null, 0);
+                    } else {
+                        const duplicates = localProducts.map(lp => ({
+                            code: lp.code,
+                            description: lp.description,
+                            barcode: lp.barcode || '',
+                            brand: lp.brand || '',
+                            expected_quantity: null,
+                            scanned_quantity: 0,
+                            secondary_unit: lp.secondary_unit || null,
+                            primary_unit: lp.primary_unit || null,
+                            conversion_factor: lp.conversion_factor || null,
+                            conversion_type: lp.conversion_type || null
+                        }));
+                        productCacheRef.current.set(code, duplicates);
+                        setDuplicateProducts(duplicates);
+                        setIsDuplicateModalOpen(true);
+                        setScanInput('');
+                    }
                     return;
                 }
 
@@ -963,9 +983,13 @@ const ReceiptDetailsPage = () => {
         // Búsqueda en catálogo (local y luego servidor)
         let productToConfirm = null;
         try {
-            const localProduct = await getProductByCode(code, searchType);
-            if (localProduct) {
-                productToConfirm = localProduct;
+            const localProducts = await getProductsByCode(code, searchType);
+            if (localProducts && localProducts.length > 0) {
+                if (localProducts.length === 1) {
+                    productToConfirm = localProducts[0];
+                } else {
+                    setScanStatus({ type: 'error', message: 'Múltiples productos encontrados en catálogo local.' });
+                }
             } else if (navigator.onLine) {
                 const response = await api.get(`/api/products/${code}?searchType=${searchType}`);
                 const data = response.data;
