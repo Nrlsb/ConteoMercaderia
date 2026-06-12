@@ -956,7 +956,13 @@ const ColorRegistrations = () => {
                                                         <div className="font-bold text-gray-900 leading-tight truncate">
                                                             {item.products.description}
                                                         </div>
-                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-400 mt-1">
+                                                        {item.formula?.productName && (
+                                                            <div className="text-[10px] text-indigo-700 font-bold mt-1 bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                                                <Palette className="w-3 h-3 text-indigo-500" />
+                                                                <span>Fórmula: {item.formula.productName}</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-400 mt-1.5">
                                                             <span className="font-mono">Código: {item.products.code}</span>
                                                             {item.products.brand && (
                                                                 <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[8px] font-extrabold uppercase">
@@ -977,9 +983,19 @@ const ColorRegistrations = () => {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="flex gap-2 items-center text-gray-400 italic">
-                                                    <ShoppingBag className="w-4 h-4 shrink-0" />
-                                                    <span>Sin producto especificado</span>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <div className="flex gap-2 items-center text-gray-400 italic">
+                                                        <ShoppingBag className="w-4 h-4 shrink-0" />
+                                                        <span>Sin producto especificado</span>
+                                                    </div>
+                                                    {item.formula?.productName && (
+                                                        <div className="pl-6">
+                                                            <div className="text-[10px] text-indigo-700 font-bold bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                                                <Palette className="w-3 h-3 text-indigo-500" />
+                                                                <span>Fórmula: {item.formula.productName}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 
