@@ -2,12 +2,12 @@ import api from '../api';
 
 export const tintometricoService = {
     async fetchPermissions() {
-        const response = await api.get('/tintometrico/permissions');
+        const response = await api.get('/api/tintometrico/permissions');
         return response.data;
     },
 
     async fetchColecciones() {
-        const response = await api.get('/tintometrico/colecciones');
+        const response = await api.get('/api/tintometrico/colecciones');
         return response.data;
     },
 
@@ -20,19 +20,19 @@ export const tintometricoService = {
             sortBy,
             limit
         };
-        const response = await api.get('/tintometrico/colores', { params });
+        const response = await api.get('/api/tintometrico/colores', { params });
         return response.data;
     },
 
     async fetchDosificacion(colorId) {
         if (!colorId) throw new Error('El ID de color es requerido');
-        const response = await api.get(`/tintometrico/dosificacion/${colorId}`);
+        const response = await api.get(`/api/tintometrico/dosificacion/${colorId}`);
         return response.data;
     },
 
     async fetchEquivalentes(colorData) {
         if (!colorData || !colorData.hex) throw new Error('El color y su valor HEX son obligatorios para buscar equivalencias');
-        const response = await api.post('/tintometrico/equivalentes', colorData);
+        const response = await api.post('/api/tintometrico/equivalentes', colorData);
         return response.data;
     }
 };
