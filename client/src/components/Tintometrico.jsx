@@ -222,7 +222,8 @@ const Tintometrico = () => {
                 const sizes = getProductSizes(defaultProduct.productId, defaultProduct.base, fetchedCapacities);
                 if (sizes.length > 0) {
                     const firstSize = sizes[0];
-                    const val = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
                     setSelectedCanSize(val);
                 }
             }
@@ -278,7 +279,8 @@ const Tintometrico = () => {
                 const sizes = getProductSizes(defaultProduct.productId, defaultProduct.base, fetchedCapacities);
                 if (sizes.length > 0) {
                     const firstSize = sizes[0];
-                    const val = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
                     setSelectedCanSize(val);
                 }
             }
@@ -338,8 +340,10 @@ const Tintometrico = () => {
             sizes = capsList.filter(c => c.producto_id === productId && c.base === 'General');
         }
         return sizes.sort((a, b) => {
-            const capA = a.capacidad_real !== undefined && a.capacidad_real !== null ? a.capacidad_real : a.capacidad_litros;
-            const capB = b.capacidad_real !== undefined && b.capacidad_real !== null ? b.capacidad_real : b.capacidad_litros;
+            const rawA = a.capacidad_real !== undefined && a.capacidad_real !== null ? a.capacidad_real : a.capacidad_litros;
+            const rawB = b.capacidad_real !== undefined && b.capacidad_real !== null ? b.capacidad_real : b.capacidad_litros;
+            const capA = rawA >= 100 ? rawA / 1000 : rawA;
+            const capB = rawB >= 100 ? rawB / 1000 : rawB;
             return capA - capB;
         });
     };
@@ -358,7 +362,8 @@ const Tintometrico = () => {
         if (!modalColor || !activeRecipe) return;
 
         const activeSizeObj = activeSizes.find(sz => {
-            const cap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+            const rawCap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+            const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
             return cap === selectedCanSize;
         });
         const precioBase = activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null;
@@ -724,7 +729,8 @@ const Tintometrico = () => {
                                                     const sizes = getProductSizes(newPId, r.base);
                                                     if (sizes.length > 0) {
                                                         const firstSize = sizes[0];
-                                                        const val = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                                                        const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                                                        const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
                                                         setSelectedCanSize(val);
                                                     }
                                                 }
@@ -746,10 +752,11 @@ const Tintometrico = () => {
                                             className="w-full rounded-xl border border-slate-300 bg-white py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 cursor-pointer"
                                         >
                                             {activeSizes.map((sz) => {
-                                                const value = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                                const rawVal = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                                const value = rawVal >= 100 ? rawVal / 1000 : rawVal;
                                                 return (
                                                     <option key={sz.id || sz.capacidad_litros} value={value}>
-                                                        {formatCapacity(value, sz.unidad)}
+                                                        {formatCapacity(rawVal, sz.unidad)}
                                                     </option>
                                                 );
                                             })}
@@ -900,7 +907,8 @@ const Tintometrico = () => {
 
                                 {activeRecipe ? (() => {
                                     const activeSizeObj = activeSizes.find(sz => {
-                                        const cap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                        const rawCap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                        const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
                                         return cap === selectedCanSize;
                                     });
                                     const precioBase = activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null;
