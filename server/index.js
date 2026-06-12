@@ -83,6 +83,7 @@ const branchDyeTypesRoutes = require('./routes/branchDyeTypes');
 const seguimientoPedidosRoutes = require('./routes/seguimientoPedidos');
 const notificationsRoutes = require('./routes/notifications');
 const tintometricoRoutes = require('./routes/tintometrico');
+const colorRegistrationsRoutes = require('./routes/colorRegistrations');
 
 
 // --- Import Services ---
@@ -148,6 +149,7 @@ app.use('/api/branch-dye-types', branchDyeTypesRoutes);
 app.use('/api/seguimiento-pedidos', seguimientoPedidosRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/tintometrico', tintometricoRoutes);
+app.use('/api/color-registrations', colorRegistrationsRoutes);
 
 
 // --- Catch-All: Serve React App ---
