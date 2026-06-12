@@ -1,640 +1,1063 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Settings, Paintbrush, Copy, Check, RotateCw, AlertTriangle, Layers, Info, DollarSign, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+    ArrowLeft, 
+    Search, 
+    Palette, 
+    Paintbrush, 
+    X, 
+    ChevronRight, 
+    Calculator,
+    Eye,
+    EyeOff,
+    FileText
+} from 'lucide-react';
+import { tintometricoService } from '../utils/tintometricoService';
+import { generateColorPDF } from '../utils/pdfGenerator';
 import { toast } from 'sonner';
 
-export default function Tintometrico() {
-  const [apiUrl, setApiUrl] = useState(() => {
-    return localStorage.getItem('tintometrico_api_url') || import.meta.env.VITE_TINTOMETRICO_API_URL || 'http://localhost:3000/api/v1';
-  });
-  
-  const [showSettings, setShowSettings] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState('all');
-  const [loadingColors, setLoadingColors] = useState(false);
-  const [colors, setColors] = useState([]);
-  
-  const [selectedColor, setSelectedColor] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [colorDetail, setColorDetail] = useState(null);
-  const [equivalents, setEquivalents] = useState([]);
-  
-  const [products, setProducts] = useState([]);
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [selectedCapacity, setSelectedCapacity] = useState('');
-  const [loadingFormula, setLoadingFormula] = useState(false);
-  const [formulaData, setFormulaData] = useState(null);
-  
-  const [copiedText, setCopiedText] = useState(null);
+const ITEMS_PER_PAGE = 60;
 
-  // Guardar URL de API en localStorage al cambiar
-  const saveApiUrl = (newUrl) => {
-    setApiUrl(newUrl);
-    localStorage.setItem('tintometrico_api_url', newUrl);
-    toast.success('Configuración de API guardada');
-  };
+const Tintometrico = () => {
+    const navigate = useNavigate();
 
-  // Buscar colores
-  const handleSearch = async (e) => {
-    if (e) e.preventDefault();
-    if (!searchQuery.trim()) {
-      toast.error('Ingrese un texto para buscar');
-      return;
-    }
+    // --- Estados de la Aplicación ---
+    const [colors, setColors] = useState([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [collections, setCollections] = useState([]);
+    const [activeCollection, setActiveCollection] = useState('all');
+    const [activeBrand, setActiveBrand] = useState('all'); // 'all' | 'alba' | 'plavicon' | 'tersuave'
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState('id');
+    const [page, setPage] = useState(0);
 
-    setLoadingColors(true);
-    setSelectedColor(null);
-    setColorDetail(null);
-    setFormulaData(null);
-    setProducts([]);
-    setSelectedProductId('');
-    setSelectedCapacity('');
+    // Estados de carga
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
 
-    try {
-      const brandParam = selectedBrand !== 'all' ? `&brand=${selectedBrand}` : '';
-      const response = await fetch(`${apiUrl}/colors?q=${encodeURIComponent(searchQuery)}${brandParam}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setColors(data.data || []);
-        if (data.data?.length === 0) {
-          toast.info('No se encontraron colores');
-        }
-      } else {
-        toast.error('Error al realizar la búsqueda');
-      }
-    } catch (error) {
-      console.error('Error al buscar colores:', error);
-      toast.error('No se pudo conectar con el servidor tintométrico');
-    } finally {
-      setLoadingColors(false);
-    }
-  };
+    // Estado del color visualizado (pared del living)
+    const [activeColor, setActiveColor] = useState(null);
 
-  // Seleccionar un color y obtener sus detalles, equivalencias y productos habilitados
-  const handleSelectColor = async (color) => {
-    setSelectedColor(color);
-    setLoadingDetail(true);
-    setColorDetail(null);
-    setFormulaData(null);
-    setProducts([]);
-    setSelectedProductId('');
-    setSelectedCapacity('');
+    // Control de sidebar móvil
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    try {
-      // 1. Obtener detalles y equivalencias LAB
-      const detailRes = await fetch(`${apiUrl}/colors/${color.id}`);
-      const detailData = await detailRes.json();
-      
-      if (detailData.success) {
-        setColorDetail(detailData.color);
-        setEquivalents(detailData.equivalents || []);
-      } else {
-        toast.error('Error al obtener detalles del color');
-      }
+    // Estados del modal de dosificación
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalColor, setModalColor] = useState(null);
+    const [recipes, setRecipes] = useState([]);
+    const [capacities, setCapacities] = useState([]);
+    const [selectedProductId, setSelectedProductId] = useState(null);
+    const [selectedCanSize, setSelectedCanSize] = useState(1);
+    const [modalDuplicates, setModalDuplicates] = useState([]);
+    const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+    const [showFormula, setShowFormula] = useState(true);
+    const [observation, setObservation] = useState('');
 
-      // 2. Obtener productos y capacidades habilitadas (Modo A de Formula)
-      const formulaRes = await fetch(`${apiUrl}/colors/${color.id}/formula`);
-      const formulaDataJson = await formulaRes.json();
-      
-      // La API del tintométrico a veces puede no tener fórmula, manejamos esto
-      if (formulaRes.status === 404) {
-        toast.warning('Este color no dispone de fórmulas de dosificación registradas.');
-        return;
-      }
-
-      // El Modo A devuelve las recetas agrupadas por producto o directamente la lista de productos
-      // De acuerdo a api-integration.md, Modo A devuelve las recetas base del producto y capacidades.
-      // Vamos a simular la carga de productos disponibles basados en la respuesta o consultando /products
-      const productsRes = await fetch(`${apiUrl}/products?brand=${color.brand}`);
-      const productsData = await productsRes.json();
-      if (productsData.success) {
-        setProducts(productsData.data || []);
-      }
-
-    } catch (error) {
-      console.error('Error al cargar detalle del color:', error);
-      toast.error('Error al conectar con la API para los detalles del color');
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  // Calcular la dosificación (Modo B)
-  const handleCalculateFormula = async () => {
-    if (!selectedProductId || !selectedCapacity) {
-      toast.error('Seleccione producto y tamaño de envase');
-      return;
-    }
-
-    setLoadingFormula(true);
-    setFormulaData(null);
-
-    try {
-      const response = await fetch(
-        `${apiUrl}/colors/${selectedColor.id}/formula?productId=${selectedProductId}&capacity=${selectedCapacity}`
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setFormulaData(data.calculation);
-        toast.success('Dosificación calculada con éxito');
-      } else {
-        toast.error(data.error || 'Error al calcular la fórmula');
-      }
-    } catch (error) {
-      console.error('Error al calcular la dosificación:', error);
-      toast.error('Error de comunicación con la API del tintométrico');
-    } finally {
-      setLoadingFormula(false);
-    }
-  };
-
-  const copyToClipboard = (text, label) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedText(label);
-      setTimeout(() => setCopiedText(null), 2000);
-      toast.success(`${label} copiado`);
+    // Estados de equivalencia
+    const [equivalentColors, setEquivalentColors] = useState([]);
+    const [loadingEquivalents, setLoadingEquivalents] = useState(false);
+    const [brandPermissions, setBrandPermissions] = useState({
+        allowAlba: true,
+        allowPlavicon: true,
+        allowTersuave: true,
+        allowFormula: true
     });
-  };
 
-  // Obtener capacidades del producto seleccionado
-  const selectedProduct = products.find(p => p.id === parseInt(selectedProductId));
-  const availableCapacities = selectedProduct ? selectedProduct.capacities || [] : [];
+    // Refs para el scroll infinito (Intersection Observer)
+    const observerRef = useRef(null);
+    const loadMoreRef = useRef(null);
 
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px] flex flex-col">
-      {/* Cabecera */}
-      <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-white/10 rounded-xl">
-            <Paintbrush className="w-6 h-6 text-blue-200" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold tracking-tight">Integración de Tintometría</h2>
-            <p className="text-xs text-blue-100">Buscador de fórmulas, equivalencias CIELAB y dosificación de pigmentos</p>
-          </div>
-        </div>
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          title="Configurar servidor API"
-        >
-          <Settings className={`w-5 h-5 ${showSettings ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
 
-      {/* Ajustes de API */}
-      {showSettings && (
-        <div className="bg-gray-50 border-b border-gray-200 p-4 transition-all duration-300">
-          <div className="max-w-2xl mx-auto flex flex-col sm:flex-row gap-3 items-end">
-            <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">URL Base del Web Service de Tintometría</label>
-              <input 
-                type="text" 
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="http://localhost:3000/api/v1"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 outline-none"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => saveApiUrl(apiUrl)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                Guardar
-              </button>
-              <button 
-                onClick={() => {
-                  const def = import.meta.env.VITE_TINTOMETRICO_API_URL || 'http://localhost:3000/api/v1';
-                  setApiUrl(def);
-                  localStorage.setItem('tintometrico_api_url', def);
-                  toast.info('Restaurado a valor predeterminado');
-                }}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                Restablecer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    // --- 1. Cargar permisos de marcas y colecciones al iniciar ---
+    useEffect(() => {
+        const initializeTintometria = async () => {
+            try {
+                // Obtener permisos de marcas del usuario actual
+                const perms = await tintometricoService.fetchPermissions();
+                const allows = {
+                    allowAlba: perms.allow_alba !== false,
+                    allowPlavicon: perms.allow_plavicon !== false,
+                    allowTersuave: perms.allow_tersuave !== false,
+                    allowFormula: perms.allow_formula !== false
+                };
+                setBrandPermissions(allows);
+                if (perms.allow_formula === false) {
+                    setShowFormula(false);
+                }
 
-      {/* Grid Principal */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
-        
-        {/* PANEL IZQUIERDO: Búsqueda y Resultados (4 columnas) */}
-        <div className="lg:col-span-4 p-5 flex flex-col gap-4">
-          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-            Buscador de Catálogo
-          </h3>
-          
-          <form onSubmit={handleSearch} className="space-y-3">
-            <div className="relative">
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Nombre, código o alternativa..."
-                className="w-full rounded-xl border border-gray-300 pl-10 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 outline-none shadow-sm"
-              />
-              <Search className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
-            </div>
+                const activeCount = [allows.allowAlba, allows.allowPlavicon, allows.allowTersuave].filter(Boolean).length;
+                if (activeCount === 1) {
+                    if (allows.allowAlba) setActiveBrand('alba');
+                    else if (allows.allowPlavicon) setActiveBrand('plavicon');
+                    else if (allows.allowTersuave) setActiveBrand('tersuave');
+                }
 
-            <div className="flex gap-2">
-              <select 
-                value={selectedBrand}
-                onChange={(e) => setSelectedBrand(e.target.value)}
-                className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 focus:border-blue-500 outline-none"
-              >
-                <option value="all">Todas las Marcas</option>
-                <option value="alba">Alba</option>
-                <option value="plavicon">Plavicon</option>
-                <option value="tersuave">Tersuave</option>
-              </select>
+                // Cargar colecciones filtradas
+                const response = await tintometricoService.fetchColecciones();
+                setCollections(response || []);
+            } catch (err) {
+                console.error('Error al inicializar datos de tintometría:', err);
+                toast.error('No se pudieron cargar los permisos o colecciones de catálogos.');
+            }
+        };
+        initializeTintometria();
+    }, []);
 
-              <button 
-                type="submit"
-                disabled={loadingColors}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold text-xs px-5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                {loadingColors ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : 'Buscar'}
-              </button>
-            </div>
-          </form>
+    // --- 2. Cargar colores con filtros y paginación ---
+    const fetchColors = useCallback(async (pageIndex, isNewSearch = false) => {
+        if (isNewSearch) {
+            setLoading(true);
+        } else {
+            setLoadingMore(true);
+        }
 
-          {/* Listado de Resultados */}
-          <div className="flex-grow overflow-y-auto max-h-[400px] lg:max-h-[500px] border border-gray-150 rounded-xl divide-y divide-gray-100 bg-gray-50/50">
-            {loadingColors ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <div className="w-8 h-8 rounded-full border-2 border-gray-250 border-t-blue-600 animate-spin" />
-                <span className="text-xs text-gray-500">Buscando colores en la base de datos...</span>
-              </div>
-            ) : colors.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-xs italic">
-                Realiza una búsqueda para ver los colores.
-              </div>
-            ) : (
-              colors.map((color) => (
-                <button
-                  key={color.id}
-                  onClick={() => handleSelectColor(color)}
-                  className={`w-full text-left p-3.5 transition-all flex items-center gap-3 group relative ${
-                    selectedColor?.id === color.id 
-                      ? 'bg-blue-50/80 border-l-4 border-blue-600 pl-2.5' 
-                      : 'hover:bg-white border-l-4 border-transparent'
-                  }`}
-                >
-                  <span 
-                    className="w-10 h-10 rounded-full border border-gray-200 flex-shrink-0 shadow-inner"
-                    style={{ backgroundColor: color.hex || '#ccc' }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start gap-1">
-                      <span className="font-bold text-gray-800 text-sm truncate leading-tight group-hover:text-blue-700">
-                        {color.nombre}
-                      </span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                        color.brand === 'alba' 
-                          ? 'bg-purple-100 text-purple-700' 
-                          : color.brand === 'plavicon'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {color.brand}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-xs font-mono text-gray-500 font-semibold">{color.codigo}</span>
-                      {color.coleccion && (
-                        <>
-                          <span className="text-gray-300 text-[10px]">•</span>
-                          <span className="text-[10px] text-gray-400 truncate">{color.coleccion}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
+        try {
+            const response = await tintometricoService.fetchColores(
+                pageIndex,
+                searchQuery,
+                activeBrand,
+                activeCollection,
+                sortBy,
+                ITEMS_PER_PAGE
+            );
 
-        {/* PANEL DERECHO: Detalles, Equivalencias y Fórmula (8 columnas) */}
-        <div className="lg:col-span-8 p-5 flex flex-col gap-6">
-          {loadingDetail ? (
-            <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
-              <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
-              <span className="text-xs text-gray-500">Cargando equivalencias CIELAB y fórmulas...</span>
-            </div>
-          ) : !selectedColor ? (
-            <div className="flex-1 flex flex-col items-center justify-center py-20 text-gray-400 text-center gap-3">
-              <Paintbrush className="w-12 h-12 text-gray-300 stroke-1" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">Ningún color seleccionado</p>
-                <p className="text-xs text-gray-400 max-w-xs leading-normal">
-                  Busca y selecciona un color del catálogo en el panel izquierdo para calcular su receta y equivalencias.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6 animate-fadeIn">
-              
-              {/* Bloque Detalle Cabecera del Color */}
-              <div className="bg-gray-50 border border-gray-150 rounded-2xl p-4.5 flex flex-col sm:flex-row gap-4 items-center sm:items-start shadow-sm">
-                <span 
-                  className="w-16 h-16 rounded-full border border-gray-200 shadow-inner flex-shrink-0"
-                  style={{ backgroundColor: selectedColor.hex || '#ccc' }}
-                />
-                <div className="flex-grow text-center sm:text-left space-y-1">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 justify-center sm:justify-start">
-                    <h3 className="text-lg font-black text-gray-900 leading-tight">{selectedColor.nombre}</h3>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase self-center ${
-                      selectedColor.brand === 'alba' 
-                        ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                        : selectedColor.brand === 'plavicon'
-                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                          : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                    }`}>
-                      {selectedColor.brand}
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-2 text-xs font-medium">
-                    <div>
-                      <span className="text-gray-400 text-[10px] uppercase font-bold block">Código</span>
-                      <span className="font-mono text-gray-800">{selectedColor.codigo}</span>
-                    </div>
-                    {selectedColor.technical_code && (
-                      <div>
-                        <span className="text-gray-400 text-[10px] uppercase font-bold block">Cod. Técnico</span>
-                        <span className="font-mono text-gray-800">{selectedColor.technical_code}</span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-gray-400 text-[10px] uppercase font-bold block">Catálogo</span>
-                      <span className="text-gray-800 truncate block max-w-[140px]">{selectedColor.coleccion || 'General'}</span>
-                    </div>
-                    {selectedColor.lab && (
-                      <div>
-                        <span className="text-gray-400 text-[10px] uppercase font-bold block">CIELAB L*a*b*</span>
-                        <span className="font-mono text-gray-850">
-                          {selectedColor.lab.l.toFixed(1)}, {selectedColor.lab.a.toFixed(1)}, {selectedColor.lab.b.toFixed(1)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+            const { colores, totalCount: total } = response || { colores: [], totalCount: 0 };
 
-              {/* Sección: Equivalentes LAB */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-indigo-500" />
-                  Equivalencias entre Marcas (Fórmula LAB Delta E)
-                </h4>
+            if (isNewSearch) {
+                setColors(colores);
+                if (colores.length > 0 && !activeColor) {
+                    setActiveColor(colores[0]);
+                }
+            } else {
+                setColors((prev) => [...prev, ...colores]);
+            }
+            setTotalCount(total || 0);
+        } catch (err) {
+            console.error('Error al cargar colores:', err);
+            toast.error('Error al consultar el catálogo de colores.');
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    }, [searchQuery, activeCollection, sortBy, activeBrand, activeColor]);
+
+    // Ejecutar carga cuando cambian los filtros
+    useEffect(() => {
+        setPage(0);
+        fetchColors(0, true);
+    }, [searchQuery, activeCollection, sortBy, activeBrand]);
+
+    // --- 3. Scroll Infinito (Intersection Observer nativo) ---
+    const handleObserver = useCallback((entries) => {
+        const target = entries[0];
+        if (target.isIntersecting && !loading && !loadingMore && colors.length < totalCount) {
+            const nextPage = page + 1;
+            setPage(nextPage);
+            fetchColors(nextPage, false);
+        }
+    }, [loading, loadingMore, colors.length, totalCount, page, fetchColors]);
+
+    useEffect(() => {
+        const option = {
+            root: null,
+            rootMargin: '150px',
+            threshold: 0.1,
+        };
+        if (observerRef.current) observerRef.current.disconnect();
+        observerRef.current = new IntersectionObserver(handleObserver, option);
+        if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
+
+        return () => {
+            if (observerRef.current) observerRef.current.disconnect();
+        };
+    }, [handleObserver]);
+
+    // --- Helper para agrupar colores duplicados ---
+    const getGroupedColors = (colorsList) => {
+        const grouped = {};
+        colorsList.forEach(color => {
+            const brand = color.id >= 5000000 ? 'tersuave' : color.id >= 4000000 ? 'plavicon' : 'alba';
+            const key = `${brand}-${color.codigo.trim().toLowerCase()}`;
+            if (!grouped[key]) {
+                grouped[key] = {
+                    ...color,
+                    count: 1
+                };
+            } else {
+                grouped[key].count += 1;
+            }
+        });
+        return Object.values(grouped);
+    };
+
+    const displayedColors = getGroupedColors(colors);
+
+    // --- 4. Cargar Fórmulas y Equivalencias al abrir el Modal ---
+    const handleOpenModal = async (color) => {
+        setModalColor(color);
+        setModalOpen(true);
+        setSelectedProductId(null);
+        setRecipes([]);
+        setEquivalentColors([]);
+        setModalDuplicates([]);
+        setObservation('');
+
+        // Buscar equivalencias de color en otras marcas y catálogos repetidos
+        fetchEquivalentColors(color);
+        fetchColorDuplicates(color);
+
+        try {
+            const response = await tintometricoService.fetchDosificacion(color.id);
+            const { recipes: fetchedRecipes, capacities: fetchedCapacities } = response || { recipes: [], capacities: [] };
+            
+            setRecipes(fetchedRecipes || []);
+            setCapacities(fetchedCapacities || []);
+
+            if (fetchedRecipes && fetchedRecipes.length > 0) {
+                // Seleccionar primer producto por defecto
+                const defaultProduct = fetchedRecipes[0];
+                setSelectedProductId(defaultProduct.productId);
                 
-                {equivalents.length === 0 ? (
-                  <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-4 border border-gray-100 text-center">
-                    No se encontraron equivalencias cercanas en otras cartas de colores.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {equivalents.map((eq) => (
-                      <div 
-                        key={eq.id}
-                        className="bg-white border border-gray-250 hover:border-gray-300 rounded-xl p-3 flex items-center gap-3 shadow-sm transition-all"
-                      >
-                        <span 
-                          className="w-8 h-8 rounded-full border border-gray-150 flex-shrink-0 shadow-inner"
-                          style={{ backgroundColor: eq.hex || '#ccc' }}
-                        />
-                        <div className="flex-grow min-w-0">
-                          <div className="flex justify-between items-center gap-1">
-                            <span className="font-bold text-gray-800 text-xs truncate">{eq.nombre}</span>
-                            <span className={`text-[9px] font-bold px-1 py-0.2 rounded uppercase ${
-                              eq.brand === 'alba' 
-                                ? 'bg-purple-100 text-purple-700' 
-                                : eq.brand === 'plavicon'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-emerald-100 text-emerald-700'
-                            }`}>
-                              {eq.brand}
-                            </span>
-                          </div>
-                          
-                          <div className="flex justify-between items-center mt-1">
-                            <span className="font-mono text-[11px] text-gray-500">{eq.codigo}</span>
-                            <div className="flex items-center gap-1">
-                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-                                eq.distance <= 1.5 
-                                  ? 'bg-emerald-100 text-emerald-800' 
-                                  : eq.distance <= 3.0
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {eq.similarity}
-                              </span>
-                              <span className="text-[10px] font-mono text-gray-400">ΔE: {eq.distance.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                // Cargar primer tamaño de lata de ese producto
+                const sizes = getProductSizes(defaultProduct.productId, defaultProduct.base, fetchedCapacities);
+                if (sizes.length > 0) {
+                    const firstSize = sizes[0];
+                    const val = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    setSelectedCanSize(val);
+                }
+            }
+        } catch (err) {
+            console.error('Error al cargar la dosificación:', err);
+            toast.error('Error al cargar la dosificación del color.');
+        }
+    };
 
-              {/* Sección: Dosificador de Recetas */}
-              <div className="border border-gray-200 rounded-2xl p-5 bg-gray-50/50 space-y-4">
-                <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <DollarSign className="w-4.5 h-4.5 text-blue-600" />
-                  Calculador y Dosificador de Recetas
-                </h4>
+    const fetchColorDuplicates = async (color) => {
+        setLoadingDuplicates(true);
+        setModalDuplicates([]);
+        try {
+            const colorBrand = color.id >= 5000000 ? 'tersuave' : color.id >= 4000000 ? 'plavicon' : 'alba';
+            const response = await tintometricoService.fetchColores(
+                0,
+                color.codigo,
+                colorBrand,
+                'all',
+                'id',
+                50
+            );
+            const { colores } = response || { colores: [] };
+            const exactMatches = (colores || []).filter(c => 
+                c.codigo.trim().toLowerCase() === color.codigo.trim().toLowerCase()
+            );
+            setModalDuplicates(exactMatches);
+        } catch (err) {
+            console.error('Error al buscar catálogos repetidos:', err);
+        } finally {
+            setLoadingDuplicates(false);
+        }
+    };
 
-                {products.length === 0 ? (
-                  <div className="text-xs text-amber-600 bg-amber-50 rounded-xl p-4 border border-amber-100/60 leading-normal flex items-start gap-2">
-                    <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-amber-600" />
-                    <span>No hay bases o productos mapeados disponibles para la marca {selectedColor.brand.toUpperCase()}. Registra las bases en el administrador para calcular dosificaciones.</span>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">1. Seleccionar Producto Base</label>
-                        <select
-                          value={selectedProductId}
-                          onChange={(e) => {
-                            setSelectedProductId(e.target.value);
-                            setSelectedCapacity('');
-                            setFormulaData(null);
-                          }}
-                          className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-800 focus:border-blue-500 outline-none shadow-sm"
-                        >
-                          <option value="">Seleccione producto base...</option>
-                          {products.map(p => (
-                            <option key={p.id} value={p.id}>{p.nombre}</option>
-                          ))}
-                        </select>
-                      </div>
+    const handleSwitchColor = async (color) => {
+        setModalColor(color);
+        setSelectedProductId(null);
+        setRecipes([]);
+        setCapacities([]);
+        setObservation('');
+        
+        try {
+            const response = await tintometricoService.fetchDosificacion(color.id);
+            const { recipes: fetchedRecipes, capacities: fetchedCapacities } = response || { recipes: [], capacities: [] };
+            
+            setRecipes(fetchedRecipes || []);
+            setCapacities(fetchedCapacities || []);
 
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">2. Seleccionar Capacidad (Envase)</label>
-                        <select
-                          value={selectedCapacity}
-                          disabled={!selectedProductId}
-                          onChange={(e) => {
-                            setSelectedCapacity(e.target.value);
-                            setFormulaData(null);
-                          }}
-                          className="w-full rounded-xl border border-gray-300 bg-white disabled:bg-gray-100 px-3.5 py-2.5 text-sm text-gray-850 focus:border-blue-500 outline-none shadow-sm"
-                        >
-                          <option value="">Seleccione tamaño...</option>
-                          {availableCapacities.map((c, i) => (
-                            <option key={i} value={c.capacidadLitros}>
-                              {c.capacidadLitros} {c.unidad} (Base {c.base})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+            if (fetchedRecipes && fetchedRecipes.length > 0) {
+                const defaultProduct = fetchedRecipes[0];
+                setSelectedProductId(defaultProduct.productId);
+                
+                const sizes = getProductSizes(defaultProduct.productId, defaultProduct.base, fetchedCapacities);
+                if (sizes.length > 0) {
+                    const firstSize = sizes[0];
+                    const val = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    setSelectedCanSize(val);
+                }
+            }
+        } catch (err) {
+            console.error('Error al cargar la dosificación:', err);
+            toast.error('Error al cargar la dosificación del color.');
+        }
+    };
 
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleCalculateFormula}
-                        disabled={loadingFormula || !selectedProductId || !selectedCapacity}
-                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-blue-600/10 flex items-center gap-1.5 cursor-pointer"
-                      >
-                        {loadingFormula ? (
-                          <>
-                            <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                            Calculando Dosificación...
-                          </>
-                        ) : (
-                          <>
-                            Calcular Dosificación
-                            <ArrowRight className="w-4 h-4" />
-                          </>
-                        )}
-                      </button>
-                    </div>
+    const fetchEquivalentColors = async (color) => {
+        setLoadingEquivalents(true);
+        try {
+            const response = await tintometricoService.fetchEquivalentes(color);
+            setEquivalentColors(response || []);
+        } catch (err) {
+            console.error('Error al buscar colores equivalentes:', err);
+        } finally {
+            setLoadingEquivalents(false);
+        }
+    };
 
-                    {/* Mostrar receta calculada */}
-                    {formulaData && (
-                      <div className="border border-gray-200 rounded-xl bg-white p-4 space-y-4 shadow-sm animate-fadeIn">
-                        
-                        {/* Cabecera Fórmula */}
-                        <div className="flex justify-between items-start gap-4 border-b border-gray-100 pb-3">
-                          <div>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Producto Mezclado</span>
-                            <span className="text-sm font-bold text-gray-800">{formulaData.product.name}</span>
-                            <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 font-semibold">
-                              Base {formulaData.base} ({formulaData.capacity.value} {formulaData.capacity.unit})
-                            </span>
-                          </div>
-                          
-                          {formulaData.capacity.codigoComercial && (
-                            <div className="text-right">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Código Comercial</span>
-                              <button 
-                                onClick={() => copyToClipboard(formulaData.capacity.codigoComercial, 'Código de base')}
-                                className="font-mono text-xs font-bold text-blue-600 hover:underline flex items-center gap-1.5 cursor-pointer ml-auto"
-                              >
-                                {formulaData.capacity.codigoComercial}
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+    // Helper para obtener texto de capacidades disponibles para una base
+    const getProductCapacitiesText = (productId, baseName, capsList = capacities) => {
+        let sizes = capsList.filter(c => c.producto_id === productId && c.base === baseName);
+        if (sizes.length === 0) {
+            sizes = capsList.filter(c => c.producto_id === productId && c.base === 'General');
+        }
+        if (sizes.length === 0) return '';
+        
+        const caps = sizes.map(c => {
+            const val = c.capacidad_real !== undefined && c.capacidad_real !== null ? c.capacidad_real : c.capacidad_litros;
+            return String(val).replace('.', ',');
+        });
+        
+        // Eliminar duplicados y ordenar numéricamente
+        const uniqueCaps = Array.from(new Set(caps)).sort((a, b) => parseFloat(a.replace(',', '.')) - parseFloat(b.replace(',', '.')));
+        return ` [${uniqueCaps.join(', ')} L]`;
+    };
 
-                        {/* Listado de Pigmentos */}
-                        <div className="space-y-2">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Pigmentos e Impulsos de Dosificación</span>
-                          
-                          <div className="overflow-hidden border border-gray-150 rounded-lg">
-                            <table className="w-full text-left text-xs border-collapse">
-                              <thead>
-                                <tr className="border-b border-gray-150 bg-gray-50 font-bold text-gray-500">
-                                  <th className="p-3">Colorante</th>
-                                  <th className="p-3 text-center">Código</th>
-                                  <th className="p-3 text-right">Impulsos</th>
-                                  <th className="p-3 text-right">Costo Colorante</th>
-                                  <th className="p-3 text-center">Código DB2</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                {formulaData.pigments.map((pig, index) => (
-                                  <tr key={index} className="hover:bg-gray-50/50">
-                                    <td className="p-3 flex items-center gap-2 font-medium text-gray-700">
-                                      <span 
-                                        className="h-3.5 w-3.5 rounded-full border border-gray-200" 
-                                        style={{ backgroundColor: pig.hex }}
-                                      />
-                                      {pig.name}
-                                    </td>
-                                    <td className="p-3 text-center font-mono text-gray-400 font-bold">{pig.code}</td>
-                                    <td className="p-3 text-right font-mono text-gray-800 font-bold text-sm">
-                                      {pig.cantidadDosificadaFormateada}
-                                    </td>
-                                    <td className="p-3 text-right font-mono text-gray-650">
-                                      {pig.costo ? `$${pig.costo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '-'}
-                                    </td>
-                                    <td className="p-3 text-center">
-                                      {pig.codigoComercial ? (
-                                        <button
-                                          onClick={() => copyToClipboard(pig.codigoComercial, 'Código de colorante')}
-                                          className="font-mono text-[11px] text-gray-500 hover:text-blue-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                                        >
-                                          {pig.codigoComercial}
-                                          <Copy className="w-3 h-3" />
-                                        </button>
-                                      ) : (
-                                        <span className="text-[10px] text-amber-500 italic">No vinculado</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+    // Helper para filtrar tamaños de lata válidos para un producto y base
+    const getProductSizes = (productId, baseName, capsList = capacities) => {
+        let sizes = capsList.filter(c => c.producto_id === productId && c.base === baseName);
+        if (sizes.length === 0) {
+            sizes = capsList.filter(c => c.producto_id === productId && c.base === 'General');
+        }
+        return sizes.sort((a, b) => {
+            const capA = a.capacidad_real !== undefined && a.capacidad_real !== null ? a.capacidad_real : a.capacidad_litros;
+            const capB = b.capacidad_real !== undefined && b.capacidad_real !== null ? b.capacidad_real : b.capacidad_litros;
+            return capA - capB;
+        });
+    };
 
-                        {/* Caja de Costos Finales */}
-                        <div className="bg-gray-50 rounded-xl border border-gray-150 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                          <div className="space-y-1 text-center sm:text-left">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Desglose de Precios (ARS)</span>
-                            <div className="text-xs text-gray-500 font-medium">
-                              Base: <span className="font-mono text-gray-750 font-bold">${formulaData.pricing.precioBase?.toLocaleString('es-AR') || '0'}</span>
-                              <span className="mx-2">•</span>
-                              Colorantes: <span className="font-mono text-gray-750 font-bold">${formulaData.pricing.precioColorantes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
+    // Obtener la receta del producto seleccionado
+    const activeRecipe = recipes.find(r => r.productId === selectedProductId);
+    const activeSizes = selectedProductId && activeRecipe
+        ? getProductSizes(selectedProductId, activeRecipe.base)
+        : [];
 
-                          <div className="text-center sm:text-right">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Precio Total Estimado</span>
-                            <span className="text-xl font-black text-blue-700 font-mono">
-                              ${formulaData.pricing.precioTotal ? formulaData.pricing.precioTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '-'}
-                            </span>
-                          </div>
-                        </div>
+    const formatCurrency = (val) => {
+        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
+    };
 
-                        {/* Alerta de Precio Base Nulo */}
-                        {formulaData.pricing.precioBase === null && (
-                          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700 flex items-start gap-2 leading-relaxed">
-                            <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                            <span><strong>Precio Base Indefinido:</strong> Este producto no posee un precio base comercial asignado en el servidor. El precio final solo refleja los colorantes. Consúltese con administración.</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+    const handleDownloadPDF = () => {
+        if (!modalColor || !activeRecipe) return;
 
+        const activeSizeObj = activeSizes.find(sz => {
+            const cap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+            return cap === selectedCanSize;
+        });
+        const precioBase = activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null;
+        
+        const isTersuave = activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave';
+        const isPlavicon = activeRecipe.sistemaTintometrico?.toLowerCase() === 'plavicon';
+
+        const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
+            const scaledVol = pig.cantidad * selectedCanSize;
+            const nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
+            const nominalVol = pig.cantidad * nominalSize;
+            let displayQty;
+            let costoPig = 0;
+
+            if (isTersuave) {
+                displayQty = nominalVol.toFixed(3).replace('.', ',');
+                costoPig = pig.precio_lata ? Math.round((scaledVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
+            } else if (isPlavicon) {
+                displayQty = nominalVol.toFixed(4).replace('.', ',');
+                const qtyUnits = Number((Number(scaledVol) / 1300).toFixed(4));
+                costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
+            } else {
+                displayQty = nominalVol.toFixed(2).replace('.', ',');
+                const qtyUnits = Number((Number(scaledVol) / 2200).toFixed(4));
+                costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
+            }
+
+            return {
+                ...pig,
+                scaledVol,
+                displayQty,
+                costoPig
+            };
+        });
+
+        const precioPigmentosTotal = pigmentsWithCosts.reduce((acc, pig) => acc + pig.costoPig, 0);
+
+        generateColorPDF(
+            modalColor,
+            activeRecipe,
+            activeSizeObj,
+            selectedCanSize,
+            pigmentsWithCosts,
+            precioBase,
+            precioPigmentosTotal,
+            observation,
+            showFormula || brandPermissions.allowFormula
+        );
+    };
+
+    const hasMultipleBrands = [
+        brandPermissions.allowAlba,
+        brandPermissions.allowPlavicon,
+        brandPermissions.allowTersuave
+    ].filter(Boolean).length > 1;
+
+    return (
+        <div className="min-h-[calc(100vh-140px)] bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 flex flex-col font-sans shadow-lg">
+            {/* --- CABECERA DE CONTROL SUPERIOR (Tema claro integrado con Espint) --- */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 bg-white border-b border-slate-200/80 shadow-sm z-10">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="px-4 py-2 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-xl flex items-center gap-2 transition-all font-semibold text-xs cursor-pointer animate-in fade-in duration-200"
+                    >
+                        <ArrowLeft className="text-blue-600 text-xs w-3 h-3" /> Volver al Inicio
+                    </button>
+                    <span className="h-4 w-px bg-slate-200 hidden sm:inline" />
+                    <span className="text-slate-800 text-xs hidden sm:inline font-bold tracking-wide flex items-center gap-1.5">
+                        <Palette className="text-blue-600 w-4 h-4" /> Búsqueda y Dosificación de Colores
+                    </span>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        className="sm:hidden px-4 py-2 bg-white text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold"
+                    >
+                        Filtros y Simulador
+                    </button>
+                </div>
             </div>
-          )}
+
+            {/* --- CONTENIDO PRINCIPAL --- */}
+            <div className="flex-1 flex overflow-hidden relative">
+                
+                {/* --- PANEL LATERAL IZQUIERDO (Sidebar de filtros e interactivos - Claro) --- */}
+                <aside className={`absolute inset-y-0 left-0 z-20 flex w-80 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-300 md:static md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <div className="flex-grow overflow-y-auto p-5 space-y-6">
+                        
+                        {/* Caja de Búsqueda */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Búsqueda de Color</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Nombre o código (ej: 04BB, 25YY)..."
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-xs text-slate-800 placeholder-slate-400 outline-none transition-all focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                                />
+                                <span className="absolute left-3.5 top-3.5 text-slate-400">
+                                    <Search size={12} />
+                                </span>
+                                {searchQuery && (
+                                    <button 
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-3 top-3 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Filtros de Marca */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Marca / Carta</label>
+                            <div 
+                                className="grid gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200"
+                                style={{ 
+                                    gridTemplateColumns: `repeat(${
+                                        [[brandPermissions.allowAlba, brandPermissions.allowPlavicon, brandPermissions.allowTersuave].filter(Boolean).length > 1, brandPermissions.allowAlba, brandPermissions.allowPlavicon, brandPermissions.allowTersuave].filter(Boolean).length
+                                    }, minmax(0, 1fr))` 
+                                }}
+                            >
+                                {[brandPermissions.allowAlba, brandPermissions.allowPlavicon, brandPermissions.allowTersuave].filter(Boolean).length > 1 && (
+                                    <button
+                                        onClick={() => { setActiveBrand('all'); setActiveCollection('all'); }}
+                                        className={`rounded-lg py-1.5 text-center text-[10px] font-bold transition-all cursor-pointer ${
+                                            activeBrand === 'all'
+                                                ? 'bg-slate-800 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/55'
+                                        }`}
+                                    >
+                                        Todas
+                                    </button>
+                                )}
+                                {brandPermissions.allowAlba && (
+                                    <button
+                                        onClick={() => { setActiveBrand('alba'); setActiveCollection('all'); }}
+                                        className={`rounded-lg py-1.5 text-center text-[10px] font-bold transition-all cursor-pointer ${
+                                            activeBrand === 'alba'
+                                                ? 'bg-violet-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/55'
+                                        }`}
+                                    >
+                                        Alba
+                                    </button>
+                                )}
+                                {brandPermissions.allowPlavicon && (
+                                    <button
+                                        onClick={() => { setActiveBrand('plavicon'); setActiveCollection('all'); }}
+                                        className={`rounded-lg py-1.5 text-center text-[10px] font-bold transition-all cursor-pointer ${
+                                            activeBrand === 'plavicon'
+                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/55'
+                                        }`}
+                                    >
+                                        Plavicon
+                                    </button>
+                                )}
+                                {brandPermissions.allowTersuave && (
+                                    <button
+                                        onClick={() => { setActiveBrand('tersuave'); setActiveCollection('all'); }}
+                                        className={`rounded-lg py-1.5 text-center text-[10px] font-bold transition-all cursor-pointer ${
+                                            activeBrand === 'tersuave'
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/55'
+                                        }`}
+                                    >
+                                        Tersuave
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Simulador Interactivo */}
+                        <div className="space-y-3 pt-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Visualización de Color</label>
+                            <div className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-inner transition-all hover:border-slate-300">
+                                <div className="relative w-full overflow-hidden rounded-lg bg-slate-200">
+                                    {/* SVG de Sala de Estar interactivo */}
+                                    <svg viewBox="0 0 800 500" className="w-full aspect-[8/5]">
+                                        {/* Pared teñible */}
+                                        <path 
+                                            d="M 0,0 L 800,0 L 800,400 L 0,400 Z" 
+                                            fill={activeColor?.hex || '#cbd5e1'} 
+                                            className="transition-all duration-500 ease-in-out" 
+                                        />
+                                        <path d="M 0,0 L 250,0 L 250,400 L 0,400 Z" fill="black" opacity="0.04" />
+                                        <rect x="0" y="390" width="800" height="10" fill="#FFFFFF" opacity="0.9" />
+                                        
+                                        {/* Piso */}
+                                        <path d="M 0,400 L 800,400 L 800,500 L 0,500 Z" fill="#b45309" />
+                                        <path d="M 0,400 L 200,500 M 200,400 L 400,500 M 400,400 L 600,500 M 600,400 L 800,500" stroke="#78350f" strokeWidth="1.5" />
+
+                                        {/* Ventana */}
+                                        <g>
+                                            <rect x="60" y="30" width="160" height="260" fill="#e2e8f0" stroke="#FFFFFF" strokeWidth="6" rx="2" />
+                                            <rect x="66" y="36" width="148" height="248" fill="#93c5fd" />
+                                            <circle cx="140" cy="110" r="30" fill="#fef08a" opacity="0.4" />
+                                            <line x1="140" y1="36" x2="140" y2="284" stroke="#FFFFFF" strokeWidth="3" opacity="0.5" />
+                                            <line x1="66" y1="150" x2="214" y2="150" stroke="#FFFFFF" strokeWidth="3" opacity="0.5" />
+                                        </g>
+
+                                        {/* Consola / Mueble */}
+                                        <g>
+                                            <rect x="330" y="330" width="200" height="60" fill="#475569" rx="4" />
+                                            <line x1="330" y1="360" x2="530" y2="360" stroke="#334155" strokeWidth="2" />
+                                            <rect x="350" y="390" width="8" height="10" fill="#94a3b8" />
+                                            <rect x="502" y="390" width="8" height="10" fill="#94a3b8" />
+                                            <ellipse cx="430" cy="320" rx="12" ry="8" fill="#e2e8f0" />
+                                        </g>
+
+                                        {/* Sillón */}
+                                        <g>
+                                            <path d="M 490,260 L 730,260 C 750,260 760,275 760,295 L 745,390 L 495,390 Z" fill="#e2e8f0" />
+                                            <rect x="505" y="275" width="115" height="90" fill="#cbd5e1" rx="8" />
+                                            <rect x="625" y="275" width="115" height="90" fill="#cbd5e1" rx="8" />
+                                            <path d="M 480,355 L 740,355 Q 743,355 745,360 L 730,420 Q 728,423 725,423 L 475,423 Q 472,423 472,420 L 485,360 Q 487,355 480,355 Z" fill="#94a3b8" />
+                                        </g>
+                                    </svg>
+
+                                    {/* Badge flotante del color activo */}
+                                    {activeColor && (
+                                        <div className="absolute bottom-2 inset-x-2 flex items-center gap-2 rounded-lg bg-white/95 p-2.5 shadow-md border border-slate-100">
+                                            <div className="h-4 w-4 rounded-full border border-black/10 shadow-md shrink-0" style={{ backgroundColor: activeColor.hex }} />
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[10px] font-bold text-slate-800 leading-tight truncate">{activeColor.nombre}</span>
+                                                <span className="text-[8px] font-bold text-slate-500 tracking-wide font-mono">{activeColor.codigo}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </aside>
+
+                {/* Sombra de cierre para móvil */}
+                {sidebarOpen && (
+                    <div 
+                        className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-10 md:hidden"
+                        onClick={() => setSidebarOpen(false)}
+                    />
+                )}
+
+                {/* --- CONTENIDO PRINCIPAL: GRILLA DE COLORES --- */}
+                <main className="flex-1 overflow-y-auto p-6 bg-slate-100/40 flex flex-col">
+                    {/* Indicador de resultados */}
+                    <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-3">
+                        <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                            Catálogo de Colores
+                        </div>
+                        <div className="text-xs text-slate-600">
+                            Mostrando <strong className="text-blue-600 font-bold">{displayedColors.length.toLocaleString('es-AR')}</strong> de <strong className="text-slate-800 font-bold">{totalCount.toLocaleString('es-AR')}</strong> colores
+                        </div>
+                    </div>
+
+                    {/* Grilla */}
+                    {loading && colors.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center py-20">
+                            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600 mb-3" />
+                            <span className="text-xs text-slate-500 font-semibold">Cargando catálogo de colores...</span>
+                        </div>
+                    ) : colors.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-20 space-y-3">
+                            <Palette size={36} className="text-slate-300 animate-pulse animate-in fade-in" />
+                            <span className="text-sm font-medium">No se encontraron colores que coincidan con la búsqueda.</span>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 animate-in fade-in duration-300">
+                            {displayedColors.map((color) => (
+                                <div
+                                    key={color.id}
+                                    onClick={() => handleOpenModal(color)}
+                                    onMouseEnter={() => setActiveColor(color)}
+                                    className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg"
+                                >
+                                    {/* Muestra de Color */}
+                                    <div 
+                                        className="h-28 w-full transition-opacity duration-300 group-hover:opacity-90 relative border-b border-slate-100"
+                                        style={{ backgroundColor: color.hex }}
+                                    >
+                                        {/* Marca Badge */}
+                                        <span className={`absolute top-2 right-2 rounded-full px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-white shadow-sm border ${
+                                            color.id >= 5000000
+                                                ? 'bg-emerald-600/90 border-emerald-500/20'
+                                                : color.id >= 4000000 
+                                                    ? 'bg-blue-600/90 border-blue-500/20' 
+                                                    : 'bg-violet-600/90 border-violet-500/20'
+                                        }`}>
+                                            {color.id >= 5000000 ? 'Tersuave' : color.id >= 4000000 ? 'Plavicon' : 'Alba'}
+                                        </span>
+                                    </div>
+                                    
+                                    {/* Información */}
+                                    <div className="flex flex-col p-3 space-y-1">
+                                        <span className="text-[8px] font-bold text-slate-400 tracking-wider uppercase truncate">
+                                            {color.coleccion || 'General'} {color.count > 1 && `(+${color.count - 1})`}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors" title={color.nombre}>
+                                            {color.nombre}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400 tracking-wider font-mono">{color.codigo}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Elemento disparador para Scroll Infinito */}
+                    <div ref={loadMoreRef} className="flex justify-center py-8">
+                        {loadingMore && (
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+                                <span className="font-semibold">Cargando más colores...</span>
+                            </div>
+                        )}
+                    </div>
+                </main>
+            </div>
+
+            {/* --- MODAL DETALLADO DE DOSIFICACIÓN Y FÓRMULAS (Tema claro) --- */}
+            {modalOpen && modalColor && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto">
+                    <div 
+                        className="relative w-full max-w-4xl my-auto rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                    >
+                        {/* Botón de cierre */}
+                        <button 
+                            onClick={() => setModalOpen(false)}
+                            className="absolute right-4 top-4 z-10 rounded-lg bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors cursor-pointer"
+                        >
+                            <X size={14} />
+                        </button>
+                        
+                        {/* LADO IZQUIERDO: Visualización y Opciones de Base (Fondo gris suave) */}
+                        <div className="w-full md:w-5/12 bg-slate-50 p-6 flex flex-col space-y-6 border-r border-slate-200">
+                            <div 
+                                className="h-44 w-full rounded-xl flex items-end p-4 border border-black/5 relative overflow-hidden shadow-inner"
+                                style={{ backgroundColor: modalColor.hex }}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                                <span className="relative text-lg font-mono font-black text-white tracking-widest bg-black/30 px-3 py-1 rounded-lg border border-white/10 shadow-lg">
+                                    {modalColor.codigo}
+                                </span>
+                            </div>
+                            
+                            {recipes.length > 0 ? (
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Producto / Marca</label>
+                                        <select
+                                            value={selectedProductId || ''}
+                                            onChange={(e) => {
+                                                const newPId = Number(e.target.value);
+                                                setSelectedProductId(newPId);
+                                                const r = recipes.find(rec => rec.productId === newPId);
+                                                if (r) {
+                                                    const sizes = getProductSizes(newPId, r.base);
+                                                    if (sizes.length > 0) {
+                                                        const firstSize = sizes[0];
+                                                        const val = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                                                        setSelectedCanSize(val);
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full rounded-xl border border-slate-300 bg-white py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 cursor-pointer"
+                                        >
+                                            {recipes.map((r) => (
+                                                <option key={r.productId} value={r.productId}>
+                                                    {r.productName} {r.sistemaTintometrico ? `(${r.sistemaTintometrico})` : ''}{getProductCapacitiesText(r.productId, r.base)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Capacidad Envase</label>
+                                        <select
+                                            value={selectedCanSize || ''}
+                                            onChange={(e) => setSelectedCanSize(Number(e.target.value))}
+                                            className="w-full rounded-xl border border-slate-300 bg-white py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 cursor-pointer"
+                                        >
+                                            {activeSizes.map((sz) => {
+                                                const value = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                                const valueStr = String(value).replace('.', ',');
+                                                return (
+                                                    <option key={sz.id || sz.capacidad_litros} value={value}>
+                                                        {sz.unidad?.toLowerCase() === 'kg' 
+                                                            ? `${valueStr} kg` 
+                                                            : `${valueStr} Litro${value !== 1 ? 's' : ''}`}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                    {activeRecipe && (
+                                        <div className="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 p-3.5 shadow-sm">
+                                            <span className="text-xs font-bold text-slate-500">Base Requerida:</span>
+                                            <span className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-black text-white tracking-widest shadow-sm">
+                                                Base {activeRecipe.base}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
+                                    <span className="text-xs text-amber-600 font-semibold">No hay marcas configuradas para dosificar este color.</span>
+                                </div>
+                            )}
+
+                            {/* Sección de Equivalencias en otras marcas */}
+                            {hasMultipleBrands && (
+                                <div className="space-y-3 pt-4 border-t border-slate-200">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Equivalentes en otras marcas</label>
+                                    {loadingEquivalents ? (
+                                        <div className="flex items-center gap-2 text-xs text-slate-400 py-1.5">
+                                            <div className="h-3.5 w-3.5 animate-spin rounded-full border border-slate-200 border-t-blue-500" />
+                                            <span>Buscando equivalencias...</span>
+                                        </div>
+                                    ) : equivalentColors.length > 0 ? (
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {equivalentColors.map((eqColor) => {
+                                                const brand = eqColor.id >= 5000000 ? 'Tersuave' : eqColor.id >= 4000000 ? 'Plavicon' : 'Alba';
+                                                const brandStyle = eqColor.id >= 5000000 
+                                                    ? 'border-emerald-200 hover:bg-emerald-50 hover:border-emerald-400 text-emerald-600' 
+                                                    : eqColor.id >= 4000000 
+                                                        ? 'border-blue-200 hover:bg-blue-50 hover:border-blue-400 text-blue-600' 
+                                                        : 'border-violet-200 hover:bg-violet-50 hover:border-violet-400 text-violet-600';
+                                                const brandBadge = eqColor.id >= 5000000 
+                                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                                    : eqColor.id >= 4000000 
+                                                        ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                                                        : 'bg-violet-50 text-violet-600 border border-violet-200';
+                                                
+                                                const dist = eqColor.distance;
+                                                let label = 'Similar';
+                                                if (dist !== undefined) {
+                                                    if (dist <= 1.5) label = 'Idéntico';
+                                                    else if (dist <= 3.0) label = 'Excelente';
+                                                    else if (dist <= 5.5) label = 'Muy cercano';
+                                                    else if (dist <= 9.0) label = 'Cercano';
+                                                }
+
+                                                return (
+                                                    <button
+                                                        key={eqColor.id}
+                                                        onClick={() => handleOpenModal(eqColor)}
+                                                        className={`w-full flex items-center justify-between p-2 rounded-xl border bg-white transition-all text-left cursor-pointer hover:-translate-y-0.5 hover:shadow-sm ${brandStyle}`}
+                                                    >
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <span 
+                                                                className="h-7 w-7 rounded-lg border border-slate-100 shrink-0 shadow-inner" 
+                                                                style={{ backgroundColor: eqColor.hex }}
+                                                            />
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-xs font-bold text-slate-800 truncate">{eqColor.nombre}</span>
+                                                                <span className="text-[9px] text-slate-400 font-semibold font-mono">{eqColor.codigo}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-col items-end gap-0.5 shrink-0 pl-2">
+                                                            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${brandBadge}`}>
+                                                                {brand}
+                                                            </span>
+                                                            {dist !== undefined && (
+                                                                <span className="text-[8px] font-bold text-slate-400">
+                                                                    {label}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="text-[10px] text-slate-400 italic py-1">
+                                            No se encontraron colores equivalentes en otras marcas.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* LADO DERECHO: Dosificación, Fórmulas y Precio (Fondo Blanco) */}
+                        <div className="flex-1 p-6 md:p-8 flex flex-col justify-between space-y-6 bg-white overflow-y-auto">
+                            <div className="space-y-6">
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                                        <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full text-white border ${
+                                            modalColor.id >= 5000000
+                                                ? 'bg-emerald-600 border-emerald-500/20'
+                                                : modalColor.id >= 4000000 
+                                                    ? 'bg-blue-600 border-blue-500/20' 
+                                                    : 'bg-violet-600 border-violet-500/20'
+                                        }`}>
+                                            {modalColor.id >= 5000000 ? 'Tersuave' : modalColor.id >= 4000000 ? 'Plavicon' : 'Alba'}
+                                        </span>
+                                    </div>
+
+                                    {loadingDuplicates ? (
+                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold mb-3 animate-pulse">
+                                            <div className="h-3 w-3 animate-spin rounded-full border border-slate-200 border-t-blue-500" />
+                                            Cargando otros catálogos...
+                                        </div>
+                                    ) : modalDuplicates.length > 1 ? (
+                                        <div className="space-y-1.5 mb-3">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                                Disponible en catálogos:
+                                            </span>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {modalDuplicates.map((dup) => {
+                                                    const isSelected = dup.id === modalColor.id;
+                                                    return (
+                                                        <button
+                                                            key={dup.id}
+                                                            onClick={() => handleSwitchColor(dup)}
+                                                            className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
+                                                                isSelected
+                                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                                                            }`}
+                                                        >
+                                                            {dup.coleccion || 'General'}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="mb-2">
+                                            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                                                {modalColor.coleccion || 'General'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    <h2 className="text-xl md:text-2xl font-black text-slate-800 mt-1">{modalColor.nombre}</h2>
+                                </div>
+
+                                {activeRecipe ? (() => {
+                                    const activeSizeObj = activeSizes.find(sz => {
+                                        const cap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                        return cap === selectedCanSize;
+                                    });
+                                    const precioBase = activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null;
+                                    
+                                    const isTersuave = activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave';
+                                    const isPlavicon = activeRecipe.sistemaTintometrico?.toLowerCase() === 'plavicon';
+
+                                    // Precalcular costos de pigmentos
+                                    const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
+                                        const scaledVol = pig.cantidad * selectedCanSize;
+                                        const nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
+                                        const nominalVol = pig.cantidad * nominalSize;
+                                        let displayQty;
+                                        let costoPig = 0;
+
+                                        if (isTersuave) {
+                                            displayQty = nominalVol.toFixed(3).replace('.', ',');
+                                            costoPig = pig.precio_lata ? Math.round((scaledVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
+                                        } else if (isPlavicon) {
+                                            displayQty = nominalVol.toFixed(4).replace('.', ',');
+                                            const qtyUnits = Number((Number(scaledVol) / 1300).toFixed(4));
+                                            costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
+                                        } else {
+                                            displayQty = nominalVol.toFixed(2).replace('.', ',');
+                                            const qtyUnits = Number((Number(scaledVol) / 2200).toFixed(4));
+                                            costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
+                                        }
+
+                                        return {
+                                            ...pig,
+                                            scaledVol,
+                                            displayQty,
+                                            costoPig
+                                        };
+                                    });
+
+                                    const precioPigmentosTotal = pigmentsWithCosts.reduce((acc, pig) => acc + pig.costoPig, 0);
+
+                                    return (
+                                        <div className="space-y-5">
+                                            {(showFormula || brandPermissions.allowFormula) && (
+                                                <div className="space-y-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                        <Calculator size={12} className="text-blue-600" /> Fórmula de dosificación
+                                                    </h3>
+                                                    {brandPermissions.allowFormula && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowFormula(!showFormula)}
+                                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                                                showFormula 
+                                                                    ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 shadow-sm' 
+                                                                    : 'bg-slate-100 border-slate-205 border-slate-200 text-slate-600 hover:bg-slate-200'
+                                                            }`}
+                                                        >
+                                                            {showFormula ? (
+                                                                <>
+                                                                    <Eye className="text-blue-600 w-3.5 h-3.5" />
+                                                                    <span>Fórmula Visible</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <EyeOff className="text-slate-500 w-3.5 h-3.5" />
+                                                                    <span>Fórmula Oculta</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                 {showFormula && (
+                                                     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/50">
+                                                         <table className="w-full text-left text-xs border-collapse">
+                                                             <thead>
+                                                                 <tr className="border-b border-slate-200 bg-slate-100/60 text-slate-500">
+                                                                     <th className="px-3 py-2.5 font-bold">Pigmento</th>
+                                                                     <th className="px-3 py-2.5 font-bold">Nombre</th>
+                                                                     <th className="px-3 py-2.5 text-right font-bold">
+                                                                         {isTersuave ? 'Impulsos' : 'Impulso (Y)'}
+                                                                     </th>
+                                                                     <th className="px-3 py-2.5 text-right font-bold">Costo</th>
+                                                                 </tr>
+                                                             </thead>
+                                                             <tbody>
+                                                                 {pigmentsWithCosts.map((pig) => (
+                                                                     <tr key={pig.id} className="border-b border-slate-100 hover:bg-slate-100/20 transition-colors">
+                                                                         <td className="px-3 py-2.5">
+                                                                             <div className="flex items-center gap-2">
+                                                                                 <span className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-sm shrink-0" style={{ backgroundColor: pig.hex }} />
+                                                                                 <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">{pig.code}</span>
+                                                                             </div>
+                                                                         </td>
+                                                                         <td className="px-3 py-2.5 text-slate-700 font-bold truncate max-w-[120px] sm:max-w-none">
+                                                                             {pig.name} {pig.codigo_comercial && <span className="text-[9px] text-slate-400 font-mono ml-1">({pig.codigo_comercial})</span>}
+                                                                         </td>
+                                                                         <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-800">{pig.displayQty}</td>
+                                                                         <td className="px-3 py-2.5 text-right font-mono text-blue-600 font-bold">
+                                                                             {pig.precio_lata ? formatCurrency(pig.costoPig) : '$0,00'}
+                                                                         </td>
+                                                                     </tr>
+                                                                 ))}
+                                                             </tbody>
+                                                         </table>
+                                                     </div>
+                                                 )}
+                                             </div>
+                                             )}
+
+                                             {/* Precios y Totales */}
+                                             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3.5 shadow-sm">
+                                                 <div className="flex items-center justify-between text-xs border-b border-slate-200/80 pb-2">
+                                                     <span className="text-slate-500 font-bold">
+                                                         Pintura Base ({activeRecipe.base})
+                                                         {activeSizeObj?.codigo_comercial && (
+                                                             <span className="text-[9px] text-slate-400 font-mono ml-1.5">({activeSizeObj.codigo_comercial})</span>
+                                                         )}:
+                                                     </span>
+                                                     <span className="font-mono text-slate-700 font-black">
+                                                         {precioBase !== null ? formatCurrency(precioBase) : <span className="text-[9px] text-amber-600 font-normal italic">Precio no disponible</span>}
+                                                     </span>
+                                                 </div>
+                                                 <div className="flex items-center justify-between text-xs border-b border-slate-200/80 pb-2">
+                                                     <span className="text-slate-500 font-bold">Colorantes / Pigmentos:</span>
+                                                     <span className="font-mono text-blue-600 font-black">{formatCurrency(precioPigmentosTotal)}</span>
+                                                 </div>
+                                                 <div className="flex items-center justify-between pt-1">
+                                                     <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Precio Total Estimado:</span>
+                                                     <span className="font-mono text-base md:text-lg font-black text-blue-700 bg-blue-50 px-3.5 py-1 rounded-lg border border-blue-200/60 shadow-sm">
+                                                         {precioBase !== null ? formatCurrency(precioBase + precioPigmentosTotal) : <span className="text-xs text-amber-600 font-bold italic">Falta precio base</span>}
+                                                     </span>
+                                                 </div>
+                                             </div>
+
+                                             {/* Observaciones y Botón Descargar PDF */}
+                                             <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Observación (Opcional)</label>
+                                                     <textarea
+                                                         value={observation}
+                                                         onChange={(e) => setObservation(e.target.value)}
+                                                         placeholder="Agregar nota u observación para incluir en el PDF..."
+                                                         className="w-full rounded-xl border border-slate-300 bg-white py-2 px-3 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 resize-none h-14"
+                                                     />
+                                                 </div>
+                                                 <button
+                                                     type="button"
+                                                     onClick={handleDownloadPDF}
+                                                     className="w-full py-2.5 px-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                                 >
+                                                     <FileText size={12} /> Descargar Detalle en PDF
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     );
+                                 })() : (
+                                     <div className="flex flex-col items-center justify-center py-12 text-slate-400 space-y-2">
+                                         <Paintbrush size={24} className="text-slate-300 animate-bounce" />
+                                         <span className="text-xs text-slate-500 font-semibold">Receta de colorante no cargada para este color.</span>
+                                     </div>
+                                 )}
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-      </div>
-    </div>
-  );
-}
+    );
+};
+
+export default Tintometrico;
