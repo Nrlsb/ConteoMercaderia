@@ -112,8 +112,9 @@ export const generateColorPDF = async (
     doc.text("Capacidad:", 14, 97);
     doc.setFont("Helvetica", "bold");
     const displaySize = selectedCanSize >= 100 ? selectedCanSize / 1000 : selectedCanSize;
-    const sizeStr = displaySize.toFixed(3).replace('.', ',');
-    const unitStr = activeSizeObj?.unidad?.toLowerCase() === 'kg' ? 'kg' : 'Lts';
+    const sizeStr = String(displaySize).replace('.', ',');
+    const isKg = activeSizeObj?.unidad?.toLowerCase() === 'kg';
+    const unitStr = isKg ? 'kg' : `Litro${displaySize !== 1 ? 's' : ''}`;
     doc.text(`${sizeStr} ${unitStr}`, 48, 97);
     
     doc.setFont("Helvetica", "normal");

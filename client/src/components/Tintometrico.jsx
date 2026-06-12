@@ -305,8 +305,11 @@ const Tintometrico = () => {
         if (value === undefined || value === null) return '';
         const isKg = unidad?.toLowerCase() === 'kg';
         const displayVal = value >= 100 ? value / 1000 : value;
-        const formatted = displayVal.toFixed(3).replace('.', ',');
-        return `${formatted} ${isKg ? 'kg' : 'Lts'}`;
+        const formatted = String(displayVal).replace('.', ',');
+        if (isKg) {
+            return `${formatted} kg`;
+        }
+        return `${formatted} Litro${displayVal !== 1 ? 's' : ''}`;
     };
 
     // Helper para obtener texto de capacidades disponibles para una base
@@ -320,12 +323,12 @@ const Tintometrico = () => {
         const caps = sizes.map(c => {
             const val = c.capacidad_real !== undefined && c.capacidad_real !== null ? c.capacidad_real : c.capacidad_litros;
             const displayVal = val >= 100 ? val / 1000 : val;
-            return displayVal.toFixed(3).replace('.', ',');
+            return String(displayVal).replace('.', ',');
         });
         
         // Eliminar duplicados y ordenar numéricamente
         const uniqueCaps = Array.from(new Set(caps)).sort((a, b) => parseFloat(a.replace(',', '.')) - parseFloat(b.replace(',', '.')));
-        return ` [${uniqueCaps.join(', ')} Lts]`;
+        return ` [${uniqueCaps.join(', ')} L]`;
     };
 
     // Helper para filtrar tamaños de lata válidos para un producto y base
