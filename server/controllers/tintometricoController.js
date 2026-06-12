@@ -92,6 +92,10 @@ const getBrandPermissions = async (req) => {
  * Obtiene todas las colecciones únicas de colores
  */
 exports.getColecciones = async (req, res) => {
+    if (!tintometricoSupabase) {
+        return res.status(503).json({ message: 'El servicio de tintometría no está configurado en el servidor.' });
+    }
+
     try {
         const { allowAlba, allowPlavicon, allowTersuave } = await getBrandPermissions(req);
         
@@ -145,6 +149,10 @@ exports.getColecciones = async (req, res) => {
  * Obtiene colores con filtros, paginación y ordenamiento
  */
 exports.getColores = async (req, res) => {
+    if (!tintometricoSupabase) {
+        return res.status(503).json({ message: 'El servicio de tintometría no está configurado en el servidor.' });
+    }
+
     try {
         const { allowAlba, allowPlavicon, allowTersuave } = await getBrandPermissions(req);
         const { search, brand, collection, sortBy = 'id', page = '0', limit = '60' } = req.query;
@@ -241,6 +249,10 @@ exports.getColores = async (req, res) => {
  * Obtiene la receta de dosificación y capacidades para un color específico
  */
 exports.getColorDosificacion = async (req, res) => {
+    if (!tintometricoSupabase) {
+        return res.status(503).json({ message: 'El servicio de tintometría no está configurado en el servidor.' });
+    }
+
     try {
         const { colorId } = req.params;
         
@@ -397,6 +409,10 @@ exports.getColorDosificacion = async (req, res) => {
  * Calcula equivalencias cercanas para un color dado sus valores L*a*b*
  */
 exports.getColorEquivalentes = async (req, res) => {
+    if (!tintometricoSupabase) {
+        return res.status(503).json({ message: 'El servicio de tintometría no está configurado en el servidor.' });
+    }
+
     try {
         const { allowAlba, allowPlavicon, allowTersuave } = await getBrandPermissions(req);
         const { id, lab_l, lab_a, lab_b, hex } = req.body;
