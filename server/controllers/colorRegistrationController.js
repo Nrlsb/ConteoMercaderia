@@ -43,7 +43,10 @@ exports.create = async (req, res) => {
         user_id, 
         color_code, 
         hex, 
-        observations 
+        observations,
+        capacity_real,
+        formula,
+        base
     } = req.body;
 
     if (!color_type || !color_name || !client_name) {
@@ -66,6 +69,9 @@ exports.create = async (req, res) => {
             color_code: color_code || null,
             hex: hex || null,
             observations: observations || null,
+            capacity_real: capacity_real || null,
+            formula: formula || null,
+            base: base || null,
             created_by: req.user.id
         };
 

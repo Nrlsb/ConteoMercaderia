@@ -13,7 +13,9 @@ import {
     Info,
     Calendar,
     ChevronDown,
-    X
+    X,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { tintometricoService } from '../utils/tintometricoService';
@@ -28,7 +30,7 @@ const ColorRegistrations = () => {
     const [clientName, setClientName] = useState('');
     const [observations, setObservations] = useState('');
 
-    // Product search autocomplete states
+    // Product search autocomplete states (used for manual preparation)
     const [productSearch, setProductSearch] = useState('');
     const [productsList, setProductsList] = useState([]);
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -42,6 +44,15 @@ const ColorRegistrations = () => {
     const [showTintometricDropdown, setShowTintometricDropdown] = useState(false);
     const [searchingTintometric, setSearchingTintometric] = useState(false);
 
+    // Tintometric formula/recipe states
+    const [recipes, setRecipes] = useState([]);
+    const [capacities, setCapacities] = useState([]);
+    const [selectedProductId, setSelectedProductId] = useState('');
+    const [selectedCanSize, setSelectedCanSize] = useState(1);
+    const [activeRecipe, setActiveRecipe] = useState(null);
+    const [activeSizes, setActiveSizes] = useState([]);
+    const [loadingFormula, setLoadingFormula] = useState(false);
+
     // App User select states
     const [userId, setUserId] = useState('');
     const [usersList, setUsersList] = useState([]);
@@ -51,6 +62,9 @@ const ColorRegistrations = () => {
     const [registrationsSearch, setRegistrationsSearch] = useState('');
     const [loadingRegistrations, setLoadingRegistrations] = useState(true);
     const [saving, setSaving] = useState(false);
+    
+    // UI Toggles
+    const [expandedFormulaId, setExpandedFormulaId] = useState(null);
 
     // Refs for clicking outside dropdowns
     const productDropdownRef = useRef(null);
@@ -75,14 +89,14 @@ const ColorRegistrations = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Debounce/Timeout search for products
+    // Debounce/Timeout search for manual products
     useEffect(() => {
+        if (colorType !== 'manual') return;
         if (!productSearch || productSearch.length < 2) {
             setProductsList([]);
             return;
         }
 
-        // If selectedProduct matches current search, skip search
         if (selectedProduct && `${selectedProduct.code} - ${selectedProduct.description}` === productSearch) {
             return;
         }
@@ -101,7 +115,7 @@ const ColorRegistrations = () => {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [productSearch]);
+    }, [productSearch, colorType]);
 
     // Debounce/Timeout search for tintometric colors
     useEffect(() => {
@@ -110,7 +124,6 @@ const ColorRegistrations = () => {
             return;
         }
 
-        // If selectedTintometricColor matches search query, skip search
         if (selectedTintometricColor && `${selectedTintometricColor.nombre} (${selectedTintometricColor.codigo})` === tintometricSearch) {
             return;
         }
@@ -118,7 +131,6 @@ const ColorRegistrations = () => {
         setSearchingTintometric(true);
         const timer = setTimeout(async () => {
             try {
-                // Call tintometricService.fetchColores(page, search, brand, collection, sortBy, limit)
                 const data = await tintometricoService.fetchColores(0, tintometricSearch, 'all', 'all', 'name', 15);
                 setTintometricColorsList(data?.colores || []);
                 setShowTintometricDropdown(true);
@@ -131,6 +143,57 @@ const ColorRegistrations = () => {
 
         return () => clearTimeout(timer);
     }, [tintometricSearch]);
+
+    // When active recipe or can size changes, update formula details
+    useEffect(() => {
+        if (!recipes.length || !selectedProductId) {
+            setActiveRecipe(null);
+            return;
+        }
+        const recipe = recipes.find(r => r.productId === Number(selectedProductId));
+        setActiveRecipe(recipe || null);
+
+        if (recipe) {
+            const sizes = getProductSizes(recipe.productId, recipe.base, capacities);
+            setActiveSizes(sizes);
+        } else {
+            setActiveSizes([]);
+        }
+    }, [selectedProductId, recipes, capacities]);
+
+    // Lookup corresponding product in main DB when selected recipe changes
+    useEffect(() => {
+        const lookupProduct = async () => {
+            if (!activeRecipe) {
+                setSelectedProduct(null);
+                return;
+            }
+
+            try {
+                let codeToSearch = String(activeRecipe.productId);
+                if (activeRecipe.sistemaTintometrico?.toLowerCase() === 'alba') {
+                    codeToSearch = codeToSearch.padStart(6, '0');
+                }
+
+                // Look up product by code
+                const result = await colorRegistrationsService.searchProducts(codeToSearch);
+                const exactMatch = result?.find(p => p.code?.trim() === codeToSearch.trim());
+                
+                if (exactMatch) {
+                    setSelectedProduct(exactMatch);
+                } else if (result && result.length > 0) {
+                    setSelectedProduct(result[0]);
+                } else {
+                    setSelectedProduct(null);
+                    console.warn(`Product code ${codeToSearch} not found in main DB.`);
+                }
+            } catch (err) {
+                console.error('Error looking up formula product in main DB:', err);
+            }
+        };
+
+        lookupProduct();
+    }, [activeRecipe]);
 
     const fetchRegistrations = async () => {
         setLoadingRegistrations(true);
@@ -155,14 +218,55 @@ const ColorRegistrations = () => {
         }
     };
 
+    // Load formulas & sizes for selected tintometric color
+    const fetchFormulaForColor = async (color) => {
+        setLoadingFormula(true);
+        try {
+            const response = await tintometricoService.fetchDosificacion(color.id);
+            const { recipes: fetchedRecipes, capacities: fetchedCapacities } = response || { recipes: [], capacities: [] };
+            
+            setRecipes(fetchedRecipes || []);
+            setCapacities(fetchedCapacities || []);
+
+            if (fetchedRecipes && fetchedRecipes.length > 0) {
+                // Select first product by default
+                const defaultProduct = fetchedRecipes[0];
+                setSelectedProductId(defaultProduct.productId);
+                
+                // Select first capacity size
+                const sizes = getProductSizes(defaultProduct.productId, defaultProduct.base, fetchedCapacities);
+                if (sizes.length > 0) {
+                    const firstSize = sizes[0];
+                    const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                    const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
+                    setSelectedCanSize(val);
+                }
+            } else {
+                setSelectedProductId('');
+                setSelectedCanSize(1);
+            }
+        } catch (err) {
+            console.error('Error loading formula details:', err);
+            toast.error('Error al cargar la dosificación del color seleccionado.');
+        } finally {
+            setLoadingFormula(false);
+        }
+    };
+
     const handleSelectTintometricColor = (color) => {
         setSelectedTintometricColor(color);
         setColorName(color.nombre);
         setColorCode(color.codigo);
         setHex(color.hex || '#3b82f6');
-        setTintometricSearch(`${color.nombre} (${color.codigo})`);
+        tintometricSearchVal(color);
         setShowTintometricDropdown(false);
-        toast.info(`Color seleccionado: ${color.nombre}`);
+        
+        // Fetch formulation details
+        fetchFormulaForColor(color);
+    };
+
+    const tintometricSearchVal = (color) => {
+        setTintometricSearch(`${color.nombre} (${color.codigo})`);
     };
 
     const handleSelectProduct = (product) => {
@@ -185,6 +289,39 @@ const ColorRegistrations = () => {
         setColorName('');
         setColorCode('');
         setHex('#3b82f6');
+        setRecipes([]);
+        setCapacities([]);
+        setSelectedProductId('');
+        setSelectedCanSize(1);
+        setActiveRecipe(null);
+        setActiveSizes([]);
+        setSelectedProduct(null);
+    };
+
+    // Helper functions for capacity sizes
+    const getProductSizes = (productId, baseName, capsList = capacities) => {
+        let sizes = capsList.filter(c => c.producto_id === productId && c.base === baseName);
+        if (sizes.length === 0) {
+            sizes = capsList.filter(c => c.producto_id === productId && c.base === 'General');
+        }
+        return sizes.sort((a, b) => {
+            const rawA = a.capacidad_real !== undefined && a.capacidad_real !== null ? a.capacidad_real : a.capacidad_litros;
+            const rawB = b.capacidad_real !== undefined && b.capacidad_real !== null ? b.capacidad_real : b.capacidad_litros;
+            const capA = rawA >= 100 ? rawA / 1000 : rawA;
+            const capB = rawB >= 100 ? rawB / 1000 : rawB;
+            return capA - capB;
+        });
+    };
+
+    const formatCapacity = (value, unidad = 'Lts') => {
+        if (value === undefined || value === null) return '';
+        const isKg = unidad?.toLowerCase() === 'kg';
+        const displayVal = value >= 100 ? value / 1000 : value;
+        const formatted = String(displayVal).replace('.', ',');
+        if (isKg) {
+            return `${formatted} kg`;
+        }
+        return `${formatted} Litro${displayVal !== 1 ? 's' : ''}`;
     };
 
     // Calculate identification ID live preview
@@ -193,6 +330,29 @@ const ColorRegistrations = () => {
         const namePart = colorName.trim() || 'Nombre Color';
         const clientPart = clientName.trim() || 'Cliente';
         return `${namePart} - ${clientPart}`;
+    };
+
+    // Build formula object for submission
+    const getComputedFormula = () => {
+        if (colorType !== 'tintometrico' || !activeRecipe) return null;
+
+        const pigments = activeRecipe.pigments.map(pig => {
+            const scaledQty = pig.cantidad * selectedCanSize;
+            return {
+                codigo: pig.codigo,
+                nombre: pig.nombre,
+                hex: pig.hex,
+                cantidad: Number(scaledQty.toFixed(4)),
+                unidad: activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'impulsos' : 'unidades'
+            };
+        });
+
+        return {
+            base: activeRecipe.base,
+            sistema: activeRecipe.sistemaTintometrico,
+            productName: activeRecipe.productName,
+            pigmentos: pigments
+        };
     };
 
     const handleSubmit = async (e) => {
@@ -206,9 +366,14 @@ const ColorRegistrations = () => {
             toast.error('Por favor, ingresa el nombre del cliente.');
             return;
         }
+        if (colorType === 'tintometrico' && !selectedProductId) {
+            toast.error('Por favor, selecciona el producto de la fórmula.');
+            return;
+        }
 
         setSaving(true);
         try {
+            const calculatedFormula = getComputedFormula();
             const payload = {
                 color_type: colorType,
                 color_name: colorName.trim(),
@@ -217,7 +382,10 @@ const ColorRegistrations = () => {
                 user_id: userId || null,
                 color_code: colorType === 'tintometrico' ? colorCode : null,
                 hex: hex,
-                observations: observations.trim() || null
+                observations: observations.trim() || null,
+                capacity_real: colorType === 'tintometrico' ? selectedCanSize : null,
+                base: colorType === 'tintometrico' ? activeRecipe?.base : null,
+                formula: calculatedFormula
             };
 
             await colorRegistrationsService.create(payload);
@@ -234,6 +402,12 @@ const ColorRegistrations = () => {
             setSelectedTintometricColor(null);
             setTintometricSearch('');
             setUserId('');
+            setRecipes([]);
+            setCapacities([]);
+            setSelectedProductId('');
+            setSelectedCanSize(1);
+            setActiveRecipe(null);
+            setActiveSizes([]);
 
             // Refresh list
             fetchRegistrations();
@@ -256,7 +430,7 @@ const ColorRegistrations = () => {
             toast.success('Registro de color eliminado.');
             fetchRegistrations();
         } catch (err) {
-            console.error('Error deleting registration:', err);
+            console.error('Error al eliminar el registro:', err);
             toast.error('Error al eliminar el registro.');
         }
     };
@@ -397,17 +571,126 @@ const ColorRegistrations = () => {
                                     )}
                                 </div>
 
-                                {/* Active Selection Preview */}
+                                {/* Active Selection Preview & Formulation Selection */}
                                 {selectedTintometricColor && (
-                                    <div className="p-3.5 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center gap-3 animate-pop">
-                                        <div 
-                                            className="w-10 h-10 rounded-lg border border-black/10 shadow-md shrink-0 transition-transform hover:scale-105" 
-                                            style={{ backgroundColor: hex }}
-                                        />
-                                        <div className="flex-grow min-w-0">
-                                            <div className="text-xs font-black text-blue-950 truncate leading-tight">{colorName}</div>
-                                            <div className="text-[10px] font-bold text-blue-600/70 font-mono tracking-wider">Código: {colorCode}</div>
+                                    <div className="space-y-4 animate-pop">
+                                        <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center gap-3">
+                                            <div 
+                                                className="w-10 h-10 rounded-lg border border-black/10 shadow-md shrink-0" 
+                                                style={{ backgroundColor: hex }}
+                                            />
+                                            <div className="flex-grow min-w-0">
+                                                <div className="text-xs font-black text-blue-950 truncate leading-tight">{colorName}</div>
+                                                <div className="text-[10px] font-bold text-blue-600/70 font-mono tracking-wider">Código: {colorCode}</div>
+                                            </div>
                                         </div>
+
+                                        {/* Formula Selection Dropdowns */}
+                                        {loadingFormula ? (
+                                            <div className="flex justify-center py-4">
+                                                <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600"></div>
+                                            </div>
+                                        ) : recipes.length > 0 ? (
+                                            <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                                
+                                                {/* Select Product */}
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Producto de la Fórmula</label>
+                                                    <select
+                                                        value={selectedProductId}
+                                                        onChange={(e) => {
+                                                            const newId = e.target.value;
+                                                            setSelectedProductId(newId);
+                                                            const r = recipes.find(rec => rec.productId === Number(newId));
+                                                            if (r) {
+                                                                const sizes = getProductSizes(r.productId, r.base);
+                                                                if (sizes.length > 0) {
+                                                                    const firstSize = sizes[0];
+                                                                    const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                                                                    const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
+                                                                    setSelectedCanSize(val);
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="w-full text-xs p-2.5 border border-gray-200 rounded-lg bg-white font-bold text-gray-700 focus:outline-none"
+                                                    >
+                                                        {recipes.map((r) => (
+                                                            <option key={r.productId} value={r.productId}>
+                                                                {r.productName} {r.sistemaTintometrico ? `(${r.sistemaTintometrico})` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Select Capacity */}
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Capacidad del Envase</label>
+                                                    <select
+                                                        value={selectedCanSize}
+                                                        onChange={(e) => setSelectedCanSize(Number(e.target.value))}
+                                                        className="w-full text-xs p-2.5 border border-gray-200 rounded-lg bg-white font-bold text-gray-700 focus:outline-none"
+                                                    >
+                                                        {activeSizes.map((sz) => {
+                                                            const rawVal = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                                                            const value = rawVal >= 100 ? rawVal / 1000 : rawVal;
+                                                            return (
+                                                                <option key={sz.id || sz.capacidad_litros} value={value}>
+                                                                    {formatCapacity(rawVal, sz.unidad)}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                </div>
+
+                                                {/* Base badge and matched main DB product status */}
+                                                {activeRecipe && (
+                                                    <div className="flex items-center justify-between pt-2 border-t border-gray-200 text-xs">
+                                                        <div className="flex items-center gap-1 text-gray-500 font-bold">
+                                                            <span>Base Requerida:</span>
+                                                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-black uppercase">
+                                                                {activeRecipe.base}
+                                                            </span>
+                                                        </div>
+
+                                                        {selectedProduct ? (
+                                                            <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                                                                <Check className="w-3.5 h-3.5" /> Vinculado a Stock
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1" title="El código no se encontró en la lista general de productos.">
+                                                                <AlertCircle className="w-3.5 h-3.5" /> Código no vinculado
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Pigs List preview */}
+                                                {activeRecipe && activeRecipe.pigments && (
+                                                    <div className="pt-2.5 space-y-1.5">
+                                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Vista Previa de Dosificación:</span>
+                                                        <div className="bg-white rounded-lg border border-gray-150 p-2 divide-y divide-gray-100 max-h-36 overflow-y-auto">
+                                                            {activeRecipe.pigments.map((pig, idx) => {
+                                                                const displayQty = (pig.cantidad * selectedCanSize).toFixed(3).replace('.', ',');
+                                                                return (
+                                                                    <div key={idx} className="flex justify-between items-center py-1 text-[11px] font-semibold">
+                                                                        <div className="flex items-center gap-2 min-w-0">
+                                                                            <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" style={{ backgroundColor: pig.hex || '#64748b' }} />
+                                                                            <span className="truncate text-gray-700">{pig.nombre || pig.codigo}</span>
+                                                                        </div>
+                                                                        <span className="font-mono text-gray-900 font-black shrink-0">{displayQty} {activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.'}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                            </div>
+                                        ) : (
+                                            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                                                <span className="text-xs text-amber-700 font-bold">No se encontraron fórmulas ni productos para este color.</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -441,78 +724,78 @@ const ColorRegistrations = () => {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
 
-                        {/* Searchable Product Selector */}
-                        <div className="space-y-1.5" ref={productDropdownRef}>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">¿En qué producto se preparó?</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                    onFocus={() => {
-                                        if (productsList.length > 0) setShowProductDropdown(true);
-                                    }}
-                                    className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-semibold"
-                                    placeholder="Buscar producto por descripción o código..."
-                                />
-                                <ShoppingBag className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400" />
-                                {searchingProducts && (
-                                    <div className="absolute right-3 top-3 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                )}
-                                {selectedProduct && !searchingProducts && (
-                                    <button
-                                        type="button"
-                                        onClick={handleClearProduct}
-                                        className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Product Autocomplete Dropdown */}
-                            {showProductDropdown && productsList.length > 0 && (
-                                <div className="relative">
-                                    <ul className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl p-1 divide-y divide-gray-50">
-                                        {productsList.map((product) => (
-                                            <li
-                                                key={product.id}
-                                                onClick={() => handleSelectProduct(product)}
-                                                className="flex flex-col px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-900 rounded-lg cursor-pointer transition-colors"
+                                {/* Searchable Product Selector (only for manual preparation) */}
+                                <div className="space-y-1.5" ref={productDropdownRef}>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">¿En qué producto se preparó?</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={productSearch}
+                                            onChange={(e) => setProductSearch(e.target.value)}
+                                            onFocus={() => {
+                                                if (productsList.length > 0) setShowProductDropdown(true);
+                                            }}
+                                            className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-semibold"
+                                            placeholder="Buscar producto por descripción o código..."
+                                        />
+                                        <ShoppingBag className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400" />
+                                        {searchingProducts && (
+                                            <div className="absolute right-3 top-3 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                        )}
+                                        {selectedProduct && !searchingProducts && (
+                                            <button
+                                                type="button"
+                                                onClick={handleClearProduct}
+                                                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
                                             >
-                                                <div className="font-bold truncate">{product.description}</div>
-                                                <div className="flex justify-between items-center text-[10px] text-gray-400 mt-0.5">
-                                                    <span className="font-mono">Código: {product.code}</span>
-                                                    {product.brand && (
-                                                        <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[8px] font-extrabold uppercase">
-                                                            {product.brand}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Selected Product Preview Card */}
-                            {selectedProduct && (
-                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col gap-1.5 animate-pop">
-                                    <div className="text-xs font-bold text-gray-800 truncate leading-tight">{selectedProduct.description}</div>
-                                    <div className="flex justify-between items-center text-[10px] text-gray-500">
-                                        <span className="font-mono">Código: {selectedProduct.code}</span>
-                                        {selectedProduct.brand && (
-                                            <span className="bg-blue-100 text-blue-700 font-extrabold px-1.5 py-0.5 rounded text-[8px] uppercase">
-                                                {selectedProduct.brand}
-                                            </span>
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         )}
                                     </div>
+
+                                    {/* Product Autocomplete Dropdown */}
+                                    {showProductDropdown && productsList.length > 0 && (
+                                        <div className="relative">
+                                            <ul className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl p-1 divide-y divide-gray-50">
+                                                {productsList.map((product) => (
+                                                    <li
+                                                        key={product.id}
+                                                        onClick={() => handleSelectProduct(product)}
+                                                        className="flex flex-col px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-900 rounded-lg cursor-pointer transition-colors"
+                                                    >
+                                                        <div className="font-bold truncate">{product.description}</div>
+                                                        <div className="flex justify-between items-center text-[10px] text-gray-400 mt-0.5">
+                                                            <span className="font-mono">Código: {product.code}</span>
+                                                            {product.brand && (
+                                                                <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[8px] font-extrabold uppercase">
+                                                                    {product.brand}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {/* Selected Product Preview Card */}
+                                    {selectedProduct && (
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col gap-1.5 animate-pop">
+                                            <div className="text-xs font-bold text-gray-800 truncate leading-tight">{selectedProduct.description}</div>
+                                            <div className="flex justify-between items-center text-[10px] text-gray-500">
+                                                <span className="font-mono">Código: {selectedProduct.code}</span>
+                                                {selectedProduct.brand && (
+                                                    <span className="bg-blue-100 text-blue-700 font-extrabold px-1.5 py-0.5 rounded text-[8px] uppercase">
+                                                        {selectedProduct.brand}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         {/* Client Input */}
                         <div className="space-y-1.5">
@@ -623,7 +906,7 @@ const ColorRegistrations = () => {
                             <p className="text-xs text-gray-400">Completá el formulario para registrar el primer color.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300">
                             {filteredRegistrations.map((item) => (
                                 <div
                                     key={item.id}
@@ -659,16 +942,31 @@ const ColorRegistrations = () => {
                                     <div className="p-4 flex-grow flex flex-col justify-between space-y-4">
                                         <div className="space-y-2.5 text-xs text-gray-700">
                                             
-                                            {/* Product */}
+                                            {/* Product & Capacity */}
                                             {item.products ? (
                                                 <div className="flex gap-2 items-start">
                                                     <ShoppingBag className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 flex-1">
                                                         <div className="font-bold text-gray-900 leading-tight truncate">
                                                             {item.products.description}
                                                         </div>
-                                                        <div className="text-[10px] text-gray-400 font-mono mt-0.5">
-                                                            Código: {item.products.code} {item.products.brand ? `(${item.products.brand})` : ''}
+                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-400 mt-1">
+                                                            <span className="font-mono">Código: {item.products.code}</span>
+                                                            {item.products.brand && (
+                                                                <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[8px] font-extrabold uppercase">
+                                                                    {item.products.brand}
+                                                                </span>
+                                                            )}
+                                                            {item.capacity_real && (
+                                                                <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+                                                                    {String(item.capacity_real).replace('.', ',')} Litros
+                                                                </span>
+                                                            )}
+                                                            {item.base && (
+                                                                <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+                                                                    Base {item.base}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -711,6 +1009,40 @@ const ColorRegistrations = () => {
                                                     {item.observations}
                                                 </div>
                                             )}
+
+                                            {/* Collapsible Formula Viewer (For tintometric colors with formula saved) */}
+                                            {item.color_type === 'tintometrico' && item.formula?.pigmentos && (
+                                                <div className="mt-2 border border-gray-100 rounded-lg overflow-hidden">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExpandedFormulaId(expandedFormulaId === item.id ? null : item.id)}
+                                                        className="w-full flex items-center justify-between p-2 bg-gray-50/70 hover:bg-gray-100 text-gray-600 font-bold transition-colors cursor-pointer text-[10px]"
+                                                    >
+                                                        <span className="flex items-center gap-1">
+                                                            <Palette className="w-3.5 h-3.5 text-gray-400" />
+                                                            {expandedFormulaId === item.id ? 'Ocultar Fórmula' : 'Ver Fórmula de Pigmentos'}
+                                                        </span>
+                                                        {expandedFormulaId === item.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                                    </button>
+
+                                                    {expandedFormulaId === item.id && (
+                                                        <div className="bg-white p-2 divide-y divide-gray-50 text-[10.5px] font-semibold animate-in fade-in duration-200">
+                                                            {item.formula.pigmentos.map((pig, idx) => (
+                                                                <div key={idx} className="flex justify-between items-center py-1">
+                                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                                        <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" style={{ backgroundColor: pig.hex || '#64748b' }} />
+                                                                        <span className="truncate text-gray-700">{pig.nombre || pig.codigo}</span>
+                                                                    </div>
+                                                                    <span className="font-mono text-gray-900 font-black shrink-0">
+                                                                        {String(pig.cantidad).replace('.', ',')} {item.formula.sistema?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                         </div>
 
                                         {/* Card Footer: Metadata & Delete */}

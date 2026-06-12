@@ -1,3 +1,6 @@
+-- Drop table if exists to allow clean recreate during development
+DROP TABLE IF EXISTS color_registrations CASCADE;
+
 -- Create color_registrations table
 CREATE TABLE IF NOT EXISTS color_registrations (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -10,6 +13,9 @@ CREATE TABLE IF NOT EXISTS color_registrations (
     color_code VARCHAR(255),
     hex VARCHAR(50),
     observations TEXT,
+    capacity_real NUMERIC,
+    formula JSONB,
+    base VARCHAR(50),
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
