@@ -30,7 +30,7 @@ const ColorRegistrations = () => {
     const [clientName, setClientName] = useState('');
     const [observations, setObservations] = useState('');
 
-    // Product search autocomplete states (used for manual preparation)
+    // Product search autocomplete states (used in both manual and tintometric modes)
     const [productSearch, setProductSearch] = useState('');
     const [productsList, setProductsList] = useState([]);
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -89,9 +89,8 @@ const ColorRegistrations = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Debounce/Timeout search for manual products
+    // Debounce/Timeout search for products
     useEffect(() => {
-        if (colorType !== 'manual') return;
         if (!productSearch || productSearch.length < 2) {
             setProductsList([]);
             return;
@@ -115,7 +114,7 @@ const ColorRegistrations = () => {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [productSearch, colorType]);
+    }, [productSearch]);
 
     // Debounce/Timeout search for tintometric colors
     useEffect(() => {
@@ -166,6 +165,7 @@ const ColorRegistrations = () => {
         const lookupProduct = async () => {
             if (!activeRecipe) {
                 setSelectedProduct(null);
+                setProductSearch('');
                 return;
             }
 
@@ -181,10 +181,13 @@ const ColorRegistrations = () => {
                 
                 if (exactMatch) {
                     setSelectedProduct(exactMatch);
+                    setProductSearch(`${exactMatch.code} - ${exactMatch.description}`);
                 } else if (result && result.length > 0) {
                     setSelectedProduct(result[0]);
+                    setProductSearch(`${result[0].code} - ${result[0].description}`);
                 } else {
                     setSelectedProduct(null);
+                    setProductSearch('');
                     console.warn(`Product code ${codeToSearch} not found in main DB.`);
                 }
             } catch (err) {
@@ -296,6 +299,7 @@ const ColorRegistrations = () => {
         setActiveRecipe(null);
         setActiveSizes([]);
         setSelectedProduct(null);
+        setProductSearch('');
     };
 
     // Helper functions for capacity sizes
@@ -339,8 +343,8 @@ const ColorRegistrations = () => {
         const pigments = activeRecipe.pigments.map(pig => {
             const scaledQty = pig.cantidad * selectedCanSize;
             return {
-                codigo: pig.codigo,
-                nombre: pig.nombre,
+                codigo: pig.code,
+                nombre: pig.name,
                 hex: pig.hex,
                 cantidad: Number(scaledQty.toFixed(4)),
                 unidad: activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'impulsos' : 'unidades'
@@ -612,7 +616,7 @@ const ColorRegistrations = () => {
                                                                 }
                                                             }
                                                         }}
-                                                        className="w-full text-xs p-2.5 border border-gray-200 rounded-lg bg-white font-bold text-gray-700 focus:outline-none"
+                                                        className="w-full text-xs p-2.5 border border-gray-200 rounded-lg bg-white font-bold text-gray-700 focus:outline-none cursor-pointer"
                                                     >
                                                         {recipes.map((r) => (
                                                             <option key={r.productId} value={r.productId}>
@@ -628,7 +632,7 @@ const ColorRegistrations = () => {
                                                     <select
                                                         value={selectedCanSize}
                                                         onChange={(e) => setSelectedCanSize(Number(e.target.value))}
-                                                        className="w-full text-xs p-2.5 border border-gray-200 rounded-lg bg-white font-bold text-gray-700 focus:outline-none"
+                                                        className="w-full text-xs p-2.5 border border-gray-200 rounded-lg bg-white font-bold text-gray-700 focus:outline-none cursor-pointer"
                                                     >
                                                         {activeSizes.map((sz) => {
                                                             const rawVal = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
@@ -675,7 +679,7 @@ const ColorRegistrations = () => {
                                                                     <div key={idx} className="flex justify-between items-center py-1 text-[11px] font-semibold">
                                                                         <div className="flex items-center gap-2 min-w-0">
                                                                             <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" style={{ backgroundColor: pig.hex || '#64748b' }} />
-                                                                            <span className="truncate text-gray-700">{pig.nombre || pig.codigo}</span>
+                                                                            <span className="truncate text-gray-700">{pig.name || pig.code}</span>
                                                                         </div>
                                                                         <span className="font-mono text-gray-900 font-black shrink-0">{displayQty} {activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.'}</span>
                                                                     </div>
@@ -724,78 +728,80 @@ const ColorRegistrations = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Searchable Product Selector (only for manual preparation) */}
-                                <div className="space-y-1.5" ref={productDropdownRef}>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">¿En qué producto se preparó?</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={productSearch}
-                                            onChange={(e) => setProductSearch(e.target.value)}
-                                            onFocus={() => {
-                                                if (productsList.length > 0) setShowProductDropdown(true);
-                                            }}
-                                            className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-semibold"
-                                            placeholder="Buscar producto por descripción o código..."
-                                        />
-                                        <ShoppingBag className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400" />
-                                        {searchingProducts && (
-                                            <div className="absolute right-3 top-3 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                        )}
-                                        {selectedProduct && !searchingProducts && (
-                                            <button
-                                                type="button"
-                                                onClick={handleClearProduct}
-                                                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Product Autocomplete Dropdown */}
-                                    {showProductDropdown && productsList.length > 0 && (
-                                        <div className="relative">
-                                            <ul className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl p-1 divide-y divide-gray-50">
-                                                {productsList.map((product) => (
-                                                    <li
-                                                        key={product.id}
-                                                        onClick={() => handleSelectProduct(product)}
-                                                        className="flex flex-col px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-900 rounded-lg cursor-pointer transition-colors"
-                                                    >
-                                                        <div className="font-bold truncate">{product.description}</div>
-                                                        <div className="flex justify-between items-center text-[10px] text-gray-400 mt-0.5">
-                                                            <span className="font-mono">Código: {product.code}</span>
-                                                            {product.brand && (
-                                                                <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[8px] font-extrabold uppercase">
-                                                                    {product.brand}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    {/* Selected Product Preview Card */}
-                                    {selectedProduct && (
-                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col gap-1.5 animate-pop">
-                                            <div className="text-xs font-bold text-gray-800 truncate leading-tight">{selectedProduct.description}</div>
-                                            <div className="flex justify-between items-center text-[10px] text-gray-500">
-                                                <span className="font-mono">Código: {selectedProduct.code}</span>
-                                                {selectedProduct.brand && (
-                                                    <span className="bg-blue-100 text-blue-700 font-extrabold px-1.5 py-0.5 rounded text-[8px] uppercase">
-                                                        {selectedProduct.brand}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         )}
+
+                        {/* Searchable Product Selector (Common for both manual and tintometric modes) */}
+                        <div className="space-y-1.5 animate-in fade-in duration-300" ref={productDropdownRef}>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+                                {colorType === 'tintometrico' ? 'Producto en Inventario (Auto-detectado o busca otro)' : '¿En qué producto se preparó?'}
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={productSearch}
+                                    onChange={(e) => setProductSearch(e.target.value)}
+                                    onFocus={() => {
+                                        if (productsList.length > 0) setShowProductDropdown(true);
+                                    }}
+                                    className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-semibold"
+                                    placeholder="Buscar producto por descripción o código..."
+                                />
+                                <ShoppingBag className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400" />
+                                {searchingProducts && (
+                                    <div className="absolute right-3 top-3 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                )}
+                                {selectedProduct && !searchingProducts && (
+                                    <button
+                                        type="button"
+                                        onClick={handleClearProduct}
+                                        className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Product Autocomplete Dropdown */}
+                            {showProductDropdown && productsList.length > 0 && (
+                                <div className="relative">
+                                    <ul className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl p-1 divide-y divide-gray-50">
+                                        {productsList.map((product) => (
+                                            <li
+                                                key={product.id}
+                                                onClick={() => handleSelectProduct(product)}
+                                                className="flex flex-col px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-900 rounded-lg cursor-pointer transition-colors"
+                                            >
+                                                <div className="font-bold truncate">{product.description}</div>
+                                                <div className="flex justify-between items-center text-[10px] text-gray-400 mt-0.5">
+                                                    <span className="font-mono">Código: {product.code}</span>
+                                                    {product.brand && (
+                                                        <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[8px] font-extrabold uppercase">
+                                                            {product.brand}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Selected Product Preview Card */}
+                            {selectedProduct && (
+                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col gap-1.5 animate-pop">
+                                    <div className="text-xs font-bold text-gray-850 truncate leading-tight">{selectedProduct.description}</div>
+                                    <div className="flex justify-between items-center text-[10px] text-gray-500">
+                                        <span className="font-mono">Código: {selectedProduct.code}</span>
+                                        {selectedProduct.brand && (
+                                            <span className="bg-blue-100 text-blue-700 font-extrabold px-1.5 py-0.5 rounded text-[8px] uppercase">
+                                                {selectedProduct.brand}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Client Input */}
                         <div className="space-y-1.5">
@@ -1031,7 +1037,7 @@ const ColorRegistrations = () => {
                                                                 <div key={idx} className="flex justify-between items-center py-1">
                                                                     <div className="flex items-center gap-1.5 min-w-0">
                                                                         <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" style={{ backgroundColor: pig.hex || '#64748b' }} />
-                                                                        <span className="truncate text-gray-700">{pig.nombre || pig.codigo}</span>
+                                                                        <span className="truncate text-gray-700">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
                                                                     </div>
                                                                     <span className="font-mono text-gray-900 font-black shrink-0">
                                                                         {String(pig.cantidad).replace('.', ',')} {item.formula.sistema?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.'}
