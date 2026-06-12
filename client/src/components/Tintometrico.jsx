@@ -300,6 +300,15 @@ const Tintometrico = () => {
         }
     };
 
+    // Helper para formatear capacidades de manera amigable
+    const formatCapacity = (value, unidad = 'Lts') => {
+        if (value === undefined || value === null) return '';
+        const isKg = unidad?.toLowerCase() === 'kg';
+        const displayVal = value >= 100 ? value / 1000 : value;
+        const formatted = displayVal.toFixed(3).replace('.', ',');
+        return `${formatted} ${isKg ? 'kg' : 'Lts'}`;
+    };
+
     // Helper para obtener texto de capacidades disponibles para una base
     const getProductCapacitiesText = (productId, baseName, capsList = capacities) => {
         let sizes = capsList.filter(c => c.producto_id === productId && c.base === baseName);
@@ -310,12 +319,13 @@ const Tintometrico = () => {
         
         const caps = sizes.map(c => {
             const val = c.capacidad_real !== undefined && c.capacidad_real !== null ? c.capacidad_real : c.capacidad_litros;
-            return String(val).replace('.', ',');
+            const displayVal = val >= 100 ? val / 1000 : val;
+            return displayVal.toFixed(3).replace('.', ',');
         });
         
         // Eliminar duplicados y ordenar numéricamente
         const uniqueCaps = Array.from(new Set(caps)).sort((a, b) => parseFloat(a.replace(',', '.')) - parseFloat(b.replace(',', '.')));
-        return ` [${uniqueCaps.join(', ')} L]`;
+        return ` [${uniqueCaps.join(', ')} Lts]`;
     };
 
     // Helper para filtrar tamaños de lata válidos para un producto y base
@@ -734,12 +744,9 @@ const Tintometrico = () => {
                                         >
                                             {activeSizes.map((sz) => {
                                                 const value = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
-                                                const valueStr = String(value).replace('.', ',');
                                                 return (
                                                     <option key={sz.id || sz.capacidad_litros} value={value}>
-                                                        {sz.unidad?.toLowerCase() === 'kg' 
-                                                            ? `${valueStr} kg` 
-                                                            : `${valueStr} Litro${value !== 1 ? 's' : ''}`}
+                                                        {formatCapacity(value, sz.unidad)}
                                                     </option>
                                                 );
                                             })}
