@@ -21,6 +21,79 @@ import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { tintometricoService } from '../utils/tintometricoService';
 import { toast } from 'sonner';
 
+const CONCENTRADOS_PREDEFINIDOS = {
+    entonador_universal: {
+        id: 'entonador_universal',
+        nombre: 'Entonador Universal',
+        unidad: 'impulsos',
+        pigmentos: [
+            { codigo: 'AM', nombre: 'Amarillo', hex: '#facc15' },
+            { codigo: 'AZ', nombre: 'Azul', hex: '#1d4ed8' },
+            { codigo: 'BE', nombre: 'Bermellón / Rojo', hex: '#dc2626' },
+            { codigo: 'VE', nombre: 'Verde', hex: '#15803d' },
+            { codigo: 'NE', nombre: 'Negro', hex: '#1e293b' },
+            { codigo: 'OC', nombre: 'Ocre', hex: '#d97706' },
+            { codigo: 'MA', nombre: 'Marrón', hex: '#78350f' },
+            { codigo: 'SI', nombre: 'Siena', hex: '#a16207' },
+            { codigo: 'NA', nombre: 'Naranja', hex: '#ea580c' },
+            { codigo: 'VI', nombre: 'Violeta', hex: '#7e22ce' }
+        ]
+    },
+    sistema_tersuave: {
+        id: 'sistema_tersuave',
+        nombre: 'Sistema Tersuave (Manual)',
+        unidad: 'impulsos',
+        pigmentos: [
+            { codigo: 'W1', nombre: 'Blanco (W1)', hex: '#f8fafc' },
+            { codigo: 'Y1', nombre: 'Amarillo Limón (Y1)', hex: '#fef08a' },
+            { codigo: 'Y3', nombre: 'Amarillo Óxido (Y3)', hex: '#ca8a04' },
+            { codigo: 'R1', nombre: 'Rojo Orgánico (R1)', hex: '#ef4444' },
+            { codigo: 'R2', nombre: 'Rojo Óxido (R2)', hex: '#991b1b' },
+            { codigo: 'R3', nombre: 'Magenta (R3)', hex: '#ec4899' },
+            { codigo: 'M1', nombre: 'Marrón (M1)', hex: '#7c2d12' },
+            { codigo: 'G1', nombre: 'Verde (G1)', hex: '#22c55e' },
+            { codigo: 'B1', nombre: 'Azul (B1)', hex: '#3b82f6' },
+            { codigo: 'O1', nombre: 'Naranja (O1)', hex: '#f97316' },
+            { codigo: 'N1', nombre: 'Negro (N1)', hex: '#111827' }
+        ]
+    },
+    sistema_alba: {
+        id: 'sistema_alba',
+        nombre: 'Sistema Alba (Manual)',
+        unidad: 'impulsos',
+        pigmentos: [
+            { codigo: 'WH', nombre: 'White (WH)', hex: '#ffffff' },
+            { codigo: 'YO', nombre: 'Yellow Oxide (YO)', hex: '#eab308' },
+            { codigo: 'AY', nombre: 'Azo Yellow (AY)', hex: '#fde047' },
+            { codigo: 'OR', nombre: 'Orange (OR)', hex: '#f97316' },
+            { codigo: 'RO', nombre: 'Red Oxide (RO)', hex: '#b91c1c' },
+            { codigo: 'RE', nombre: 'Red (RE)', hex: '#ef4444' },
+            { codigo: 'MA', nombre: 'Magenta (MA)', hex: '#db2777' },
+            { codigo: 'VI', nombre: 'Violet (VI)', hex: '#8b5cf6' },
+            { codigo: 'BL', nombre: 'Blue (BL)', hex: '#2563eb' },
+            { codigo: 'GR', nombre: 'Green (GR)', hex: '#16a34a' },
+            { codigo: 'BK', nombre: 'Black (BK)', hex: '#1f2937' }
+        ]
+    },
+    sistema_plavicon: {
+        id: 'sistema_plavicon',
+        nombre: 'Sistema Plavicon (Manual)',
+        unidad: 'impulsos',
+        pigmentos: [
+            { codigo: 'W', nombre: 'Blanco (W)', hex: '#ffffff' },
+            { codigo: 'Y', nombre: 'Amarillo (Y)', hex: '#facc15' },
+            { codigo: 'YO', nombre: 'Amarillo Óxido (YO)', hex: '#ca8a04' },
+            { codigo: 'R', nombre: 'Rojo (R)', hex: '#dc2626' },
+            { codigo: 'RO', nombre: 'Rojo Óxido (RO)', hex: '#991b1b' },
+            { codigo: 'M', nombre: 'Magenta (M)', hex: '#db2777' },
+            { codigo: 'V', nombre: 'Violeta (V)', hex: '#7e22ce' },
+            { codigo: 'B', nombre: 'Azul (B)', hex: '#1d4ed8' },
+            { codigo: 'G', nombre: 'Verde (G)', hex: '#15803d' },
+            { codigo: 'N', nombre: 'Negro (N)', hex: '#1e293b' }
+        ]
+    }
+};
+
 const ColorRegistrations = () => {
     // --- Form States ---
     const [colorType, setColorType] = useState('tintometrico'); // 'tintometrico' | 'manual'
@@ -29,6 +102,8 @@ const ColorRegistrations = () => {
     const [hex, setHex] = useState('#3b82f6');
     const [clientName, setClientName] = useState('');
     const [observations, setObservations] = useState('');
+    const [selectedConcentrado, setSelectedConcentrado] = useState('');
+    const [manualPigments, setManualPigments] = useState({});
 
     // Product search autocomplete states (used in both manual and tintometric modes)
     const [productSearch, setProductSearch] = useState('');
@@ -359,6 +434,33 @@ const ColorRegistrations = () => {
         };
     };
 
+    const getManualFormula = () => {
+        if (colorType !== 'manual' || !selectedConcentrado) return null;
+
+        const concentradoInfo = CONCENTRADOS_PREDEFINIDOS[selectedConcentrado];
+        const pigments = Object.entries(manualPigments)
+            .filter(([_, qty]) => qty !== undefined && qty !== null && qty !== '' && parseFloat(qty) > 0)
+            .map(([code, qty]) => {
+                const pigInfo = concentradoInfo.pigmentos.find(p => p.codigo === code);
+                return {
+                    codigo: code,
+                    nombre: pigInfo ? pigInfo.nombre : code,
+                    hex: pigInfo ? pigInfo.hex : '#808080',
+                    cantidad: Number(parseFloat(qty).toFixed(4)),
+                    unidad: concentradoInfo.unidad
+                };
+            });
+
+        if (pigments.length === 0) return null;
+
+        return {
+            base: 'Manual',
+            sistema: concentradoInfo.nombre,
+            productName: selectedProduct ? selectedProduct.description : 'Preparado Manual',
+            pigmentos: pigments
+        };
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -377,7 +479,7 @@ const ColorRegistrations = () => {
 
         setSaving(true);
         try {
-            const calculatedFormula = getComputedFormula();
+            const calculatedFormula = colorType === 'tintometrico' ? getComputedFormula() : getManualFormula();
             const payload = {
                 color_type: colorType,
                 color_name: colorName.trim(),
@@ -412,6 +514,8 @@ const ColorRegistrations = () => {
             setSelectedCanSize(1);
             setActiveRecipe(null);
             setActiveSizes([]);
+            setSelectedConcentrado('');
+            setManualPigments({});
 
             // Refresh list
             fetchRegistrations();
@@ -728,6 +832,73 @@ const ColorRegistrations = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Selector de Concentrado para manual */}
+                                <div className="space-y-1.5 pt-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Concentrado / Entonador</label>
+                                    <div className="relative">
+                                        <select
+                                            value={selectedConcentrado}
+                                            onChange={(e) => {
+                                                setSelectedConcentrado(e.target.value);
+                                                setManualPigments({}); // resetear impulsos al cambiar
+                                            }}
+                                            className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-bold text-gray-700 cursor-pointer appearance-none animate-in fade-in duration-200"
+                                        >
+                                            <option value="">-- Sin Concentrado (Solo Color) --</option>
+                                            {Object.values(CONCENTRADOS_PREDEFINIDOS).map((conc) => (
+                                                <option key={conc.id} value={conc.id}>
+                                                    {conc.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Palette className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400 pointer-events-none" />
+                                        <ChevronDown className="absolute right-3 top-3.5 w-4.5 h-4.5 text-gray-400 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Inputs para los impulsos de cada pigmento si se seleccionó concentrado */}
+                                {selectedConcentrado && (
+                                    <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200 animate-pop">
+                                        <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Impulsos por Pigmento</span>
+                                            <span className="text-[9px] bg-blue-100 text-blue-800 font-extrabold px-1.5 py-0.5 rounded uppercase font-mono">
+                                                Unidad: Impulsos
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
+                                            {CONCENTRADOS_PREDEFINIDOS[selectedConcentrado].pigmentos.map((pig) => (
+                                                <div key={pig.codigo} className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <div 
+                                                            className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" 
+                                                            style={{ backgroundColor: pig.hex }}
+                                                        />
+                                                        <span className="text-[10px] font-bold text-gray-750 truncate" title={pig.nombre}>
+                                                            {pig.nombre}
+                                                        </span>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.0001"
+                                                        value={manualPigments[pig.codigo] || ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setManualPigments(prev => ({
+                                                                ...prev,
+                                                                [pig.codigo]: val
+                                                            }));
+                                                        }}
+                                                        className="w-full text-xs p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none bg-white font-mono font-bold text-right"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -1032,8 +1203,8 @@ const ColorRegistrations = () => {
                                                 </div>
                                             )}
 
-                                            {/* Collapsible Formula Viewer (For tintometric colors with formula saved) */}
-                                            {item.color_type === 'tintometrico' && item.formula?.pigmentos && (
+                                            {/* Collapsible Formula Viewer (For formulas with pigments saved) */}
+                                            {item.formula?.pigmentos && (
                                                 <div className="mt-2 border border-gray-100 rounded-lg overflow-hidden">
                                                     <button
                                                         type="button"
@@ -1056,7 +1227,7 @@ const ColorRegistrations = () => {
                                                                         <span className="truncate text-gray-700">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
                                                                     </div>
                                                                     <span className="font-mono text-gray-900 font-black shrink-0">
-                                                                        {String(pig.cantidad).replace('.', ',')} {item.formula.sistema?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.'}
+                                                                        {String(pig.cantidad).replace('.', ',')} {pig.unidad === 'impulsos' ? 'imp.' : pig.unidad || (item.formula.sistema?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.')}
                                                                     </span>
                                                                 </div>
                                                             ))}
