@@ -10,9 +10,11 @@ import {
     Calculator,
     Eye,
     EyeOff,
-    FileText
+    FileText,
+    Check
 } from 'lucide-react';
 import { tintometricoService } from '../utils/tintometricoService';
+import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { generateColorPDF } from '../utils/pdfGenerator';
 import { toast } from 'sonner';
 
@@ -63,6 +65,12 @@ const Tintometrico = () => {
         allowFormula: true
     });
 
+    // --- Estados para el Historial ---
+    const [history, setHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [clientName, setClientName] = useState('');
+    const [registering, setRegistering] = useState(false);
+
     // Refs para el scroll infinito (Intersection Observer)
     const observerRef = useRef(null);
     const loadMoreRef = useRef(null);
@@ -101,7 +109,132 @@ const Tintometrico = () => {
             }
         };
         initializeTintometria();
+        fetchHistory();
     }, []);
+
+    // --- 1.2. Funciones para Historial y Registro ---
+    const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+            const data = await colorRegistrationsService.getAll();
+            setHistory(data || []);
+        } catch (err) {
+            console.error('Error al cargar historial:', err);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const findProductInDB = async (productId, system) => {
+        try {
+            let codeToSearch = String(productId);
+            if (system?.toLowerCase() === 'alba') {
+                codeToSearch = codeToSearch.padStart(6, '0');
+            }
+            const result = await colorRegistrationsService.searchProducts(codeToSearch);
+            const exactMatch = result?.find(p => p.code?.trim() === codeToSearch.trim());
+            return exactMatch ? exactMatch.id : (result && result.length > 0 ? result[0].id : null);
+        } catch (err) {
+            console.error('Error al buscar producto en DB:', err);
+            return null;
+        }
+    };
+
+    const getComputedFormula = () => {
+        if (!activeRecipe) return null;
+
+        const pigments = activeRecipe.pigments.map(pig => {
+            const scaledQty = pig.cantidad * selectedCanSize;
+            return {
+                codigo: pig.code,
+                nombre: pig.name,
+                hex: pig.hex,
+                cantidad: Number(scaledQty.toFixed(4)),
+                unidad: activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'impulsos' : 'unidades'
+            };
+        });
+
+        return {
+            base: activeRecipe.base,
+            sistema: activeRecipe.sistemaTintometrico,
+            productName: activeRecipe.productName,
+            pigmentos: pigments
+        };
+    };
+
+    const handleRegisterPreparation = async () => {
+        if (!clientName.trim()) {
+            toast.error('Por favor, introduce el nombre del cliente.');
+            return;
+        }
+        if (!activeRecipe) {
+            toast.error('No hay una receta activa para registrar.');
+            return;
+        }
+
+        setRegistering(true);
+        try {
+            const calculatedFormula = getComputedFormula();
+            const realProductId = await findProductInDB(activeRecipe.productId, activeRecipe.sistemaTintometrico);
+            
+            const payload = {
+                color_type: 'tintometrico',
+                color_name: modalColor.nombre,
+                client_name: clientName.trim(),
+                product_id: realProductId,
+                user_id: null,
+                color_code: modalColor.codigo,
+                hex: modalColor.hex,
+                observations: observation.trim() || null,
+                capacity_real: selectedCanSize,
+                base: activeRecipe.base,
+                formula: calculatedFormula
+            };
+
+            await colorRegistrationsService.create(payload);
+            toast.success('¡Preparación registrada con éxito!');
+            setClientName('');
+            fetchHistory();
+        } catch (err) {
+            console.error('Error al registrar preparación:', err);
+            const msg = err.response?.data?.message || 'Error al registrar la preparación.';
+            toast.error(msg);
+        } finally {
+            setRegistering(false);
+        }
+    };
+
+    const handleReopenFromHistory = async (item) => {
+        if (!item.color_code) return;
+        try {
+            const brand = item.formula?.sistema?.toLowerCase() || 'all';
+            const response = await tintometricoService.fetchColores(
+                0,
+                item.color_code,
+                brand,
+                'all',
+                'id',
+                10
+            );
+            const { colores } = response || { colores: [] };
+            const exactColor = colores?.find(c => c.codigo.trim().toLowerCase() === item.color_code.trim().toLowerCase());
+            
+            if (exactColor) {
+                handleOpenModal(exactColor);
+                if (item.capacity_real) {
+                    setSelectedCanSize(item.capacity_real);
+                }
+                if (item.observations) {
+                    setObservation(item.observations);
+                }
+            } else {
+                toast.error('No se encontró el color en el catálogo actual.');
+            }
+        } catch (err) {
+            console.error('Error al volver a abrir el color:', err);
+            toast.error('Error al buscar el color en el catálogo.');
+        }
+    };
 
     // --- 2. Cargar colores con filtros y paginación ---
     const fetchColors = useCallback(async (pageIndex, isNewSearch = false) => {
@@ -205,6 +338,7 @@ const Tintometrico = () => {
         // Buscar equivalencias de color en otras marcas y catálogos repetidos
         fetchEquivalentColors(color);
         fetchColorDuplicates(color);
+        setClientName('');
 
         try {
             const response = await tintometricoService.fetchDosificacion(color.id);
@@ -264,6 +398,7 @@ const Tintometrico = () => {
         setRecipes([]);
         setCapacities([]);
         setObservation('');
+        setClientName('');
         
         try {
             const response = await tintometricoService.fetchDosificacion(color.id);
@@ -600,6 +735,69 @@ const Tintometrico = () => {
                                     )}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Historial de Preparaciones */}
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <FileText size={12} className="text-blue-600" /> Historial de Preparados
+                            </label>
+                            
+                            {loadingHistory ? (
+                                <div className="flex items-center gap-2 text-xs text-slate-400 py-3 justify-center">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-blue-500" />
+                                    <span>Cargando historial...</span>
+                                </div>
+                            ) : history.length === 0 ? (
+                                <div className="text-center py-4 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-400 font-semibold italic">
+                                    No hay preparaciones hoy
+                                </div>
+                            ) : (
+                                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                    {history.slice(0, 10).map((item) => {
+                                        const brand = item.formula?.sistema?.toLowerCase() || '';
+                                        const brandBadgeColor = brand.includes('alba') 
+                                            ? 'bg-violet-50 text-violet-600 border border-violet-100' 
+                                            : brand.includes('plavicon') 
+                                                ? 'bg-blue-50 text-blue-600 border border-blue-100' 
+                                                : brand.includes('tersuave')
+                                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                                    : 'bg-amber-50 text-amber-600 border border-amber-100';
+
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                onClick={() => handleReopenFromHistory(item)}
+                                                className="group flex flex-col p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-305 hover:border-blue-400 hover:shadow-sm transition-all text-left cursor-pointer relative"
+                                            >
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[10px] font-black text-slate-800 truncate max-w-[130px]" title={item.client_name}>
+                                                        {item.client_name}
+                                                    </span>
+                                                    <span className="text-[8px] font-bold text-slate-400">
+                                                        {new Date(item.created_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })} {new Date(item.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div 
+                                                        className="h-4.5 w-4.5 rounded-full border border-black/10 shadow-sm shrink-0" 
+                                                        style={{ backgroundColor: item.hex || '#cbd5e1' }} 
+                                                    />
+                                                    <div className="flex-grow min-w-0">
+                                                        <div className="text-[10px] font-bold text-slate-700 truncate">{item.color_name}</div>
+                                                        <div className="text-[8.5px] font-bold text-slate-400 font-mono tracking-wider">{item.color_code || 'Manual'}</div>
+                                                    </div>
+                                                    {brand && (
+                                                        <span className={`text-[7.5px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${brandBadgeColor}`}>
+                                                            {brand.includes('alba') ? 'Alba' : brand.includes('plavicon') ? 'Plavicon' : brand.includes('tersuave') ? 'Tersuave' : 'Manual'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                     </div>
@@ -1042,8 +1240,32 @@ const Tintometrico = () => {
                                                  </div>
                                              </div>
 
-                                             {/* Observaciones y Botón Descargar PDF */}
+                                             {/* Registrar en Historial & Descargar PDF */}
                                              <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                                                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+                                                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                                         📥 Registrar en Historial
+                                                     </span>
+                                                     <div className="flex gap-2">
+                                                         <input
+                                                             type="text"
+                                                             value={clientName}
+                                                             onChange={(e) => setClientName(e.target.value)}
+                                                             placeholder="Nombre del cliente..."
+                                                             className="flex-1 rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10"
+                                                         />
+                                                         <button
+                                                             type="button"
+                                                             onClick={handleRegisterPreparation}
+                                                             disabled={registering}
+                                                             className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shrink-0"
+                                                         >
+                                                             <Check size={12} />
+                                                             <span>{registering ? 'Registrando...' : 'Registrar'}</span>
+                                                         </button>
+                                                     </div>
+                                                 </div>
+
                                                  <div className="space-y-1">
                                                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Observación (Opcional)</label>
                                                      <textarea
