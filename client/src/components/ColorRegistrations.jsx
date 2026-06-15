@@ -116,6 +116,17 @@ const ColorRegistrations = () => {
     const [modType, setModType] = useState('original'); // 'original' | 'extras' | 'porcentaje'
     const [pctDirection, setPctDirection] = useState('mas'); // 'mas' | 'menos'
     const [pctValue, setPctValue] = useState('');
+    const [extraPigments, setExtraPigments] = useState({});
+    const [selectedExtraConcentrado, setSelectedExtraConcentrado] = useState('');
+
+    const getTintometricSystemId = (systemName) => {
+        if (!systemName) return null;
+        const name = systemName.toLowerCase();
+        if (name.includes('alba')) return 'sistema_alba';
+        if (name.includes('tersuave')) return 'sistema_tersuave';
+        if (name.includes('plavicon')) return 'sistema_plavicon';
+        return null;
+    };
 
     // Product search autocomplete states (used in both manual and tintometric modes)
     const [productSearch, setProductSearch] = useState('');
@@ -284,6 +295,21 @@ const ColorRegistrations = () => {
         }
     }, [selectedProductId, recipes, capacities]);
 
+    // Auto-select corresponding extra concentrado system when active recipe changes
+    useEffect(() => {
+        if (activeRecipe?.sistemaTintometrico) {
+            const sysId = getTintometricSystemId(activeRecipe.sistemaTintometrico);
+            if (sysId) {
+                setSelectedExtraConcentrado(sysId);
+            } else {
+                setSelectedExtraConcentrado('entonador_universal');
+            }
+        } else {
+            setSelectedExtraConcentrado('');
+        }
+        setExtraPigments({});
+    }, [activeRecipe]);
+
     // Lookup corresponding product in main DB when selected recipe changes
     useEffect(() => {
         const lookupProduct = async () => {
@@ -424,6 +450,8 @@ const ColorRegistrations = () => {
         setActiveSizes([]);
         setSelectedProduct(null);
         setProductSearch('');
+        setExtraPigments({});
+        setSelectedExtraConcentrado('');
     };
 
     // Helper functions for capacity sizes
@@ -475,11 +503,29 @@ const ColorRegistrations = () => {
             };
         });
 
+        const extraPigs = [];
+        if (modType === 'extras' && selectedExtraConcentrado) {
+            const concentradoInfo = CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado];
+            Object.entries(extraPigments)
+                .filter(([_, qty]) => qty !== undefined && qty !== null && qty !== '' && parseFloat(qty) > 0)
+                .forEach(([code, qty]) => {
+                    const pigInfo = concentradoInfo.pigmentos.find(p => p.codigo === code);
+                    extraPigs.push({
+                        codigo: code,
+                        nombre: pigInfo ? pigInfo.nombre : code,
+                        hex: pigInfo ? pigInfo.hex : '#808080',
+                        cantidad: Number(parseFloat(qty).toFixed(4)),
+                        unidad: concentradoInfo.unidad
+                    });
+                });
+        }
+
         return {
             base: activeRecipe.base,
             sistema: activeRecipe.sistemaTintometrico,
             productName: activeRecipe.productName,
-            pigmentos: pigments
+            pigmentos: pigments,
+            pigmentos_extras: extraPigs.length > 0 ? extraPigs : undefined
         };
     };
 
@@ -578,6 +624,8 @@ const ColorRegistrations = () => {
             setModType('original');
             setPctDirection('mas');
             setPctValue('');
+            setExtraPigments({});
+            setSelectedExtraConcentrado('');
 
             // Refresh list
             fetchRegistrations();
@@ -1160,8 +1208,79 @@ const ColorRegistrations = () => {
                             )}
 
                             {modType === 'extras' && (
-                                <div className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl text-[10.5px] font-bold text-amber-800 animate-in slide-in-from-top duration-200">
-                                    💡 Se registrará que la fórmula tiene colorantes adicionales/extras agregados a mano además de la receta original.
+                                <div className="space-y-3 bg-amber-50/50 border border-amber-100 rounded-xl p-3 animate-in slide-in-from-top duration-200">
+                                    <div className="text-[10.5px] font-bold text-amber-800">
+                                        💡 Se registrará que la fórmula tiene colorantes adicionales/extras agregados a mano además de la receta original.
+                                    </div>
+                                    {colorType === 'tintometrico' && (
+                                        <div className="space-y-3 pt-2 border-t border-amber-200/60">
+                                            {/* Selector del sistema de extras */}
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-bold text-amber-700 uppercase tracking-wider block">Sistema del Colorante Extra</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={selectedExtraConcentrado}
+                                                        onChange={(e) => {
+                                                            setSelectedExtraConcentrado(e.target.value);
+                                                            setExtraPigments({});
+                                                        }}
+                                                        className="w-full text-xs p-2.5 pl-8 border border-amber-200 rounded-lg bg-white font-bold text-gray-750 focus:outline-none cursor-pointer appearance-none"
+                                                    >
+                                                        <option value="">-- Sin Colorantes Extras (Solo etiqueta) --</option>
+                                                        {Object.values(CONCENTRADOS_PREDEFINIDOS).map((conc) => (
+                                                            <option key={conc.id} value={conc.id}>
+                                                                {conc.nombre}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <Palette className="absolute left-2.5 top-3 w-3.5 h-3.5 text-amber-600 pointer-events-none" />
+                                                    <ChevronDown className="absolute right-2.5 top-3 w-3.5 h-3.5 text-amber-600 pointer-events-none" />
+                                                </div>
+                                            </div>
+
+                                            {/* Inputs de pigmentos extras */}
+                                            {selectedExtraConcentrado && CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado] && (
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between items-center text-[9px] font-bold text-amber-850 uppercase tracking-wider">
+                                                        <span>Impulsos Extras</span>
+                                                        <span className="bg-amber-100 text-amber-800 font-extrabold px-1 py-0.5 rounded text-[8px]">
+                                                            {CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado].unidad}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
+                                                        {CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado].pigmentos.map((pig) => (
+                                                            <div key={pig.codigo} className="flex flex-col gap-0.5">
+                                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <div 
+                                                                        className="w-2 rounded-full border border-gray-200 shadow-sm shrink-0" 
+                                                                        style={{ backgroundColor: pig.hex, height: '8px' }}
+                                                                    />
+                                                                    <span className="text-[9.5px] font-bold text-gray-750 truncate" title={pig.nombre}>
+                                                                        {pig.nombre}
+                                                                    </span>
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="0.0001"
+                                                                    value={extraPigments[pig.codigo] || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        setExtraPigments(prev => ({
+                                                                            ...prev,
+                                                                            [pig.codigo]: val
+                                                                        }));
+                                                                    }}
+                                                                    className="w-full text-[11px] p-1.5 border border-amber-250 rounded-md focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 outline-none bg-white font-mono font-bold text-right"
+                                                                    placeholder="0"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1381,6 +1500,26 @@ const ColorRegistrations = () => {
                                                                     </span>
                                                                 </div>
                                                             ))}
+                                                            
+                                                            {/* Extra pigments display */}
+                                                            {item.formula.pigmentos_extras && item.formula.pigmentos_extras.length > 0 && (
+                                                                <div className="pt-1.5 mt-1 border-t border-dashed border-gray-200">
+                                                                    <div className="text-[9px] text-amber-700 font-black uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                                        <span>➕ Colorantes Adicionales (Extras):</span>
+                                                                    </div>
+                                                                    {item.formula.pigmentos_extras.map((pig, idx) => (
+                                                                        <div key={`extra-${idx}`} className="flex justify-between items-center py-1 text-amber-900">
+                                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                                <div className="w-2 rounded-full border border-gray-200 shadow-sm shrink-0 animate-pulse" style={{ backgroundColor: pig.hex || '#64748b', height: '8px' }} />
+                                                                                <span className="truncate font-bold">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
+                                                                            </div>
+                                                                            <span className="font-mono font-black shrink-0">
+                                                                                +{String(pig.cantidad).replace('.', ',')} {pig.unidad === 'impulsos' ? 'imp.' : pig.unidad || 'imp.'}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
