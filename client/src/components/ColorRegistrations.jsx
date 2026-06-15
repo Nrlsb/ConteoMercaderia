@@ -44,18 +44,19 @@ const CONCENTRADOS_PREDEFINIDOS = {
         nombre: 'Sistema Alba (Manual)',
         unidad: 'impulsos',
         pigmentos: [
-            { codigo: 'KX', nombre: 'BLANCO (KX)', hex: '#ffffff' },
-            { codigo: 'B', nombre: 'NEGRO (B)', hex: '#212121' },
-            { codigo: 'AXX', nombre: 'AMARILLO (AXX)', hex: '#FFEB3B' },
-            { codigo: 'C', nombre: 'AMARILLO OXIDO (C)', hex: '#F57F17' },
-            { codigo: 'T', nombre: 'AMARILLO MEDIO (T)', hex: '#FFC107' },
-            { codigo: 'L', nombre: 'AMBAR CRUDO (L)', hex: '#FF6F00' },
-            { codigo: 'R', nombre: 'ROJO (R)', hex: '#D50000' },
-            { codigo: 'F', nombre: 'ROJO OXIDO (F)', hex: '#D84315' },
-            { codigo: 'V', nombre: 'MAGENTA (V)', hex: '#E91E63' },
-            { codigo: 'E', nombre: 'AZUL PHTHALO (E)', hex: '#0D47A1' },
-            { codigo: 'D', nombre: 'VERDE PHTHALO (D)', hex: '#2E7D32' },
-            { codigo: 'I', nombre: 'MARRON (I)', hex: '#8d6e63' }
+            { codigo: 'WH1', nombre: 'BLANCO (WH1)', hex: '#F3F4F6' },
+            { codigo: 'NO1', nombre: 'NEGRO (NO1)', hex: '#1A1A1A' },
+            { codigo: 'XY1', nombre: 'XY1 (Amarillo)', hex: '#F6D32D' },
+            { codigo: 'YE1', nombre: 'YE1 (Amarillo)', hex: '#F3E15F' },
+            { codigo: 'YE2', nombre: 'YE2 (Amarillo)', hex: '#C19227' },
+            { codigo: 'XR1', nombre: 'XR1 (Amarillo)', hex: '#F2B824' },
+            { codigo: 'OR1', nombre: 'OR1 (Naranja)', hex: '#E05E1B' },
+            { codigo: 'RE1', nombre: 'RE1 (Rojo)', hex: '#A8201A' },
+            { codigo: 'MA1', nombre: 'MA1 (Magenta)', hex: '#D11C5B' },
+            { codigo: 'BU1', nombre: 'BU1 (Azul)', hex: '#1C3B8B' },
+            { codigo: 'BU2', nombre: 'BU2 (Azul)', hex: '#1E6BB8' },
+            { codigo: 'GR1', nombre: 'GR1 (Verde)', hex: '#1E753B' },
+            { codigo: 'UM1', nombre: 'UM1 (Marrón)', hex: '#6F523B' }
         ]
     },
     sistema_tersuave: {
@@ -86,19 +87,18 @@ const CONCENTRADOS_PREDEFINIDOS = {
         nombre: 'Sistema Plavicon (Manual)',
         unidad: 'impulsos',
         pigmentos: [
-            { codigo: 'WH1', nombre: 'BLANCO (WH1)', hex: '#F3F4F6' },
-            { codigo: 'NO1', nombre: 'NEGRO (NO1)', hex: '#1A1A1A' },
-            { codigo: 'XY1', nombre: 'XY1 (Amarillo)', hex: '#F6D32D' },
-            { codigo: 'YE1', nombre: 'YE1 (Amarillo)', hex: '#F3E15F' },
-            { codigo: 'YE2', nombre: 'YE2 (Amarillo)', hex: '#C19227' },
-            { codigo: 'XR1', nombre: 'XR1 (Amarillo)', hex: '#F2B824' },
-            { codigo: 'OR1', nombre: 'OR1 (Naranja)', hex: '#E05E1B' },
-            { codigo: 'RE1', nombre: 'RE1 (Rojo)', hex: '#A8201A' },
-            { codigo: 'MA1', nombre: 'MA1 (Magenta)', hex: '#D11C5B' },
-            { codigo: 'BU1', nombre: 'BU1 (Azul)', hex: '#1C3B8B' },
-            { codigo: 'BU2', nombre: 'BU2 (Azul)', hex: '#1E6BB8' },
-            { codigo: 'GR1', nombre: 'GR1 (Verde)', hex: '#1E753B' },
-            { codigo: 'UM1', nombre: 'UM1 (Marrón)', hex: '#6F523B' }
+            { codigo: 'KX', nombre: 'BLANCO (KX)', hex: '#ffffff' },
+            { codigo: 'B', nombre: 'NEGRO (B)', hex: '#212121' },
+            { codigo: 'AXX', nombre: 'AMARILLO (AXX)', hex: '#FFEB3B' },
+            { codigo: 'C', nombre: 'AMARILLO OXIDO (C)', hex: '#F57F17' },
+            { codigo: 'T', nombre: 'AMARILLO MEDIO (T)', hex: '#FFC107' },
+            { codigo: 'L', nombre: 'AMBAR CRUDO (L)', hex: '#FF6F00' },
+            { codigo: 'R', nombre: 'ROJO (R)', hex: '#D50000' },
+            { codigo: 'F', nombre: 'ROJO OXIDO (F)', hex: '#D84315' },
+            { codigo: 'V', nombre: 'MAGENTA (V)', hex: '#E91E63' },
+            { codigo: 'E', nombre: 'AZUL PHTHALO (E)', hex: '#0D47A1' },
+            { codigo: 'D', nombre: 'VERDE PHTHALO (D)', hex: '#2E7D32' },
+            { codigo: 'I', nombre: 'MARRON (I)', hex: '#8d6e63' }
         ]
     }
 };
