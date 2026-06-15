@@ -452,6 +452,7 @@ const ColorRegistrations = () => {
         setProductSearch('');
         setExtraPigments({});
         setSelectedExtraConcentrado('');
+        setModType('original');
     };
 
     // Helper functions for capacity sizes
@@ -579,10 +580,12 @@ const ColorRegistrations = () => {
             // Construir observaciones estructuradas con prefijos para identificar la modificación de fórmula
             let finalObservations = observations.trim();
             let prefix = '';
-            if (modType === 'extras') {
-                prefix = '[MOD: EXTRAS]';
-            } else if (modType === 'porcentaje' && pctValue.trim() !== '') {
-                prefix = `[MOD: PCT_${pctDirection.toUpperCase()}_${pctValue.trim()}]`;
+            if (colorType === 'tintometrico') {
+                if (modType === 'extras') {
+                    prefix = '[MOD: EXTRAS]';
+                } else if (modType === 'porcentaje' && pctValue.trim() !== '') {
+                    prefix = `[MOD: PCT_${pctDirection.toUpperCase()}_${pctValue.trim()}]`;
+                }
             }
 
             const payload = {
@@ -1122,168 +1125,170 @@ const ColorRegistrations = () => {
                         </div>
 
                         {/* Ajustes de Fórmula / Modificaciones */}
-                        <div className="space-y-2.5 pt-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Ajuste / Modificación de Fórmula</label>
-                            
-                            {/* Chips selectores */}
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setModType('original')}
-                                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
-                                        modType === 'original'
-                                            ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
-                                            : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    Fórmula Original
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setModType('extras')}
-                                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
-                                        modType === 'extras'
-                                            ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm'
-                                            : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    Colorantes Extras
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setModType('porcentaje')}
-                                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
-                                        modType === 'porcentaje'
-                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm'
-                                            : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    Ajustar % Conc.
-                                </button>
-                            </div>
-
-                            {/* Controles condicionales para ajuste por porcentaje */}
-                            {modType === 'porcentaje' && (
-                                <div className="flex items-center gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl animate-in slide-in-from-top duration-200">
-                                    {/* Dirección */}
-                                    <div className="flex bg-white rounded-lg border border-gray-200 p-0.5 shrink-0">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPctDirection('mas')}
-                                            className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                                                pctDirection === 'mas'
-                                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                                    : 'text-gray-500 hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            MÁS (+)
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPctDirection('menos')}
-                                            className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                                                pctDirection === 'menos'
-                                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                                    : 'text-gray-500 hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            MENOS (-)
-                                        </button>
-                                    </div>
-                                    
-                                    {/* Porcentaje Input */}
-                                    <div className="flex items-center gap-1.5 flex-1">
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="100"
-                                            value={pctValue}
-                                            onChange={(e) => setPctValue(e.target.value)}
-                                            className="w-full text-xs p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white font-bold text-gray-800 text-center"
-                                            placeholder="Ej: 10"
-                                        />
-                                        <span className="text-xs font-bold text-indigo-750">%</span>
-                                    </div>
+                        {colorType === 'tintometrico' && (
+                            <div className="space-y-2.5 pt-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Ajuste / Modificación de Fórmula</label>
+                                
+                                {/* Chips selectores */}
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setModType('original')}
+                                        className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
+                                            modType === 'original'
+                                                ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
+                                                : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        Fórmula Original
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setModType('extras')}
+                                        className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
+                                            modType === 'extras'
+                                                ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm'
+                                                : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        Colorantes Extras
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setModType('porcentaje')}
+                                        className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
+                                            modType === 'porcentaje'
+                                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm'
+                                                : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        Ajustar % Conc.
+                                    </button>
                                 </div>
-                            )}
 
-                            {modType === 'extras' && (
-                                <div className="space-y-3 bg-amber-50/50 border border-amber-100 rounded-xl p-3 animate-in slide-in-from-top duration-200">
-                                    <div className="text-[10.5px] font-bold text-amber-800">
-                                        💡 Se registrará que la fórmula tiene colorantes adicionales/extras agregados a mano además de la receta original.
-                                    </div>
-                                    {colorType === 'tintometrico' && (
-                                        <div className="space-y-3 pt-2 border-t border-amber-200/60">
-                                            {/* Selector del sistema de extras */}
-                                            <div className="space-y-1">
-                                                <label className="text-[9px] font-bold text-amber-700 uppercase tracking-wider block">Sistema del Colorante Extra</label>
-                                                <div className="relative">
-                                                    <select
-                                                        value={selectedExtraConcentrado}
-                                                        onChange={(e) => {
-                                                            setSelectedExtraConcentrado(e.target.value);
-                                                            setExtraPigments({});
-                                                        }}
-                                                        className="w-full text-xs p-2.5 pl-8 border border-amber-200 rounded-lg bg-white font-bold text-gray-750 focus:outline-none cursor-pointer appearance-none"
-                                                    >
-                                                        <option value="">-- Sin Colorantes Extras (Solo etiqueta) --</option>
-                                                        {Object.values(CONCENTRADOS_PREDEFINIDOS).map((conc) => (
-                                                            <option key={conc.id} value={conc.id}>
-                                                                {conc.nombre}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <Palette className="absolute left-2.5 top-3 w-3.5 h-3.5 text-amber-600 pointer-events-none" />
-                                                    <ChevronDown className="absolute right-2.5 top-3 w-3.5 h-3.5 text-amber-600 pointer-events-none" />
-                                                </div>
-                                            </div>
-
-                                            {/* Inputs de pigmentos extras */}
-                                            {selectedExtraConcentrado && CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado] && (
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between items-center text-[9px] font-bold text-amber-850 uppercase tracking-wider">
-                                                        <span>Impulsos Extras</span>
-                                                        <span className="bg-amber-100 text-amber-800 font-extrabold px-1 py-0.5 rounded text-[8px]">
-                                                            {CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado].unidad}
-                                                        </span>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
-                                                        {CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado].pigmentos.map((pig) => (
-                                                            <div key={pig.codigo} className="flex flex-col gap-0.5">
-                                                                <div className="flex items-center gap-1.5 min-w-0">
-                                                                    <div 
-                                                                        className="w-2 rounded-full border border-gray-200 shadow-sm shrink-0" 
-                                                                        style={{ backgroundColor: pig.hex, height: '8px' }}
-                                                                    />
-                                                                    <span className="text-[9.5px] font-bold text-gray-750 truncate" title={pig.nombre}>
-                                                                        {pig.nombre}
-                                                                    </span>
-                                                                </div>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    step="0.0001"
-                                                                    value={extraPigments[pig.codigo] || ''}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        setExtraPigments(prev => ({
-                                                                            ...prev,
-                                                                            [pig.codigo]: val
-                                                                        }));
-                                                                    }}
-                                                                    className="w-full text-[11px] p-1.5 border border-amber-250 rounded-md focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 outline-none bg-white font-mono font-bold text-right"
-                                                                    placeholder="0"
-                                                                />
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
+                                {/* Controles condicionales para ajuste por porcentaje */}
+                                {modType === 'porcentaje' && (
+                                    <div className="flex items-center gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl animate-in slide-in-from-top duration-200">
+                                        {/* Dirección */}
+                                        <div className="flex bg-white rounded-lg border border-gray-200 p-0.5 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPctDirection('mas')}
+                                                className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
+                                                    pctDirection === 'mas'
+                                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                                        : 'text-gray-500 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                MÁS (+)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPctDirection('menos')}
+                                                className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
+                                                    pctDirection === 'menos'
+                                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                                        : 'text-gray-500 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                MENOS (-)
+                                            </button>
                                         </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                        
+                                        {/* Porcentaje Input */}
+                                        <div className="flex items-center gap-1.5 flex-1">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="100"
+                                                value={pctValue}
+                                                onChange={(e) => setPctValue(e.target.value)}
+                                                className="w-full text-xs p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white font-bold text-gray-800 text-center"
+                                                placeholder="Ej: 10"
+                                            />
+                                            <span className="text-xs font-bold text-indigo-750">%</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {modType === 'extras' && (
+                                    <div className="space-y-3 bg-amber-50/50 border border-amber-100 rounded-xl p-3 animate-in slide-in-from-top duration-200">
+                                        <div className="text-[10.5px] font-bold text-amber-800">
+                                            💡 Se registrará que la fórmula tiene colorantes adicionales/extras agregados a mano además de la receta original.
+                                        </div>
+                                        {colorType === 'tintometrico' && (
+                                            <div className="space-y-3 pt-2 border-t border-amber-200/60">
+                                                {/* Selector del sistema de extras */}
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-bold text-amber-700 uppercase tracking-wider block">Sistema del Colorante Extra</label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={selectedExtraConcentrado}
+                                                            onChange={(e) => {
+                                                                setSelectedExtraConcentrado(e.target.value);
+                                                                setExtraPigments({});
+                                                            }}
+                                                            className="w-full text-xs p-2.5 pl-8 border border-amber-200 rounded-lg bg-white font-bold text-gray-750 focus:outline-none cursor-pointer appearance-none"
+                                                        >
+                                                            <option value="">-- Sin Colorantes Extras (Solo etiqueta) --</option>
+                                                            {Object.values(CONCENTRADOS_PREDEFINIDOS).map((conc) => (
+                                                                <option key={conc.id} value={conc.id}>
+                                                                    {conc.nombre}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <Palette className="absolute left-2.5 top-3 w-3.5 h-3.5 text-amber-600 pointer-events-none" />
+                                                        <ChevronDown className="absolute right-2.5 top-3 w-3.5 h-3.5 text-amber-600 pointer-events-none" />
+                                                    </div>
+                                                </div>
+
+                                                {/* Inputs de pigmentos extras */}
+                                                {selectedExtraConcentrado && CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado] && (
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center text-[9px] font-bold text-amber-850 uppercase tracking-wider">
+                                                            <span>Impulsos Extras</span>
+                                                            <span className="bg-amber-100 text-amber-800 font-extrabold px-1 py-0.5 rounded text-[8px]">
+                                                                {CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado].unidad}
+                                                            </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
+                                                            {CONCENTRADOS_PREDEFINIDOS[selectedExtraConcentrado].pigmentos.map((pig) => (
+                                                                <div key={pig.codigo} className="flex flex-col gap-0.5">
+                                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                                        <div 
+                                                                            className="w-2 rounded-full border border-gray-200 shadow-sm shrink-0" 
+                                                                            style={{ backgroundColor: pig.hex, height: '8px' }}
+                                                                        />
+                                                                        <span className="text-[9.5px] font-bold text-gray-750 truncate" title={pig.nombre}>
+                                                                            {pig.nombre}
+                                                                        </span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="0.0001"
+                                                                        value={extraPigments[pig.codigo] || ''}
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            setExtraPigments(prev => ({
+                                                                                ...prev,
+                                                                                [pig.codigo]: val
+                                                                            }));
+                                                                        }}
+                                                                        className="w-full text-[11px] p-1.5 border border-amber-250 rounded-md focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 outline-none bg-white font-mono font-bold text-right"
+                                                                        placeholder="0"
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Observations */}
                         <div className="space-y-1.5">
