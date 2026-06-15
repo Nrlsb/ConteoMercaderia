@@ -113,6 +113,9 @@ const ColorRegistrations = () => {
     const [observations, setObservations] = useState('');
     const [selectedConcentrado, setSelectedConcentrado] = useState('');
     const [manualPigments, setManualPigments] = useState({});
+    const [modType, setModType] = useState('original'); // 'original' | 'extras' | 'porcentaje'
+    const [pctDirection, setPctDirection] = useState('mas'); // 'mas' | 'menos'
+    const [pctValue, setPctValue] = useState('');
 
     // Product search autocomplete states (used in both manual and tintometric modes)
     const [productSearch, setProductSearch] = useState('');
@@ -153,6 +156,43 @@ const ColorRegistrations = () => {
     // Refs for clicking outside dropdowns
     const productDropdownRef = useRef(null);
     const tintometricDropdownRef = useRef(null);
+
+    // Renderiza de forma premium las observaciones parseando los modificadores si existen
+    const renderObservations = (obs) => {
+        if (!obs) return null;
+
+        let cleanObs = obs;
+        let badge = null;
+
+        if (obs.startsWith('[MOD: EXTRAS]')) {
+            cleanObs = obs.replace('[MOD: EXTRAS]', '').trim();
+            badge = (
+                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[8px] font-black uppercase mb-1">
+                    ➕ Colorantes Extras
+                </span>
+            );
+        } else {
+            const pctMatch = obs.match(/^\[MOD: PCT_(MAS|MENOS)_([\d.,]+)\]/);
+            if (pctMatch) {
+                const direction = pctMatch[1] === 'MAS' ? '+' : '-';
+                const value = pctMatch[2];
+                cleanObs = obs.replace(pctMatch[0], '').trim();
+                badge = (
+                    <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[8px] font-black uppercase mb-1">
+                        ⚠️ Ajuste: {direction}{value}% Concentrado
+                    </span>
+                );
+            }
+        }
+
+        return (
+            <div className="p-2.5 bg-gray-50 rounded-lg border border-gray-100 text-[11px] font-semibold text-gray-600 leading-relaxed max-h-24 overflow-y-auto">
+                <span className="font-bold text-gray-500 block mb-0.5 text-[9px] uppercase tracking-wider">Notas:</span>
+                {badge}
+                {cleanObs && <p className="mt-0.5 text-gray-700 font-medium">{cleanObs}</p>}
+            </div>
+        );
+    };
 
     // Load registrations and users list on mount
     useEffect(() => {
@@ -489,6 +529,16 @@ const ColorRegistrations = () => {
         setSaving(true);
         try {
             const calculatedFormula = colorType === 'tintometrico' ? getComputedFormula() : getManualFormula();
+            
+            // Construir observaciones estructuradas con prefijos para identificar la modificación de fórmula
+            let finalObservations = observations.trim();
+            let prefix = '';
+            if (modType === 'extras') {
+                prefix = '[MOD: EXTRAS]';
+            } else if (modType === 'porcentaje' && pctValue.trim() !== '') {
+                prefix = `[MOD: PCT_${pctDirection.toUpperCase()}_${pctValue.trim()}]`;
+            }
+
             const payload = {
                 color_type: colorType,
                 color_name: colorName.trim(),
@@ -497,7 +547,7 @@ const ColorRegistrations = () => {
                 user_id: userId || null,
                 color_code: colorType === 'tintometrico' ? colorCode : null,
                 hex: hex,
-                observations: observations.trim() || null,
+                observations: prefix ? `${prefix} ${finalObservations}`.trim() : finalObservations || null,
                 capacity_real: colorType === 'tintometrico' ? selectedCanSize : null,
                 base: colorType === 'tintometrico' ? activeRecipe?.base : null,
                 formula: calculatedFormula
@@ -525,6 +575,9 @@ const ColorRegistrations = () => {
             setActiveSizes([]);
             setSelectedConcentrado('');
             setManualPigments({});
+            setModType('original');
+            setPctDirection('mas');
+            setPctValue('');
 
             // Refresh list
             fetchRegistrations();
@@ -1020,9 +1073,102 @@ const ColorRegistrations = () => {
                             </div>
                         </div>
 
+                        {/* Ajustes de Fórmula / Modificaciones */}
+                        <div className="space-y-2.5 pt-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Ajuste / Modificación de Fórmula</label>
+                            
+                            {/* Chips selectores */}
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setModType('original')}
+                                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
+                                        modType === 'original'
+                                            ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
+                                            : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Fórmula Original
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModType('extras')}
+                                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
+                                        modType === 'extras'
+                                            ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm'
+                                            : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Colorantes Extras
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModType('porcentaje')}
+                                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border transition-all text-center cursor-pointer ${
+                                        modType === 'porcentaje'
+                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm'
+                                            : 'bg-slate-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Ajustar % Conc.
+                                </button>
+                            </div>
+
+                            {/* Controles condicionales para ajuste por porcentaje */}
+                            {modType === 'porcentaje' && (
+                                <div className="flex items-center gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl animate-in slide-in-from-top duration-200">
+                                    {/* Dirección */}
+                                    <div className="flex bg-white rounded-lg border border-gray-200 p-0.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPctDirection('mas')}
+                                            className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
+                                                pctDirection === 'mas'
+                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                    : 'text-gray-500 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            MÁS (+)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPctDirection('menos')}
+                                            className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
+                                                pctDirection === 'menos'
+                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                    : 'text-gray-500 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            MENOS (-)
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Porcentaje Input */}
+                                    <div className="flex items-center gap-1.5 flex-1">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={pctValue}
+                                            onChange={(e) => setPctValue(e.target.value)}
+                                            className="w-full text-xs p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white font-bold text-gray-800 text-center"
+                                            placeholder="Ej: 10"
+                                        />
+                                        <span className="text-xs font-bold text-indigo-750">%</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {modType === 'extras' && (
+                                <div className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl text-[10.5px] font-bold text-amber-800 animate-in slide-in-from-top duration-200">
+                                    💡 Se registrará que la fórmula tiene colorantes adicionales/extras agregados a mano además de la receta original.
+                                </div>
+                            )}
+                        </div>
+
                         {/* Observations */}
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Observaciones</label>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Observaciones adicionales</label>
                             <textarea
                                 value={observations}
                                 onChange={(e) => setObservations(e.target.value)}
@@ -1205,12 +1351,7 @@ const ColorRegistrations = () => {
                                             )}
 
                                             {/* Observations */}
-                                            {item.observations && (
-                                                <div className="p-2.5 bg-gray-50 rounded-lg border border-gray-100 text-[11px] font-semibold text-gray-600 leading-relaxed max-h-16 overflow-y-auto">
-                                                    <span className="font-bold text-gray-500 block mb-0.5 text-[9px] uppercase tracking-wider">Notas:</span>
-                                                    {item.observations}
-                                                </div>
-                                            )}
+                                            {renderObservations(item.observations)}
 
                                             {/* Collapsible Formula Viewer (For formulas with pigments saved) */}
                                             {item.formula?.pigmentos && (
