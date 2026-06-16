@@ -33,6 +33,7 @@ const PesajePage = lazy(() => import('./components/PesajePage'));
 const SeguimientoPedidosPage = lazy(() => import('./components/SeguimientoPedidosPage'));
 const Tintometrico = lazy(() => import('./components/Tintometrico'));
 const ColorRegistrations = lazy(() => import('./components/ColorRegistrations'));
+const ProductsPage = lazy(() => import('./components/ProductsPage'));
 
 
 const ProtectedRoute = ({ children, role, tabPermission }) => {
@@ -111,6 +112,7 @@ const RoleBasedHome = () => {
       'tab_seguimiento_pedidos': '/seguimiento-pedidos',
       'tab_tintometrico': '/tintometrico',
       'tab_registro_colores': '/color-registrations',
+      'tab_productos': '/products',
     };
     // Find the first allowed tab and redirect
     for (const perm of userPermissions) {
@@ -290,6 +292,11 @@ const AppContent = () => {
                 <Route path="/color-registrations" element={
                   <ProtectedRoute tabPermission="tab_registro_colores">
                     <ColorRegistrations />
+                  </ProtectedRoute>
+                } />
+                <Route path="/products" element={
+                  <ProtectedRoute tabPermission="tab_productos">
+                    <ProductsPage />
                   </ProtectedRoute>
                 } />
 

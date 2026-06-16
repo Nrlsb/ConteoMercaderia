@@ -256,6 +256,14 @@ const UsersManage = () => {
             id: 'tab_registro_colores',
             name: 'Registro Colores',
             specialPermissions: []
+        },
+        {
+            id: 'tab_productos',
+            name: 'Productos',
+            specialPermissions: [
+                { id: 'create_products', name: 'Crear Productos' },
+                { id: 'edit_products', name: 'Editar Productos' }
+            ]
         }
     ];
 
@@ -278,7 +286,7 @@ const UsersManage = () => {
         },
         'gestor_stock': {
             name: 'Gestor Stock',
-            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data', 'tab_etiquetas']
+            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data', 'tab_etiquetas', 'tab_productos', 'create_products']
         }
     };
 

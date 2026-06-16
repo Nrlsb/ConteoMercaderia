@@ -79,6 +79,7 @@ const Navigation = () => {
     const showSeguimientoPedidos = canSeeTab('tab_seguimiento_pedidos', true);
     const showTintometrico = canSeeTab('tab_tintometrico', true);
     const showRegistroColores = canSeeTab('tab_registro_colores', true);
+    const showProductos = canSeeTab('tab_productos', isAdminLike);
 
     const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal;
     const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings');
@@ -135,6 +136,9 @@ const Navigation = () => {
                             )}
                             {showRegistroColores && (
                                 <Link to="/color-registrations" className={getLinkClass('/color-registrations')}>Registro Colores</Link>
+                            )}
+                            {showProductos && (
+                                <Link to="/products" className={getLinkClass('/products')}>Productos</Link>
                             )}
 
                             {/* Dropdown: Movimientos */}
@@ -274,6 +278,9 @@ const Navigation = () => {
                         )}
                         {showRegistroColores && (
                             <Link to="/color-registrations" className={getMobileLinkClass('/color-registrations')} onClick={() => setIsOpen(false)}>Registro Colores</Link>
+                        )}
+                        {showProductos && (
+                            <Link to="/products" className={getMobileLinkClass('/products')} onClick={() => setIsOpen(false)}>Productos</Link>
                         )}
                         <Link to="/ayuda" className={getMobileLinkClass('/ayuda')} onClick={() => setIsOpen(false)}>Ayuda</Link>
 

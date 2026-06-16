@@ -17,8 +17,11 @@ router.get('/barcode/:barcode', verifyToken, productController.getByBarcode);
 // Import products from Excel (Admin)
 router.post('/import', verifyToken, hasPermission('import_data'), multer({ storage: multer.memoryStorage() }).single('file'), productController.importProducts);
 
+// Create a new product
+router.post('/', verifyToken, hasPermission('create_products'), productController.createProduct);
+
 // Update product details
-router.put('/:id', verifyToken, productController.updateProduct);
+router.put('/:id', verifyToken, hasPermission('edit_products'), productController.updateProduct);
 
 // Update product barcode by code
 router.put('/:code/barcode', verifyToken, productController.updateBarcode);

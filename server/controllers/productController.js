@@ -104,10 +104,101 @@ exports.getByBarcode = async (req, res) => {
     }
 };
 
+// Create a new product
+exports.createProduct = async (req, res) => {
+    const { 
+        code, 
+        description, 
+        barcode, 
+        barcode_secondary, 
+        brand, 
+        primary_unit, 
+        secondary_unit, 
+        conversion_factor, 
+        conversion_type, 
+        counting_category, 
+        capacity, 
+        real_weight, 
+        provider_code, 
+        provider_description 
+    } = req.body;
+
+    if (!code || !code.trim()) {
+        return res.status(400).json({ message: 'El código de producto es requerido' });
+    }
+    if (!description || !description.trim()) {
+        return res.status(400).json({ message: 'La descripción del producto es requerida' });
+    }
+
+    try {
+        // Verificar duplicados
+        const { data: existing, error: checkError } = await supabase
+            .from('products')
+            .select('id')
+            .eq('code', code.trim())
+            .maybeSingle();
+
+        if (checkError) throw checkError;
+        if (existing) {
+            return res.status(400).json({ message: `Ya existe un producto con el código "${code}"` });
+        }
+
+        const insertData = {
+            code: code.trim(),
+            description: description.trim(),
+            barcode: barcode || null,
+            barcode_secondary: barcode_secondary || null,
+            brand: brand || null,
+            primary_unit: primary_unit || null,
+            secondary_unit: secondary_unit || null,
+            conversion_factor: conversion_factor !== undefined && conversion_factor !== '' && conversion_factor !== null ? parseFloat(conversion_factor) : null,
+            conversion_type: conversion_type || null,
+            counting_category: counting_category || null,
+            capacity: capacity || null,
+            real_weight: real_weight || null,
+            provider_code: provider_code || null,
+            provider_description: provider_description || null
+        };
+
+        const { data, error } = await supabase
+            .from('products')
+            .insert([insertData])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Registrar historial de código de barras inicial si se definió
+        if (barcode) {
+            await recordBarcodeHistory(data.id, null, barcode, req.user.id, data.description);
+        }
+
+        res.status(201).json(data);
+    } catch (error) {
+        console.error('Error creating product:', error);
+        res.status(500).json({ message: 'Error al crear el producto', details: error.message });
+    }
+};
+
 // Update product details
 exports.updateProduct = async (req, res) => {
     const { id } = req.params;
-    const { description, code, barcode, barcode_secondary, provider_code, provider_description } = req.body;
+    const { 
+        description, 
+        code, 
+        barcode, 
+        barcode_secondary, 
+        brand, 
+        primary_unit, 
+        secondary_unit, 
+        conversion_factor, 
+        conversion_type, 
+        counting_category, 
+        capacity, 
+        real_weight, 
+        provider_code, 
+        provider_description 
+    } = req.body;
 
     try {
         // Fetch current product state before update for history logging
@@ -126,6 +217,16 @@ exports.updateProduct = async (req, res) => {
         if (code !== undefined) updateData.code = code;
         if (barcode !== undefined) updateData.barcode = barcode;
         if (barcode_secondary !== undefined) updateData.barcode_secondary = barcode_secondary;
+        if (brand !== undefined) updateData.brand = brand;
+        if (primary_unit !== undefined) updateData.primary_unit = primary_unit;
+        if (secondary_unit !== undefined) updateData.secondary_unit = secondary_unit;
+        if (conversion_factor !== undefined) {
+            updateData.conversion_factor = conversion_factor !== '' && conversion_factor !== null ? parseFloat(conversion_factor) : null;
+        }
+        if (conversion_type !== undefined) updateData.conversion_type = conversion_type;
+        if (counting_category !== undefined) updateData.counting_category = counting_category;
+        if (capacity !== undefined) updateData.capacity = capacity;
+        if (real_weight !== undefined) updateData.real_weight = real_weight;
         if (provider_code !== undefined) updateData.provider_code = provider_code;
         if (provider_description !== undefined) updateData.provider_description = provider_description;
 
