@@ -20,6 +20,7 @@ import {
 import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { tintometricoService } from '../utils/tintometricoService';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 
 const CONCENTRADOS_PREDEFINIDOS = {
     entonador_universal: {
@@ -104,6 +105,7 @@ const CONCENTRADOS_PREDEFINIDOS = {
 };
 
 const ColorRegistrations = () => {
+    const { user } = useAuth();
     // --- Form States ---
     const [colorType, setColorType] = useState('tintometrico'); // 'tintometrico' | 'manual'
     const [colorName, setColorName] = useState('');
@@ -1542,15 +1544,16 @@ const ColorRegistrations = () => {
                                                     </span>
                                                 </div>
                                             </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteRegistration(item.id, item.identification_id)}
-                                                className="p-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm cursor-pointer"
-                                                title="Eliminar registro"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            {user && (item.created_by === user.id || user.role === 'superadmin') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteRegistration(item.id, item.identification_id)}
+                                                    className="p-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm cursor-pointer"
+                                                    title="Eliminar registro"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

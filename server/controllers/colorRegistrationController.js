@@ -3,7 +3,7 @@ const supabase = require('../services/supabaseClient');
 // Get all color registrations
 exports.getAll = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('color_registrations')
             .select(`
                 *,
@@ -22,8 +22,14 @@ exports.getAll = async (req, res) => {
                     id,
                     username
                 )
-            `)
-            .order('created_at', { ascending: false });
+            `);
+
+        // Filter: only show if the user created it, is assigned to it, or is a superadmin
+        if (req.user.role !== 'superadmin') {
+            query = query.or(`created_by.eq.${req.user.id},user_id.eq.${req.user.id}`);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
         res.json(data || []);
@@ -111,6 +117,22 @@ exports.delete = async (req, res) => {
     const { id } = req.params;
 
     try {
+        // Fetch the registration first to check ownership
+        const { data: registration, error: fetchError } = await supabase
+            .from('color_registrations')
+            .select('created_by')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !registration) {
+            return res.status(404).json({ message: 'Registro de color no encontrado' });
+        }
+
+        // Only the creator or superadmin can delete
+        if (registration.created_by !== req.user.id && req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'No tienes permiso para eliminar este registro' });
+        }
+
         const { error } = await supabase
             .from('color_registrations')
             .delete()
