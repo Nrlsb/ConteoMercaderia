@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import Scanner from './Scanner';
 import Calculator from './Calculator';
 
-const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, isSubmitting, receiptId, isEgreso = false }) => {
+const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, expectedQuantity, previousQuantity, isSubmitting, receiptId, isEgreso = false }) => {
     const [quantity, setQuantity] = useState('');
     const [selectedUnit, setSelectedUnit] = useState('primary');
     const [isEditingBarcode, setIsEditingBarcode] = useState(false);
@@ -249,6 +249,19 @@ const FichajeModal = ({ isOpen, onClose, onConfirm, product, existingQuantity, e
                                     <span className="text-xs font-bold text-gray-500 uppercase">Código Interno: </span>
                                     <span className="text-sm text-gray-700 font-mono bg-gray-100 inline-block px-2 py-0.5 rounded">{product.code}</span>
                                 </div>
+
+                                {previousQuantity !== null && previousQuantity !== undefined && (
+                                    <div className="flex gap-2.5 mt-2.5">
+                                        <div className="flex-1 bg-blue-50 border border-blue-100 rounded-lg p-2 text-center animate-pop">
+                                            <div className="text-[10px] font-bold text-blue-500 uppercase font-sans">Esperado</div>
+                                            <div className="text-lg font-extrabold text-blue-700 font-mono">{expectedQuantity ?? 0}</div>
+                                        </div>
+                                        <div className="flex-1 bg-amber-50 border border-amber-100 rounded-lg p-2 text-center animate-pop">
+                                            <div className="text-[10px] font-bold text-amber-500 uppercase font-sans">Conteo Anterior</div>
+                                            <div className="text-lg font-extrabold text-amber-700 font-mono">{previousQuantity}</div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Barcode Collapsible Section */}
                                 <div className="mt-2">

@@ -623,7 +623,7 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
         // Verify count exists and is open
         const { data: count, error: countError } = await supabase
             .from('general_counts')
-            .select('id, status, sucursal_id, product_codes, name')
+            .select('id, status, sucursal_id, product_codes, name, parent_count_id')
             .eq('id', id)
             .is('deleted_at', null)
             .maybeSingle();
@@ -793,13 +793,56 @@ router.get('/general-counts/:id/product-list', verifyToken, async (req, res) => 
             .eq('order_number', id)
             .eq('user_id', userId);
 
+        let parentExpectedMap = {};
+        let parentScannedMap = {};
+        const isReControl = !!count.parent_count_id;
+
+        if (isReControl && codes.length > 0) {
+            // 1. Obtener la cantidad cargada en el conteo anterior (parent_count_id) para estos códigos
+            const { data: parentScans, error: pScansErr } = await supabase
+                .from('inventory_scans')
+                .select('code, quantity')
+                .eq('order_number', count.parent_count_id)
+                .in('code', codes);
+
+            if (!pScansErr && parentScans) {
+                parentScans.forEach(s => {
+                    parentScannedMap[s.code] = (parentScannedMap[s.code] || 0) + (s.quantity || 0);
+                });
+            }
+
+            // 2. Obtener lo que se esperaba (stock teórico) de los pre-remitos vinculados al conteo original
+            const parts = (count.name || '').split(',').map(s => s.trim());
+            const cleanParts = parts.map(p => p.replace(/^re-control:\s*/i, ''));
+            const linkedOrderNumbers = cleanParts.filter(p => p.startsWith('STOCK-'));
+
+            if (linkedOrderNumbers.length > 0) {
+                const { data: linkedPreRemitos, error: preErr } = await supabase
+                    .from('pre_remitos')
+                    .select('items')
+                    .in('order_number', linkedOrderNumbers);
+                
+                if (!preErr && linkedPreRemitos) {
+                    linkedPreRemitos.forEach(pr => {
+                        (pr.items || []).forEach(item => {
+                            if (codes.includes(item.code)) {
+                                parentExpectedMap[item.code] = (parentExpectedMap[item.code] || 0) + (item.quantity || 0);
+                            }
+                        });
+                    });
+                }
+            }
+        }
+
         const productList = (pagedProducts || []).map(p => ({
             code: p.code,
             description: p.description,
             excel_order: p.excel_order,
             quantity: myScannedMap[p.code] !== undefined ? myScannedMap[p.code] : null,
             has_other_scans: !!othersScannedMap[p.code],
-            controlled_by: p.controller_name !== '— Pendientes —' ? p.controller_name : null
+            controlled_by: p.controller_name !== '— Pendientes —' ? p.controller_name : null,
+            expected: isReControl ? (parentExpectedMap[p.code] || 0) : null,
+            previous_quantity: isReControl ? (parentScannedMap[p.code] || 0) : null
         }));
 
         res.json({

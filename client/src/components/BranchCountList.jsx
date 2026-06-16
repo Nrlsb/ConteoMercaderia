@@ -6,6 +6,7 @@ import { supabase } from '../supabaseClient';
 const PAGE_SIZE = 50;
 
 const BranchCountList = ({ countId, countName }) => {
+    const isReControl = countName?.toUpperCase().startsWith('RE-CONTROL:');
     const [products, setProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -401,8 +402,19 @@ const BranchCountList = ({ countId, countName }) => {
                         <div className="hidden sm:flex bg-gray-100 sticky top-0 z-10 border-b border-gray-200">
                             <div className="px-4 py-2 font-medium text-gray-600 w-12 text-xs">#</div>
                             <div className="flex-1 px-4 py-2 font-medium text-gray-600">Descripción</div>
-                            <div className="w-32 px-4 py-2 font-medium text-gray-600 text-center">Código</div>
-                            <div className="w-36 px-4 py-2 font-medium text-gray-600 text-right">Cantidad</div>
+                            {isReControl ? (
+                                <>
+                                    <div className="w-28 px-4 py-2 font-medium text-gray-600 text-center">Código</div>
+                                    <div className="w-20 px-2 py-2 font-medium text-gray-600 text-center">Esperado</div>
+                                    <div className="w-20 px-2 py-2 font-medium text-gray-600 text-center">Anterior</div>
+                                    <div className="w-28 px-4 py-2 font-medium text-gray-600 text-right">Cantidad</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-32 px-4 py-2 font-medium text-gray-600 text-center">Código</div>
+                                    <div className="w-36 px-4 py-2 font-medium text-gray-600 text-right">Cantidad</div>
+                                </>
+                            )}
                         </div>
 
                         <div className="divide-y divide-gray-100">
@@ -446,6 +458,17 @@ const BranchCountList = ({ countId, countName }) => {
                                                     </span>
                                                 )}
                                             </div>
+                                            {/* Mobile Re-control details under description */}
+                                            {isReControl && (
+                                                <div className="sm:hidden flex gap-2 mt-1 flex-wrap">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                                        Esperado: {product.expected ?? 0}
+                                                    </span>
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                                                        Anterior: {product.previous_quantity ?? 0}
+                                                    </span>
+                                                </div>
+                                            )}
                                             {/* Mobile Order # (optional) */}
                                             <div className="sm:hidden text-[10px] text-gray-400 mt-0.5">
                                                 Producto #{product.excel_order !== null ? product.excel_order + 1 : globalIndex + 1}
@@ -455,13 +478,25 @@ const BranchCountList = ({ countId, countName }) => {
                                         {/* Mobile / Desktop Footer (Code + Qty) */}
                                         <div className="flex items-center justify-between sm:justify-end px-4 py-1 sm:py-0 border-t border-gray-50 sm:border-0 mt-2 sm:mt-0">
                                             {/* Code - shown as badge on mobile, mono on desktop */}
-                                            <div className="text-gray-500 font-mono text-[11px] sm:text-xs sm:w-32 sm:text-center sm:px-4 sm:py-2">
+                                            <div className={`text-gray-500 font-mono text-[11px] sm:text-xs sm:text-center sm:px-4 sm:py-2 ${isReControl ? 'sm:w-28' : 'sm:w-32'}`}>
                                                 <span className="sm:hidden text-gray-400 mr-1">Cód:</span>
                                                 {product.code}
                                             </div>
 
+                                            {/* Expected and Previous Qty Columns (Desktop only) */}
+                                            {isReControl && (
+                                                <>
+                                                    <div className="hidden sm:block w-20 px-2 py-2 text-center text-blue-600 font-bold text-sm">
+                                                        {product.expected ?? 0}
+                                                    </div>
+                                                    <div className="hidden sm:block w-20 px-2 py-2 text-center text-amber-600 font-bold text-sm">
+                                                        {product.previous_quantity ?? 0}
+                                                    </div>
+                                                </>
+                                            )}
+
                                             {/* Quantity Input */}
-                                            <div className="sm:w-36 sm:px-4 sm:py-2 text-right">
+                                            <div className={`sm:px-4 sm:py-2 text-right ${isReControl ? 'sm:w-28' : 'sm:w-36'}`}>
                                                 <input
                                                     ref={el => inputRefs.current[product.code] = el}
                                                     type="number"
@@ -473,7 +508,7 @@ const BranchCountList = ({ countId, countName }) => {
                                                     onFocus={e => e.target.select()}
                                                     onKeyDown={e => handleKeyDown(e, product.code, index)}
                                                     placeholder="—"
-                                                    className={`w-28 px-2 py-2 border rounded-lg text-right font-bold text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all
+                                                    className={`w-24 px-2 py-2 border rounded-lg text-right font-bold text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all
                                                         ${hasValue
                                                             ? 'border-green-400 bg-white text-green-700 shadow-sm'
                                                             : 'border-gray-300 bg-white text-gray-700'

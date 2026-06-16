@@ -444,7 +444,9 @@ const RemitoForm = () => {
         if (countMode === 'products') {
             if (selectedCount) {
                 setRemitoNumber(selectedCount.id);
-                setExpectedItems(null);
+                if (!selectedCount.parent_count_id) {
+                    setExpectedItems(null);
+                }
                 localStorage.setItem('selectedCountId', selectedCount.id);
             } else if (countMode === 'products') {
                 setRemitoNumber('');
@@ -480,6 +482,10 @@ const RemitoForm = () => {
                     quantity,
                     validationError: null
                 }));
+            }
+
+            if (res.data.expected && Array.isArray(res.data.expected)) {
+                setExpectedItems(res.data.expected);
             }
 
             if (restoredItems.length > 0) {
@@ -828,7 +834,8 @@ const RemitoForm = () => {
         isOpen: false,
         product: null,
         existingQuantity: 0,
-        expectedQuantity: null
+        expectedQuantity: null,
+        previousQuantity: null
     });
 
     const triggerModal = (title, message, type = 'info', onConfirm = null, confirmText = null) => {
@@ -1241,9 +1248,24 @@ const RemitoForm = () => {
     };
 
     // Open the fichaje modal for a given product (component-level so JSX can call it)
-    const openFichajeModal = (product, expQty) => {
+    const openFichajeModal = (product, expQty, prevQty = null) => {
         const existingItem = itemsRef.current.find(i => i.code === product.code);
         const currentQty = existingItem ? existingItem.quantity : 0;
+
+        let finalExpectedQty = expQty;
+        let finalPrevQty = prevQty;
+
+        if (expectedItemsRef.current) {
+            const matchedExpected = expectedItemsRef.current.find(i => i.code === product.code);
+            if (matchedExpected) {
+                if (finalExpectedQty === null || finalExpectedQty === undefined) {
+                    finalExpectedQty = matchedExpected.quantity;
+                }
+                if (finalPrevQty === null || finalPrevQty === undefined) {
+                    finalPrevQty = matchedExpected.previous_quantity;
+                }
+            }
+        }
 
         playBeep();
 
@@ -1251,7 +1273,8 @@ const RemitoForm = () => {
             isOpen: true,
             product: product,
             existingQuantity: currentQty,
-            expectedQuantity: expQty
+            expectedQuantity: finalExpectedQty,
+            previousQuantity: finalPrevQty ?? product.previous_quantity ?? null
         });
     };
 
@@ -1951,6 +1974,7 @@ const RemitoForm = () => {
                 product={fichajeState.product}
                 existingQuantity={fichajeState.existingQuantity}
                 expectedQuantity={fichajeState.expectedQuantity}
+                previousQuantity={fichajeState.previousQuantity}
                 isSubmitting={isSubmittingFichaje}
             />
 
