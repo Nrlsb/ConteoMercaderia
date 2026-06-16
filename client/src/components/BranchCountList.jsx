@@ -141,7 +141,6 @@ const BranchCountList = ({ countId, countName }) => {
                 table: 'inventory_scans',
                 filter: `order_number=eq.${countId}`
             }, (payload) => {
-                console.log('⚡ Inventory scans change detected in BranchCountList:', payload);
                 // Debounced refresh to avoid excessive reloads
                 if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
                 refreshTimerRef.current = setTimeout(() => {
@@ -151,8 +150,6 @@ const BranchCountList = ({ countId, countName }) => {
             .subscribe((status, err) => {
                 if (err) {
                     console.error('[REALTIME] Error subscribing to branch count scans:', err);
-                } else {
-                    console.log(`[REALTIME] BranchCountList subscribed with status: ${status}`);
                 }
             });
 

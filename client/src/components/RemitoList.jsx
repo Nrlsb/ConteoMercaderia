@@ -89,8 +89,6 @@ const RemitoList = () => {
 
     // Supabase Realtime Subscription para el Historial
     useEffect(() => {
-        console.log('🔌 Suscribiendo Historial a Realtime...');
-
         // 1. Canal para cambios en los escaneos (actualiza progreso)
         const scansChannel = supabase.channel('history_scans')
             .on('postgres_changes', {

@@ -134,7 +134,6 @@ const BranchIncomingsList = () => {
         const egresosChannelId = `branch_incomings_egresos-${Math.random().toString(36).substring(2, 9)}`;
         const egresosChannel = supabase.channel(egresosChannelId)
             .on('postgres_changes', egresosConfig, (payload) => {
-                console.log('⚡ Egresos change detected via Realtime:', payload);
                 debouncedRefresh();
             })
             .subscribe((status, err) => {
@@ -156,7 +155,6 @@ const BranchIncomingsList = () => {
         const receiptsChannelId = `branch_incomings_receipts-${Math.random().toString(36).substring(2, 9)}`;
         const receiptsChannel = supabase.channel(receiptsChannelId)
             .on('postgres_changes', receiptsConfig, (payload) => {
-                console.log('⚡ Receipts change detected via Realtime:', payload);
                 debouncedRefresh();
             })
             .subscribe((status, err) => {

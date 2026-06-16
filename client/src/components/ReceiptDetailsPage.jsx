@@ -303,7 +303,6 @@ const ReceiptDetailsPage = () => {
                 table: 'receipt_items',
                 filter: `receipt_id=eq.${id}`
             }, (payload) => {
-                console.log('⚡ Cambio detectado por Realtime:', payload);
                 // Solo refrescamos si el cambio no lo provocó este mismo dispositivo
                 // (Como no podemos filtrarlo fácil por DB, debouncedFetch maneja bien la concurrencia)
                 debouncedFetch();

@@ -558,7 +558,6 @@ const RemitoForm = () => {
                 table: 'inventory_scans',
                 filter: `order_number=eq.${countId}`
             }, (payload) => {
-                console.log('⚡ Cambio detectado en inventory_scans por Realtime:', payload);
                 debouncedFetch();
             })
             .on('presence', { event: 'sync' }, () => {
@@ -566,8 +565,6 @@ const RemitoForm = () => {
             .subscribe(async (status, err) => {
                 if (err) {
                     console.error('[REALTIME] Error en la suscripción de RemitoForm:', err);
-                } else {
-                    console.log(`[REALTIME] RemitoForm suscrito con estado: ${status}`);
                 }
                 if (status === 'SUBSCRIBED') {
                     await channel.track({ device: navigator.userAgent, user: user?.username });

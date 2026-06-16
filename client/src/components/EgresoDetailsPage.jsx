@@ -173,7 +173,6 @@ const EgresoDetailsPage = () => {
                 table: 'egreso_items', // Asumiendo que la tabla se llama egreso_items
                 filter: `egreso_id=eq.${id}` // Asumiendo el FK es egreso_id
             }, (payload) => {
-                console.log('⚡ Cambio detectado por Realtime:', payload);
                 debouncedFetch();
             })
             .on('presence', { event: 'sync' }, () => {
