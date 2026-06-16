@@ -22,7 +22,7 @@ const Navigation = () => {
     };
 
     const getLinkClass = (path) => {
-        const baseClass = "px-2 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ease-in-out border border-transparent";
+        const baseClass = "px-1.5 2xl:px-2.5 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition-all duration-300 ease-in-out border border-transparent whitespace-nowrap";
         return isActive(path)
             ? `${baseClass} nav-item-active text-white`
             : `${baseClass} text-blue-100 hover:bg-white/10 hover:text-white hover:border-white/10`;
@@ -82,11 +82,13 @@ const Navigation = () => {
     const showProductos = canSeeTab('tab_productos', isAdminLike);
 
     const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal;
+    const hasTintometria = showTintometrico || showRegistroColores;
     const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings');
+    const isTintometriaActive = isActive('/tintometrico') || isActive('/color-registrations');
     const isHerramientasActive = isActive('/barcode-control') || isActive('/etiquetas') || isActive('/pesaje') || isActive('/settings') || isActive('/ayuda');
 
     const getDropdownTriggerClass = (activeState) => {
-        const baseClass = "flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ease-in-out border border-transparent cursor-pointer";
+        const baseClass = "flex items-center gap-0.5 2xl:gap-1 px-1.5 2xl:px-2.5 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition-all duration-300 ease-in-out border border-transparent cursor-pointer whitespace-nowrap";
         return activeState
             ? `${baseClass} bg-white/15 text-white`
             : `${baseClass} text-blue-100 hover:bg-white/10 hover:text-white hover:border-white/10`;
@@ -113,15 +115,15 @@ const Navigation = () => {
         <nav className="glass-nav text-white sticky top-0 z-50 transition-all duration-300" style={{ paddingTop: 'var(--safe-area-top)' }}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 2xl:gap-4">
                         <div className="flex-shrink-0 flex items-center">
-                            <h1 className="text-sm sm:text-base md:text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200 uppercase">
+                            <h1 className="text-xs sm:text-sm md:text-base xl:text-sm 2xl:text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200 uppercase whitespace-nowrap">
                                 Control de Mercadería
                             </h1>
                         </div>
 
                         {/* Desktop Menu */}
-                        <div className="hidden xl:flex items-center gap-0.5">
+                        <div className="hidden xl:flex items-center gap-0.5 2xl:gap-1">
                             {showNuevoConteo && (
                                 <Link to="/" className={getLinkClass('/')}>Nuevo Conteo</Link>
                             )}
@@ -131,11 +133,22 @@ const Navigation = () => {
                             {showSeguimientoPedidos && (
                                 <Link to="/seguimiento-pedidos" className={getLinkClass('/seguimiento-pedidos')}>Seguimiento Pedidos</Link>
                             )}
-                            {showTintometrico && (
-                                <Link to="/tintometrico" className={getLinkClass('/tintometrico')}>Tintométrico</Link>
-                            )}
-                            {showRegistroColores && (
-                                <Link to="/color-registrations" className={getLinkClass('/color-registrations')}>Registro Colores</Link>
+                            {/* Dropdown: Tintometría */}
+                            {hasTintometria && (
+                                <div className="relative group">
+                                    <button className={getDropdownTriggerClass(isTintometriaActive)}>
+                                        <span>Tintometría</span>
+                                        <ChevronDown className="w-4 h-4 transition-transform group-hover:rotate-180" />
+                                    </button>
+                                    <div className="absolute left-0 mt-1 w-48 rounded-xl bg-blue-950/95 backdrop-blur-md border border-white/10 p-1.5 shadow-xl invisible opacity-0 scale-95 group-hover:visible group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 origin-top-left">
+                                        {showTintometrico && (
+                                            <Link to="/tintometrico" className={getDropdownLinkClass('/tintometrico')}>Tintométrico</Link>
+                                        )}
+                                        {showRegistroColores && (
+                                            <Link to="/color-registrations" className={getDropdownLinkClass('/color-registrations')}>Registro Colores</Link>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                             {showProductos && (
                                 <Link to="/products" className={getLinkClass('/products')}>Productos</Link>
@@ -187,33 +200,33 @@ const Navigation = () => {
                         </div>
                     </div>
                     {/* Desktop Right Side - Hidden on Mobile */}
-                    <div className="hidden xl:flex items-center gap-4">
+                    <div className="hidden xl:flex items-center gap-2 2xl:gap-4">
                         <NotificationBell />
                         <button
                             onClick={() => setIsReportModalOpen(true)}
-                            className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200 group relative"
+                            className="p-1.5 2xl:p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200 group relative"
                             title="Reportar un problema"
                         >
-                            <Bug className="w-5 h-5 group-hover:animate-pulse" />
+                            <Bug className="w-4 h-4 2xl:w-5 2xl:h-5 group-hover:animate-pulse" />
                             <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                 Reportar Bug
                             </span>
                         </button>
 
-                        <div className="flex items-center gap-3 px-4 py-1.5 bg-white/5 rounded-full border border-white/10">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold shadow-inner">
+                        <div className="flex items-center gap-2 2xl:gap-3 px-2.5 2xl:px-4 py-1.5 bg-white/5 rounded-full border border-white/10">
+                            <div className="w-7 h-7 2xl:w-8 2xl:h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-[10px] 2xl:text-xs font-bold shadow-inner">
                                 {user?.username?.substring(0, 2).toUpperCase()}
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-xs font-semibold leading-tight">{user?.username}</span>
-                                <span className="text-[10px] text-blue-300 uppercase tracking-wider font-medium">
+                                <span className="text-[10px] 2xl:text-xs font-semibold leading-tight whitespace-nowrap">{user?.username}</span>
+                                <span className="text-[9px] 2xl:text-[10px] text-blue-300 uppercase tracking-wider font-medium whitespace-nowrap">
                                     {getRoleName()}
                                 </span>
                             </div>
                         </div>
                         <button
                             onClick={logout}
-                            className="bg-red-500/10 hover:bg-brand-alert text-red-100 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-red-500/20 hover:border-brand-alert shadow-sm hover:shadow-red-900/40"
+                            className="bg-red-500/10 hover:bg-brand-alert text-red-100 hover:text-white px-3 2xl:px-4 py-1.5 2xl:py-2 rounded-lg text-xs 2xl:text-sm font-medium transition-all duration-200 border border-red-500/20 hover:border-brand-alert shadow-sm hover:shadow-red-900/40 whitespace-nowrap"
                         >
                             Salir
                         </button>
