@@ -246,6 +246,16 @@ const UsersManage = () => {
             specialPermissions: [
                 { id: 'manage_seguimiento_pedidos', name: 'Crear/Modificar Seguimientos' }
             ]
+        },
+        {
+            id: 'tab_tintometrico',
+            name: 'Tintométrico',
+            specialPermissions: []
+        },
+        {
+            id: 'tab_registro_colores',
+            name: 'Registro Colores',
+            specialPermissions: []
         }
     ];
 
