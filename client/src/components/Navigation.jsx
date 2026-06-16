@@ -234,8 +234,8 @@ const Navigation = () => {
 
             {/* Mobile Menu Dropdown */}
             {isOpen && (
-                <div className="xl:hidden glass-nav mt-0 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
-                    <div className="px-4 pt-2 pb-6 space-y-1">
+                <div className="xl:hidden glass-nav mt-0 border-t border-white/5 animate-in slide-in-from-top-4 duration-300 max-h-[calc(100dvh-5rem)] overflow-y-auto">
+                    <div className="px-4 pt-2 pb-12 space-y-1">
                         {showNuevoConteo && (
                             <Link to="/" className={getMobileLinkClass('/')} onClick={() => setIsOpen(false)}>Nuevo Conteo</Link>
                         )}
