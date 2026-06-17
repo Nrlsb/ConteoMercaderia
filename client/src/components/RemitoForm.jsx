@@ -484,7 +484,7 @@ const RemitoForm = () => {
                 }));
             }
 
-            if (res.data.expected && Array.isArray(res.data.expected)) {
+            if (res.data.expected && Array.isArray(res.data.expected) && res.data.expected.length > 0) {
                 setExpectedItems(res.data.expected);
             }
 
