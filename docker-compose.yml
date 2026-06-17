@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: conteo-server-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    env_file:
+      - ./server/.env
+    environment:
+      # Sobrescribimos SUPABASE_URL para que apunte al host de Windows desde el contenedor
+      - SUPABASE_URL=http://host.docker.internal:54321
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: conteo-client-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    env_file:
+      - ./client/.env
+    environment:
+      - VITE_API_URL=http://localhost:3000
+      - VITE_SUPABASE_URL=http://localhost:54321
+    depends_on:
+      - server
+    restart: always

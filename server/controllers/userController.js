@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const supabase = require('../services/supabaseClient');
 
 exports.getAllUsers = async (req, res) => {
@@ -48,7 +48,7 @@ exports.createUser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Generate Session ID
-        const sessionId = uuidv4();
+        const sessionId = crypto.randomUUID();
 
         const newUser = {
             username,

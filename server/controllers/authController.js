@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const supabase = require('../services/supabaseClient');
 
 exports.getUserData = async (req, res) => {
@@ -89,7 +89,7 @@ exports.register = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Generate Session ID
-        const sessionId = uuidv4();
+        const sessionId = crypto.randomUUID();
 
         // Create user
         const { data, error } = await supabase
@@ -164,7 +164,7 @@ exports.login = async (req, res) => {
         }
 
         // Generate New Session ID
-        const sessionId = uuidv4();
+        const sessionId = crypto.randomUUID();
 
         // Update user with new session ID and reset last_seen
         const { error: updateError } = await supabase
