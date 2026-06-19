@@ -25,6 +25,20 @@ function validateNroPedidoVenta(nro) {
     return { isValid: true, cleanVal: cleanVal.toUpperCase() };
 }
 
+function hasImagenes(pedido) {
+    if (!pedido.imagenes) return false;
+    if (Array.isArray(pedido.imagenes)) {
+        return pedido.imagenes.length > 0;
+    }
+    try {
+        const parsed = typeof pedido.imagenes === 'string' ? JSON.parse(pedido.imagenes) : pedido.imagenes;
+        if (Array.isArray(parsed)) {
+            return parsed.length > 0;
+        }
+    } catch (e) {}
+    return !!pedido.imagenes;
+}
+
 // Función helper para crear notificaciones asociadas al pedido de manera case-insensitive
 async function createOrderNotifications(pedido, actorUsername, actionType) {
     try {
@@ -212,11 +226,59 @@ exports.getAllPedidos = async (req, res) => {
             query = query.or(filter);
         }
 
-        const { data, error } = await query
+        let { data, error } = await query
             .order('fecha', { ascending: false })
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+
+        // Obtener la configuración de notificaciones para saber quién es el usuario configurado como 'NO'
+        let notifyUserOnNo = '';
+        try {
+            const { data: settingsData } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'seguimiento_pedidos_notifications')
+                .single();
+
+            if (settingsData && settingsData.value) {
+                notifyUserOnNo = settingsData.value.notifyUserOnNo || '';
+            }
+        } catch (settingsErr) {
+            console.error('Error fetching settings in getAllPedidos:', settingsErr);
+        }
+
+        // Obtener la sucursal del usuario que realiza la consulta
+        let userSucursalName = '';
+        if (req.user.sucursal_id) {
+            try {
+                const { data: sucursal } = await supabase
+                    .from('sucursales')
+                    .select('name')
+                    .eq('id', req.user.sucursal_id)
+                    .single();
+                if (sucursal && sucursal.name) {
+                    userSucursalName = sucursal.name.toLowerCase();
+                }
+            } catch (sucErr) {
+                console.error('Error fetching sucursal in getAllPedidos:', sucErr);
+            }
+        }
+
+        const isUserConfiguredAsNo = notifyUserOnNo && req.user?.username && notifyUserOnNo.trim().toLowerCase() === req.user.username.trim().toLowerCase();
+        const isDeposito = userSucursalName === 'deposito';
+
+        // Si el usuario es el configurado como 'NO' o si pertenece a la sucursal Depósito (pero no es superadmin),
+        // ocultamos los pedidos que requieran ser abonados y no tengan imágenes cargadas.
+        if (data && (isUserConfiguredAsNo || isDeposito) && req.user.role !== 'superadmin') {
+            data = data.filter(p => {
+                if (p.abonado === true) {
+                    return hasImagenes(p);
+                }
+                return true;
+            });
+        }
+
         res.json(data);
     } catch (error) {
         console.error('Error fetching pedidos:', error);
@@ -238,9 +300,15 @@ exports.createPedido = async (req, res) => {
             }
         }
         const isCompras = userSucursalName === 'compras' || req.user.role === 'superadmin';
+        const isDeposito = userSucursalName === 'deposito' || req.user.role === 'superadmin';
 
         if (!isCompras) {
             return res.status(403).json({ message: 'Sólo los usuarios de la sucursal Compras pueden registrar nuevos pedidos' });
+        }
+
+        if (!isDeposito) {
+            req.body.transp_mercurio = false;
+            req.body.otro_transporte = false;
         }
 
         const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
@@ -348,7 +416,8 @@ exports.updatePedido = async (req, res) => {
                 'contacto_mercurio', 'contacto_mercurio_fecha',
                 'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
                 'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
-                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega'
+                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega',
+                'transp_mercurio', 'otro_transporte'
             ];
 
             const attemptedChanges = [];
@@ -363,7 +432,7 @@ exports.updatePedido = async (req, res) => {
             }
 
             if (attemptedChanges.length > 0) {
-                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Contacto o Estado (sólo sucursal Depósito)' });
+                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Contacto, Estado o Transporte (sólo sucursal Depósito)' });
             }
         }
 

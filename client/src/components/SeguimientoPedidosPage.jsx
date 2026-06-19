@@ -1118,20 +1118,22 @@ const SeguimientoPedidosPage = () => {
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: true, otro_transporte: false }))}
+                        disabled={!canEditDepositoFields}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.transp_mercurio
                             ? 'bg-blue-600 text-white shadow-sm'
                             : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         Transp. Mercurio (MERC)
                       </button>
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: false, otro_transporte: true }))}
+                        disabled={!canEditDepositoFields}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.otro_transporte
                             ? 'bg-purple-600 text-white shadow-sm'
                             : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         Otro Transporte
                       </button>
