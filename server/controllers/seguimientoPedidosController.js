@@ -68,7 +68,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
 
             if (settingsData && settingsData.value) {
                 const { notifyUserOnSi, notifyUserOnNo } = settingsData.value;
-                if (pedido.abonado === true) {
+                if (pedido.abonado === true && !hasImagenes(pedido)) {
                     addIfValid(notifyUserOnSi);
                 } else if (pedido.abonado === false) {
                     addIfValid(notifyUserOnNo);
