@@ -667,7 +667,7 @@ const ColorRegistrations = () => {
         if (!registrationsSearch.trim()) return true;
         const q = registrationsSearch.toLowerCase();
         
-        const idMatch = r.identification_id?.toLowerCase().includes(q);
+        const idMatch = r.id?.toLowerCase().includes(q) || r.identification_id?.toLowerCase().includes(q);
         const nameMatch = r.color_name?.toLowerCase().includes(q);
         const clientMatch = r.client_name?.toLowerCase().includes(q);
         const codeMatch = r.color_code?.toLowerCase().includes(q);
@@ -1506,6 +1506,15 @@ const ColorRegistrations = () => {
                                                     <span>Sin usuario asignado</span>
                                                 </div>
                                             )}
+
+                                            {/* ID de Registro */}
+                                            <div className="flex gap-2 items-center">
+                                                <Info className="w-4 h-4 text-gray-400 shrink-0" />
+                                                <div className="truncate">
+                                                    <span className="font-semibold text-gray-500">Nº ID:</span>{' '}
+                                                    <span className="font-mono text-[10px] text-gray-600 font-bold" title={item.id}>{item.id}</span>
+                                                </div>
+                                            </div>
 
                                             {/* Observations */}
                                             {renderObservations(item.observations)}
