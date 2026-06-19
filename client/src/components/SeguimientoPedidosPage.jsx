@@ -73,6 +73,9 @@ const SeguimientoPedidosPage = () => {
     contacto_mercurio_fecha: '',
     contacto_proveedor: '',
     contacto_proveedor_fecha: '',
+    contacto_proveedor_fecha_original: '',
+    contacto_proveedor_observaciones: '',
+    contacto_proveedor_entrega: '',
     estado: 'Pendiente',
     abonado: null,
     fecha_confirmada: false
@@ -338,6 +341,9 @@ const SeguimientoPedidosPage = () => {
       contacto_mercurio_fecha: pedido.contacto_mercurio_fecha || '',
       contacto_proveedor: pedido.contacto_proveedor || '',
       contacto_proveedor_fecha: pedido.contacto_proveedor_fecha || '',
+      contacto_proveedor_fecha_original: pedido.contacto_proveedor_fecha_original || '',
+      contacto_proveedor_observaciones: pedido.contacto_proveedor_observaciones || '',
+      contacto_proveedor_entrega: pedido.contacto_proveedor_entrega || '',
       estado: pedido.estado || 'Pendiente',
       abonado: pedido.abonado !== undefined && pedido.abonado !== null ? pedido.abonado : null,
       fecha_confirmada: pedido.fecha_confirmada || false
@@ -400,6 +406,9 @@ const SeguimientoPedidosPage = () => {
       contacto_mercurio_fecha: formData.contacto_mercurio_fecha || '',
       contacto_proveedor: formData.contacto_proveedor || '',
       contacto_proveedor_fecha: formData.contacto_proveedor_fecha || '',
+      contacto_proveedor_fecha_original: formData.contacto_proveedor_fecha_original || '',
+      contacto_proveedor_observaciones: formData.contacto_proveedor_observaciones || '',
+      contacto_proveedor_entrega: formData.contacto_proveedor_entrega || '',
       estado: formData.estado || 'Pendiente',
       abonado: formData.abonado,
       fecha_confirmada: formData.fecha_confirmada || false
@@ -1174,7 +1183,7 @@ const SeguimientoPedidosPage = () => {
                       <div className="w-2.5 h-5 bg-rose-500 rounded-full"></div>
                       <h4 className="text-sm font-bold text-rose-950 uppercase tracking-wider">Contacto Proveedor</h4>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién?</label>
                         <input
@@ -1187,17 +1196,45 @@ const SeguimientoPedidosPage = () => {
                           className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fechas?</label>
-                        <input
-                          type="date"
-                          name="contacto_proveedor_fecha"
-                          value={formData.contacto_proveedor_fecha}
-                          onChange={handleInputChange}
-                          disabled={!canEditDepositoFields}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
-                        />
-                      </div>
+
+                      {formData.contacto_proveedor_fecha_original ? (
+                        <>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha Original</label>
+                            <input
+                              type="date"
+                              name="contacto_proveedor_fecha_original"
+                              value={formData.contacto_proveedor_fecha_original}
+                              disabled={true}
+                              className="w-full p-2.5 rounded-xl border border-gray-200 text-sm bg-gray-100 text-gray-400 cursor-not-allowed font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha Reprogramada</label>
+                            <input
+                              type="date"
+                              name="contacto_proveedor_fecha"
+                              value={formData.contacto_proveedor_fecha}
+                              onChange={handleInputChange}
+                              disabled={!canEditDepositoFields}
+                              className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha de Entrega</label>
+                          <input
+                            type="date"
+                            name="contacto_proveedor_fecha"
+                            value={formData.contacto_proveedor_fecha}
+                            onChange={handleInputChange}
+                            disabled={!canEditDepositoFields}
+                            className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
+                          />
+                        </div>
+                      )}
+
                       <div className="flex flex-col justify-end">
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fecha Confirmada?</label>
                         <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
@@ -1223,6 +1260,34 @@ const SeguimientoPedidosPage = () => {
                           />
                           <span>{formData.fecha_confirmada ? 'Confirmada' : 'Confirmar'}</span>
                         </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Entrega</label>
+                        <select
+                          name="contacto_proveedor_entrega"
+                          value={formData.contacto_proveedor_entrega || ''}
+                          onChange={handleInputChange}
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+                        >
+                          <option value="">Sin especificar</option>
+                          <option value="Total">Total</option>
+                          <option value="Parcial">Parcial</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Observaciones Proveedor</label>
+                        <input
+                          type="text"
+                          name="contacto_proveedor_observaciones"
+                          placeholder="Observaciones o notas sobre el contacto con el proveedor..."
+                          value={formData.contacto_proveedor_observaciones || ''}
+                          onChange={handleInputChange}
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1472,27 +1537,67 @@ const SeguimientoPedidosPage = () => {
                     <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
                     <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider">Contacto Proveedor</h4>
                   </div>
-                  <div className="text-sm space-y-2">
+                  <div className="text-sm space-y-2.5">
                     <div>
                       <span className="text-xs text-gray-400 block">Responsable:</span>
-                      <span className="font-semibold text-gray-850">{viewingPedido.contacto_proveedor || '-'}</span>
+                      <span className="font-semibold text-gray-800">{viewingPedido.contacto_proveedor || '-'}</span>
                     </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
-                      <span className="font-medium text-gray-700">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">Estado de Fecha:</span>
-                      {viewingPedido.fecha_confirmada ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mt-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Fecha Confirmada
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 mt-1">
-                          <Clock className="w-3.5 h-3.5" /> Pendiente de Confirmación
-                        </span>
+
+                    {viewingPedido.contacto_proveedor_fecha_original && 
+                     viewingPedido.contacto_proveedor_fecha_original !== viewingPedido.contacto_proveedor_fecha ? (
+                      <div className="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                        <div>
+                          <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Fecha Original</span>
+                          <span className="font-medium text-gray-500 text-xs line-through decoration-rose-500/50">{formatLocalDate(viewingPedido.contacto_proveedor_fecha_original)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Fecha Reprog.</span>
+                          <span className="font-bold text-blue-700 text-xs">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-xs text-gray-400 block">Fecha de Entrega:</span>
+                        <span className="font-semibold text-gray-800">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div>
+                        <span className="text-xs text-gray-400 block mb-0.5">Estado de Fecha:</span>
+                        {viewingPedido.fecha_confirmada ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Confirmada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            <Clock className="w-3.5 h-3.5" /> Pendiente
+                          </span>
+                        )}
+                      </div>
+
+                      {viewingPedido.contacto_proveedor_entrega && (
+                        <div>
+                          <span className="text-xs text-gray-400 block mb-0.5">Entrega:</span>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                            viewingPedido.contacto_proveedor_entrega === 'Total'
+                              ? 'bg-green-100 text-green-800 border-green-200'
+                              : 'bg-blue-100 text-blue-800 border-blue-200'
+                          }`}>
+                            {viewingPedido.contacto_proveedor_entrega === 'Total' ? 'Total' : 'Parcial'}
+                          </span>
+                        </div>
                       )}
                     </div>
+
+                    {viewingPedido.contacto_proveedor_observaciones && (
+                      <div className="bg-rose-50/30 p-2.5 rounded-xl border border-rose-100/50 mt-2">
+                        <span className="text-[10px] text-rose-800 font-bold uppercase tracking-wider block mb-1">Observaciones Proveedor:</span>
+                        <p className="text-xs text-gray-700 italic font-medium leading-relaxed">
+                          "{viewingPedido.contacto_proveedor_observaciones}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

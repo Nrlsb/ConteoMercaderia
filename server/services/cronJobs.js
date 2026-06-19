@@ -85,6 +85,32 @@ function startProviderContactNotificationTask() {
     }, 60000); // Verificar cada 60 segundos
 }
 
+function getWorkingDaysDifference(startDate, endDate) {
+    const sDate = new Date(startDate.getTime());
+    const eDate = new Date(endDate.getTime());
+    
+    sDate.setHours(0,0,0,0);
+    eDate.setHours(0,0,0,0);
+    
+    if (eDate.getTime() < sDate.getTime()) {
+        const diffTime = eDate.getTime() - sDate.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+    
+    let count = 0;
+    const curDate = new Date(sDate.getTime());
+    
+    while (curDate.getTime() < eDate.getTime()) {
+        curDate.setDate(curDate.getDate() + 1);
+        const dayOfWeek = curDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            count++;
+        }
+    }
+    
+    return count;
+}
+
 async function checkAndSendProviderContactNotifications() {
     try {
         // Obtener la fecha de hoy en Buenos Aires formateada como YYYY-MM-DD
@@ -132,12 +158,12 @@ async function checkAndSendProviderContactNotifications() {
             }
 
             const providerDate = new Date(`${pedido.contacto_proveedor_fecha}T00:00:00`);
-            const diffTime = providerDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = getWorkingDaysDifference(today, providerDate);
 
-            // Si faltan exactamente 3 días (o entre 0 y 3 días, por si se carga tarde)
+            // Si faltan exactamente 3 días hábiles (o entre 0 y 3 días hábiles, por si se carga tarde)
             if (diffDays <= 3 && diffDays >= 0) {
                 if (!pedido.contacto_mercurio) continue;
+
 
                 // Buscar el usuario asignado en contacto_mercurio (case-insensitive)
                 const { data: userRecord, error: userError } = await supabase

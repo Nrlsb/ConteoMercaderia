@@ -250,6 +250,10 @@ exports.createPedido = async (req, res) => {
         req.body.nro_pedido_venta = validation.cleanVal;
         req.body.quien_solicita = req.user?.username || '';
 
+        if (req.body.contacto_proveedor_fecha) {
+            req.body.contacto_proveedor_fecha_original = req.body.contacto_proveedor_fecha;
+        }
+
         const { data, error } = await supabase
             .from('seguimiento_pedidos')
             .insert([req.body])
@@ -302,6 +306,17 @@ exports.updatePedido = async (req, res) => {
 
         if (currentPedido) {
             delete req.body.quien_solicita;
+
+            // Si se está actualizando la fecha del proveedor, manejamos la fecha original
+            if (req.body.contacto_proveedor_fecha) {
+                if (!currentPedido.contacto_proveedor_fecha_original) {
+                    // Si no tiene fecha original, la definimos con esta misma
+                    req.body.contacto_proveedor_fecha_original = req.body.contacto_proveedor_fecha;
+                } else {
+                    // Si ya tenía original, forzamos a mantener la que ya estaba guardada
+                    req.body.contacto_proveedor_fecha_original = currentPedido.contacto_proveedor_fecha_original;
+                }
+            }
         }
 
         if (!isCompras && currentPedido) {
@@ -332,7 +347,8 @@ exports.updatePedido = async (req, res) => {
             const depositoFields = [
                 'contacto_mercurio', 'contacto_mercurio_fecha',
                 'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
-                'estado', 'cant_recepcion_parcial', 'recepcion_parcial'
+                'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
+                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega'
             ];
 
             const attemptedChanges = [];
@@ -354,7 +370,8 @@ exports.updatePedido = async (req, res) => {
         if (isDeposito && currentPedido) {
             const depModFields = [
                 'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
-                'estado', 'cant_recepcion_parcial', 'recepcion_parcial'
+                'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
+                'contacto_proveedor_observaciones', 'contacto_proveedor_entrega'
             ];
 
             let modifiedField = false;
@@ -747,7 +764,10 @@ exports.exportPedidosExcel = async (req, res) => {
             'Contacto Mercurio - ¿Quién?': p.contacto_mercurio || '',
             'Contacto Mercurio - ¿Fechas?': p.contacto_mercurio_fecha || '',
             'Contacto Proveedor - ¿Quién?': p.contacto_proveedor || '',
-            'Contacto Proveedor - ¿Fechas?': p.contacto_proveedor_fecha || '',
+            'Contacto Proveedor - ¿Fecha Original?': p.contacto_proveedor_fecha_original || '',
+            'Contacto Proveedor - ¿Fecha Actual/Modificada?': p.contacto_proveedor_fecha || '',
+            'Contacto Proveedor - Observaciones': p.contacto_proveedor_observaciones || '',
+            'Contacto Proveedor - Tipo Entrega': p.contacto_proveedor_entrega || '',
             'Estado': p.estado || 'Pendiente'
         }));
 
