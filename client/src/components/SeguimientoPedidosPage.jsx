@@ -1590,7 +1590,7 @@ const SeguimientoPedidosPage = () => {
                       <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
                     </div>
                     <div>
-                      <span className="text-xs text-gray-400 block">¿Abonado?:</span>
+                      <span className="text-xs text-gray-400 block">¿Necesita ser abonado?</span>
                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
                         viewingPedido.abonado === true 
                           ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
@@ -1784,11 +1784,9 @@ const SeguimientoPedidosPage = () => {
                       }
                       const toastId = toast.loading('Confirmando recepción...');
                       try {
-                        const res = await api.put(`/api/seguimiento-pedidos/${viewingPedido.id}`, {
-                          confirmado_destinatario: true,
+                        const res = await api.put(`/api/seguimiento-pedidos/${viewingPedido.id}/confirmar-recepcion`, {
                           cant_recibida_destinatario: parseFloat(cant),
-                          comentario_destinatario: comment,
-                          fecha_confirmacion_destinatario: new Date().toISOString().split('T')[0]
+                          comentario_destinatario: comment
                         });
                         toast.success('Recepción confirmada con éxito', { id: toastId });
                         setViewingPedido(res.data);

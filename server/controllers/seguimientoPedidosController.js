@@ -1132,3 +1132,51 @@ exports.uploadImagenes = async (req, res) => {
     }
 };
 
+// Confirmación de la recepción de mercadería por parte del destinatario (para_quien)
+exports.confirmarRecepcionDestinatario = async (req, res) => {
+    const { id } = req.params;
+    const { cant_recibida_destinatario, comentario_destinatario } = req.body;
+
+    try {
+        // 1. Obtener el pedido actual
+        const { data: currentPedido, error: fetchError } = await supabase
+            .from('seguimiento_pedidos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !currentPedido) {
+            return res.status(404).json({ message: 'Pedido no encontrado' });
+        }
+
+        // 2. Validar que el usuario sea el destinatario (para_quien) o superadmin
+        const isDestinatario = (req.user.username && currentPedido.para_quien && req.user.username.trim().toLowerCase() === currentPedido.para_quien.trim().toLowerCase()) || req.user.role === 'superadmin';
+        
+        if (!isDestinatario) {
+            return res.status(403).json({ message: 'No tienes permisos para confirmar la recepción de este pedido (requiere ser el destinatario del campo "Para quién")' });
+        }
+
+        // 3. Actualizar campos de confirmación
+        const updateData = {
+            confirmado_destinatario: true,
+            cant_recibida_destinatario: cant_recibida_destinatario !== undefined ? parseFloat(cant_recibida_destinatario) : null,
+            comentario_destinatario: comentario_destinatario || '',
+            fecha_confirmacion_destinatario: new Date().toISOString().split('T')[0]
+        };
+
+        const { data: updatedPedido, error: updateError } = await supabase
+            .from('seguimiento_pedidos')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
+
+        res.json(updatedPedido);
+    } catch (error) {
+        console.error('Error confirming reception:', error);
+        res.status(500).json({ message: 'Error interno al confirmar la recepción' });
+    }
+};
+
