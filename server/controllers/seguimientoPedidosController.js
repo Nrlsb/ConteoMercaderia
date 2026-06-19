@@ -44,6 +44,26 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
         addIfValid(pedido.para_quien);
         addIfValid(pedido.contacto_mercurio);
 
+        // Obtener configuración de notificaciones para el tercero
+        try {
+            const { data: settingsData } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'seguimiento_pedidos_notifications')
+                .single();
+
+            if (settingsData && settingsData.value) {
+                const { notifyUserOnSi, notifyUserOnNo } = settingsData.value;
+                if (pedido.abonado === true) {
+                    addIfValid(notifyUserOnSi);
+                } else if (pedido.abonado === false) {
+                    addIfValid(notifyUserOnNo);
+                }
+            }
+        } catch (settingsErr) {
+            console.error('Error fetching settings in notifications:', settingsErr);
+        }
+
         if (usernamesToNotify.size === 0) return;
 
         // Buscar los user_ids de estos usernames de forma insensible a mayúsculas/minúsculas usando ilike en un filtro OR
@@ -71,26 +91,34 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             const fechaStr = pedido.contacto_proveedor_fecha ? formatLocalDate(pedido.contacto_proveedor_fecha) : '';
             let notifType = 'pedido_modificado';
 
+            const abonadoStr = pedido.abonado === true 
+                ? ' (Abonado)' 
+                : (pedido.abonado === false ? ' (No Abonado)' : '');
+
             if (actionType === 'create') {
                 notifType = 'pedido_creado';
                 if (pedido.contacto_proveedor_fecha) {
                     title = 'Pedido con fecha de ingreso';
-                    message = `El usuario ${actorUsername} registró un nuevo pedido de ${proveedor} (${productoDesc}) con fecha de ingreso programada para el ${fechaStr}.`;
+                    message = `El usuario ${actorUsername} registró un nuevo pedido de ${proveedor} (${productoDesc})${abonadoStr} con fecha de ingreso programada para el ${fechaStr}.`;
                 } else {
                     title = 'Nuevo pedido registrado';
-                    message = `El usuario ${actorUsername} registró un nuevo pedido para ${pedido.para_quien || 'Deposito'}: ${productoDesc} (${proveedor}).`;
+                    message = `El usuario ${actorUsername} registró un nuevo pedido para ${pedido.para_quien || 'Deposito'}: ${productoDesc} (${proveedor})${abonadoStr}.`;
                 }
             } else if (actionType === 'set_date') {
                 notifType = 'pedido_fecha_ingreso';
                 title = 'Pedido con fecha de ingreso';
-                message = `El pedido de ${proveedor} (${productoDesc}) ya tiene fecha de ingreso programada para el ${fechaStr} (cargado por ${actorUsername}).`;
+                message = `El pedido de ${proveedor} (${productoDesc}) ya tiene fecha de ingreso programada para el ${fechaStr} (cargado por ${actorUsername})${abonadoStr}.`;
             } else if (actionType === 'confirm_date') {
                 notifType = 'pedido_fecha_confirmada';
                 title = 'Fecha de pedido confirmada';
-                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el pedido de ${proveedor} (${productoDesc}).`;
+                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el pedido de ${proveedor} (${productoDesc})${abonadoStr}.`;
+            } else if (actionType === 'change_abonado') {
+                notifType = 'pedido_abonado_cambiado';
+                title = 'Estado de pago actualizado';
+                message = `El pedido de ${proveedor} (${productoDesc}) fue marcado como ${pedido.abonado ? 'ABONADO' : 'NO ABONADO'} por ${actorUsername}.`;
             } else {
                 title = 'Pedido actualizado';
-                message = `El pedido de ${proveedor} (${productoDesc}) fue actualizado por ${actorUsername}. Estado: ${pedido.estado || 'Pendiente'}.`;
+                message = `El pedido de ${proveedor} (${productoDesc}) fue actualizado por ${actorUsername}. Estado: ${pedido.estado || 'Pendiente'}${abonadoStr}.`;
             }
 
             return {
@@ -198,6 +226,23 @@ exports.getAllPedidos = async (req, res) => {
 
 exports.createPedido = async (req, res) => {
     try {
+        let userSucursalName = '';
+        if (req.user.sucursal_id) {
+            const { data: sucursal } = await supabase
+                .from('sucursales')
+                .select('name')
+                .eq('id', req.user.sucursal_id)
+                .single();
+            if (sucursal && sucursal.name) {
+                userSucursalName = sucursal.name.toLowerCase();
+            }
+        }
+        const isCompras = userSucursalName === 'compras' || req.user.role === 'superadmin';
+
+        if (!isCompras) {
+            return res.status(403).json({ message: 'Sólo los usuarios de la sucursal Compras pueden registrar nuevos pedidos' });
+        }
+
         const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
         if (!validation.isValid) {
             return res.status(400).json({ message: 'El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"' });
@@ -225,6 +270,19 @@ exports.createPedido = async (req, res) => {
 exports.updatePedido = async (req, res) => {
     const { id } = req.params;
     try {
+        let userSucursalName = '';
+        if (req.user.sucursal_id) {
+            const { data: sucursal } = await supabase
+                .from('sucursales')
+                .select('name')
+                .eq('id', req.user.sucursal_id)
+                .single();
+            if (sucursal && sucursal.name) {
+                userSucursalName = sucursal.name.toLowerCase();
+            }
+        }
+        const isCompras = userSucursalName === 'compras' || req.user.role === 'superadmin';
+
         if (req.body.nro_pedido_venta !== undefined) {
             const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
             if (!validation.isValid) {
@@ -233,18 +291,43 @@ exports.updatePedido = async (req, res) => {
             req.body.nro_pedido_venta = validation.cleanVal;
         }
 
-        // Consultar el pedido actual para verificar si las fechas, el contacto o confirmación cambiaron
+        // Consultar el pedido actual
         const { data: currentPedido } = await supabase
             .from('seguimiento_pedidos')
-            .select('contacto_proveedor_fecha, contacto_mercurio, fecha_confirmada')
+            .select('*')
             .eq('id', id)
             .single();
+
+        if (!isCompras && currentPedido) {
+            const comprasFields = [
+                'quien_solicita', 'para_quien', 'nro_pedido_venta',
+                'proveedor_marca', 'nro_pedido', 'abonado',
+                'codigo_mercurio', 'descripcion_capacidad', 'cant_pedido',
+                'prev_entrada', 'nro_pedido_compra', 'fecha'
+            ];
+            
+            const attemptedChanges = [];
+            for (const field of comprasFields) {
+                if (req.body[field] !== undefined) {
+                    const valNew = req.body[field] === null || req.body[field] === undefined ? '' : String(req.body[field]).trim();
+                    const valOld = currentPedido[field] === null || currentPedido[field] === undefined ? '' : String(currentPedido[field]).trim();
+                    if (valNew !== valOld) {
+                        attemptedChanges.push(field);
+                    }
+                }
+            }
+
+            if (attemptedChanges.length > 0) {
+                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Destinatario, Proveedor o Producto (sólo sucursal Compras)' });
+            }
+        }
 
         let actionType = 'update';
 
         if (currentPedido) {
             const dateChanged = req.body.contacto_proveedor_fecha !== undefined && req.body.contacto_proveedor_fecha !== currentPedido.contacto_proveedor_fecha;
             const contactChanged = req.body.contacto_mercurio !== undefined && req.body.contacto_mercurio !== currentPedido.contacto_mercurio;
+            const abonadoChanged = req.body.abonado !== undefined && req.body.abonado !== currentPedido.abonado;
             
             if (dateChanged || contactChanged) {
                 req.body.notif_confirmacion_enviada = false;
@@ -262,6 +345,8 @@ exports.updatePedido = async (req, res) => {
                 const confirmedChanged = req.body.fecha_confirmada === true && !currentPedido.fecha_confirmada;
                 if (confirmedChanged) {
                     actionType = 'confirm_date';
+                } else if (abonadoChanged) {
+                    actionType = 'change_abonado';
                 }
             }
         }
@@ -625,6 +710,56 @@ exports.exportPedidosExcel = async (req, res) => {
     } catch (error) {
         console.error('Error al exportar pedidos a Excel:', error);
         res.status(500).json({ message: 'Error interno al generar el archivo Excel' });
+    }
+};
+
+// Obtener configuración de notificaciones de abonado
+exports.getNotificationSettings = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'seguimiento_pedidos_notifications')
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('Error fetching notification settings:', error);
+            return res.status(500).json({ message: 'Error al obtener la configuración de notificaciones' });
+        }
+
+        if (!data) {
+            return res.json({ notifyUserOnSi: '', notifyUserOnNo: '' });
+        }
+
+        res.json(data.value);
+    } catch (error) {
+        console.error('Server error fetching notification settings:', error);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+};
+
+// Actualizar configuración de notificaciones de abonado
+exports.updateNotificationSettings = async (req, res) => {
+    const { notifyUserOnSi, notifyUserOnNo } = req.body;
+
+    try {
+        const { error } = await supabase
+            .from('app_settings')
+            .upsert({
+                key: 'seguimiento_pedidos_notifications',
+                value: { notifyUserOnSi: notifyUserOnSi || '', notifyUserOnNo: notifyUserOnNo || '' },
+                updated_at: new Date()
+            });
+
+        if (error) {
+            console.error('Error updating notification settings:', error);
+            throw error;
+        }
+
+        res.json({ success: true, notifyUserOnSi, notifyUserOnNo });
+    } catch (error) {
+        console.error('Server error updating notification settings:', error);
+        res.status(500).json({ message: 'Error al actualizar la configuración' });
     }
 };
 

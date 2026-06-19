@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, Download, Trash2, Edit, Calendar, Truck,
-  AlertCircle, CheckCircle2, Clock, Users, Package, Filter, X, Upload, Eye
+  AlertCircle, CheckCircle2, Clock, Users, Package, Filter, X, Upload, Eye, Settings
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -36,6 +36,11 @@ const SeguimientoPedidosPage = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [viewingPedido, setViewingPedido] = useState(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [notifSettings, setNotifSettings] = useState({
+    notifyUserOnSi: '',
+    notifyUserOnNo: ''
+  });
 
   // Formulario de Pedido
   const initialFormState = {
@@ -63,7 +68,7 @@ const SeguimientoPedidosPage = () => {
     contacto_proveedor: '',
     contacto_proveedor_fecha: '',
     estado: 'Pendiente',
-    abonado: true,
+    abonado: null,
     fecha_confirmada: false
   };
   const [formData, setFormData] = useState(initialFormState);
@@ -92,10 +97,38 @@ const SeguimientoPedidosPage = () => {
     }
   };
 
+  const fetchNotificationSettings = async () => {
+    try {
+      const res = await api.get('/api/seguimiento-pedidos/notification-settings');
+      setNotifSettings(res.data);
+    } catch (error) {
+      console.error('Error fetching notification settings:', error);
+    }
+  };
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    const toastId = toast.loading('Guardando configuración de notificaciones...');
+    try {
+      await api.put('/api/seguimiento-pedidos/notification-settings', notifSettings);
+      toast.success('Configuración guardada correctamente', { id: toastId });
+      setIsSettingsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving notification settings:', error);
+      toast.error('Error al guardar la configuración', { id: toastId });
+    }
+  };
+
   useEffect(() => {
     fetchPedidos();
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchNotificationSettings();
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     if (user) {
@@ -286,7 +319,7 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor: pedido.contacto_proveedor || '',
       contacto_proveedor_fecha: pedido.contacto_proveedor_fecha || '',
       estado: pedido.estado || 'Pendiente',
-      abonado: pedido.abonado !== undefined ? pedido.abonado : true,
+      abonado: pedido.abonado !== undefined && pedido.abonado !== null ? pedido.abonado : null,
       fecha_confirmada: pedido.fecha_confirmada || false
     });
     setIsModalOpen(true);
@@ -295,6 +328,12 @@ const SeguimientoPedidosPage = () => {
   // Guardar Pedido (Crear o Editar)
   const handleSave = async (e) => {
     e.preventDefault();
+
+    // Validar ¿Necesita ser abonado?
+    if (formData.abonado === null || formData.abonado === undefined) {
+      toast.error('Debe seleccionar si el pedido necesita ser abonado (SÍ o NO)');
+      return;
+    }
 
     // Validar Recepción Parcial
     if (formData.estado === 'Recepción Parcial' && !formData.cant_recepcion_parcial) {
@@ -459,6 +498,7 @@ const SeguimientoPedidosPage = () => {
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const canManage = user?.role === 'superadmin' || 
                     (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
+  const canEditComprasFields = user?.sucursal_name?.toLowerCase() === 'compras' || user?.role === 'superadmin';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -473,7 +513,7 @@ const SeguimientoPedidosPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {canManage && (
+          {canManage && canEditComprasFields && (
             <button
               onClick={handleOpenCreate}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md shadow-blue-500/20"
@@ -482,7 +522,7 @@ const SeguimientoPedidosPage = () => {
             </button>
           )}
 
-          {canManage && (
+          {canManage && canEditComprasFields && (
             <label className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer">
               <Upload className="w-4 h-4" /> Importar PDF
               <input
@@ -493,6 +533,16 @@ const SeguimientoPedidosPage = () => {
                 disabled={isImporting}
               />
             </label>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              title="Configurar Notificaciones de Pago"
+            >
+              <Settings className="w-4 h-4" /> Notificaciones
+            </button>
           )}
 
           <button
@@ -672,11 +722,13 @@ const SeguimientoPedidosPage = () => {
                               Cant: <span className="font-bold text-gray-900">{pedido.cant_pedido || '-'}</span>
                             </span>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
-                              pedido.abonado 
+                              pedido.abonado === true 
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                : 'bg-rose-50 text-rose-700 border-rose-100'
+                                : pedido.abonado === false
+                                  ? 'bg-rose-50 text-rose-700 border-rose-100'
+                                  : 'bg-gray-50 text-gray-700 border-gray-250'
                             }`}>
-                              {pedido.abonado ? 'Abonado' : 'No Abonado'}
+                              {pedido.abonado === true ? 'Abonado' : (pedido.abonado === false ? 'No Abonado' : 'Pendiente Pago')}
                             </span>
                           </div>
                         </div>
@@ -748,11 +800,13 @@ const SeguimientoPedidosPage = () => {
                   </span>
                   <span className="text-[10px] text-gray-500 font-semibold">Cant. Pedida: {pedido.cant_pedido || '-'}</span>
                   <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-bold border inline-block ${
-                    pedido.abonado 
+                    pedido.abonado === true 
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                      : 'bg-rose-50 text-rose-700 border-rose-100'
+                      : pedido.abonado === false
+                        ? 'bg-rose-50 text-rose-700 border-rose-100'
+                        : 'bg-gray-50 text-gray-700 border-gray-250'
                   }`}>
-                    {pedido.abonado ? 'Abonado' : 'No Abonado'}
+                    {pedido.abonado === true ? 'Abonado' : (pedido.abonado === false ? 'No Abonado' : 'Pendiente Pago')}
                   </span>
                 </div>
 
@@ -822,7 +876,8 @@ const SeguimientoPedidosPage = () => {
                         name="quien_solicita"
                         value={formData.quien_solicita}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
                       >
                         <option value="">Seleccione un usuario/sucursal (opcional)...</option>
                         {userSelectOptions.map(username => (
@@ -836,7 +891,8 @@ const SeguimientoPedidosPage = () => {
                         name="para_quien"
                         value={formData.para_quien}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
                       >
                         <option value="">Seleccione un usuario (opcional)...</option>
                         {targetSelectOptions.map(username => (
@@ -852,7 +908,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ingrese número si aplica..."
                         value={formData.nro_pedido_venta}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                   </div>
@@ -873,7 +930,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. Saint Gobain, Tersuave..."
                         value={formData.proveedor_marca}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
@@ -884,17 +942,19 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. DC-3000..."
                         value={formData.nro_pedido}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Abonado?</label>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Necesita ser abonado?</label>
                       <div className="flex p-1 bg-gray-50 rounded-xl border border-gray-200 h-[42px] items-center">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, abonado: true }))}
-                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all h-full ${
-                            formData.abonado
+                          disabled={!canEditComprasFields}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all h-full disabled:opacity-50 disabled:cursor-not-allowed ${
+                            formData.abonado === true
                               ? 'bg-emerald-600 text-white shadow-sm'
                               : 'text-gray-500 hover:bg-gray-100'
                           }`}
@@ -904,8 +964,9 @@ const SeguimientoPedidosPage = () => {
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, abonado: false }))}
-                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all h-full ${
-                            !formData.abonado
+                          disabled={!canEditComprasFields}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all h-full disabled:opacity-50 disabled:cursor-not-allowed ${
+                            formData.abonado === false
                               ? 'bg-red-500 text-white shadow-sm'
                               : 'text-gray-500 hover:bg-gray-100'
                           }`}
@@ -933,20 +994,31 @@ const SeguimientoPedidosPage = () => {
                           placeholder="Ej. 001100..."
                           value={formData.codigo_mercurio}
                           onChange={handleInputChange}
-                          onBlur={(e) => buscarProductoPorCodigo(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
+                          onBlur={(e) => {
+                            if (canEditComprasFields) {
                               buscarProductoPorCodigo(e.target.value);
                             }
                           }}
-                          className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (canEditComprasFields) {
+                                buscarProductoPorCodigo(e.target.value);
+                              }
+                            }
+                          }}
+                          disabled={!canEditComprasFields}
+                          className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono disabled:bg-gray-100 disabled:text-gray-400"
                         />
                         <button
                           type="button"
-                          onClick={() => buscarProductoPorCodigo(formData.codigo_mercurio)}
-                          disabled={isSearchingProduct}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                          onClick={() => {
+                            if (canEditComprasFields) {
+                              buscarProductoPorCodigo(formData.codigo_mercurio);
+                            }
+                          }}
+                          disabled={isSearchingProduct || !canEditComprasFields}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Buscar producto"
                         >
                           {isSearchingProduct ? (
@@ -965,7 +1037,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. Esmalte Sintetico, Latex..."
                         value={formData.descripcion}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
@@ -976,7 +1049,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. 20 LITROS, 1000 UNIDAD..."
                         value={formData.capacidad}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
@@ -988,7 +1062,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. 20, 100..."
                         value={formData.cant_pedido}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
@@ -999,7 +1074,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. 12/05, 15/5..."
                         value={formData.prev_entrada}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
@@ -1010,7 +1086,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Ej. 175, 2664..."
                         value={formData.nro_pedido_compra}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                     <div>
@@ -1020,7 +1097,8 @@ const SeguimientoPedidosPage = () => {
                         name="fecha"
                         value={formData.fecha}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                        disabled={!canEditComprasFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                   </div>
@@ -1329,11 +1407,13 @@ const SeguimientoPedidosPage = () => {
                       <div>
                         <span className="text-xs text-gray-400 block">¿Abonado?:</span>
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
-                          viewingPedido.abonado 
+                          viewingPedido.abonado === true 
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
-                            : 'bg-rose-100 text-rose-800 border-rose-200'
+                            : viewingPedido.abonado === false
+                              ? 'bg-rose-100 text-rose-800 border-rose-200'
+                              : 'bg-gray-100 text-gray-800 border-gray-200'
                         }`}>
-                          {viewingPedido.abonado ? 'SÍ' : 'NO'}
+                          {viewingPedido.abonado === true ? 'SÍ' : (viewingPedido.abonado === false ? 'NO' : 'SIN DEFINIR')}
                         </span>
                       </div>
                     </div>
@@ -1482,6 +1562,77 @@ const SeguimientoPedidosPage = () => {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Configuración de Notificaciones (Admin) */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md flex flex-col shadow-2xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-6 py-4 flex items-center justify-between text-white shrink-0">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Settings className="w-5 h-5" /> Configurar Notificaciones
+              </h3>
+              <button
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="p-1 rounded-full hover:bg-white/10 transition-all text-white/80 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveSettings} className="p-6 space-y-4">
+              <p className="text-sm text-gray-500 mb-4">
+                Configura a qué usuarios les llegará una notificación automática cuando se seleccione si el pedido requiere o no ser abonado.
+              </p>
+              
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Notificar al elegir "SÍ" (Abonado):
+                </label>
+                <select
+                  value={notifSettings.notifyUserOnSi}
+                  onChange={(e) => setNotifSettings(prev => ({ ...prev, notifyUserOnSi: e.target.value }))}
+                  className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                >
+                  <option value="">No notificar a nadie...</option>
+                  {userSelectOptions.map(username => (
+                    <option key={username} value={username}>{username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Notificar al elegir "NO" (No Abonado):
+                </label>
+                <select
+                  value={notifSettings.notifyUserOnNo}
+                  onChange={(e) => setNotifSettings(prev => ({ ...prev, notifyUserOnNo: e.target.value }))}
+                  className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                >
+                  <option value="">No notificar a nadie...</option>
+                  {userSelectOptions.map(username => (
+                    <option key={username} value={username}>{username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

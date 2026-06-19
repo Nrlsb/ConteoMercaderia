@@ -18,4 +18,8 @@ router.post('/import-pdf', verifyToken, hasStrictPermission('manage_seguimiento_
 // Exportar planilla a Excel
 router.get('/export', verifyToken, seguimientoPedidosController.exportPedidosExcel);
 
+// Configuración de notificaciones
+router.get('/notification-settings', verifyToken, seguimientoPedidosController.getNotificationSettings);
+router.put('/notification-settings', verifyToken, verifyAdmin, seguimientoPedidosController.updateNotificationSettings);
+
 module.exports = router;
