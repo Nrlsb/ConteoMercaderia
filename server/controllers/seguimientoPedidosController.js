@@ -300,13 +300,13 @@ exports.createPedido = async (req, res) => {
             }
         }
         const isCompras = userSucursalName === 'compras' || req.user.role === 'superadmin';
-        const isDeposito = userSucursalName === 'deposito' || req.user.role === 'superadmin';
+        const isStrictDeposito = userSucursalName === 'deposito';
 
         if (!isCompras) {
             return res.status(403).json({ message: 'Sólo los usuarios de la sucursal Compras pueden registrar nuevos pedidos' });
         }
 
-        if (!isDeposito) {
+        if (!isStrictDeposito) {
             req.body.transp_mercurio = false;
             req.body.otro_transporte = false;
         }
@@ -416,8 +416,7 @@ exports.updatePedido = async (req, res) => {
                 'contacto_mercurio', 'contacto_mercurio_fecha',
                 'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
                 'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
-                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega',
-                'transp_mercurio', 'otro_transporte'
+                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega'
             ];
 
             const attemptedChanges = [];
@@ -432,7 +431,27 @@ exports.updatePedido = async (req, res) => {
             }
 
             if (attemptedChanges.length > 0) {
-                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Contacto, Estado o Transporte (sólo sucursal Depósito)' });
+                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Contacto o Estado (sólo sucursal Depósito)' });
+            }
+        }
+
+        // Validación estricta para campos de transporte (sólo sucursal Depósito)
+        const isStrictDeposito = userSucursalName === 'deposito';
+        if (!isStrictDeposito && currentPedido) {
+            const transportFields = ['transp_mercurio', 'otro_transporte'];
+            const attemptedChanges = [];
+            for (const field of transportFields) {
+                if (req.body[field] !== undefined) {
+                    const valNew = req.body[field] === null || req.body[field] === undefined ? '' : String(req.body[field]).trim();
+                    const valOld = currentPedido[field] === null || currentPedido[field] === undefined ? '' : String(currentPedido[field]).trim();
+                    if (valNew !== valOld) {
+                        attemptedChanges.push(field);
+                    }
+                }
+            }
+
+            if (attemptedChanges.length > 0) {
+                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Transporte (requiere estrictamente pertenecer a la sucursal Depósito)' });
             }
         }
 
