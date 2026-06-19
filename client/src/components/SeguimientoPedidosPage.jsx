@@ -78,7 +78,8 @@ const SeguimientoPedidosPage = () => {
     contacto_proveedor_entrega: '',
     estado: 'Pendiente',
     abonado: null,
-    fecha_confirmada: false
+    fecha_confirmada: false,
+    imagenes: []
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
@@ -346,7 +347,8 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor_entrega: pedido.contacto_proveedor_entrega || '',
       estado: pedido.estado || 'Pendiente',
       abonado: pedido.abonado !== undefined && pedido.abonado !== null ? pedido.abonado : null,
-      fecha_confirmada: pedido.fecha_confirmada || false
+      fecha_confirmada: pedido.fecha_confirmada || false,
+      imagenes: pedido.imagenes || []
     });
     setIsModalOpen(true);
   };
@@ -411,7 +413,8 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor_entrega: formData.contacto_proveedor_entrega || '',
       estado: formData.estado || 'Pendiente',
       abonado: formData.abonado,
-      fecha_confirmada: formData.fecha_confirmada || false
+      fecha_confirmada: formData.fecha_confirmada || false,
+      imagenes: formData.imagenes || []
     };
 
     const toastId = toast.loading(editingPedido ? 'Actualizando pedido...' : 'Registrando pedido...');
@@ -1000,6 +1003,90 @@ const SeguimientoPedidosPage = () => {
                       </div>
                     </div>
                   </div>
+
+                  {editingPedido && formData.abonado === true && (
+                    <div className="border-t border-gray-100 pt-4 mt-2">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Upload className="w-4 h-4 text-indigo-600" />
+                          <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Imágenes / Comprobantes de Pago</span>
+                        </div>
+                        {/* Botón de carga para Gerencia */}
+                        {(user?.sucursal_name?.toLowerCase() === 'gerencia' || user?.role === 'superadmin') && (
+                          <label className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer select-none">
+                            <Plus className="w-3.5 h-3.5" /> Subir Imagen
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={async (e) => {
+                                const files = e.target.files;
+                                if (!files || files.length === 0) return;
+                                
+                                const uploadFormData = new FormData();
+                                for (let i = 0; i < files.length; i++) {
+                                  uploadFormData.append('imagenes', files[i]);
+                                }
+                                
+                                const toastId = toast.loading('Subiendo comprobante...');
+                                try {
+                                  const res = await api.post(`/api/seguimiento-pedidos/${editingPedido.id}/upload-imagenes`, uploadFormData, {
+                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                  });
+                                  toast.success('Comprobante subido correctamente', { id: toastId });
+                                  
+                                  // Actualizar el estado de las imágenes
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    imagenes: res.data.imagenes
+                                  }));
+                                  setEditingPedido(prev => ({
+                                    ...prev,
+                                    imagenes: res.data.imagenes
+                                  }));
+                                  fetchPedidos();
+                                } catch (error) {
+                                  console.error('Error uploading images:', error);
+                                  toast.error(error.response?.data?.message || 'Error al subir comprobante', { id: toastId });
+                                } finally {
+                                  e.target.value = ''; // Limpiar input
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Galería de imágenes en el formulario */}
+                      {(!formData.imagenes || formData.imagenes.length === 0) ? (
+                        <p className="text-[11px] text-gray-400 italic py-1">No se han cargado imágenes/comprobantes de pago todavía.</p>
+                      ) : (
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                          {formData.imagenes.map((url, index) => (
+                            <div key={index} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square bg-gray-50">
+                              <img
+                                src={url}
+                                alt={`Comprobante ${index + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-200">
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 bg-white rounded-full text-gray-800 shadow hover:scale-110 transition-all"
+                                  title="Ver comprobante"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Sector 5: Producto */}
