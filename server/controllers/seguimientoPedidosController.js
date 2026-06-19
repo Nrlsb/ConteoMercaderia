@@ -282,6 +282,7 @@ exports.updatePedido = async (req, res) => {
             }
         }
         const isCompras = userSucursalName === 'compras' || req.user.role === 'superadmin';
+        const isDeposito = userSucursalName === 'deposito' || req.user.role === 'superadmin';
 
         if (req.body.nro_pedido_venta !== undefined) {
             const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
@@ -319,6 +320,29 @@ exports.updatePedido = async (req, res) => {
 
             if (attemptedChanges.length > 0) {
                 return res.status(403).json({ message: 'No tienes permisos para modificar campos de Destinatario, Proveedor o Producto (sólo sucursal Compras)' });
+            }
+        }
+
+        if (!isDeposito && currentPedido) {
+            const depositoFields = [
+                'contacto_mercurio', 'contacto_mercurio_fecha',
+                'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
+                'estado', 'cant_recepcion_parcial', 'recepcion_parcial'
+            ];
+
+            const attemptedChanges = [];
+            for (const field of depositoFields) {
+                if (req.body[field] !== undefined) {
+                    const valNew = req.body[field] === null || req.body[field] === undefined ? '' : String(req.body[field]).trim();
+                    const valOld = currentPedido[field] === null || currentPedido[field] === undefined ? '' : String(currentPedido[field]).trim();
+                    if (valNew !== valOld) {
+                        attemptedChanges.push(field);
+                    }
+                }
+            }
+
+            if (attemptedChanges.length > 0) {
+                return res.status(403).json({ message: 'No tienes permisos para modificar campos de Contacto o Estado (sólo sucursal Depósito)' });
             }
         }
 

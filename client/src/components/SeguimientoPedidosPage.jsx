@@ -23,6 +23,7 @@ const SeguimientoPedidosPage = () => {
   const canManage = user?.role === 'superadmin' || 
                     (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
   const canEditComprasFields = user?.sucursal_name?.toLowerCase() === 'compras' || user?.role === 'superadmin';
+  const canEditDepositoFields = user?.sucursal_name?.toLowerCase() === 'deposito' || user?.role === 'superadmin';
 
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1131,7 +1132,8 @@ const SeguimientoPedidosPage = () => {
                           name="contacto_mercurio"
                           value={formData.contacto_mercurio}
                           onChange={handleInputChange}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
                         >
                           <option value="">Seleccione un usuario (opcional)...</option>
                           {contactoMercurioSelectOptions.map(username => (
@@ -1146,7 +1148,8 @@ const SeguimientoPedidosPage = () => {
                           name="contacto_mercurio_fecha"
                           value={formData.contacto_mercurio_fecha}
                           onChange={handleInputChange}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                         />
                       </div>
                     </div>
@@ -1167,7 +1170,8 @@ const SeguimientoPedidosPage = () => {
                           placeholder="Contacto proveedor..."
                           value={formData.contacto_proveedor}
                           onChange={handleInputChange}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                         />
                       </div>
                       <div>
@@ -1177,13 +1181,14 @@ const SeguimientoPedidosPage = () => {
                           name="contacto_proveedor_fecha"
                           value={formData.contacto_proveedor_fecha}
                           onChange={handleInputChange}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                         />
                       </div>
                       <div className="flex flex-col justify-end">
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fecha Confirmada?</label>
                         <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
-                          !formData.contacto_proveedor_fecha
+                          !formData.contacto_proveedor_fecha || !canEditDepositoFields
                             ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                             : formData.fecha_confirmada
                               ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
@@ -1200,7 +1205,7 @@ const SeguimientoPedidosPage = () => {
                                 toast.error('Debe ingresar una fecha antes de poder confirmarla');
                               }
                             }}
-                            disabled={!formData.contacto_proveedor_fecha}
+                            disabled={!formData.contacto_proveedor_fecha || !canEditDepositoFields}
                             className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                           />
                           <span>{formData.fecha_confirmada ? 'Confirmada' : 'Confirmar'}</span>
@@ -1223,7 +1228,8 @@ const SeguimientoPedidosPage = () => {
                         name="estado"
                         value={formData.estado}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                        disabled={!canEditDepositoFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
                       >
                         {!['Anulado', 'Recepción Parcial', 'Recepción Total'].includes(formData.estado) && (
                           <option value={formData.estado}>{formData.estado}</option>
@@ -1245,7 +1251,8 @@ const SeguimientoPedidosPage = () => {
                           value={formData.cant_recepcion_parcial}
                           onChange={handleInputChange}
                           required={formData.estado === 'Recepción Parcial'}
-                          className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300"
+                          disabled={!canEditDepositoFields}
+                          className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
                         />
                       </div>
                     )}
@@ -1258,7 +1265,8 @@ const SeguimientoPedidosPage = () => {
                         placeholder="Notas o historial de recepciones..."
                         value={formData.recepcion_parcial}
                         onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                        disabled={!canEditDepositoFields}
+                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
                   </div>
