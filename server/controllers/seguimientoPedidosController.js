@@ -748,18 +748,23 @@ exports.updateNotificationSettings = async (req, res) => {
             .upsert({
                 key: 'seguimiento_pedidos_notifications',
                 value: { notifyUserOnSi: notifyUserOnSi || '', notifyUserOnNo: notifyUserOnNo || '' },
-                updated_at: new Date()
+                updated_at: new Date().toISOString()
             });
 
         if (error) {
             console.error('Error updating notification settings:', error);
-            throw error;
+            return res.status(500).json({ 
+                message: 'Error al actualizar la configuración de notificaciones', 
+                error: error.message,
+                details: error.details,
+                hint: error.hint
+            });
         }
 
         res.json({ success: true, notifyUserOnSi, notifyUserOnNo });
     } catch (error) {
         console.error('Server error updating notification settings:', error);
-        res.status(500).json({ message: 'Error al actualizar la configuración' });
+        res.status(500).json({ message: 'Error al actualizar la configuración', error: error.message || error });
     }
 };
 

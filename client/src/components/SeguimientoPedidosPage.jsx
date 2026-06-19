@@ -120,7 +120,8 @@ const SeguimientoPedidosPage = () => {
       setIsSettingsModalOpen(false);
     } catch (error) {
       console.error('Error saving notification settings:', error);
-      toast.error('Error al guardar la configuración', { id: toastId });
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Error al guardar la configuración';
+      toast.error(errorMsg, { id: toastId });
     }
   };
 
