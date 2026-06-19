@@ -19,6 +19,11 @@ const formatLocalDate = (dateStr) => {
 
 const SeguimientoPedidosPage = () => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const canManage = user?.role === 'superadmin' || 
+                    (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
+  const canEditComprasFields = user?.sucursal_name?.toLowerCase() === 'compras' || user?.role === 'superadmin';
+
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -494,11 +499,6 @@ const SeguimientoPedidosPage = () => {
       </span>
     );
   };
-
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-  const canManage = user?.role === 'superadmin' || 
-                    (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
-  const canEditComprasFields = user?.sucursal_name?.toLowerCase() === 'compras' || user?.role === 'superadmin';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
