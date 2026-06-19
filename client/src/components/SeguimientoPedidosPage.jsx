@@ -187,6 +187,24 @@ const SeguimientoPedidosPage = () => {
     return options.sort();
   }, [registeredUsers, formData.contacto_mercurio]);
 
+  const isPedidoFinalizado = (p) => {
+    const lowerEstado = p.estado?.toLowerCase() || '';
+    const isFinalizadoEstandar =
+      lowerEstado.includes('recibido') ||
+      lowerEstado.includes('total') ||
+      lowerEstado.includes('anulado') ||
+      lowerEstado.includes('entregado');
+
+    const isGerencia = user?.sucursal_name?.toLowerCase() === 'gerencia';
+    const hasImgs = p.imagenes && Array.isArray(p.imagenes) && p.imagenes.length > 0;
+
+    if (isGerencia && p.abonado === true && hasImgs) {
+      return true;
+    }
+
+    return isFinalizadoEstandar;
+  };
+
   // Opciones de filtros dinámicos basados en los datos
   const filterOptions = useMemo(() => {
     const solicitantes = new Set();
@@ -207,20 +225,14 @@ const SeguimientoPedidosPage = () => {
   // Filtrar pedidos por la pestaña activa
   const pedidosPorPestaña = useMemo(() => {
     return pedidos.filter(p => {
-      const lowerEstado = p.estado?.toLowerCase() || '';
-      const isFinalizado =
-        lowerEstado.includes('recibido') ||
-        lowerEstado.includes('total') ||
-        lowerEstado.includes('anulado') ||
-        lowerEstado.includes('entregado');
-
+      const finalizado = isPedidoFinalizado(p);
       if (activeTab === 'historial') {
-        return isFinalizado;
+        return finalizado;
       } else {
-        return !isFinalizado;
+        return !finalizado;
       }
     });
-  }, [pedidos, activeTab]);
+  }, [pedidos, activeTab, user]);
 
   // Filtrado de pedidos
   const filteredPedidos = useMemo(() => {
@@ -596,10 +608,7 @@ const SeguimientoPedidosPage = () => {
           <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
             activeTab === 'activos' ? 'bg-blue-200 text-blue-800' : 'bg-gray-100 text-gray-600'
           }`}>
-            {pedidos.filter(p => {
-              const le = p.estado?.toLowerCase() || '';
-              return !(le.includes('recibido') || le.includes('total') || le.includes('anulado') || le.includes('entregado'));
-            }).length}
+            {pedidos.filter(p => !isPedidoFinalizado(p)).length}
           </span>
         </button>
 
@@ -616,10 +625,7 @@ const SeguimientoPedidosPage = () => {
           <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
             activeTab === 'historial' ? 'bg-emerald-200 text-emerald-800' : 'bg-gray-100 text-gray-600'
           }`}>
-            {pedidos.filter(p => {
-              const le = p.estado?.toLowerCase() || '';
-              return le.includes('recibido') || le.includes('total') || le.includes('anulado') || le.includes('entregado');
-            }).length}
+            {pedidos.filter(p => isPedidoFinalizado(p)).length}
           </span>
         </button>
       </div>
@@ -1716,52 +1722,9 @@ const SeguimientoPedidosPage = () => {
               {/* Sección de Imágenes / Comprobantes (Abonado SÍ) */}
               {viewingPedido.abonado === true && (
                 <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Upload className="w-4 h-4 text-indigo-600" />
-                      <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Imágenes / Comprobantes</h4>
-                    </div>
-                    {/* Botón de carga para Gerencia */}
-                    {(user?.sucursal_name?.toLowerCase() === 'gerencia' || user?.role === 'superadmin') && (
-                      <label className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer">
-                        <Plus className="w-3.5 h-3.5" /> Subir Imagen
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={async (e) => {
-                            const files = e.target.files;
-                            if (!files || files.length === 0) return;
-                            
-                            const formData = new FormData();
-                            for (let i = 0; i < files.length; i++) {
-                              formData.append('imagenes', files[i]);
-                            }
-                            
-                            const toastId = toast.loading('Subiendo imágenes...');
-                            try {
-                              const res = await api.post(`/api/seguimiento-pedidos/${viewingPedido.id}/upload-imagenes`, formData, {
-                                headers: { 'Content-Type': 'multipart/form-data' }
-                              });
-                              toast.success('Imágenes subidas correctamente', { id: toastId });
-                              
-                              // Actualizar el estado local para reflejar las nuevas imágenes
-                              setViewingPedido(prev => ({
-                                ...prev,
-                                imagenes: res.data.imagenes
-                              }));
-                              fetchPedidos();
-                            } catch (error) {
-                              console.error('Error uploading images:', error);
-                              toast.error(error.response?.data?.message || 'Error al subir las imágenes', { id: toastId });
-                            } finally {
-                              e.target.value = ''; // Limpiar
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <Upload className="w-4 h-4 text-indigo-600" />
+                    <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Imágenes / Comprobantes</h4>
                   </div>
 
                   {/* Galería de imágenes */}
