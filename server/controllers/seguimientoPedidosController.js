@@ -13,6 +13,18 @@ function formatLocalDate(dateStr) {
     return dateStr;
 }
 
+function validateNroPedidoVenta(nro) {
+    if (nro === undefined || nro === null) return { isValid: true, cleanVal: '' };
+    const cleanVal = String(nro).trim();
+    if (cleanVal === '') return { isValid: true, cleanVal: '' };
+    const isSixDigits = /^\d{6}$/.test(cleanVal);
+    const isPA = cleanVal.toUpperCase() === 'PA';
+    if (!isSixDigits && !isPA) {
+        return { isValid: false, cleanVal };
+    }
+    return { isValid: true, cleanVal: cleanVal.toUpperCase() };
+}
+
 // Función helper para crear notificaciones asociadas al pedido de manera case-insensitive
 async function createOrderNotifications(pedido, actorUsername, actionType) {
     try {
@@ -186,6 +198,12 @@ exports.getAllPedidos = async (req, res) => {
 
 exports.createPedido = async (req, res) => {
     try {
+        const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
+        if (!validation.isValid) {
+            return res.status(400).json({ message: 'El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"' });
+        }
+        req.body.nro_pedido_venta = validation.cleanVal;
+
         const { data, error } = await supabase
             .from('seguimiento_pedidos')
             .insert([req.body])
@@ -207,6 +225,14 @@ exports.createPedido = async (req, res) => {
 exports.updatePedido = async (req, res) => {
     const { id } = req.params;
     try {
+        if (req.body.nro_pedido_venta !== undefined) {
+            const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
+            if (!validation.isValid) {
+                return res.status(400).json({ message: 'El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"' });
+            }
+            req.body.nro_pedido_venta = validation.cleanVal;
+        }
+
         // Consultar el pedido actual para verificar si las fechas, el contacto o confirmación cambiaron
         const { data: currentPedido } = await supabase
             .from('seguimiento_pedidos')
@@ -566,7 +592,7 @@ exports.exportPedidosExcel = async (req, res) => {
             'Para Quién': p.para_quien || '',
             'N° Pedido Venta': p.nro_pedido_venta || '',
             'Proveedor/Marca': p.proveedor_marca || '',
-            'N° de Pedido': p.nro_pedido || '',
+            'N° de Pedido Compra': p.nro_pedido || '',
             'Código Producto Proveed.': p.codigo_producto_proveed || '',
             'Abonado': p.abonado ? 'SÍ' : 'NO',
             'Urgencia': p.urgencia ? 'SÍ' : 'NO',
@@ -577,7 +603,7 @@ exports.exportPedidosExcel = async (req, res) => {
             'Descripción/Capacidad': p.descripcion_capacidad || '',
             'Cant. Pedido': p.cant_pedido || 0,
             'Prev. Entrada': p.prev_entrada || '',
-            'N° Pedido Compra': p.nro_pedido_compra || '',
+            'N° Pedido Compra (OC)': p.nro_pedido_compra || '',
             'Recepción Parcial (Comentarios)': p.recepcion_parcial || '',
             'Cant. Recep. Parcial': p.cant_recepcion_parcial || '',
             'Contacto Mercurio - ¿Quién?': p.contacto_mercurio || '',

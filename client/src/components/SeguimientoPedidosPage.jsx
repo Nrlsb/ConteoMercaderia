@@ -40,7 +40,7 @@ const SeguimientoPedidosPage = () => {
   // Formulario de Pedido
   const initialFormState = {
     fecha: new Date().toISOString().split('T')[0],
-    quien_solicita: user?.sucursal_name || '',
+    quien_solicita: user?.username || '',
     para_quien: '',
     nro_pedido_venta: '',
     proveedor_marca: '',
@@ -96,6 +96,16 @@ const SeguimientoPedidosPage = () => {
     fetchPedidos();
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        quien_solicita: prev.quien_solicita || user.username || '',
+        contacto_mercurio: prev.contacto_mercurio || user.username || ''
+      }));
+    }
+  }, [user]);
 
   useEffect(() => {
     if (isModalOpen) {
@@ -292,6 +302,17 @@ const SeguimientoPedidosPage = () => {
       return;
     }
 
+    // Validar N° Pedido de Venta
+    const nroPedidoVentaClean = formData.nro_pedido_venta ? formData.nro_pedido_venta.trim() : '';
+    if (nroPedidoVentaClean) {
+      const isSixDigits = /^\d{6}$/.test(nroPedidoVentaClean);
+      const isPA = nroPedidoVentaClean.toUpperCase() === 'PA';
+      if (!isSixDigits && !isPA) {
+        toast.error('El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"');
+        return;
+      }
+    }
+
     // Combinar descripción y capacidad
     const descCap = formData.descripcion && formData.capacidad
       ? `${formData.descripcion} - ${formData.capacidad}`
@@ -301,7 +322,7 @@ const SeguimientoPedidosPage = () => {
       fecha: formData.fecha || new Date().toISOString().split('T')[0],
       quien_solicita: formData.quien_solicita,
       para_quien: formData.para_quien || '',
-      nro_pedido_venta: formData.nro_pedido_venta || '',
+      nro_pedido_venta: nroPedidoVentaClean.toUpperCase(),
       proveedor_marca: formData.proveedor_marca,
       nro_pedido: formData.nro_pedido || '',
       codigo_producto_proveed: formData.codigo_producto_proveed || '',
@@ -796,7 +817,7 @@ const SeguimientoPedidosPage = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién Solicita a Logística?</label>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Quién solicita a proveedor?</label>
                       <select
                         name="quien_solicita"
                         value={formData.quien_solicita}
@@ -843,7 +864,7 @@ const SeguimientoPedidosPage = () => {
                     <div className="w-2.5 h-5 bg-indigo-600 rounded-full"></div>
                     <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Proveedor</h4>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Proveedor / Marca</label>
                       <input
@@ -856,7 +877,7 @@ const SeguimientoPedidosPage = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° de Pedido</label>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° de Pedido Compra</label>
                       <input
                         type="text"
                         name="nro_pedido"
@@ -864,17 +885,6 @@ const SeguimientoPedidosPage = () => {
                         value={formData.nro_pedido}
                         onChange={handleInputChange}
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Código Producto Proveed.</label>
-                      <input
-                        type="text"
-                        name="codigo_producto_proveed"
-                        placeholder="Ingrese código de proveedor..."
-                        value={formData.codigo_producto_proveed}
-                        onChange={handleInputChange}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono"
                       />
                     </div>
                     <div>
@@ -901,75 +911,6 @@ const SeguimientoPedidosPage = () => {
                           }`}
                         >
                           NO
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sector 3 y 4: Clasificación y Transporte side-by-side */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Sector 3: Clasificación */}
-                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                      <div className="w-2.5 h-5 bg-amber-500 rounded-full"></div>
-                      <h4 className="text-sm font-bold text-amber-800 uppercase tracking-wider">Clasificación</h4>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Debe elegir una de las dos opciones</label>
-                      <div className="flex gap-4 p-1.5 bg-gray-50 rounded-xl border border-gray-200">
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, urgencia: true, rotacion: false }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.urgencia
-                              ? 'bg-red-600 text-white shadow-sm'
-                              : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                          Urgencia (URG)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, urgencia: false, rotacion: true }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.rotacion
-                              ? 'bg-amber-500 text-white shadow-sm'
-                              : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                          Rotación (ROT)
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Sector 4: Transporte */}
-                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                      <div className="w-2.5 h-5 bg-purple-600 rounded-full"></div>
-                      <h4 className="text-sm font-bold text-purple-900 uppercase tracking-wider">Transporte</h4>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Debe elegir una de las dos opciones</label>
-                      <div className="flex gap-4 p-1.5 bg-gray-50 rounded-xl border border-gray-200">
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: true, otro_transporte: false }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.transp_mercurio
-                              ? 'bg-blue-600 text-white shadow-sm'
-                              : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                          Transp. Mercurio (MERC)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: false, otro_transporte: true }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.otro_transporte
-                              ? 'bg-purple-600 text-white shadow-sm'
-                              : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                          Otro Transporte
                         </button>
                       </div>
                     </div>
@@ -1081,6 +1022,39 @@ const SeguimientoPedidosPage = () => {
                         onChange={handleInputChange}
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sector 4: Transporte */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <div className="w-2.5 h-5 bg-purple-600 rounded-full"></div>
+                    <h4 className="text-sm font-bold text-purple-900 uppercase tracking-wider">Transporte</h4>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Debe elegir una de las dos opciones</label>
+                    <div className="flex gap-4 p-1.5 bg-gray-50 rounded-xl border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: true, otro_transporte: false }))}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.transp_mercurio
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                      >
+                        Transp. Mercurio (MERC)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, transp_mercurio: false, otro_transporte: true }))}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${formData.otro_transporte
+                            ? 'bg-purple-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                      >
+                        Otro Transporte
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1341,17 +1315,11 @@ const SeguimientoPedidosPage = () => {
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-xs text-gray-400 block">Proveedor / Marca:</span>
-                      <span className="font-semibold text-gray-805">{viewingPedido.proveedor_marca || '-'}</span>
+                      <span className="font-semibold text-gray-855">{viewingPedido.proveedor_marca || '-'}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-xs text-gray-400 block">N° Pedido Prov:</span>
-                        <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-gray-400 block">Cód Prod Prov:</span>
-                        <span className="font-mono text-gray-700 text-xs">{viewingPedido.codigo_producto_proveed || '-'}</span>
-                      </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">N° de Pedido Compra:</span>
+                      <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
