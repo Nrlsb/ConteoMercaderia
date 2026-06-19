@@ -383,13 +383,27 @@ const SeguimientoPedidosPage = () => {
 
     // Validar N° Pedido de Venta
     const nroPedidoVentaClean = formData.nro_pedido_venta ? formData.nro_pedido_venta.trim() : '';
-    if (nroPedidoVentaClean) {
-      const isSixDigits = /^\d{6}$/.test(nroPedidoVentaClean);
-      const isPA = nroPedidoVentaClean.toUpperCase() === 'PA';
-      if (!isSixDigits && !isPA) {
-        toast.error('El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"');
-        return;
-      }
+    if (!nroPedidoVentaClean) {
+      toast.error('El N° de pedido de venta es obligatorio');
+      return;
+    }
+    const isSixDigitsVenta = /^\d{6}$/.test(nroPedidoVentaClean);
+    const isPA = nroPedidoVentaClean.toUpperCase() === 'PA';
+    if (!isSixDigitsVenta && !isPA) {
+      toast.error('El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"');
+      return;
+    }
+
+    // Validar N° de Pedido Compra
+    const nroPedidoClean = formData.nro_pedido ? formData.nro_pedido.trim() : '';
+    if (!nroPedidoClean) {
+      toast.error('El N° de pedido de compra es obligatorio');
+      return;
+    }
+    const isSixDigitsCompra = /^\d{6}$/.test(nroPedidoClean);
+    if (!isSixDigitsCompra) {
+      toast.error('El N° de pedido de compra debe tener exactamente 6 números');
+      return;
     }
 
     // Combinar descripción y capacidad

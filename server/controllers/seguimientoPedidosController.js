@@ -14,15 +14,26 @@ function formatLocalDate(dateStr) {
 }
 
 function validateNroPedidoVenta(nro) {
-    if (nro === undefined || nro === null) return { isValid: true, cleanVal: '' };
+    if (nro === undefined || nro === null) return { isValid: false, cleanVal: '' };
     const cleanVal = String(nro).trim();
-    if (cleanVal === '') return { isValid: true, cleanVal: '' };
+    if (cleanVal === '') return { isValid: false, cleanVal: '' };
     const isSixDigits = /^\d{6}$/.test(cleanVal);
     const isPA = cleanVal.toUpperCase() === 'PA';
     if (!isSixDigits && !isPA) {
         return { isValid: false, cleanVal };
     }
     return { isValid: true, cleanVal: cleanVal.toUpperCase() };
+}
+
+function validateNroPedidoCompra(nro) {
+    if (nro === undefined || nro === null) return { isValid: false, cleanVal: '' };
+    const cleanVal = String(nro).trim();
+    if (cleanVal === '') return { isValid: false, cleanVal: '' };
+    const isSixDigits = /^\d{6}$/.test(cleanVal);
+    if (!isSixDigits) {
+        return { isValid: false, cleanVal };
+    }
+    return { isValid: true, cleanVal };
 }
 
 function hasImagenes(pedido) {
@@ -311,11 +322,17 @@ exports.createPedido = async (req, res) => {
             req.body.otro_transporte = false;
         }
 
-        const validation = validateNroPedidoVenta(req.body.nro_pedido_venta);
-        if (!validation.isValid) {
+        const validationVenta = validateNroPedidoVenta(req.body.nro_pedido_venta);
+        if (!validationVenta.isValid) {
             return res.status(400).json({ message: 'El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"' });
         }
-        req.body.nro_pedido_venta = validation.cleanVal;
+        req.body.nro_pedido_venta = validationVenta.cleanVal;
+
+        const validationCompra = validateNroPedidoCompra(req.body.nro_pedido);
+        if (!validationCompra.isValid) {
+            return res.status(400).json({ message: 'El N° de pedido de compra debe tener exactamente 6 números' });
+        }
+        req.body.nro_pedido = validationCompra.cleanVal;
         req.body.quien_solicita = req.user?.username || '';
 
         if (req.body.contacto_proveedor_fecha) {
@@ -363,6 +380,14 @@ exports.updatePedido = async (req, res) => {
                 return res.status(400).json({ message: 'El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"' });
             }
             req.body.nro_pedido_venta = validation.cleanVal;
+        }
+
+        if (req.body.nro_pedido !== undefined) {
+            const validation = validateNroPedidoCompra(req.body.nro_pedido);
+            if (!validation.isValid) {
+                return res.status(400).json({ message: 'El N° de pedido de compra debe tener exactamente 6 números' });
+            }
+            req.body.nro_pedido = validation.cleanVal;
         }
 
         // Consultar el pedido actual
