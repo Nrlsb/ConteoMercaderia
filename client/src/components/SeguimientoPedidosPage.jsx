@@ -1139,8 +1139,8 @@ const SeguimientoPedidosPage = () => {
                   </div>
                 </div>
 
-                {/* Sector 6 y 7: Contactos side-by-side */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Sector 6 y 7: Contactos uno debajo del otro */}
+                <div className="flex flex-col gap-6">
                   {/* Sector 6: Contacto Mercurio */}
                   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                     <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
@@ -1512,7 +1512,7 @@ const SeguimientoPedidosPage = () => {
               </div>
 
               {/* Contactos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-4">
                 {/* Contacto Mercurio */}
                 <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
                   <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
