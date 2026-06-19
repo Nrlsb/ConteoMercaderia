@@ -768,3 +768,156 @@ exports.updateNotificationSettings = async (req, res) => {
     }
 };
 
+// Subir imágenes asociadas a un pedido (Gerencia solamente)
+exports.uploadImagenes = async (req, res) => {
+    const { id } = req.params;
+    const files = req.files || [];
+
+    if (files.length === 0) {
+        return res.status(400).json({ message: 'No se recibió ninguna imagen' });
+    }
+
+    try {
+        // 1. Obtener el pedido actual
+        const { data: pedido, error: pedidoError } = await supabase
+            .from('seguimiento_pedidos')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (pedidoError || !pedido) {
+            return res.status(404).json({ message: 'Pedido no encontrado' });
+        }
+
+        // 2. Validar que el pedido tenga abonado = true (SÍ)
+        if (pedido.abonado !== true) {
+            return res.status(400).json({ message: 'Sólo se pueden cargar imágenes para pedidos que requieran ser abonados (SÍ)' });
+        }
+
+        // 3. Validar que la sucursal del usuario sea "Gerencia" o sea superadmin
+        let userSucursalName = '';
+        if (req.user.sucursal_id) {
+            const { data: sucursal } = await supabase
+                .from('sucursales')
+                .select('name')
+                .eq('id', req.user.sucursal_id)
+                .single();
+            if (sucursal && sucursal.name) {
+                userSucursalName = sucursal.name.toLowerCase();
+            }
+        }
+        const isGerencia = userSucursalName === 'gerencia' || req.user.role === 'superadmin';
+
+        if (!isGerencia) {
+            return res.status(403).json({ message: 'Sólo los usuarios de la sucursal Gerencia pueden subir imágenes' });
+        }
+
+        // 4. Subir imágenes a Supabase Storage
+        const newUrls = [];
+        for (const file of files) {
+            const fileName = `seguimiento-pedidos/${pedido.id}/${Date.now()}_${file.originalname}`;
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('receipt-documents')
+                .upload(fileName, file.buffer, {
+                    contentType: file.mimetype,
+                    upsert: true
+                });
+
+            if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage
+                    .from('receipt-documents')
+                    .getPublicUrl(fileName);
+                newUrls.push(publicUrl);
+            } else {
+                console.error('[SEGUIMIENTO PEDIDOS IMAGE] Error al subir archivo:', file.originalname, uploadError);
+            }
+        }
+
+        if (newUrls.length === 0) {
+            return res.status(500).json({ message: 'Error al subir las imágenes al servidor de almacenamiento' });
+        }
+
+        // 5. Actualizar columna 'imagenes' en la BD
+        let currentImagenes = [];
+        if (pedido.imagenes) {
+            try {
+                currentImagenes = Array.isArray(pedido.imagenes) ? pedido.imagenes : JSON.parse(pedido.imagenes);
+            } catch (e) {
+                currentImagenes = [pedido.imagenes];
+            }
+        }
+        const updatedImagenes = [...currentImagenes, ...newUrls];
+
+        const { data: updatedPedido, error: updateError } = await supabase
+            .from('seguimiento_pedidos')
+            .update({ imagenes: updatedImagenes })
+            .eq('id', pedido.id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
+
+        // 6. Notificar a los usuarios de Compras
+        try {
+            // Obtener el id de la sucursal 'Compras'
+            const { data: sucursalCompras } = await supabase
+                .from('sucursales')
+                .select('id')
+                .ilike('name', 'compras')
+                .single();
+
+            if (sucursalCompras) {
+                const { data: comprasUsers } = await supabase
+                    .from('users')
+                    .select('id, username, sucursal_id')
+                    .eq('sucursal_id', sucursalCompras.id);
+
+                if (comprasUsers && comprasUsers.length > 0) {
+                    const notifications = comprasUsers
+                        .filter(u => u.username.toLowerCase() !== req.user.username.toLowerCase())
+                        .map(user => ({
+                            user_id: user.id,
+                            title: 'Comprobante de pago subido',
+                            message: `El usuario ${req.user.username} subió ${newUrls.length} imagen/es al pedido de ${pedido.proveedor_marca || 'Proveedor'} (${pedido.descripcion_capacidad || 'Producto'}).`,
+                            type: 'pedido_comprobante_subido',
+                            pedido_id: pedido.id,
+                            read: false
+                        }));
+
+                    if (notifications.length > 0) {
+                        await supabase.from('notifications').insert(notifications);
+                        
+                        // Enviar push notification
+                        const userIds = notifications.map(n => n.user_id);
+                        const { data: tokenRecords } = await supabase
+                            .from('user_fcm_tokens')
+                            .select('token')
+                            .in('user_id', userIds);
+
+                        if (tokenRecords && tokenRecords.length > 0) {
+                            const tokens = tokenRecords.map(t => t.token);
+                            await firebase.sendPushNotification(
+                                tokens,
+                                'Comprobante de pago subido',
+                                `Se subieron comprobantes al pedido de ${pedido.proveedor_marca || 'Proveedor'}.`,
+                                {
+                                    pedido_id: String(pedido.id),
+                                    type: 'pedido_comprobante_subido'
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (notifErr) {
+            console.error('Error generating notifications for image upload:', notifErr);
+        }
+
+        res.json({ success: true, imagenes: updatedImagenes });
+    } catch (error) {
+        console.error('Error uploading imagenes to pedido:', error);
+        res.status(500).json({ message: 'Error interno al subir imágenes' });
+    }
+};
+

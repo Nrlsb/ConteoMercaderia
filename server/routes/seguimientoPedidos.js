@@ -20,6 +20,9 @@ router.get('/export', verifyToken, seguimientoPedidosController.exportPedidosExc
 router.get('/notification-settings', verifyToken, seguimientoPedidosController.getNotificationSettings);
 router.put('/notification-settings', verifyToken, verifyAdmin, seguimientoPedidosController.updateNotificationSettings);
 
+// Carga de imágenes (Gerencia)
+router.post('/:id/upload-imagenes', verifyToken, upload.array('imagenes', 5), seguimientoPedidosController.uploadImagenes);
+
 // Rutas parametrizadas (comodines)
 router.put('/:id', verifyToken, hasStrictPermission('manage_seguimiento_pedidos'), seguimientoPedidosController.updatePedido);
 router.delete('/:id', verifyToken, verifyAdmin, hasStrictPermission('manage_seguimiento_pedidos'), seguimientoPedidosController.deletePedido);

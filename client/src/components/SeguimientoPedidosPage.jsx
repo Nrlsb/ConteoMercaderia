@@ -1528,6 +1528,87 @@ const SeguimientoPedidosPage = () => {
                   </div>
                 </div>
               )}
+
+              {/* Sección de Imágenes / Comprobantes (Abonado SÍ) */}
+              {viewingPedido.abonado === true && (
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-indigo-600" />
+                      <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Imágenes / Comprobantes</h4>
+                    </div>
+                    {/* Botón de carga para Gerencia */}
+                    {(user?.sucursal_name?.toLowerCase() === 'gerencia' || user?.role === 'superadmin') && (
+                      <label className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer">
+                        <Plus className="w-3.5 h-3.5" /> Subir Imagen
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files || files.length === 0) return;
+                            
+                            const formData = new FormData();
+                            for (let i = 0; i < files.length; i++) {
+                              formData.append('imagenes', files[i]);
+                            }
+                            
+                            const toastId = toast.loading('Subiendo imágenes...');
+                            try {
+                              const res = await api.post(`/api/seguimiento-pedidos/${viewingPedido.id}/upload-imagenes`, formData, {
+                                headers: { 'Content-Type': 'multipart/form-data' }
+                              });
+                              toast.success('Imágenes subidas correctamente', { id: toastId });
+                              
+                              // Actualizar el estado local para reflejar las nuevas imágenes
+                              setViewingPedido(prev => ({
+                                ...prev,
+                                imagenes: res.data.imagenes
+                              }));
+                              fetchPedidos();
+                            } catch (error) {
+                              console.error('Error uploading images:', error);
+                              toast.error(error.response?.data?.message || 'Error al subir las imágenes', { id: toastId });
+                            } finally {
+                              e.target.value = ''; // Limpiar
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Galería de imágenes */}
+                  {(!viewingPedido.imagenes || viewingPedido.imagenes.length === 0) ? (
+                    <p className="text-xs text-gray-400 italic py-2">No se han cargado imágenes todavía.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {viewingPedido.imagenes.map((url, index) => (
+                        <div key={index} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square bg-gray-50">
+                          <img
+                            src={url}
+                            alt={`Comprobante ${index + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-200">
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 bg-white rounded-full text-gray-800 shadow hover:scale-110 transition-all"
+                              title="Ver imagen a pantalla completa"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
