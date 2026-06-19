@@ -15,7 +15,8 @@ import {
     ChevronDown,
     X,
     Eye,
-    EyeOff
+    EyeOff,
+    Building
 } from 'lucide-react';
 import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { tintometricoService } from '../utils/tintometricoService';
@@ -112,6 +113,7 @@ const ColorRegistrations = () => {
     const [colorCode, setColorCode] = useState('');
     const [hex, setHex] = useState('#3b82f6');
     const [clientName, setClientName] = useState('');
+    const [obra, setObra] = useState('');
     const [observations, setObservations] = useState('');
     const [selectedConcentrado, setSelectedConcentrado] = useState('');
     const [manualPigments, setManualPigments] = useState({});
@@ -601,7 +603,8 @@ const ColorRegistrations = () => {
                 observations: prefix ? `${prefix} ${finalObservations}`.trim() : finalObservations || null,
                 capacity_real: colorType === 'tintometrico' ? selectedCanSize : null,
                 base: colorType === 'tintometrico' ? activeRecipe?.base : null,
-                formula: calculatedFormula
+                formula: calculatedFormula,
+                obra: obra.trim() || null
             };
 
             await colorRegistrationsService.create(payload);
@@ -612,6 +615,7 @@ const ColorRegistrations = () => {
             setColorCode('');
             setHex('#3b82f6');
             setClientName('');
+            setObra('');
             setObservations('');
             setSelectedProduct(null);
             setProductSearch('');
@@ -670,8 +674,9 @@ const ColorRegistrations = () => {
         const prodMatch = r.products?.description?.toLowerCase().includes(q) || r.products?.code?.toLowerCase().includes(q);
         const userMatch = r.target_user?.username?.toLowerCase().includes(q);
         const creatorMatch = r.creator_user?.username?.toLowerCase().includes(q);
+        const obraMatch = r.obra?.toLowerCase().includes(q);
 
-        return idMatch || nameMatch || clientMatch || codeMatch || prodMatch || userMatch || creatorMatch;
+        return idMatch || nameMatch || clientMatch || codeMatch || prodMatch || userMatch || creatorMatch || obraMatch;
     });
 
     return (
@@ -1105,6 +1110,21 @@ const ColorRegistrations = () => {
                             </div>
                         </div>
 
+                        {/* Obra Input */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Obra</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={obra}
+                                    onChange={(e) => setObra(e.target.value)}
+                                    className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-bold text-gray-800"
+                                    placeholder="Obra a la que pertenece (opcional)..."
+                                />
+                                <Building className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400" />
+                            </div>
+                        </div>
+
                         {/* App User Selection */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">¿Para qué usuario de la app pertenece?</label>
@@ -1459,6 +1479,17 @@ const ColorRegistrations = () => {
                                                     <span className="font-bold text-gray-900">{item.client_name}</span>
                                                 </div>
                                             </div>
+
+                                            {/* Obra */}
+                                            {item.obra && (
+                                                <div className="flex gap-2 items-center">
+                                                    <Building className="w-4 h-4 text-gray-400 shrink-0" />
+                                                    <div className="truncate">
+                                                        <span className="font-semibold text-gray-500">Obra:</span>{' '}
+                                                        <span className="font-bold text-gray-900">{item.obra}</span>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Target User */}
                                             {item.target_user ? (

@@ -11,7 +11,8 @@ import {
     Eye,
     EyeOff,
     FileText,
-    Check
+    Check,
+    Building
 } from 'lucide-react';
 import { tintometricoService } from '../utils/tintometricoService';
 import { colorRegistrationsService } from '../utils/colorRegistrationsService';
@@ -69,6 +70,7 @@ const Tintometrico = () => {
     const [history, setHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [clientName, setClientName] = useState('');
+    const [obra, setObra] = useState('');
     const [registering, setRegistering] = useState(false);
 
     // Refs para el scroll infinito (Intersection Observer)
@@ -188,12 +190,14 @@ const Tintometrico = () => {
                 observations: observation.trim() || null,
                 capacity_real: selectedCanSize,
                 base: activeRecipe.base,
-                formula: calculatedFormula
+                formula: calculatedFormula,
+                obra: obra.trim() || null
             };
 
             await colorRegistrationsService.create(payload);
             toast.success('¡Preparación registrada con éxito!');
             setClientName('');
+            setObra('');
             fetchHistory();
         } catch (err) {
             console.error('Error al registrar preparación:', err);
@@ -339,6 +343,7 @@ const Tintometrico = () => {
         fetchEquivalentColors(color);
         fetchColorDuplicates(color);
         setClientName('');
+        setObra('');
 
         try {
             const response = await tintometricoService.fetchDosificacion(color.id);
@@ -399,6 +404,7 @@ const Tintometrico = () => {
         setCapacities([]);
         setObservation('');
         setClientName('');
+        setObra('');
         
         try {
             const response = await tintometricoService.fetchDosificacion(color.id);
@@ -771,8 +777,8 @@ const Tintometrico = () => {
                                                 className="group flex flex-col p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-305 hover:border-blue-400 hover:shadow-sm transition-all text-left cursor-pointer relative"
                                             >
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-[10px] font-black text-slate-800 truncate max-w-[130px]" title={item.client_name}>
-                                                        {item.client_name}
+                                                    <span className="text-[10px] font-black text-slate-800 truncate max-w-[140px]" title={item.client_name + (item.obra ? ` (${item.obra})` : '')}>
+                                                        {item.client_name} {item.obra && <span className="text-[9px] font-normal text-slate-500">({item.obra})</span>}
                                                     </span>
                                                     <span className="text-[8px] font-bold text-slate-400">
                                                         {new Date(item.created_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })} {new Date(item.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
@@ -1246,24 +1252,31 @@ const Tintometrico = () => {
                                                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
                                                          📥 Registrar en Historial
                                                      </span>
-                                                     <div className="flex gap-2">
+                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                          <input
                                                              type="text"
                                                              value={clientName}
                                                              onChange={(e) => setClientName(e.target.value)}
                                                              placeholder="Nombre del cliente..."
-                                                             className="flex-1 rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10"
+                                                             className="w-full rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10"
                                                          />
-                                                         <button
-                                                             type="button"
-                                                             onClick={handleRegisterPreparation}
-                                                             disabled={registering}
-                                                             className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shrink-0"
-                                                         >
-                                                             <Check size={12} />
-                                                             <span>{registering ? 'Registrando...' : 'Registrar'}</span>
-                                                         </button>
+                                                         <input
+                                                             type="text"
+                                                             value={obra}
+                                                             onChange={(e) => setObra(e.target.value)}
+                                                             placeholder="Obra (ej: Obra 1, Casa Sur)..."
+                                                             className="w-full rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10"
+                                                         />
                                                      </div>
+                                                     <button
+                                                         type="button"
+                                                         onClick={handleRegisterPreparation}
+                                                         disabled={registering}
+                                                         className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                                     >
+                                                         <Check size={12} />
+                                                         <span>{registering ? 'Registrando...' : 'Registrar'}</span>
+                                                     </button>
                                                  </div>
 
                                                  <div className="space-y-1">
