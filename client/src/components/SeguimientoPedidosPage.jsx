@@ -1067,30 +1067,8 @@ const SeguimientoPedidosPage = () => {
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Prev. Entrada</label>
-                      <input
-                        type="text"
-                        name="prev_entrada"
-                        placeholder="Ej. 12/05, 15/5..."
-                        value={formData.prev_entrada}
-                        onChange={handleInputChange}
-                        disabled={!canEditComprasFields}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">N° Pedido Compra</label>
-                      <input
-                        type="text"
-                        name="nro_pedido_compra"
-                        placeholder="Ej. 175, 2664..."
-                        value={formData.nro_pedido_compra}
-                        onChange={handleInputChange}
-                        disabled={!canEditComprasFields}
-                        className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 text-xs font-mono disabled:bg-gray-100 disabled:text-gray-400"
-                      />
-                    </div>
+
+
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Fecha de Registro</label>
                       <input
@@ -1400,23 +1378,17 @@ const SeguimientoPedidosPage = () => {
                       <span className="text-xs text-gray-400 block">N° de Pedido Compra:</span>
                       <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-xs text-gray-400 block">N° Pedido Compra (OC):</span>
-                        <span className="font-mono text-blue-600 font-semibold">{viewingPedido.nro_pedido_compra || '-'}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-gray-400 block">¿Abonado?:</span>
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
-                          viewingPedido.abonado === true 
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
-                            : viewingPedido.abonado === false
-                              ? 'bg-rose-100 text-rose-800 border-rose-200'
-                              : 'bg-gray-100 text-gray-800 border-gray-200'
-                        }`}>
-                          {viewingPedido.abonado === true ? 'SÍ' : (viewingPedido.abonado === false ? 'NO' : 'SIN DEFINIR')}
-                        </span>
-                      </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block">¿Abonado?:</span>
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
+                        viewingPedido.abonado === true 
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          : viewingPedido.abonado === false
+                            ? 'bg-rose-100 text-rose-800 border-rose-200'
+                            : 'bg-gray-100 text-gray-800 border-gray-200'
+                      }`}>
+                        {viewingPedido.abonado === true ? 'SÍ' : (viewingPedido.abonado === false ? 'NO' : 'SIN DEFINIR')}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1443,10 +1415,7 @@ const SeguimientoPedidosPage = () => {
                     <span className="text-xs text-gray-400 block">Cantidad Pedida:</span>
                     <span className="font-bold text-gray-900 text-lg">{viewingPedido.cant_pedido || '-'}</span>
                   </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block">Prev. Entrada:</span>
-                    <span className="font-semibold text-gray-800">{viewingPedido.prev_entrada || '-'}</span>
-                  </div>
+
                   <div>
                     <span className="text-xs text-gray-400 block">Fecha de Registro:</span>
                     <span className="font-semibold text-gray-800">
