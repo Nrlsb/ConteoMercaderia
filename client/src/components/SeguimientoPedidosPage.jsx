@@ -243,10 +243,23 @@ const SeguimientoPedidosPage = () => {
   // Manejar cambios en el formulario
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    setFormData(prev => {
+      const newState = {
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      };
+
+      const depFields = [
+        'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
+        'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada'
+      ];
+      if (depFields.includes(name) && canEditDepositoFields) {
+        newState.contacto_mercurio = user?.username || '';
+        newState.contacto_mercurio_fecha = new Date().toISOString().split('T')[0];
+      }
+
+      return newState;
+    });
   };
 
   // Buscar producto por código interno (Código Mercurio)
@@ -878,7 +891,7 @@ const SeguimientoPedidosPage = () => {
                         name="quien_solicita"
                         value={formData.quien_solicita}
                         onChange={handleInputChange}
-                        disabled={!canEditComprasFields}
+                        disabled={true}
                         className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
                       >
                         <option value="">Seleccione un usuario/sucursal (opcional)...</option>
@@ -1132,7 +1145,7 @@ const SeguimientoPedidosPage = () => {
                           name="contacto_mercurio"
                           value={formData.contacto_mercurio}
                           onChange={handleInputChange}
-                          disabled={!canEditDepositoFields}
+                          disabled={true}
                           className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
                         >
                           <option value="">Seleccione un usuario (opcional)...</option>
@@ -1148,7 +1161,7 @@ const SeguimientoPedidosPage = () => {
                           name="contacto_mercurio_fecha"
                           value={formData.contacto_mercurio_fecha}
                           onChange={handleInputChange}
-                          disabled={!canEditDepositoFields}
+                          disabled={true}
                           className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
                         />
                       </div>

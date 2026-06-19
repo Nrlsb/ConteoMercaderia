@@ -248,6 +248,7 @@ exports.createPedido = async (req, res) => {
             return res.status(400).json({ message: 'El N° de pedido de venta debe tener exactamente 6 números, o si contiene letras, debe ser únicamente "PA"' });
         }
         req.body.nro_pedido_venta = validation.cleanVal;
+        req.body.quien_solicita = req.user?.username || '';
 
         const { data, error } = await supabase
             .from('seguimiento_pedidos')
@@ -299,6 +300,10 @@ exports.updatePedido = async (req, res) => {
             .eq('id', id)
             .single();
 
+        if (currentPedido) {
+            delete req.body.quien_solicita;
+        }
+
         if (!isCompras && currentPedido) {
             const comprasFields = [
                 'quien_solicita', 'para_quien', 'nro_pedido_venta',
@@ -343,6 +348,30 @@ exports.updatePedido = async (req, res) => {
 
             if (attemptedChanges.length > 0) {
                 return res.status(403).json({ message: 'No tienes permisos para modificar campos de Contacto o Estado (sólo sucursal Depósito)' });
+            }
+        }
+
+        if (isDeposito && currentPedido) {
+            const depModFields = [
+                'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
+                'estado', 'cant_recepcion_parcial', 'recepcion_parcial'
+            ];
+
+            let modifiedField = false;
+            for (const field of depModFields) {
+                if (req.body[field] !== undefined) {
+                    const valNew = req.body[field] === null || req.body[field] === undefined ? '' : String(req.body[field]).trim();
+                    const valOld = currentPedido[field] === null || currentPedido[field] === undefined ? '' : String(currentPedido[field]).trim();
+                    if (valNew !== valOld) {
+                        modifiedField = true;
+                        break;
+                    }
+                }
+            }
+
+            if (modifiedField) {
+                req.body.contacto_mercurio = req.user?.username || '';
+                req.body.contacto_mercurio_fecha = new Date().toISOString().split('T')[0];
             }
         }
 
