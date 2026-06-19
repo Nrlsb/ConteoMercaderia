@@ -460,6 +460,31 @@ exports.updatePedido = async (req, res) => {
             }
         }
 
+        // Validación de campos de confirmación del destinatario (solo para_quien o superadmin)
+        if (currentPedido) {
+            const destinatarioFields = [
+                'confirmado_destinatario', 'fecha_confirmacion_destinatario',
+                'cant_recibida_destinatario', 'comentario_destinatario'
+            ];
+            const attemptedDestinatarioChanges = [];
+            for (const field of destinatarioFields) {
+                if (req.body[field] !== undefined) {
+                    const valNew = req.body[field] === null || req.body[field] === undefined ? '' : String(req.body[field]).trim();
+                    const valOld = currentPedido[field] === null || currentPedido[field] === undefined ? '' : String(currentPedido[field]).trim();
+                    if (valNew !== valOld) {
+                        attemptedDestinatarioChanges.push(field);
+                    }
+                }
+            }
+
+            if (attemptedDestinatarioChanges.length > 0) {
+                const isDestinatario = (req.user.username && currentPedido.para_quien && req.user.username.trim().toLowerCase() === currentPedido.para_quien.trim().toLowerCase()) || req.user.role === 'superadmin';
+                if (!isDestinatario) {
+                    return res.status(403).json({ message: 'No tienes permisos para confirmar la recepción de este pedido (requiere ser el destinatario del campo "Para quién")' });
+                }
+            }
+        }
+
         // Validación estricta para campos de transporte (sólo sucursal Depósito)
         const isStrictDeposito = userSucursalName === 'deposito';
         if (!isStrictDeposito && currentPedido) {

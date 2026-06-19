@@ -780,7 +780,16 @@ const SeguimientoPedidosPage = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 whitespace-nowrap">{getStatusBadge(pedido.estado)}</td>
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          {getStatusBadge(pedido.estado)}
+                          {pedido.confirmado_destinatario && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
+                              ✓ Confirmado Dest.
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-4 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -836,7 +845,14 @@ const SeguimientoPedidosPage = () => {
                       <span className="text-[11px] text-gray-400">De: {pedido.quien_solicita}</span>
                     </div>
                   </div>
-                  <div>{getStatusBadge(pedido.estado)}</div>
+                  <div className="flex flex-col items-end gap-1">
+                    {getStatusBadge(pedido.estado)}
+                    {pedido.confirmado_destinatario && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        ✓ Confirmado Dest.
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="border-t border-gray-100 pt-3 text-xs">
@@ -1730,6 +1746,92 @@ const SeguimientoPedidosPage = () => {
                       <span className="font-semibold text-blue-950">{viewingPedido.recepcion_parcial || '-'}</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Sección de Confirmación de Recepción del Destinatario */}
+              {(viewingPedido.confirmado_destinatario || (user?.username && viewingPedido.para_quien && user.username.trim().toLowerCase() === viewingPedido.para_quien.trim().toLowerCase()) || user?.role === 'superadmin') && (
+                <div className={`p-5 rounded-2xl border ${viewingPedido.confirmado_destinatario ? 'bg-emerald-50/50 border-emerald-250' : 'bg-amber-50/50 border-amber-250'} space-y-3`}>
+                  <div className="flex items-center gap-2 border-b pb-2 border-gray-150">
+                    <CheckCircle2 className={`w-4 h-4 ${viewingPedido.confirmado_destinatario ? 'text-emerald-600' : 'text-amber-600'}`} />
+                    <h4 className={`text-sm font-bold ${viewingPedido.confirmado_destinatario ? 'text-emerald-900' : 'text-amber-900'} uppercase tracking-wider`}>
+                      Confirmación del Destinatario ({viewingPedido.para_quien})
+                    </h4>
+                  </div>
+                  {viewingPedido.confirmado_destinatario ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-xs text-emerald-700 block">Fecha de Confirmación:</span>
+                        <span className="font-semibold text-emerald-950">{formatLocalDate(viewingPedido.fecha_confirmacion_destinatario)}</span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-emerald-700 block">Cantidad Recibida por Destinatario:</span>
+                        <span className="font-bold text-emerald-900 text-lg">{viewingPedido.cant_recibida_destinatario || '-'}</span>
+                      </div>
+                      <div className="md:col-span-3">
+                        <span className="text-xs text-emerald-700 block">Comentarios del Destinatario:</span>
+                        <span className="font-semibold text-emerald-950">{viewingPedido.comentario_destinatario || '-'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      const cant = e.target.cant_recibida_destinatario.value;
+                      const comment = e.target.comentario_destinatario.value;
+                      if (!cant) {
+                        toast.error('Debe ingresar la cantidad recibida');
+                        return;
+                      }
+                      const toastId = toast.loading('Confirmando recepción...');
+                      try {
+                        const res = await api.put(`/api/seguimiento-pedidos/${viewingPedido.id}`, {
+                          confirmado_destinatario: true,
+                          cant_recibida_destinatario: parseFloat(cant),
+                          comentario_destinatario: comment,
+                          fecha_confirmacion_destinatario: new Date().toISOString().split('T')[0]
+                        });
+                        toast.success('Recepción confirmada con éxito', { id: toastId });
+                        setViewingPedido(res.data);
+                        fetchPedidos();
+                      } catch (err) {
+                        console.error(err);
+                        toast.error(err.response?.data?.message || 'Error al confirmar recepción', { id: toastId });
+                      }
+                    }} className="space-y-4">
+                      <p className="text-xs text-amber-700">Por favor, confirma la cantidad física de mercadería que verdaderamente te llegó:</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Cantidad que llegó *</label>
+                          <input
+                            type="number"
+                            step="any"
+                            name="cant_recibida_destinatario"
+                            placeholder={`Ej. ${viewingPedido.cant_pedido || '10'}...`}
+                            defaultValue={viewingPedido.cant_recepcion_parcial || viewingPedido.cant_pedido || ''}
+                            required
+                            className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-amber-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Comentarios (Opcional)</label>
+                          <input
+                            type="text"
+                            name="comentario_destinatario"
+                            placeholder="Ej. Llegó todo en perfectas condiciones..."
+                            className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-amber-500 bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-95"
+                        >
+                          Confirmar Recepción
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               )}
 
