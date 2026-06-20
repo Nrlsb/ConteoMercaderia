@@ -149,6 +149,8 @@ const SeguimientoPedidosPage = () => {
   const isParaQuien = user?.username && viewingPedido?.para_quien &&
                       user.username.trim().toLowerCase() === viewingPedido.para_quien.trim().toLowerCase();
 
+  const showAdminDetails = canViewImages || !isParaQuien;
+
   // Formulario de Pedido
   const initialFormState = {
     fecha: new Date().toISOString().split('T')[0],
@@ -1610,6 +1612,8 @@ const SeguimientoPedidosPage = () => {
                 </h3>
                 <p className="text-xs text-blue-200 mt-0.5">
                   Pedido del {viewingPedido.fecha ? new Date(viewingPedido.fecha).toLocaleDateString('es-AR') : '-'}
+                  {!showAdminDetails && viewingPedido.descripcion_capacidad && ` - ${viewingPedido.descripcion_capacidad}`}
+                  {!showAdminDetails && viewingPedido.cant_pedido && ` (Cant: ${viewingPedido.cant_pedido})`}
                 </p>
               </div>
               <button
@@ -1620,234 +1624,238 @@ const SeguimientoPedidosPage = () => {
               </button>
             </div>
 
-            {/* Body */}
-            <div className="p-6 space-y-6 overflow-y-auto flex-grow bg-gray-50/30">
-              {/* Estado y Clasificación */}
-              <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado:</span>
-                  {getStatusBadge(viewingPedido.estado)}
-                </div>
-                <div className="flex gap-2">
-                  {viewingPedido.urgencia && (
-                    <span className="px-2.5 py-1 text-xs font-bold bg-red-100 text-red-700 rounded-full uppercase border border-red-200">
-                      Urgente (URG)
-                    </span>
-                  )}
-                  {viewingPedido.rotacion && (
-                    <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full uppercase border border-amber-200">
-                      Rotación (ROT)
-                    </span>
-                  )}
-                  {viewingPedido.transp_mercurio && (
-                    <span className="px-2.5 py-1 text-xs font-bold bg-blue-100 text-blue-700 rounded-full uppercase border border-blue-200">
-                      Transporte Mercurio (MERC)
-                    </span>
-                  )}
-                  {viewingPedido.otro_transporte && (
-                    <span className="px-2.5 py-1 text-xs font-bold bg-purple-100 text-purple-700 rounded-full uppercase border border-purple-200">
-                      Otro Transporte
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Destinatario y Solicitante */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
-                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <Users className="w-4 h-4 text-blue-600" />
-                    <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Solicitud y Destino</h4>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-xs text-gray-400 block">Quién Solicita:</span>
-                      <span className="font-semibold text-gray-800">{viewingPedido.quien_solicita || '-'}</span>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {showAdminDetails && (
+                <>
+                  {/* Estado y Clasificación */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado:</span>
+                      {getStatusBadge(viewingPedido.estado)}
                     </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">Para Quién:</span>
-                      <span className="font-semibold text-gray-800">{viewingPedido.para_quien || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">Nro Pedido Venta:</span>
-                      <span className="font-mono text-gray-800 font-medium">{viewingPedido.nro_pedido_venta || '-'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Proveedor y Compra */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
-                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <Truck className="w-4 h-4 text-indigo-600" />
-                    <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Proveedor y Compra</h4>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-xs text-gray-400 block">Proveedor / Marca:</span>
-                      <span className="font-semibold text-gray-855">{viewingPedido.proveedor_marca || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">N° de Pedido Compra:</span>
-                      <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">¿Necesita ser abonado?</span>
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
-                        viewingPedido.abonado === true 
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
-                          : viewingPedido.abonado === false
-                            ? 'bg-rose-100 text-rose-800 border-rose-200'
-                            : 'bg-gray-100 text-gray-800 border-gray-200'
-                      }`}>
-                        {viewingPedido.abonado === true ? 'SÍ' : (viewingPedido.abonado === false ? 'NO' : 'SIN DEFINIR')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Producto */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
-                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                  <Package className="w-4 h-4 text-emerald-600" />
-                  <h4 className="text-sm font-bold text-emerald-950 uppercase tracking-wider">Producto y Cantidad</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="md:col-span-2">
-                    <span className="text-xs text-gray-400 block">Descripción y Capacidad:</span>
-                    <span className="font-bold text-gray-800 text-base">{viewingPedido.descripcion_capacidad || '-'}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block">Código Mercurio:</span>
-                    <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs inline-block font-semibold">
-                      {viewingPedido.codigo_mercurio || '-'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block">Cantidad Pedida:</span>
-                    <span className="font-bold text-gray-900 text-lg">{viewingPedido.cant_pedido || '-'}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-xs text-gray-400 block">Fecha de Registro:</span>
-                    <span className="font-semibold text-gray-800">
-                      {viewingPedido.fecha ? new Date(viewingPedido.fecha).toLocaleDateString('es-AR') : '-'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contactos */}
-              <div className="flex flex-col gap-4">
-                {/* Contacto Mercurio */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
-                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
-                    <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wider">Contacto Mercurio</h4>
-                  </div>
-                  <div className="text-sm space-y-2">
-                    <div>
-                      <span className="text-xs text-gray-400 block">Responsable:</span>
-                      <span className="font-semibold text-gray-850">{viewingPedido.contacto_mercurio || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
-                      <span className="font-medium text-gray-700">{formatLocalDate(viewingPedido.contacto_mercurio_fecha)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contacto Proveedor */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
-                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
-                    <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider">Contacto Proveedor</h4>
-                  </div>
-                  <div className="text-sm space-y-2.5">
-                    <div>
-                      <span className="text-xs text-gray-400 block">Responsable:</span>
-                      <span className="font-semibold text-gray-800">{viewingPedido.contacto_proveedor || '-'}</span>
-                    </div>
-
-                    {viewingPedido.contacto_proveedor_fecha_original && 
-                     viewingPedido.contacto_proveedor_fecha_original !== viewingPedido.contacto_proveedor_fecha ? (
-                      <div className="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
-                        <div>
-                          <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Fecha Original</span>
-                          <span className="font-medium text-gray-500 text-xs line-through decoration-rose-500/50">{formatLocalDate(viewingPedido.contacto_proveedor_fecha_original)}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Fecha Reprog.</span>
-                          <span className="font-bold text-blue-700 text-xs">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="text-xs text-gray-400 block">Fecha de Entrega:</span>
-                        <span className="font-semibold text-gray-800">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div>
-                        <span className="text-xs text-gray-400 block mb-0.5">Estado de Fecha:</span>
-                        {viewingPedido.fecha_confirmada ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Confirmada
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                            <Clock className="w-3.5 h-3.5" /> Pendiente
-                          </span>
-                        )}
-                      </div>
-
-                      {viewingPedido.contacto_proveedor_entrega && (
-                        <div>
-                          <span className="text-xs text-gray-400 block mb-0.5">Entrega:</span>
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                            viewingPedido.contacto_proveedor_entrega === 'Total'
-                              ? 'bg-green-100 text-green-800 border-green-200'
-                              : 'bg-blue-100 text-blue-800 border-blue-200'
-                          }`}>
-                            {viewingPedido.contacto_proveedor_entrega === 'Total' ? 'Total' : 'Parcial'}
-                          </span>
-                        </div>
+                    <div className="flex gap-2">
+                      {viewingPedido.urgencia && (
+                        <span className="px-2.5 py-1 text-xs font-bold bg-red-100 text-red-700 rounded-full uppercase border border-red-200">
+                          Urgente (URG)
+                        </span>
+                      )}
+                      {viewingPedido.rotacion && (
+                        <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full uppercase border border-amber-200">
+                          Rotación (ROT)
+                        </span>
+                      )}
+                      {viewingPedido.transp_mercurio && (
+                        <span className="px-2.5 py-1 text-xs font-bold bg-blue-100 text-blue-700 rounded-full uppercase border border-blue-200">
+                          Transporte Mercurio (MERC)
+                        </span>
+                      )}
+                      {viewingPedido.otro_transporte && (
+                        <span className="px-2.5 py-1 text-xs font-bold bg-purple-100 text-purple-700 rounded-full uppercase border border-purple-200">
+                          Otro Transporte
+                        </span>
                       )}
                     </div>
-
-                    {viewingPedido.contacto_proveedor_observaciones && (
-                      <div className="bg-rose-50/30 p-2.5 rounded-xl border border-rose-100/50 mt-2">
-                        <span className="text-[10px] text-rose-800 font-bold uppercase tracking-wider block mb-1">Observaciones Proveedor:</span>
-                        <p className="text-xs text-gray-700 italic font-medium leading-relaxed">
-                          "{viewingPedido.contacto_proveedor_observaciones}"
-                        </p>
-                      </div>
-                    )}
                   </div>
-                </div>
-              </div>
 
-              {/* Recepción y comentarios */}
-              {(viewingPedido.recepcion_parcial || viewingPedido.cant_recepcion_parcial) && (
-                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-3">
-                  <div className="flex items-center gap-2 border-b border-blue-100 pb-2">
-                    <Clock className="w-4 h-4 text-blue-600" />
-                    <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider">Detalles de Recepción</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    {viewingPedido.cant_recepcion_parcial && (
-                      <div>
-                        <span className="text-xs text-blue-700 block">Cantidad Recibida:</span>
-                        <span className="font-bold text-blue-900 text-lg">{viewingPedido.cant_recepcion_parcial}</span>
+                  {/* Destinatario y Solicitante */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <Users className="w-4 h-4 text-blue-600" />
+                        <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Solicitud y Destino</h4>
                       </div>
-                    )}
-                    <div className="md:col-span-2">
-                      <span className="text-xs text-blue-700 block">Comentarios / Historial:</span>
-                      <span className="font-semibold text-blue-950">{viewingPedido.recepcion_parcial || '-'}</span>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-xs text-gray-400 block">Quién Solicita:</span>
+                          <span className="font-semibold text-gray-800">{viewingPedido.quien_solicita || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-400 block">Para Quién:</span>
+                          <span className="font-semibold text-gray-800">{viewingPedido.para_quien || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-400 block">Nro Pedido Venta:</span>
+                          <span className="font-mono text-gray-800 font-medium">{viewingPedido.nro_pedido_venta || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Proveedor y Compra */}
+                    <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <Truck className="w-4 h-4 text-indigo-600" />
+                        <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Proveedor y Compra</h4>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-xs text-gray-400 block">Proveedor / Marca:</span>
+                          <span className="font-semibold text-gray-855">{viewingPedido.proveedor_marca || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-400 block">N° de Pedido Compra:</span>
+                          <span className="font-semibold text-gray-800">{viewingPedido.nro_pedido || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-400 block">¿Necesita ser abonado?</span>
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${
+                            viewingPedido.abonado === true 
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                              : viewingPedido.abonado === false
+                                ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                : 'bg-gray-100 text-gray-800 border-gray-200'
+                          }`}>
+                            {viewingPedido.abonado === true ? 'SÍ' : (viewingPedido.abonado === false ? 'NO' : 'SIN DEFINIR')}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  {/* Producto */}
+                  <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                      <Package className="w-4 h-4 text-emerald-600" />
+                      <h4 className="text-sm font-bold text-emerald-950 uppercase tracking-wider">Producto y Cantidad</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="md:col-span-2">
+                        <span className="text-xs text-gray-400 block">Descripción y Capacidad:</span>
+                        <span className="font-bold text-gray-800 text-base">{viewingPedido.descripcion_capacidad || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400 block">Código Mercurio:</span>
+                        <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs inline-block font-semibold">
+                          {viewingPedido.codigo_mercurio || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400 block">Cantidad Pedida:</span>
+                        <span className="font-bold text-gray-900 text-lg">{viewingPedido.cant_pedido || '-'}</span>
+                      </div>
+
+                      <div>
+                        <span className="text-xs text-gray-400 block">Fecha de Registro:</span>
+                        <span className="font-semibold text-gray-800">
+                          {viewingPedido.fecha ? new Date(viewingPedido.fecha).toLocaleDateString('es-AR') : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contactos */}
+                  <div className="flex flex-col gap-4">
+                    {/* Contacto Mercurio */}
+                    <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
+                        <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wider">Contacto Mercurio</h4>
+                      </div>
+                      <div className="text-sm space-y-2">
+                        <div>
+                          <span className="text-xs text-gray-400 block">Responsable:</span>
+                          <span className="font-semibold text-gray-855">{viewingPedido.contacto_mercurio || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-400 block">Fechas de contacto:</span>
+                          <span className="font-medium text-gray-700">{formatLocalDate(viewingPedido.contacto_mercurio_fecha)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contacto Proveedor */}
+                    <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+                        <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider">Contacto Proveedor</h4>
+                      </div>
+                      <div className="text-sm space-y-2.5">
+                        <div>
+                          <span className="text-xs text-gray-400 block">Responsable:</span>
+                          <span className="font-semibold text-gray-800">{viewingPedido.contacto_proveedor || '-'}</span>
+                        </div>
+
+                        {viewingPedido.contacto_proveedor_fecha_original && 
+                         viewingPedido.contacto_proveedor_fecha_original !== viewingPedido.contacto_proveedor_fecha ? (
+                          <div className="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                            <div>
+                              <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Fecha Original</span>
+                              <span className="font-medium text-gray-500 text-xs line-through decoration-rose-500/50">{formatLocalDate(viewingPedido.contacto_proveedor_fecha_original)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Fecha Reprog.</span>
+                              <span className="font-bold text-blue-700 text-xs">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="text-xs text-gray-400 block">Fecha de Entrega:</span>
+                            <span className="font-semibold text-gray-800">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div>
+                            <span className="text-xs text-gray-400 block mb-0.5">Estado de Fecha:</span>
+                            {viewingPedido.fecha_confirmada ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Confirmada
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <Clock className="w-3.5 h-3.5" /> Pendiente
+                              </span>
+                            )}
+                          </div>
+
+                          {viewingPedido.contacto_proveedor_entrega && (
+                            <div>
+                              <span className="text-xs text-gray-400 block mb-0.5">Entrega:</span>
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                viewingPedido.contacto_proveedor_entrega === 'Total'
+                                  ? 'bg-green-100 text-green-800 border-green-200'
+                                  : 'bg-blue-100 text-blue-800 border-blue-200'
+                              }`}>
+                                {viewingPedido.contacto_proveedor_entrega === 'Total' ? 'Total' : 'Parcial'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {viewingPedido.contacto_proveedor_observaciones && (
+                          <div className="bg-rose-50/30 p-2.5 rounded-xl border border-rose-100/50 mt-2">
+                            <span className="text-[10px] text-rose-800 font-bold uppercase tracking-wider block mb-1">Observaciones Proveedor:</span>
+                            <p className="text-xs text-gray-700 italic font-medium leading-relaxed">
+                              "{viewingPedido.contacto_proveedor_observaciones}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recepción y comentarios */}
+                  {(viewingPedido.recepcion_parcial || viewingPedido.cant_recepcion_parcial) && (
+                    <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-3">
+                      <div className="flex items-center gap-2 border-b border-blue-100 pb-2">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider">Detalles de Recepción</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        {viewingPedido.cant_recepcion_parcial && (
+                          <div>
+                            <span className="text-xs text-blue-700 block">Cantidad Recibida:</span>
+                            <span className="font-bold text-blue-900 text-lg">{viewingPedido.cant_recepcion_parcial}</span>
+                          </div>
+                        )}
+                        <div className="md:col-span-2">
+                          <span className="text-xs text-blue-700 block">Comentarios / Historial:</span>
+                          <span className="font-semibold text-blue-950">{viewingPedido.recepcion_parcial || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Sección de Confirmación de Recepción del Destinatario */}
