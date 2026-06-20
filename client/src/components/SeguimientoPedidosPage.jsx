@@ -24,6 +24,9 @@ const SeguimientoPedidosPage = () => {
                     (user?.permissions && user.permissions.includes('manage_seguimiento_pedidos'));
   const canEditComprasFields = user?.sucursal_name?.toLowerCase() === 'compras' || user?.role === 'superadmin';
   const canEditDepositoFields = user?.sucursal_name?.toLowerCase() === 'deposito' || user?.role === 'superadmin';
+  const canViewImages = user?.sucursal_name?.toLowerCase() === 'compras' ||
+                        user?.sucursal_name?.toLowerCase() === 'gerencia' ||
+                        user?.role === 'superadmin';
 
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1040,7 +1043,7 @@ const SeguimientoPedidosPage = () => {
                     </div>
                   </div>
 
-                  {editingPedido && formData.abonado === true && (
+                  {editingPedido && formData.abonado === true && canViewImages && (
                     <div className="border-t border-gray-100 pt-4 mt-2">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -1834,7 +1837,7 @@ const SeguimientoPedidosPage = () => {
               )}
 
               {/* Sección de Imágenes / Comprobantes (Abonado SÍ) */}
-              {viewingPedido.abonado === true && (
+              {viewingPedido.abonado === true && canViewImages && (
                 <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
                     <Upload className="w-4 h-4 text-indigo-600" />

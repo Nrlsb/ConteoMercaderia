@@ -50,6 +50,26 @@ function hasImagenes(pedido) {
     return !!pedido.imagenes;
 }
 
+async function canUserViewImages(reqUser) {
+    if (!reqUser) return false;
+    if (reqUser.role === 'superadmin') return true;
+    if (!reqUser.sucursal_id) return false;
+    try {
+        const { data: sucursal } = await supabase
+            .from('sucursales')
+            .select('name')
+            .eq('id', reqUser.sucursal_id)
+            .single();
+        if (sucursal && sucursal.name) {
+            const nameLower = sucursal.name.toLowerCase();
+            return nameLower === 'compras' || nameLower === 'gerencia';
+        }
+    } catch (err) {
+        console.error('Error fetching sucursal in canUserViewImages:', err);
+    }
+    return false;
+}
+
 // Función helper para crear notificaciones asociadas al pedido de manera case-insensitive
 async function createOrderNotifications(pedido, actorUsername, actionType) {
     try {
@@ -288,6 +308,14 @@ exports.getAllPedidos = async (req, res) => {
                 }
                 return true;
             });
+        }
+
+        const canView = await canUserViewImages(req.user);
+        if (!canView && data) {
+            data = data.map(p => ({
+                ...p,
+                imagenes: []
+            }));
         }
 
         res.json(data);
@@ -570,6 +598,11 @@ exports.updatePedido = async (req, res) => {
 
         // Crear notificaciones en segundo plano con el tipo correspondiente
         createOrderNotifications(data, req.user?.username || 'Sistema', actionType);
+
+        const canView = await canUserViewImages(req.user);
+        if (!canView && data) {
+            data.imagenes = [];
+        }
 
         res.json(data);
     } catch (error) {
@@ -1172,6 +1205,11 @@ exports.confirmarRecepcionDestinatario = async (req, res) => {
             .single();
 
         if (updateError) throw updateError;
+
+        const canView = await canUserViewImages(req.user);
+        if (!canView && updatedPedido) {
+            updatedPedido.imagenes = [];
+        }
 
         res.json(updatedPedido);
     } catch (error) {
