@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import axios from 'axios';
+import api from '../api';
 import { X, Bug, MessageSquare, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,7 +14,7 @@ const BugReportModal = ({ isOpen, onClose, initialData = null }) => {
     useEffect(() => {
         const fetchVersion = async () => {
             try {
-                const response = await axios.get('/api/app-version');
+                const response = await api.get('/api/app-version');
                 setAppVersion(response.data.version);
             } catch (err) {
                 console.error('Error fetching version for report:', err);
@@ -41,9 +41,7 @@ const BugReportModal = ({ isOpen, onClose, initialData = null }) => {
                 appVersion: appVersion
             };
 
-            await axios.post('/api/reports', reportBody, {
-                headers: { 'x-auth-token': token }
-            });
+            await api.post('/api/reports', reportBody);
 
             toast.success('Reporte enviado correctamente. ¡Gracias por ayudarnos a mejorar!');
             setDescription('');

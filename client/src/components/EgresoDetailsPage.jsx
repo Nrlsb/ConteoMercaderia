@@ -33,6 +33,13 @@ const EgresoDetailsPage = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [scanStatus, setScanStatus] = useState(null);
 
+    // Stock Protheus modal states
+    const [selectedStockProduct, setSelectedStockProduct] = useState(null);
+    const [stockData, setStockData] = useState([]);
+    const [stockLoading, setStockLoading] = useState(false);
+    const [stockError, setStockError] = useState(null);
+    const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+
 
     // Local DB Sync
     const { syncProducts, getProductByCode, getProductsByCode, searchProductsLocally, isSyncing, lastSync } = useProductSync();
@@ -396,6 +403,24 @@ const EgresoDetailsPage = () => {
             setHistory(serverHistory);
         } finally {
             setHistoryLoading(false);
+        }
+    };
+
+    const handleProductStockView = async (item) => {
+        setSelectedStockProduct(item);
+        setIsStockModalOpen(true);
+        setStockLoading(true);
+        setStockError(null);
+        setStockData([]);
+
+        try {
+            const response = await api.get(`/api/egresos/stock-sb2/${item.product_code}`);
+            setStockData(response.data || []);
+        } catch (err) {
+            console.error('Error fetching stock:', err);
+            setStockError(err.response?.data?.message || 'No se pudo conectar con el servidor para consultar el stock.');
+        } finally {
+            setStockLoading(false);
         }
     };
 
@@ -1444,7 +1469,16 @@ const EgresoDetailsPage = () => {
                                                     return (
                                                         <tr key={item.id} className={`${rowColor} transition-colors`}>
                                                             <td className="px-5 py-4">
-                                                                <div className="text-sm font-bold text-gray-900">{item.products?.description || 'Sin descripción'}</div>
+                                                                <div 
+                                                                    onClick={() => handleProductStockView(item)}
+                                                                    className="text-sm font-bold text-brand-blue hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1.5"
+                                                                    title="Ver stock actual en Protheus"
+                                                                >
+                                                                    <span>{item.products?.description || 'Sin descripción'}</span>
+                                                                    <svg className="w-3.5 h-3.5 text-gray-400 hover:text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                    </svg>
+                                                                </div>
                                                                 <div className="text-xs text-gray-400 font-medium mt-1">INT: {item.product_code}</div>
                                                             </td>
                                                             <td className="px-5 py-4 text-center text-sm text-gray-600 font-mono">{item.products?.barcode || '-'}</td>
@@ -1496,7 +1530,16 @@ const EgresoDetailsPage = () => {
                                             }
                                             return (
                                                 <div key={item.id} className={`p-4 rounded-xl border ${cardColor} shadow-sm`}>
-                                                    <h4 className="font-bold text-gray-900 text-sm mb-1">{item.products?.description || 'Sin descripción'}</h4>
+                                                    <h4 
+                                                        onClick={() => handleProductStockView(item)}
+                                                        className="font-bold text-brand-blue hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1.5 text-sm mb-1"
+                                                        title="Ver stock actual en Protheus"
+                                                    >
+                                                        <span>{item.products?.description || 'Sin descripción'}</span>
+                                                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                    </h4>
                                                     <p className="text-[10px] text-gray-400 font-bold mb-2 uppercase tracking-wider">INT: {item.product_code}</p>
                                                     {item.products?.barcode && (
                                                         <p className="text-[10px] text-blue-500 font-mono mb-3">{item.products.barcode}</p>
@@ -1856,6 +1899,147 @@ const EgresoDetailsPage = () => {
                 items={items}
                 egreso={egreso}
             />
+
+            {/* Protheus Stock Modal */}
+            {isStockModalOpen && selectedStockProduct && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-brand-blue text-white">
+                            <div>
+                                <h3 className="font-bold text-lg">Stock en Protheus</h3>
+                                <p className="text-xs text-blue-100 font-medium">Consulta en tiempo real (get_sb2)</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsStockModalOpen(false);
+                                    setSelectedStockProduct(null);
+                                    setStockData([]);
+                                }}
+                                className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 overflow-y-auto flex-1">
+                            {/* Product Info */}
+                            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Producto Seleccionado</div>
+                                <div className="font-bold text-gray-800 text-base leading-tight">{selectedStockProduct.products?.description || 'Sin descripción'}</div>
+                                <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                                    <span>Código Interno: <strong className="font-mono text-gray-700">{selectedStockProduct.product_code}</strong></span>
+                                    {selectedStockProduct.products?.barcode && (
+                                        <span>Cód. Barras: <strong className="font-mono text-gray-700">{selectedStockProduct.products.barcode}</strong></span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {stockLoading ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                                    <svg className="animate-spin h-8 w-8 text-brand-blue mb-3" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span className="text-sm font-semibold">Consultando API de Protheus...</span>
+                                </div>
+                            ) : stockError ? (
+                                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-3">
+                                    <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <div>
+                                        <div className="font-bold">Error de consulta</div>
+                                        <div>{stockError}</div>
+                                    </div>
+                                </div>
+                            ) : stockData.length === 0 ? (
+                                <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed text-gray-400 font-medium">
+                                    No se encontraron registros de stock (SB2) para este producto en Protheus.
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Summary Cards */}
+                                    <div className="grid grid-cols-3 gap-3 mb-6">
+                                        <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl text-center">
+                                            <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Stock Físico (Total)</div>
+                                            <div className="text-xl font-black text-blue-900">
+                                                {stockData.reduce((sum, item) => sum + item.qatu, 0)}
+                                            </div>
+                                        </div>
+                                        <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl text-center">
+                                            <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Reservado (Total)</div>
+                                            <div className="text-xl font-black text-amber-900">
+                                                {stockData.reduce((sum, item) => sum + item.reserva, 0)}
+                                            </div>
+                                        </div>
+                                        <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl text-center">
+                                            <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Disponible (Total)</div>
+                                            <div className="text-xl font-black text-emerald-900">
+                                                {stockData.reduce((sum, item) => sum + item.disponible, 0)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Stock Details Table */}
+                                    <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-100">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Filial</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Depósito</th>
+                                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Físico</th>
+                                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Reservado</th>
+                                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Disponible</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100 bg-white">
+                                                    {stockData.map((entry, idx) => (
+                                                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-700">{entry.filial || '-'}</td>
+                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                                                <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-bold font-mono">
+                                                                    {entry.local || '00'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium text-gray-900">{entry.qatu}</td>
+                                                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">{entry.reserva}</td>
+                                                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm">
+                                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${entry.disponible > 0 ? 'bg-green-100 text-green-800' : entry.disponible < 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
+                                                                    {entry.disponible}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 bg-gray-50 border-t border-gray-100">
+                            <button
+                                onClick={() => {
+                                    setIsStockModalOpen(false);
+                                    setSelectedStockProduct(null);
+                                    setStockData([]);
+                                }}
+                                className="w-full py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

@@ -1,5 +1,6 @@
 const supabase = require('../services/supabaseClient');
 const { recordBarcodeHistory, findProductByAnyCode, findProductsByAnyCode } = require('../utils/dbHelpers');
+const protheusService = require('../services/protheusService');
 
 // Search products by query (smart search: description, code, or provider code)
 exports.searchProducts = async (req, res) => {
@@ -51,8 +52,9 @@ exports.syncProducts = async (req, res) => {
         while (hasMore) {
             const { data, error, count } = await supabase
                 .from('products')
-                .select('id, code, barcode, barcode_secondary, description, brand, primary_unit, secondary_unit, conversion_factor, conversion_type, provider_description, provider_code, counting_category, capacity, real_weight', { count: 'exact' })
+                .select('id, code, barcode, barcode_secondary, description, brand, brand_code, primary_unit, secondary_unit, conversion_factor, conversion_type, provider_description, provider_code, counting_category, capacity, real_weight, cost_price, tes, lista001, lista500, moneda', { count: 'exact' })
                 .order('code', { ascending: true })
+                .order('id', { ascending: true })
                 .range(from, from + step - 1);
 
             if (error) throw error;
@@ -112,6 +114,7 @@ exports.createProduct = async (req, res) => {
         barcode, 
         barcode_secondary, 
         brand, 
+        brand_code,
         primary_unit, 
         secondary_unit, 
         conversion_factor, 
@@ -120,7 +123,8 @@ exports.createProduct = async (req, res) => {
         capacity, 
         real_weight, 
         provider_code, 
-        provider_description 
+        provider_description,
+        cost_price
     } = req.body;
 
     if (!code || !code.trim()) {
@@ -149,6 +153,7 @@ exports.createProduct = async (req, res) => {
             barcode: barcode || null,
             barcode_secondary: barcode_secondary || null,
             brand: brand || null,
+            brand_code: brand_code || null,
             primary_unit: primary_unit || null,
             secondary_unit: secondary_unit || null,
             conversion_factor: conversion_factor !== undefined && conversion_factor !== '' && conversion_factor !== null ? parseFloat(conversion_factor) : null,
@@ -157,7 +162,8 @@ exports.createProduct = async (req, res) => {
             capacity: capacity || null,
             real_weight: real_weight || null,
             provider_code: provider_code || null,
-            provider_description: provider_description || null
+            provider_description: provider_description || null,
+            cost_price: cost_price !== undefined && cost_price !== '' && cost_price !== null ? parseFloat(cost_price) : 0
         };
 
         const { data, error } = await supabase
@@ -189,6 +195,7 @@ exports.updateProduct = async (req, res) => {
         barcode, 
         barcode_secondary, 
         brand, 
+        brand_code,
         primary_unit, 
         secondary_unit, 
         conversion_factor, 
@@ -197,7 +204,8 @@ exports.updateProduct = async (req, res) => {
         capacity, 
         real_weight, 
         provider_code, 
-        provider_description 
+        provider_description,
+        cost_price
     } = req.body;
 
     try {
@@ -218,6 +226,7 @@ exports.updateProduct = async (req, res) => {
         if (barcode !== undefined) updateData.barcode = barcode;
         if (barcode_secondary !== undefined) updateData.barcode_secondary = barcode_secondary;
         if (brand !== undefined) updateData.brand = brand;
+        if (brand_code !== undefined) updateData.brand_code = brand_code;
         if (primary_unit !== undefined) updateData.primary_unit = primary_unit;
         if (secondary_unit !== undefined) updateData.secondary_unit = secondary_unit;
         if (conversion_factor !== undefined) {
@@ -229,6 +238,9 @@ exports.updateProduct = async (req, res) => {
         if (real_weight !== undefined) updateData.real_weight = real_weight;
         if (provider_code !== undefined) updateData.provider_code = provider_code;
         if (provider_description !== undefined) updateData.provider_description = provider_description;
+        if (cost_price !== undefined) {
+            updateData.cost_price = cost_price !== '' && cost_price !== null ? parseFloat(cost_price) : 0;
+        }
 
         const { data, error } = await supabase
             .from('products')
@@ -536,7 +548,7 @@ exports.getProductByCode = async (req, res) => {
 
         // 2. If not found, try Fallback using Search (Fuzzy/Relaxed)
         console.log(`Product ${barcode} not found via exact match. Trying fallback search...`);
-
+        
         const { data: searchResults, error: searchError } = await supabase
             .rpc('search_products', { search_term: barcode });
 

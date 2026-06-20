@@ -11,7 +11,7 @@ const verifyToken = async (req, res, next) => {
         // Verify session is still valid in DB
         const { data: user, error } = await supabase
             .from('users')
-            .select('current_session_id, role, is_session_active, sucursal_id, permissions, allow_multiple_sessions')
+            .select('current_session_id, role, is_session_active, sucursal_id, permissions, allow_multiple_sessions, price_list')
             .eq('id', decoded.id)
             .single();
 
@@ -26,7 +26,7 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ message: 'Sesión iniciada en otro dispositivo o sesión expirada' });
         }
 
-        req.user = { ...decoded, role: user.role, sucursal_id: user.sucursal_id, permissions: user.permissions || [] };
+        req.user = { ...decoded, role: user.role, sucursal_id: user.sucursal_id, permissions: user.permissions || [], price_list: user.price_list || '001' };
         next();
     } catch (e) {
         console.error('Token verification error:', e.message);

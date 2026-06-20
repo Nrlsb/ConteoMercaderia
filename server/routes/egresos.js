@@ -7,6 +7,7 @@ const multer = require('multer');
 const xlsx = require('xlsx');
 const { fetchProductsByCodes, findProductByAnyCode } = require('../utils/dbHelpers');
 const { parseRemitoPdf } = require('../pdfParser');
+const { fetchRemitoFromProtheus, fetchStockFromProtheus } = require('../services/protheusService');
 const { parseExcelXml } = require('../xmlParser');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
@@ -31,20 +32,15 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
     }
 
     try {
-        // 1. Parse PDF
-        let items = [];
+        // 1. Parse PDF and extract metadata
         let metadata = null;
         let textSnippet = '';
         let isDevolucion = false;
         let isTransferencia = false;
         let isRemito = false;
 
-        // Si es una subida a un egreso existente, solo procesamos los archivos para el storage
-        // pero NO extraemos items si ya existen.
-        // Sin embargo, para mantener la compatibilidad, procesamos el primero para el referenceNumber si es nuevo.
         if (firstPdf) {
             const parsed = await parseRemitoPdf(firstPdf.buffer);
-            items = parsed.items;
             metadata = parsed.metadata;
             textSnippet = parsed.textSnippet;
             isDevolucion = parsed.isDevolucion;
@@ -61,9 +57,14 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
             });
         }
 
-        // FALLBACK TO GEMINI if no items found (likely a scan or non-standard format)
-        if ((!items || items.length === 0) && genAI) {
-            console.log('[EGRESO PDF] No items found with regex. Falling back to Gemini AI...');
+        let remitoNumber = metadata && metadata.remitoNumber ? metadata.remitoNumber : null;
+        let clientName = metadata && metadata.clientName ? metadata.clientName : null;
+        let clientCode = null;
+        let serie = null;
+
+        // Fallback to Gemini for metadata if not extracted by regex
+        if (!remitoNumber && genAI) {
+            console.log('[EGRESO PDF] No se pudo extraer el Nº de remito usando expresiones regulares. Recurriendo a Gemini AI...');
             try {
                 const pdfParts = [{
                     inlineData: {
@@ -73,28 +74,17 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
                 }];
 
                 const prompt = `
-                    Eres un experto en extracción de datos de remitos de logística para EGRESOS (salida de mercadería).
-                    Analiza el PDF adjunto y extrae TODOS los productos listados en la tabla del remito.
-                    
+                    Eres un experto en extracción de metadatos de remitos de logística para EGRESOS (salida de mercadería).
+                    Analiza el PDF adjunto y extrae los siguientes metadatos del remito:
+                    - "remitoNumber": El número de remito/documento (debe ser el número largo completo de remito, por ejemplo "003700000002" o "0037-00000002").
+                    - "clientName": El nombre del cliente o sucursal destino del remito.
+                    - "clientCode": El código del cliente (si aparece en el remito).
+                    - "serie": La serie del remito (por ejemplo "R37" o "37", si aparece).
+
                     REGLAS CRÍTICAS:
-                    1. Devuelve SOLO un array JSON válido de objetos.
-                    2. Cada objeto DEBE tener: "code" (string), "quantity" (number), "description" (string).
-                    3. El "code" es el código del producto (Código Interno).
-                    4. La "quantity" es la cantidad pedida/enviada.
-                       - IMPORTANTE: Si el remito es de VIALSER S.A. (PLAVICON), verás dos columnas de "Cantidad". 
-                       - La PRIMERA columna "Cantidad" (al lado de Envase) es la cantidad real de unidades y es la que debes usar.
-                       - La SEGUNDA columna "Cantidad" (al lado del Código de Barras) es la de bultos y debe ser IGNORADA.
-                    5. La "description" es el nombre del producto.
-                    6. Extrae TODOS los productos. No te detengas hasta haber procesado toda la tabla.
-                    7. Ignora encabezados, totales, firmas o notas que no sean ítems de la tabla.
-                    8. Si hay marcas manuscritas (como tildes o números escritos a mano al lado de la cantidad), dales prioridad si indican una cantidad controlada.
-                    9. Sé extremadamente preciso con los códigos numéricos.
-                    
-                    Formato esperado:
-                    [
-                      {"code": "123456", "quantity": 10, "description": "PRODUCTO EJEMPLO"},
-                      ...
-                    ]
+                    1. Devuelve SOLO un objeto JSON válido.
+                    2. Los campos esperados son: "remitoNumber" (string o null), "clientName" (string o null), "clientCode" (string o null), "serie" (string o null).
+                    3. No agregues texto explicativo ni formato adicional, solo el JSON puro.
                 `;
 
                 const aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -102,27 +92,31 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
                 const aiResponse = await aiResult.response;
                 const aiResultText = aiResponse.text();
 
-                const jsonMatch = aiResultText.match(/\[[\s\S]*\]/);
+                const jsonMatch = aiResultText.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
-                    const aiItems = JSON.parse(jsonMatch[0]);
-                    if (aiItems && aiItems.length > 0) {
-                        items = aiItems;
-                        console.log(`[EGRESO PDF] Gemini successfully extracted ${items.length} items.`);
+                    const aiMetadata = JSON.parse(jsonMatch[0]);
+                    if (aiMetadata) {
+                        if (aiMetadata.remitoNumber) remitoNumber = String(aiMetadata.remitoNumber).trim();
+                        if (aiMetadata.clientName) clientName = String(aiMetadata.clientName).trim();
+                        if (aiMetadata.clientCode) clientCode = String(aiMetadata.clientCode).trim();
+                        if (aiMetadata.serie) serie = String(aiMetadata.serie).trim();
+                        console.log(`[EGRESO PDF] Gemini extrajo metadatos con éxito: Remito=${remitoNumber}, Cliente=${clientName}, Serie=${serie}`);
                     }
                 }
             } catch (aiError) {
-                console.error('[EGRESO PDF] Gemini fallback failed:', aiError.message);
+                console.error('[EGRESO PDF] Gemini metadata extraction failed:', aiError.message);
             }
         }
 
-        if (!items || items.length === 0) {
-            console.error('[EGRESO PDF] No se pudieron extraer productos del archivo:', firstPdf.originalname);
-            const errorMsg = !isRemito
-                ? `El archivo "${firstPdf.originalname}" no parece ser un remito válido (no contiene la palabra "REMITO").`
-                : `No se pudieron extraer productos del PDF (${firstPdf.originalname}). Verifique que el formato sea el correcto o que el archivo no esté corrupto.`;
+        // Clean remitoNumber: remove dashes or non-digit chars
+        if (remitoNumber) {
+            remitoNumber = remitoNumber.replace(/-/g, '').trim();
+        }
 
+        if (!remitoNumber) {
+            console.error('[EGRESO PDF] No se pudo extraer el número de remito del archivo:', firstPdf.originalname);
             return res.status(400).json({
-                message: errorMsg,
+                message: `No se pudo determinar el número de remito del archivo "${firstPdf.originalname}". Verifique que el archivo sea legible.`,
                 debug: {
                     textLength: textSnippet?.length || 0,
                     preview: textSnippet ? textSnippet.substring(0, 100) : 'N/A',
@@ -131,22 +125,42 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
             });
         }
 
-        // 2. Create Egreso automatically with metadata (Client Name + Remito Number) or filename as fallback
+        // 2. Query Protheus Web Service for items
+        console.log(`[EGRESO PDF] Buscando remito Nº "${remitoNumber}" en Protheus...`);
+        const protheusItems = await fetchRemitoFromProtheus(remitoNumber);
+
+        if (!protheusItems || protheusItems.length === 0) {
+            console.warn(`[EGRESO PDF] El remito ${remitoNumber} no se encontró en Protheus.`);
+            return res.status(404).json({
+                message: `El remito Nº ${remitoNumber} no está registrado o no se encontró en el sistema Protheus.`
+            });
+        }
+
+        // Map items from Protheus payload to our structure
+        const items = protheusItems.map(item => ({
+            code: String(item.codigo).trim(),
+            description: String(item.descripcion).trim(),
+            quantity: Number(item.cantidad) || 0
+        }));
+
+        console.log(`[EGRESO PDF] Se obtuvieron ${items.length} productos de Protheus.`);
+
+        // 3. Create Egreso automatically with metadata
         let referenceNumber = '';
-        if (metadata && metadata.clientName && metadata.remitoNumber) {
-            referenceNumber = `${metadata.clientName} ${metadata.remitoNumber}`;
-        } else if (firstPdf) {
-            referenceNumber = firstPdf.originalname.replace('.pdf', '').replace('.PDF', '');
+        if (clientName && remitoNumber) {
+            referenceNumber = `${clientName} ${remitoNumber}`;
+        } else {
+            referenceNumber = remitoNumber || firstPdf.originalname.replace(/\.pdf$/i, '');
         }
 
         let sucursalId = req.user.sucursal_id || req.body.sucursal_id || null;
 
         // Intentar detectar sucursal de destino por nombre (clientName del PDF)
-        if (metadata && metadata.clientName) {
+        if (clientName) {
             const { data: branchMatch } = await supabase
                 .from('sucursales')
                 .select('id, name')
-                .ilike('name', metadata.clientName)
+                .ilike('name', clientName)
                 .maybeSingle();
 
             if (branchMatch) {
@@ -158,8 +172,8 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
                 if (allBranches) {
                     const bestMatch = allBranches.find(b =>
                         b.name !== 'Deposito' && (
-                            metadata.clientName.toLowerCase().includes(b.name.toLowerCase()) ||
-                            b.name.toLowerCase().includes(metadata.clientName.toLowerCase())
+                            clientName.toLowerCase().includes(b.name.toLowerCase()) ||
+                            b.name.toLowerCase().includes(clientName.toLowerCase())
                         )
                     );
                     if (bestMatch) {
@@ -409,6 +423,19 @@ router.get('/', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching egresos:', error);
         res.status(500).json({ message: 'Error fetching egresos' });
+    }
+});
+
+// Get Product Stock from Protheus (get_sb2)
+router.get('/stock-sb2/:productCode', verifyToken, async (req, res) => {
+    const { productCode } = req.params;
+    try {
+        console.log(`[ROUTE EGRESOS] Fetching stock from Protheus for: ${productCode}`);
+        const stockData = await fetchStockFromProtheus(productCode);
+        res.json(stockData);
+    } catch (error) {
+        console.error('Error fetching stock from Protheus:', error);
+        res.status(500).json({ message: 'Error al consultar stock en Protheus' });
     }
 });
 

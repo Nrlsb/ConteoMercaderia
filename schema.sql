@@ -147,7 +147,12 @@ CREATE TABLE IF NOT EXISTS "public"."products" (
     "provider_description" "text",
     "barcode_secondary" "text",
     "capacity" "text",
-    "counting_category" "text"
+    "counting_category" "text",
+    "cost_price" numeric(12,2) DEFAULT 0,
+    "tes" "text",
+    "lista001" numeric(12,2) DEFAULT 0,
+    "lista500" numeric(12,2) DEFAULT 0,
+    "moneda" "text"
 );
 
 

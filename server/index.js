@@ -84,10 +84,13 @@ const seguimientoPedidosRoutes = require('./routes/seguimientoPedidos');
 const notificationsRoutes = require('./routes/notifications');
 const tintometricoRoutes = require('./routes/tintometrico');
 const colorRegistrationsRoutes = require('./routes/colorRegistrations');
+const valorizacionRoutes = require('./routes/valorizacion');
+const dolarRoutes = require('./routes/dolar');
 
 
 // --- Import Services ---
-const { startLabelHistoryCleanupTask, startProviderContactNotificationTask } = require('./services/cronJobs');
+const { startLabelHistoryCleanupTask, startProviderContactNotificationTask, startProtheusSyncTask, startDolarScrapingTask } = require('./services/cronJobs');
+const dolarService = require('./services/dolarService');
 
 // --- Health Check ---
 app.get('/api/health', (req, res) => {
@@ -150,6 +153,8 @@ app.use('/api/seguimiento-pedidos', seguimientoPedidosRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/tintometrico', tintometricoRoutes);
 app.use('/api/color-registrations', colorRegistrationsRoutes);
+app.use('/api/valorizacion', valorizacionRoutes);
+app.use('/api/dolar', dolarRoutes);
 
 
 // --- Catch-All: Serve React App ---
@@ -179,8 +184,15 @@ app.use((err, req, res, next) => {
 // --- Start Scheduled Tasks ---
 startLabelHistoryCleanupTask();
 startProviderContactNotificationTask();
+startProtheusSyncTask();
+startDolarScrapingTask();
 
 // --- Start Server ---
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
+    
+    // Intento inicial de scraping de dólares al arrancar el servidor (no bloqueante)
+    dolarService.actualizarCotizacionesBD().catch(err => {
+        console.warn('[WARNING] No se pudo obtener la cotización inicial del BNA al arrancar:', err.message);
+    });
 });

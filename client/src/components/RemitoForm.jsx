@@ -813,8 +813,9 @@ const RemitoForm = () => {
         confirmText: null
     });
 
-    const [isLoadingXml, setIsLoadingXml] = useState(false);
-    const [xmlSelectedBranch, setXmlSelectedBranch] = useState('');
+    const [isLoadingZid, setIsLoadingZid] = useState(false);
+    const [zidSelectedBranch, setZidSelectedBranch] = useState('');
+    const [zidInputId, setZidInputId] = useState('');
 
     const [showConfirmCreate, setShowConfirmCreate] = useState(false);
     const [isCargarConteoCollapsed, setIsCargarConteoCollapsed] = useState(false);
@@ -887,7 +888,7 @@ const RemitoForm = () => {
                 if (user?.role === 'branch_admin' && user?.sucursal_id) {
                     const myBranch = res.data.find(b => b.id === user.sucursal_id);
                     if (myBranch) {
-                        setXmlSelectedBranch(myBranch.name);
+                        setZidSelectedBranch(myBranch.name);
                     }
                 }
             } catch (error) {
@@ -987,40 +988,35 @@ const RemitoForm = () => {
         }
     };
 
-    const handleXmlUpload = async (e) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-
-        if (!xmlSelectedBranch) {
-            triggerModal('Atención', 'Debe seleccionar una sucursal antes de importar el stock.', 'warning');
-            e.target.value = '';
+    const handleProtheusZidImport = async (e) => {
+        if (e) e.preventDefault();
+        
+        if (!zidInputId.trim()) {
+            triggerModal('Atención', 'Debe ingresar el ID del conteo de Protheus.', 'warning');
             return;
         }
 
-        setIsLoadingXml(true);
-        let lastOrderNumber = null;
+        if (!zidSelectedBranch) {
+            triggerModal('Atención', 'Debe seleccionar una sucursal destino antes de importar el conteo.', 'warning');
+            return;
+        }
+
+        setIsLoadingZid(true);
+        const targetZidId = zidInputId.trim();
+        const expectedOrderNumber = `STOCK-ZID-${targetZidId}`;
 
         try {
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const formData = new FormData();
-                formData.append('file', file);
-                if (xmlSelectedBranch) {
-                    formData.append('sucursal', xmlSelectedBranch);
-                }
+            const response = await api.post('/api/pre-remitos/import-zid', {
+                zidId: targetZidId,
+                sucursal: zidSelectedBranch
+            });
 
-                const response = await api.post('/api/pre-remitos/import-xml', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+            const orderNumber = response.data.orderNumber || expectedOrderNumber;
 
-                lastOrderNumber = response.data.orderNumber;
-            }
+            triggerModal('Éxito', `Conteo de Protheus #${targetZidId} importado correctamente.`, 'success');
 
-            if (files.length > 1) {
-                triggerModal('Éxito', `${files.length} archivos importados correctamente.`, 'success');
-            } else if (lastOrderNumber) {
-                triggerModal('Éxito', `Stock importado correctamente. Conteo: ${lastOrderNumber}`, 'success');
-            }
+            // Limpiar campo
+            setZidInputId('');
 
             // Refresh pre-remitos list
             const refreshRes = await api.get('/api/pre-remitos');
@@ -1028,30 +1024,27 @@ const RemitoForm = () => {
                 setPreRemitoList(refreshRes.data);
             }
 
-            // Auto-select and load the LAST pre-remito if only one was uploaded, 
-            // otherwise just let the user pick from the updated list.
-            if (files.length === 1 && lastOrderNumber) {
-                setSelectedPreRemitos([lastOrderNumber]);
-                setTimeout(async () => {
-                    setPreRemitoStatus('loading');
-                    try {
-                        const detailRes = await api.get(`/api/pre-remitos/${lastOrderNumber}`);
-                        setExpectedItems(detailRes.data.items);
-                        setPreRemitoStatus('found');
-                        setRemitoNumber(lastOrderNumber);
-                    } catch (err) {
-                        console.error('Error auto-loading new XML remito:', err);
-                    }
-                }, 500);
-            }
+            // Auto-select and load the pre-remito
+            setSelectedPreRemitos([orderNumber]);
+            setTimeout(async () => {
+                setPreRemitoStatus('loading');
+                try {
+                    const detailRes = await api.get(`/api/pre-remitos/${orderNumber}`);
+                    setExpectedItems(detailRes.data.items);
+                    setPreRemitoStatus('found');
+                    setRemitoNumber(orderNumber);
+                } catch (err) {
+                    console.error('Error auto-loading new ZID count:', err);
+                    setPreRemitoStatus('not_found');
+                }
+            }, 500);
 
         } catch (error) {
-            console.error('Error uploading XML:', error);
-            triggerModal('Error', 'Error al importar el archivo de stock.', 'error');
+            console.error('Error importing Protheus ZID count:', error);
+            const errMsg = error.response?.data?.message || 'Error al conectar con Protheus o importar el conteo. Asegúrese de que el ID sea correcto.';
+            triggerModal('Error', errMsg, 'error');
         } finally {
-            setIsLoadingXml(false);
-            // Reset input
-            e.target.value = '';
+            setIsLoadingZid(false);
         }
     };
 
@@ -1847,8 +1840,8 @@ const RemitoForm = () => {
             },
             {
                 target: "#tour-importar-xml-seccion",
-                title: "Importar Stock Inicial (XML / Excel)",
-                content: "Si deseas realizar un conteo desde un stock del ERP, selecciona la sucursal de destino y haz clic en '+ Subir DocConteo (XML / XLSX / XLS)' para cargar el archivo. El sistema procesará los productos y los dejará listos para el conteo.",
+                title: "Buscar Conteo en Protheus",
+                content: "Si deseas realizar un conteo importado desde Protheus, selecciona la sucursal de destino y escribe el ID del conteo (ZID_ID). Luego, haz clic en 'Buscar y Cargar'. El sistema descargará los productos y los dejará listos para el conteo.",
                 placement: "top"
             },
             ...(preRemitoStatus === 'found' ? [
@@ -2536,14 +2529,14 @@ const RemitoForm = () => {
                                             </div>
 
                                             <div id="tour-importar-xml-seccion" className="border-t border-gray-200 pt-6 mt-2">
-                                                <label className="block text-sm font-medium text-brand-gray mb-2">O Importar Stock Inicial (XML)</label>
+                                                <label className="block text-sm font-medium text-brand-gray mb-2">O Buscar Conteo de Protheus (ZID)</label>
                                                 
-                                                {/* Branch Selector for XML Upload */}
+                                                {/* Branch Selector for ZID Import */}
                                                 <div className="mb-4">
-                                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Stock</label>
+                                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5 tracking-wider">Sucursal para este Conteo</label>
                                                     <select
-                                                        value={xmlSelectedBranch}
-                                                        onChange={(e) => setXmlSelectedBranch(e.target.value)}
+                                                        value={zidSelectedBranch}
+                                                        onChange={(e) => setZidSelectedBranch(e.target.value)}
                                                         disabled={user?.role === 'branch_admin'}
                                                         className={`w-full h-11 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition shadow-sm ${user?.role === 'branch_admin' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                                                     >
@@ -2555,30 +2548,34 @@ const RemitoForm = () => {
                                                     </select>
                                                 </div>
 
-                                                <div className="flex items-center gap-3">
-                                                    <label className={`flex-1 flex items-center justify-center h-12 px-4 border-2 border-dashed rounded-lg cursor-pointer transition ${isLoadingXml ? 'bg-gray-100 border-gray-300 cursor-not-allowed' : 'border-green-300 hover:border-green-500 bg-green-50/30'}`}>
-                                                        <input
-                                                            type="file"
-                                                            accept=".xml, .xlsx, .xls"
-                                                            multiple
-                                                            className="hidden"
-                                                            onChange={handleXmlUpload}
-                                                            disabled={isLoadingXml}
-                                                        />
-                                                        {isLoadingXml ? (
-                                                            <div className="flex items-center text-gray-500">
-                                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                                Procesando archivo...
-                                                            </div>
+                                                <form onSubmit={handleProtheusZidImport} className="flex flex-col sm:flex-row gap-3">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="ID del Conteo (ej: 000001)"
+                                                        value={zidInputId}
+                                                        onChange={(e) => setZidInputId(e.target.value)}
+                                                        disabled={isLoadingZid}
+                                                        className="flex-1 h-12 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition bg-white shadow-sm font-medium"
+                                                    />
+                                                    <button
+                                                        type="submit"
+                                                        disabled={isLoadingZid}
+                                                        className={`h-12 px-6 rounded-lg transition font-medium shadow-sm flex items-center justify-center gap-2 text-white ${isLoadingZid ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                                                    >
+                                                        {isLoadingZid ? (
+                                                            <>
+                                                                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                                Buscando...
+                                                            </>
                                                         ) : (
-                                                            <div className="flex items-center text-green-700">
-                                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                                                <span className="font-medium text-sm">Subir DocConteo (XML / XLSX / XLS)</span>
-                                                            </div>
+                                                            <>
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                                                Buscar y Cargar
+                                                            </>
                                                         )}
-                                                    </label>
-                                                </div>
-                                                <p className="mt-2 text-xs text-gray-500">Sube el archivo XML, XLSX o XLS del ERP para crear una nueva lista de conteo automáticamente.</p>
+                                                    </button>
+                                                </form>
+                                                <p className="mt-2 text-xs text-gray-500">Ingresa el ID del conteo de Protheus para importar los productos y sus saldos esperados automáticamente.</p>
                                             </div>
                                         </>
                                     )}
