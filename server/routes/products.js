@@ -7,6 +7,8 @@ const { verifyToken, hasPermission } = require('../middleware/auth');
 // Search & Sync
 router.get('/search', verifyToken, productController.searchProducts);
 router.get('/sync', verifyToken, productController.syncProducts);
+router.post('/sync-from-protheus', verifyToken, productController.syncProductsFromProtheus);
+router.get('/sync-from-protheus/status', verifyToken, productController.getProtheusSyncStatus);
 router.get('/colorants-by-category', verifyToken, productController.getColorantsByCategory);
 router.get('/export-protheus/csv', verifyToken, productController.exportAllProductsProtheusCsv);
 

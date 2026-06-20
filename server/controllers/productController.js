@@ -756,3 +756,146 @@ exports.exportAllProductsProtheusCsv = async (req, res) => {
     }
 };
 
+// --- SINCRONIZACIÓN DE PRODUCTOS DESDE PROTHEUS (EN SEGUNDO PLANO) ---
+
+let protheusSyncStatus = {
+    running: false,
+    processed: 0,
+    total: 0,
+    updated: 0,
+    notFound: 0,
+    errors: 0,
+    startTime: null,
+    endTime: null,
+    errorMsg: null
+};
+
+exports.getProtheusSyncStatus = (req, res) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+        return res.status(403).json({ message: 'No autorizado' });
+    }
+    res.json(protheusSyncStatus);
+};
+
+exports.syncProductsFromProtheus = async (req, res) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+        return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    if (protheusSyncStatus.running) {
+        return res.status(400).json({ message: 'Ya hay una sincronización en curso', status: protheusSyncStatus });
+    }
+
+    // Inicializar estado de sincronización
+    protheusSyncStatus = {
+        running: true,
+        processed: 0,
+        total: 0,
+        updated: 0,
+        notFound: 0,
+        errors: 0,
+        startTime: new Date().toISOString(),
+        endTime: null,
+        errorMsg: null
+    };
+
+    // Ejecutar en segundo plano de forma asíncrona
+    runSyncInBackground().catch(err => {
+        console.error('Error crítico en sincronización en segundo plano:', err);
+        protheusSyncStatus.running = false;
+        protheusSyncStatus.endTime = new Date().toISOString();
+        protheusSyncStatus.errorMsg = err.message;
+    });
+
+    res.json({ message: 'Sincronización iniciada en segundo plano', status: protheusSyncStatus });
+};
+
+async function runSyncInBackground() {
+    try {
+        console.log('[BG SYNC] Obteniendo códigos de productos existentes en la base de datos...');
+        
+        // Obtener todos los productos
+        const { data: dbProducts, error: dbError } = await supabase
+            .from('products')
+            .select('id, code, description')
+            .not('code', 'is', null)
+            .order('code', { ascending: true });
+
+        if (dbError) {
+            throw new Error(`Error al obtener productos de la base de datos: ${dbError.message}`);
+        }
+
+        const totalProducts = dbProducts.length;
+        protheusSyncStatus.total = totalProducts;
+        console.log(`[BG SYNC] Se encontraron ${totalProducts} productos para sincronizar.`);
+
+        const CONCURRENCY_LIMIT = 5;
+        const BATCH_DELAY = 100;
+        
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Procesar en lotes
+        for (let i = 0; i < totalProducts; i += CONCURRENCY_LIMIT) {
+            if (!protheusSyncStatus.running) {
+                console.log('[BG SYNC] Detenido externamente.');
+                break;
+            }
+
+            const batch = dbProducts.slice(i, i + CONCURRENCY_LIMIT);
+            
+            await Promise.all(batch.map(async (dbProduct) => {
+                const code = dbProduct.code;
+                try {
+                    // Consultar en el WS de Protheus (usando protheusService exportado arriba como "protheusService")
+                    const protheusProduct = await protheusService.fetchProductFromProtheus(code);
+                    protheusSyncStatus.processed++;
+
+                    if (protheusProduct) {
+                        // Actualizar el producto en Supabase con los nuevos datos
+                        const { error: updateError } = await supabase
+                            .from('products')
+                            .update({
+                                description: protheusProduct.description,
+                                capacity: protheusProduct.capacity,
+                                cost_price: protheusProduct.cost_price,
+                                brand_code: protheusProduct.brand_code,
+                                tes: protheusProduct.tes,
+                                lista001: protheusProduct.lista001,
+                                lista500: protheusProduct.lista500,
+                                moneda: protheusProduct.moneda
+                            })
+                            .eq('id', dbProduct.id);
+
+                        if (updateError) {
+                            console.error(`[BG SYNC] Error actualizando "${code}":`, updateError.message);
+                            protheusSyncStatus.errors++;
+                        } else {
+                            protheusSyncStatus.updated++;
+                        }
+                    } else {
+                        protheusSyncStatus.notFound++;
+                    }
+                } catch (err) {
+                    console.error(`[BG SYNC] Error procesando "${code}":`, err.message);
+                    protheusSyncStatus.errors++;
+                    protheusSyncStatus.processed++;
+                }
+            }));
+
+            if (i + CONCURRENCY_LIMIT < totalProducts) {
+                await delay(BATCH_DELAY);
+            }
+        }
+
+        protheusSyncStatus.running = false;
+        protheusSyncStatus.endTime = new Date().toISOString();
+        console.log('[BG SYNC] Sincronización finalizada.');
+    } catch (err) {
+        protheusSyncStatus.running = false;
+        protheusSyncStatus.endTime = new Date().toISOString();
+        protheusSyncStatus.errorMsg = err.message;
+        console.error('[BG SYNC ERROR] Fallo crítico:', err);
+    }
+}
+
+

@@ -16,6 +16,77 @@ const SettingsPage = () => {
     const [isSavingVersion, setIsSavingVersion] = useState(false);
     const [scannerTorchDefault, setScannerTorchDefault] = useState(() => localStorage.getItem('scanner_torch_default') === 'true');
 
+    const [syncStatus, setSyncStatus] = useState({
+        running: false,
+        processed: 0,
+        total: 0,
+        updated: 0,
+        notFound: 0,
+        errors: 0,
+        startTime: null,
+        endTime: null,
+        errorMsg: null
+    });
+    const [isCheckingSync, setIsCheckingSync] = useState(false);
+
+    const fetchSyncStatus = async () => {
+        try {
+            const response = await api.get('/api/products/sync-from-protheus/status');
+            setSyncStatus(response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error al obtener estado de sincronización:', error);
+        }
+    };
+
+    // Polling si está corriendo
+    useEffect(() => {
+        let intervalId;
+        
+        fetchSyncStatus().then(status => {
+            if (status?.running) {
+                intervalId = setInterval(async () => {
+                    const currentStatus = await fetchSyncStatus();
+                    if (currentStatus && !currentStatus.running) {
+                        clearInterval(intervalId);
+                        toast.success('¡Sincronización finalizada con éxito!');
+                    }
+                }, 3000);
+            }
+        });
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, []);
+
+    // Iniciar sincronización
+    const handleStartSync = async () => {
+        setIsCheckingSync(true);
+        try {
+            const response = await api.post('/api/products/sync-from-protheus');
+            setSyncStatus(response.data.status);
+            toast.info('Sincronización iniciada en segundo plano');
+            
+            // Iniciar polling
+            const intervalId = setInterval(async () => {
+                const currentStatus = await fetchSyncStatus();
+                if (currentStatus && !currentStatus.running) {
+                    clearInterval(intervalId);
+                    toast.success('¡Sincronización finalizada con éxito!');
+                }
+            }, 3000);
+            
+            return () => clearInterval(intervalId);
+        } catch (error) {
+            console.error('Error al iniciar sincronización:', error);
+            const errMessage = error.response?.data?.message || 'Error de red al iniciar la sincronización';
+            toast.error(`Error: ${errMessage}`);
+        } finally {
+            setIsCheckingSync(false);
+        }
+    };
+
     useEffect(() => {
         if (user?.role === 'superadmin') {
             fetchVersionData();
@@ -111,6 +182,70 @@ const SettingsPage = () => {
                                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${scannerTorchDefault ? 'translate-x-6' : 'translate-x-1'}`} />
                             </button>
                         </div>
+                    </div>
+
+                    {/* Sincronización de Productos con Protheus */}
+                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-100 mb-6">
+                        <h2 className="text-lg font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={syncStatus.running ? "animate-spin text-purple-700" : "text-purple-700"}><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                            Sincronización con Protheus
+                        </h2>
+                        <p className="text-xs text-purple-700 mb-4">
+                            Actualiza la descripción, precios de costo, marcas y capacidad de todos los productos desde el catálogo de Protheus de forma masiva en segundo plano.
+                        </p>
+
+                        {syncStatus.running ? (
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center text-sm font-medium text-purple-900">
+                                    <span>Sincronizando catálogo...</span>
+                                    <span>{syncStatus.processed} / {syncStatus.total}</span>
+                                </div>
+                                <div className="w-full bg-purple-200 rounded-full h-2.5">
+                                    <div 
+                                        className="bg-purple-600 h-2.5 rounded-full transition-all duration-500" 
+                                        style={{ width: `${syncStatus.total ? (syncStatus.processed / syncStatus.total) * 100 : 0}%` }}
+                                    ></div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-xs text-center mt-2">
+                                    <div className="bg-purple-100 p-2 rounded text-purple-800">
+                                        <div className="font-bold text-sm">{syncStatus.updated}</div>
+                                        <div>Actualizados</div>
+                                    </div>
+                                    <div className="bg-yellow-100 p-2 rounded text-yellow-800">
+                                        <div className="font-bold text-sm">{syncStatus.notFound}</div>
+                                        <div>No Encontrados</div>
+                                    </div>
+                                    <div className="bg-red-100 p-2 rounded text-red-800">
+                                        <div className="font-bold text-sm">{syncStatus.errors}</div>
+                                        <div>Errores</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {syncStatus.endTime && (
+                                    <div className="text-xs text-purple-800 bg-purple-100/50 p-3 rounded-lg border border-purple-200/50">
+                                        <p className="font-semibold mb-1">Última sincronización finalizada:</p>
+                                        <ul className="list-disc list-inside space-y-0.5">
+                                            <li>Total evaluados: <span className="font-semibold">{syncStatus.total}</span></li>
+                                            <li>Sincronizados con éxito: <span className="font-semibold text-green-700">{syncStatus.updated}</span></li>
+                                            <li>No encontrados: <span className="font-semibold text-yellow-700">{syncStatus.notFound}</span></li>
+                                            <li>Errores: <span className="font-semibold text-red-600">{syncStatus.errors}</span></li>
+                                            {syncStatus.errorMsg && <li className="text-red-600 font-bold">Fallo crítico: {syncStatus.errorMsg}</li>}
+                                        </ul>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={handleStartSync}
+                                    disabled={isCheckingSync}
+                                    className={`w-full py-2.5 px-4 rounded-lg font-bold text-white shadow transition-all ${
+                                        isCheckingSync ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 active:scale-95'
+                                    }`}
+                                >
+                                    {isCheckingSync ? 'Iniciando...' : 'Iniciar Sincronización Masiva'}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* App Version Management */}
