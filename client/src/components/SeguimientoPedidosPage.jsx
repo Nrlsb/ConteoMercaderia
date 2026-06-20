@@ -17,6 +17,24 @@ const formatLocalDate = (dateStr) => {
   return dateStr;
 };
 
+const getWorkingDaysRemaining = (expDate) => {
+  const curDate = new Date();
+  curDate.setHours(0,0,0,0);
+  const targetDate = new Date(expDate.getTime());
+  targetDate.setHours(0,0,0,0);
+  if (targetDate.getTime() < curDate.getTime()) return 0;
+  let count = 0;
+  const tempDate = new Date(curDate.getTime());
+  while (tempDate.getTime() < targetDate.getTime()) {
+    tempDate.setDate(tempDate.getDate() + 1);
+    const dayOfWeek = tempDate.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+  }
+  return count;
+};
+
 const getTrackingHistory = (pedido) => {
   if (!pedido) return [];
   
@@ -944,6 +962,19 @@ const SeguimientoPedidosPage = () => {
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
                           {getShipmentStatusBadge(pedido)}
+                          {pedido.abonado === true && !(pedido.imagenes && pedido.imagenes.length > 0) && canViewImages && (() => {
+                            const createdAt = new Date(pedido.created_at || pedido.fecha);
+                            const expirationDate = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+                            const remainingWorkingDays = getWorkingDaysRemaining(expirationDate);
+                            if (remainingWorkingDays <= 2 && remainingWorkingDays >= 0) {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-250 w-fit animate-pulse">
+                                  ⚠️ Vence en {remainingWorkingDays} háb.
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           {pedido.confirmado_destinatario && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
                               ✓ Confirmado Dest.
@@ -1008,6 +1039,19 @@ const SeguimientoPedidosPage = () => {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {getShipmentStatusBadge(pedido)}
+                    {pedido.abonado === true && !(pedido.imagenes && pedido.imagenes.length > 0) && canViewImages && (() => {
+                      const createdAt = new Date(pedido.created_at || pedido.fecha);
+                      const expirationDate = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+                      const remainingWorkingDays = getWorkingDaysRemaining(expirationDate);
+                      if (remainingWorkingDays <= 2 && remainingWorkingDays >= 0) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-250 w-fit animate-pulse">
+                            ⚠️ Vence en {remainingWorkingDays} háb.
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                     {pedido.confirmado_destinatario && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         ✓ Confirmado Dest.
@@ -1684,6 +1728,21 @@ const SeguimientoPedidosPage = () => {
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Advertencia de Vencimiento de Pago */}
+              {viewingPedido.abonado === true && !(viewingPedido.imagenes && viewingPedido.imagenes.length > 0) && canViewImages && (() => {
+                const createdAt = new Date(viewingPedido.created_at || viewingPedido.fecha);
+                const expirationDate = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+                const remainingWorkingDays = getWorkingDaysRemaining(expirationDate);
+                if (remainingWorkingDays <= 2 && remainingWorkingDays >= 0) {
+                  return (
+                    <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-2xl text-xs text-rose-800 font-semibold flex items-center gap-2 animate-pulse">
+                      <span>⚠️ Advertencia: Este pedido no ha sido abonado. Quedan {remainingWorkingDays} días hábiles antes de darse de baja automáticamente por vencimiento.</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {showAdminDetails && (
                 <>
                   {/* Estado y Clasificación */}

@@ -308,9 +308,214 @@ function startDolarScrapingTask() {
     }, 60000); // Verificar cada 60 segundos
 }
 
+/**
+ * Tarea programada para monitorear el vencimiento de pagos (7 días corridos).
+ * Se ejecuta una vez al día a las 09:30 hs (Buenos Aires).
+ */
+function startPaymentExpirationMonitorTask() {
+    console.log('[CRON] Iniciando monitor de vencimiento de pagos (Programado: 09:30 BA)...');
+    let lastRunDate = null;
+
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            const baFormatter = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                hour12: false
+            });
+            
+            const parts = baFormatter.formatToParts(now);
+            const hour = parseInt(parts.find(p => p.type === 'hour').value);
+            const minute = parseInt(parts.find(p => p.type === 'minute').value);
+            const day = parts.find(p => p.type === 'day').value;
+
+            // Ejecutar a las 09:30 AM si no se ha ejecutado ya hoy
+            if (hour === 9 && minute === 30 && lastRunDate !== day) {
+                console.log(`[CRON] ${now.toISOString()} - Ejecutando chequeo de vencimiento de pagos...`);
+                await checkPaymentExpirations();
+                lastRunDate = day;
+            }
+        } catch (err) {
+            console.error('[CRON ERROR] Falló la tarea de vencimiento de pagos:', err.message);
+        }
+    }, 60000); // Verificar cada 60 segundos
+}
+
+async function checkPaymentExpirations() {
+    try {
+        const now = new Date();
+        
+        // 1. Obtener todos los pedidos activos que requieren pago
+        const { data: pedidos, error } = await supabase
+            .from('seguimiento_pedidos')
+            .select('*')
+            .eq('abonado', true)
+            .not('estado', 'ilike', 'anulado')
+            .not('estado', 'ilike', 'recepción parcial')
+            .not('estado', 'ilike', 'recepción total');
+
+        if (error) throw error;
+        if (!pedidos || pedidos.length === 0) return;
+
+        // Helper para comprobar si tiene imágenes
+        const hasImgs = (pedido) => {
+            if (!pedido.imagenes) return false;
+            if (Array.isArray(pedido.imagenes)) return pedido.imagenes.length > 0;
+            try {
+                const parsed = typeof pedido.imagenes === 'string' ? JSON.parse(pedido.imagenes) : pedido.imagenes;
+                if (Array.isArray(parsed)) return parsed.length > 0;
+            } catch (e) {}
+            return !!pedido.imagenes;
+        };
+
+        // Filtrar pedidos que no tienen imágenes de pago cargadas
+        const pendingPaymentPedidos = pedidos.filter(p => !hasImgs(p));
+
+        if (pendingPaymentPedidos.length === 0) return;
+
+        // Obtener ids de sucursales Compras y Gerencia
+        const { data: sucs, error: sucsErr } = await supabase
+            .from('sucursales')
+            .select('id, name');
+        if (sucsErr) throw sucsErr;
+
+        const targetSucIds = sucs
+            .filter(s => s.name && ['compras', 'gerencia'].includes(s.name.toLowerCase()))
+            .map(s => s.id);
+
+        // Obtener todos los usuarios de Compras y Gerencia
+        const { data: targetUsers, error: usersErr } = await supabase
+            .from('users')
+            .select('id, username')
+            .in('sucursal_id', targetSucIds);
+        if (usersErr) throw usersErr;
+
+        for (const pedido of pendingPaymentPedidos) {
+            const createdAt = new Date(pedido.created_at || pedido.fecha);
+            
+            // Fecha de expiración: 7 días corridos a partir de la creación
+            const expirationDate = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+            
+            // Si ya venció (pasaron los 7 días corridos)
+            if (now.getTime() >= expirationDate.getTime()) {
+                console.log(`[CRON] Pedido ${pedido.id} (OC ${pedido.nro_pedido || ''}) ha vencido sin pago. Dando de baja...`);
+                
+                // Actualizar estado a 'Anulado'
+                const { error: updateErr } = await supabase
+                    .from('seguimiento_pedidos')
+                    .update({ 
+                        estado: 'Anulado',
+                        recepcion_parcial: (pedido.recepcion_parcial ? pedido.recepcion_parcial + ' | ' : '') + 'Dado de baja automáticamente por falta de pago (vencimiento de 7 días).'
+                    })
+                    .eq('id', pedido.id);
+
+                if (updateErr) {
+                    console.error(`[CRON ERROR] No se pudo dar de baja el pedido ${pedido.id}:`, updateErr.message);
+                    continue;
+                }
+
+                // Notificar a los usuarios de Compras y Gerencia
+                if (targetUsers && targetUsers.length > 0) {
+                    const title = 'Pedido dado de baja por falta de pago';
+                    const message = `El pedido de ${pedido.proveedor_marca || 'Proveedor'} (${pedido.descripcion_capacidad || 'producto'}) ha sido dado de baja automáticamente porque pasaron los 7 días sin registrarse el pago de Gerencia.`;
+                    
+                    const notifications = targetUsers.map(user => ({
+                        user_id: user.id,
+                        title,
+                        message,
+                        type: 'vencimiento_pago_baja',
+                        pedido_id: pedido.id,
+                        read: false
+                    }));
+
+                    await supabase.from('notifications').insert(notifications);
+
+                    // Enviar notificaciones push
+                    for (const user of targetUsers) {
+                        const { data: tokenRecords } = await supabase
+                            .from('user_fcm_tokens')
+                            .select('token')
+                            .eq('user_id', user.id);
+                        
+                        if (tokenRecords && tokenRecords.length > 0) {
+                            const tokens = tokenRecords.map(t => t.token);
+                            await firebase.sendPushNotification(tokens, title, message, {
+                                pedido_id: String(pedido.id),
+                                type: 'vencimiento_pago_baja'
+                            });
+                        }
+                    }
+                }
+            } else {
+                // Calcular días hábiles restantes
+                const remainingWorkingDays = getWorkingDaysDifference(now, expirationDate);
+                
+                // Si faltan exactamente 2 días hábiles o menos, y no hemos enviado advertencia aún
+                if (remainingWorkingDays <= 2 && remainingWorkingDays >= 0) {
+                    // Verificar si ya se envió notificación de advertencia de vencimiento para este pedido
+                    const { data: existingNotif, error: notifErr } = await supabase
+                        .from('notifications')
+                        .select('id')
+                        .eq('pedido_id', pedido.id)
+                        .eq('type', 'advertencia_vencimiento')
+                        .limit(1);
+
+                    if (notifErr) {
+                        console.error('[CRON ERROR] Al verificar notificaciones existentes:', notifErr.message);
+                        continue;
+                    }
+
+                    // Si no existe notificación previa de este tipo
+                    if (!existingNotif || existingNotif.length === 0) {
+                        console.log(`[CRON] Pedido ${pedido.id} está a ${remainingWorkingDays} días hábiles de vencer. Enviando advertencia...`);
+                        
+                        if (targetUsers && targetUsers.length > 0) {
+                            const title = 'Advertencia: Pago pendiente de vencer';
+                            const message = `El pedido de ${pedido.proveedor_marca || 'Proveedor'} (${pedido.descripcion_capacidad || 'producto'}) no ha sido abonado. Quedan ${remainingWorkingDays} días hábiles antes de que se dé de baja automáticamente por vencimiento.`;
+                            
+                            const notifications = targetUsers.map(user => ({
+                                user_id: user.id,
+                                title,
+                                message,
+                                type: 'advertencia_vencimiento',
+                                pedido_id: pedido.id,
+                                read: false
+                            }));
+
+                            await supabase.from('notifications').insert(notifications);
+
+                            // Enviar notificaciones push
+                            for (const user of targetUsers) {
+                                const { data: tokenRecords } = await supabase
+                                    .from('user_fcm_tokens')
+                                    .select('token')
+                                    .eq('user_id', user.id);
+                                
+                                if (tokenRecords && tokenRecords.length > 0) {
+                                    const tokens = tokenRecords.map(t => t.token);
+                                    await firebase.sendPushNotification(tokens, title, message, {
+                                        pedido_id: String(pedido.id),
+                                        type: 'advertencia_vencimiento'
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[CRON ERROR] Error en checkPaymentExpirations:', err);
+    }
+}
+
 module.exports = {
     startLabelHistoryCleanupTask,
     startProviderContactNotificationTask,
     startProtheusSyncTask,
-    startDolarScrapingTask
+    startDolarScrapingTask,
+    startPaymentExpirationMonitorTask
 };

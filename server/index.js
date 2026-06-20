@@ -89,7 +89,7 @@ const dolarRoutes = require('./routes/dolar');
 
 
 // --- Import Services ---
-const { startLabelHistoryCleanupTask, startProviderContactNotificationTask, startProtheusSyncTask, startDolarScrapingTask } = require('./services/cronJobs');
+const { startLabelHistoryCleanupTask, startProviderContactNotificationTask, startProtheusSyncTask, startDolarScrapingTask, startPaymentExpirationMonitorTask } = require('./services/cronJobs');
 const dolarService = require('./services/dolarService');
 
 // --- Health Check ---
@@ -186,6 +186,7 @@ startLabelHistoryCleanupTask();
 startProviderContactNotificationTask();
 startProtheusSyncTask();
 startDolarScrapingTask();
+startPaymentExpirationMonitorTask();
 
 // --- Start Server ---
 app.listen(port, () => {
