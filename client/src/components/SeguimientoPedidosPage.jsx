@@ -17,6 +17,101 @@ const formatLocalDate = (dateStr) => {
   return dateStr;
 };
 
+const getTrackingHistory = (pedido) => {
+  if (!pedido) return [];
+  
+  const history = [];
+  const createdDateStr = pedido.created_at 
+    ? new Date(pedido.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) 
+    : formatLocalDate(pedido.fecha);
+
+  // 1. Pedido creado
+  history.push({
+    fecha: createdDateStr,
+    area: 'Compras',
+    historial: 'Pedido creado por compras',
+    estado: 'CREADO',
+    completed: true
+  });
+
+  // 2. Proceso de abonar (Gerencia)
+  if (pedido.abonado === true) {
+    const hasImgs = pedido.imagenes && pedido.imagenes.length > 0;
+    history.push({
+      fecha: hasImgs && pedido.updated_at 
+        ? new Date(pedido.updated_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+        : (hasImgs ? '-' : 'En proceso'),
+      area: 'Gerencia',
+      historial: hasImgs 
+        ? 'Pedido abonado por Gerencia' 
+        : 'Pedido en gerencia en proceso de abonar',
+      estado: hasImgs ? 'ABONADO' : 'PROCESO DE ABONAR',
+      completed: hasImgs
+    });
+  }
+
+  // 3. Depósito: coordinar fecha
+  const isPaidOrNoAbonar = pedido.abonado === false || (pedido.imagenes && pedido.imagenes.length > 0);
+  if (isPaidOrNoAbonar) {
+    const hasFecha = !!pedido.contacto_proveedor_fecha;
+    history.push({
+      fecha: hasFecha && pedido.contacto_mercurio_fecha
+        ? formatLocalDate(pedido.contacto_mercurio_fecha)
+        : (hasFecha ? '-' : 'En proceso'),
+      area: 'Depósito',
+      historial: hasFecha 
+        ? 'Coordinación de fecha finalizada' 
+        : 'Pedido en área de depósito pendiente de coordinar fecha de ingreso',
+      estado: hasFecha ? 'COORDINADO' : 'PENDIENTE COORDINACIÓN',
+      completed: hasFecha
+    });
+  }
+
+  // 4. Fecha de ingreso asignada
+  if (pedido.contacto_proveedor_fecha) {
+    const isConfirmada = !!pedido.fecha_confirmada;
+    const formattedFechaEntrega = formatLocalDate(pedido.contacto_proveedor_fecha);
+    history.push({
+      fecha: formattedFechaEntrega,
+      area: 'Proveedor',
+      historial: isConfirmada 
+        ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega}` 
+        : `Fecha de ingreso asignada para el ${formattedFechaEntrega}`,
+      estado: isConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
+      completed: isConfirmada
+    });
+  }
+
+  // 5. Fecha de ingreso confirmada
+  if (pedido.contacto_proveedor_fecha && pedido.fecha_confirmada) {
+    history.push({
+      fecha: formatLocalDate(pedido.contacto_proveedor_fecha),
+      area: 'Depósito',
+      historial: 'Se confirma la fecha de ingreso',
+      estado: 'FECHA CONFIRMADA',
+      completed: true
+    });
+  }
+
+  // 6. Mercadería en el depósito (ingresada)
+  const isIngresado = ['recepción parcial', 'recepción total', 'recibido'].includes(pedido.estado?.toLowerCase());
+  if (isIngresado) {
+    const receivingDate = pedido.fecha_confirmacion_destinatario 
+      ? formatLocalDate(pedido.fecha_confirmacion_destinatario) 
+      : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : '-');
+    
+    history.push({
+      fecha: receivingDate,
+      area: 'Depósito',
+      historial: 'La mercadería se encuentra en el depósito',
+      estado: 'INGRESADO',
+      completed: true
+    });
+  }
+
+  return history.reverse();
+};
+
 const SeguimientoPedidosPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
@@ -1877,62 +1972,74 @@ const SeguimientoPedidosPage = () => {
                 </div>
               )}
 
-              {/* Sección Estado del Envío para el Destinatario */}
-              {isParaQuien && !canViewImages && (
-                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <Truck className="w-4 h-4 text-blue-600" />
-                    <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Estado del Envío</h4>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-xs text-gray-400 block mb-1">Estado de Recepción:</span>
-                      {getStatusBadge(viewingPedido.estado)}
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-400 block mb-1">Fecha de Entrega Estimada:</span>
-                      {viewingPedido.contacto_proveedor_fecha ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-gray-800">
-                            {formatLocalDate(viewingPedido.contacto_proveedor_fecha)}
-                          </span>
-                          {viewingPedido.fecha_confirmada ? (
-                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              Confirmada
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-250">
-                              Pendiente
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500 italic">No programada aún</span>
-                      )}
-                    </div>
-                    {viewingPedido.contacto_proveedor_entrega && (
-                      <div>
-                        <span className="text-xs text-gray-400 block">Tipo de Entrega:</span>
-                        <span className="font-semibold text-gray-800">{viewingPedido.contacto_proveedor_entrega}</span>
-                      </div>
-                    )}
-                    {(viewingPedido.transp_mercurio || viewingPedido.otro_transporte) && (
-                      <div>
-                        <span className="text-xs text-gray-400 block">Vía de Transporte:</span>
-                        <span className="font-semibold text-gray-800">
-                          {viewingPedido.transp_mercurio ? 'Transporte Mercurio (MERC)' : 'Otro Transporte'}
-                        </span>
-                      </div>
-                    )}
-                    {viewingPedido.prev_entrada && (
-                      <div className="sm:col-span-2">
-                        <span className="text-xs text-gray-400 block">Previsión / Notas de Entrada:</span>
-                        <span className="font-medium text-gray-700">{viewingPedido.prev_entrada}</span>
-                      </div>
-                    )}
-                  </div>
+              {/* Sección de Trazabilidad (Estilo Correo Argentino) */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                  <Truck className="w-4 h-4 text-blue-600 animate-pulse" />
+                  <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider font-semibold">Trazabilidad del Pedido (Correo Argentino)</h4>
                 </div>
-              )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-550 font-bold uppercase tracking-wider">
+                        <th className="py-2.5 px-3">Fecha</th>
+                        <th className="py-2.5 px-3">Área / Planta</th>
+                        <th className="py-2.5 px-3">Detalle / Historia</th>
+                        <th className="py-2.5 px-3">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {getTrackingHistory(viewingPedido).map((event, index) => {
+                        const isLatest = index === 0;
+                        return (
+                          <tr 
+                            key={index} 
+                            className={`transition-colors ${
+                              isLatest 
+                                ? 'bg-blue-50/40 font-medium text-blue-900 border-l-4 border-l-blue-650' 
+                                : 'text-gray-600 hover:bg-gray-50/50'
+                            }`}
+                          >
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 opacity-60" />
+                                {event.fecha}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                event.area === 'Compras' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
+                                event.area === 'Gerencia' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                event.area === 'Depósito' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
+                                'bg-sky-50 text-sky-700 border border-sky-100'
+                              }`}>
+                                {event.area}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              {event.historial}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                event.completed 
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                                  : 'bg-amber-100 text-amber-850 border border-amber-200'
+                              }`}>
+                                {event.completed ? (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                ) : (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                )}
+                                {event.estado}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
 
             {/* Footer */}
