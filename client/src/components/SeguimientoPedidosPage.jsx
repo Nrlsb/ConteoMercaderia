@@ -656,6 +656,64 @@ const SeguimientoPedidosPage = () => {
     );
   };
 
+  const getShipmentStatusBadge = (pedido) => {
+    const history = getTrackingHistory(pedido);
+    if (history.length === 0) return getStatusBadge(pedido.estado);
+
+    const latest = history[0]; // history is reversed, so index 0 is latest
+    
+    let bgClass = 'bg-gray-100 text-gray-800 border-gray-200';
+    let icon = <Clock className="w-3.5 h-3.5" />;
+    let text = latest.estado;
+
+    switch (latest.estado) {
+      case 'CREADO':
+        bgClass = 'bg-sky-50 text-sky-700 border-sky-100';
+        text = 'Pedido Creado';
+        break;
+      case 'PROCESO DE ABONAR':
+        bgClass = 'bg-amber-50 text-amber-700 border-amber-100';
+        text = 'Para Abonar';
+        break;
+      case 'ABONADO':
+        bgClass = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+        text = 'Abonado';
+        icon = <CheckCircle2 className="w-3.5 h-3.5" />;
+        break;
+      case 'PENDIENTE COORDINACIÓN':
+        bgClass = 'bg-purple-50 text-purple-700 border-purple-100';
+        text = 'Pendiente Coordinación';
+        break;
+      case 'COORDINADO':
+        bgClass = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+        text = 'Fecha Coordinada';
+        break;
+      case 'FECHA ASIGNADA':
+        bgClass = 'bg-blue-50 text-blue-700 border-blue-100';
+        text = 'Fecha Asignada';
+        break;
+      case 'FECHA CONFIRMADA':
+        bgClass = 'bg-teal-50 text-teal-700 border-teal-100';
+        text = 'Fecha Confirmada';
+        icon = <CheckCircle2 className="w-3.5 h-3.5" />;
+        break;
+      case 'INGRESADO':
+        bgClass = 'bg-emerald-100 text-emerald-800 border-emerald-250';
+        text = 'En Depósito';
+        icon = <CheckCircle2 className="w-3.5 h-3.5" />;
+        break;
+      default:
+        return getStatusBadge(pedido.estado);
+    }
+    
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${bgClass} border`}>
+        {icon}
+        {text}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Header Panel */}
@@ -885,7 +943,7 @@ const SeguimientoPedidosPage = () => {
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
-                          {getStatusBadge(pedido.estado)}
+                          {getShipmentStatusBadge(pedido)}
                           {pedido.confirmado_destinatario && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
                               ✓ Confirmado Dest.
@@ -949,7 +1007,7 @@ const SeguimientoPedidosPage = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    {getStatusBadge(pedido.estado)}
+                    {getShipmentStatusBadge(pedido)}
                     {pedido.confirmado_destinatario && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         ✓ Confirmado Dest.
@@ -1632,7 +1690,7 @@ const SeguimientoPedidosPage = () => {
                   <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado:</span>
-                      {getStatusBadge(viewingPedido.estado)}
+                      {getShipmentStatusBadge(viewingPedido)}
                     </div>
                     <div className="flex gap-2">
                       {viewingPedido.urgencia && (
