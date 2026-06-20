@@ -80,10 +80,11 @@ const Navigation = () => {
     const showTintometrico = canSeeTab('tab_tintometrico', true);
     const showRegistroColores = canSeeTab('tab_registro_colores', true);
     const showProductos = canSeeTab('tab_productos', isAdminLike);
+    const showValorizacion = canSeeTab('tab_valorizacion', isAdminLike);
 
-    const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal;
+    const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal || showValorizacion;
     const hasTintometria = showTintometrico || showRegistroColores;
-    const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings');
+    const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings') || isActive('/valorizacion');
     const isTintometriaActive = isActive('/tintometrico') || isActive('/color-registrations');
     const isHerramientasActive = isActive('/barcode-control') || isActive('/etiquetas') || isActive('/pesaje') || isActive('/settings') || isActive('/ayuda');
 
@@ -170,6 +171,9 @@ const Navigation = () => {
                                         )}
                                         {showIngresoSucursal && (
                                             <Link to="/branch-incomings" className={getDropdownLinkClass('/branch-incomings')}>Ingreso Sucursal</Link>
+                                        )}
+                                        {showValorizacion && (
+                                            <Link to="/valorizacion" className={getDropdownLinkClass('/valorizacion')}>Valorización</Link>
                                         )}
                                     </div>
                                 </div>
@@ -276,6 +280,9 @@ const Navigation = () => {
                         )}
                         {showIngresoSucursal && (
                             <Link to="/branch-incomings" className={getMobileLinkClass('/branch-incomings')} onClick={() => setIsOpen(false)}>Ingreso Sucursal</Link>
+                        )}
+                        {showValorizacion && (
+                            <Link to="/valorizacion" className={getMobileLinkClass('/valorizacion')} onClick={() => setIsOpen(false)}>Valorización</Link>
                         )}
                         {showEtiquetas && (
                             <Link to="/etiquetas" className={getMobileLinkClass('/etiquetas')} onClick={() => setIsOpen(false)}>Etiquetas</Link>

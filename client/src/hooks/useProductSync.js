@@ -48,7 +48,7 @@ export const useProductSync = () => {
             const chunkSize = 2000;
             for (let i = 0; i < products.length; i += chunkSize) {
                 const chunk = products.slice(i, i + chunkSize);
-                await db.products.bulkAdd(chunk);
+                await db.products.bulkPut(chunk);
                 setProgress(Math.round(50 + (i / products.length) * 50));
             }
 

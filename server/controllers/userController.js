@@ -6,7 +6,7 @@ exports.getAllUsers = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, permissions, allow_multiple_sessions, tab_schedules, sucursales(name)')
+            .select('id, username, role, is_session_active, last_seen, created_at, sucursal_id, permissions, allow_multiple_sessions, tab_schedules, price_list, sucursales(name)')
             .order('username');
 
         if (error) throw error;
@@ -25,7 +25,7 @@ exports.getAllUsers = async (req, res) => {
 };
 
 exports.createUser = async (req, res) => {
-    const { username, password, role, sucursal_id, permissions, allow_multiple_sessions, tab_schedules } = req.body;
+    const { username, password, role, sucursal_id, permissions, allow_multiple_sessions, tab_schedules, price_list } = req.body;
 
     if (!username || !password || !role) {
         return res.status(400).json({ message: 'Faltan datos requeridos (usuario, contraseña, rol)' });
@@ -58,6 +58,7 @@ exports.createUser = async (req, res) => {
             permissions: permissions || [],
             allow_multiple_sessions: allow_multiple_sessions || false,
             tab_schedules: tab_schedules || {},
+            price_list: price_list || '001',
             current_session_id: sessionId,
             is_session_active: false
         };
@@ -80,7 +81,7 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { role, sucursal_id, password, permissions, allow_multiple_sessions, tab_schedules } = req.body;
+    const { role, sucursal_id, password, permissions, allow_multiple_sessions, tab_schedules, price_list } = req.body;
     const requesterRole = req.user.role;
 
     try {
@@ -103,6 +104,7 @@ exports.updateUser = async (req, res) => {
         if (permissions !== undefined) updates.permissions = permissions; // Allow empty array
         if (allow_multiple_sessions !== undefined) updates.allow_multiple_sessions = allow_multiple_sessions;
         if (tab_schedules !== undefined) updates.tab_schedules = tab_schedules;
+        if (price_list !== undefined) updates.price_list = price_list;
         if (password) {
             const salt = await bcrypt.genSalt(10);
             updates.password = await bcrypt.hash(password, salt);
@@ -135,7 +137,7 @@ exports.updateUser = async (req, res) => {
             if (error) console.error('[AUDIT ERROR] No se pudo guardar log de actualización de usuario:', error.message);
         });
 
-        res.json({ message: 'User updated', user: { id: data.id, username: data.username, role: data.role, sucursal_id: data.sucursal_id } });
+        res.json({ message: 'User updated', user: { id: data.id, username: data.username, role: data.role, sucursal_id: data.sucursal_id, price_list: data.price_list } });
     } catch (error) {
         console.error('Error updating user:', error);
         res.status(500).json({ message: 'Error updating user' });

@@ -1,5 +1,7 @@
 const supabase = require('./supabaseClient');
 const firebase = require('./firebase');
+const { startCatalogSync } = require('./protheusSyncService');
+const { actualizarCotizacionesBD } = require('./dolarService');
 
 /**
  * Tarea programada para borrar el historial de etiquetas todos los días a las 23:00 hs (Buenos Aires).
@@ -204,7 +206,85 @@ async function checkAndSendProviderContactNotifications() {
     }
 }
 
+/**
+ * Tarea programada para sincronizar el catálogo de Protheus de forma automática todos los días a las 02:00 AM (Buenos Aires).
+ * Revisa cada minuto si coincide el horario de ejecución programado.
+ */
+function startProtheusSyncTask() {
+    console.log('[CRON] Iniciando monitor de sincronización de catálogo de Protheus (Programado: 02:00 BA)...');
+    let lastRunDate = null;
+
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            const baFormatter = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                hour12: false
+            });
+            
+            const parts = baFormatter.formatToParts(now);
+            const hour = parseInt(parts.find(p => p.type === 'hour').value);
+            const minute = parseInt(parts.find(p => p.type === 'minute').value);
+            const day = parts.find(p => p.type === 'day').value;
+
+            // Ejecutar a las 02:00 AM si no se ha ejecutado ya hoy
+            if (hour === 2 && minute === 0 && lastRunDate !== day) {
+                console.log(`[CRON] ${now.toISOString()} - Iniciando sincronización programada diaria del catálogo de Protheus...`);
+                await startCatalogSync();
+                lastRunDate = day;
+            }
+        } catch (err) {
+            console.error('[CRON ERROR] Falló la sincronización programada del catálogo:', err.message);
+        }
+    }, 60000); // Verificar cada 60 segundos
+}
+
+/**
+ * Tarea programada para actualizar las cotizaciones del dólar desde el BNA.
+ * Se ejecuta dos veces al día: a las 08:00 hs y a las 12:30 hs (Buenos Aires).
+ * Revisa cada minuto.
+ */
+function startDolarScrapingTask() {
+    console.log('[CRON] Iniciando monitor de cotización de dólares BNA (Programado: 08:00 y 12:30 BA)...');
+    let lastRunKey = null;
+
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            const baFormatter = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                hour12: false
+            });
+            
+            const parts = baFormatter.formatToParts(now);
+            const hour = parseInt(parts.find(p => p.type === 'hour').value);
+            const minute = parseInt(parts.find(p => p.type === 'minute').value);
+            const day = parts.find(p => p.type === 'day').value;
+
+            // Horarios de ejecución: 08:00 AM y 12:30 PM
+            const isTargetTime = (hour === 8 && minute === 0) || (hour === 12 && minute === 30);
+            const runKey = `${day}_${hour}`;
+
+            if (isTargetTime && lastRunKey !== runKey) {
+                console.log(`[CRON] ${now.toISOString()} - Ejecutando actualización automática de cotización del dólar...`);
+                await actualizarCotizacionesBD();
+                lastRunKey = runKey;
+            }
+        } catch (err) {
+            console.error('[CRON ERROR] Falló la actualización automática de cotizaciones:', err.message);
+        }
+    }, 60000); // Verificar cada 60 segundos
+}
+
 module.exports = {
     startLabelHistoryCleanupTask,
-    startProviderContactNotificationTask
+    startProviderContactNotificationTask,
+    startProtheusSyncTask,
+    startDolarScrapingTask
 };

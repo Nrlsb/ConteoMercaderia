@@ -7,6 +7,7 @@ const { fetchProductsByCodes, findProductByAnyCode } = require('../utils/dbHelpe
 const { parseRemitoPdf } = require('../pdfParser');
 const { parseExcelXml } = require('../xmlParser');
 const xlsx = require('xlsx');
+const { fetchZidCountFromProtheus } = require('../services/protheusService');
 
 // --- LOCAL HELPERS ---
 
@@ -1955,6 +1956,187 @@ router.post('/pre-remitos/import-xml', verifyToken, multer({ storage: multer.mem
             message: clientMessage,
             details: error.message,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// Import Stock from Protheus Table ZID
+router.post('/pre-remitos/import-zid', verifyToken, async (req, res) => {
+    const { zidId, sucursal } = req.body;
+
+    if (!zidId) {
+        return res.status(400).json({ message: 'El ID del conteo (ZID_ID) es requerido.' });
+    }
+
+    try {
+        // Obtener el código de filial desde la base de datos para la sucursal seleccionada
+        let filial = undefined;
+        if (sucursal) {
+            const searchName = sucursal === 'Global' ? 'Deposito' : sucursal;
+            const { data: branchData } = await supabase
+                .from('sucursales')
+                .select('code')
+                .eq('name', searchName)
+                .maybeSingle();
+
+            if (branchData && branchData.code) {
+                filial = branchData.code;
+            }
+        }
+
+        // 1. Consultar el Web Service de Protheus
+        const protheusItems = await fetchZidCountFromProtheus(zidId, filial);
+
+        if (!protheusItems || protheusItems.length === 0) {
+            return res.status(404).json({ message: 'No se encontraron ítems para el conteo especificado en Protheus.' });
+        }
+
+        const orderNumber = filial ? `STOCK-ZID-${zidId}-${filial}` : `STOCK-ZID-${zidId}`;
+
+        // 2. Verificar si hay un conteo general activo con este orderNumber para proteger el trabajo en curso
+        const { data: activeCounts, error: activeCountError } = await supabase
+            .from('general_counts')
+            .select('id, name')
+            .eq('status', 'open')
+            .is('deleted_at', null);
+
+        if (activeCountError) throw activeCountError;
+
+        const isAlreadyInUse = activeCounts && activeCounts.some(c => {
+            const parts = c.name.split(',').map(p => p.trim());
+            return parts.includes(orderNumber);
+        });
+
+        if (isAlreadyInUse) {
+            return res.status(400).json({ 
+                message: 'Ya existe un conteo activo y en curso asociado a este ID. Finalice o cambie el conteo antes de volver a importarlo.' 
+            });
+        }
+
+        // Mapear los ítems recibidos de Protheus
+        const items = protheusItems.map(item => ({
+            code: String(item.zid_cod).trim(),
+            description: String(item.zid_desc).trim(),
+            quantity: parseFloat(item.zid_saldo) || 0,
+            barcode: String(item.zid_cod).trim() // Fallback inicial
+        }));
+
+        // 3. Enriquecer con códigos de barra de la base de datos de productos locales
+        const uniqueCodes = [...new Set(items.map(i => i.code))];
+        
+        // Cargar en lotes de 1000 códigos
+        const dbProductMap = new Map();
+        const batchSize = 1000;
+        
+        for (let i = 0; i < uniqueCodes.length; i += batchSize) {
+            const batch = uniqueCodes.slice(i, i + batchSize);
+            const { data: existingProducts, error: prodErr } = await supabase
+                .from('products')
+                .select('code, barcode, primary_unit, secondary_unit, conversion_factor, conversion_type')
+                .in('code', batch);
+
+            if (prodErr) {
+                console.error('Error fetching barcodes batch for enrichment:', prodErr);
+            } else if (existingProducts) {
+                existingProducts.forEach(p => {
+                    dbProductMap.set(p.code, p);
+                });
+            }
+        }
+
+        // Enriquecer items con la información local
+        items.forEach(item => {
+            const dbProd = dbProductMap.get(item.code);
+            if (dbProd) {
+                if (dbProd.barcode) item.barcode = dbProd.barcode;
+                item.primary_unit = dbProd.primary_unit;
+                item.secondary_unit = dbProd.secondary_unit;
+                item.conversion_factor = dbProd.conversion_factor;
+                item.conversion_type = dbProd.conversion_type;
+            }
+        });
+
+        // 4. Asegurar que todos los productos existan en la tabla "products" local (upsert)
+        const productsMap = new Map();
+        items.forEach(item => {
+            if (!productsMap.has(item.code)) {
+                productsMap.set(item.code, {
+                    code: item.code,
+                    description: item.description,
+                    barcode: item.barcode
+                });
+            }
+        });
+
+        const productsParams = Array.from(productsMap.values());
+
+        // Upsert en lotes
+        for (let i = 0; i < productsParams.length; i += batchSize) {
+            const batch = productsParams.slice(i, i + batchSize);
+            const { error: prodError } = await supabase
+                .from('products')
+                .upsert(batch, { onConflict: 'code' });
+
+            if (prodError) {
+                console.error('Error upserting products from Protheus batch:', prodError);
+            }
+        }
+
+        // 5. Eliminar registros anteriores inactivos (evitar error de duplicación al reimportar)
+        const { error: deletePvError } = await supabase
+            .from('pedidos_ventas')
+            .delete()
+            .eq('order_number', orderNumber);
+
+        if (deletePvError) console.error('Error deleting previous pedidos_ventas:', deletePvError);
+
+        const { error: deletePreError } = await supabase
+            .from('pre_remitos')
+            .delete()
+            .eq('order_number', orderNumber);
+
+        if (deletePreError) console.error('Error deleting previous pre_remitos:', deletePreError);
+
+        // 6. Crear el nuevo Pre-Remito en Supabase
+        const { data: preRemitoData, error: preRemitoError } = await supabase
+            .from('pre_remitos')
+            .insert([
+                {
+                    order_number: orderNumber,
+                    id_inventory: zidId,
+                    items: items,
+                    status: 'pending'
+                }
+            ])
+            .select()
+            .single();
+
+        if (preRemitoError) throw preRemitoError;
+
+        // 7. Asociar la sucursal elegida
+        if (sucursal) {
+            const { error: pvError } = await supabase
+                .from('pedidos_ventas')
+                .insert([{
+                    order_number: orderNumber,
+                    sucursal: sucursal,
+                    numero_pv: null
+                }]);
+
+            if (pvError) console.error('Error creating pedidos_ventas record for ZID:', pvError);
+        }
+
+        res.json({
+            message: 'Conteo de Protheus importado correctamente',
+            orderNumber: preRemitoData.order_number,
+            itemCount: items.length
+        });
+
+    } catch (error) {
+        console.error('CRITICAL ERROR importing count from Protheus (ZID):', error);
+        res.status(500).json({
+            message: 'Error al importar el conteo de Protheus ZID: ' + error.message,
+            details: error.message
         });
     }
 });

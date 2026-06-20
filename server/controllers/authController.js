@@ -7,12 +7,12 @@ exports.getUserData = async (req, res) => {
     try {
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, username, role, sucursal_id, permissions, active_count_id, preferences, tab_schedules, sucursales(name)')
+            .select('id, username, role, sucursal_id, permissions, active_count_id, preferences, tab_schedules, price_list, sucursales(name)')
             .eq('id', req.user.id)
             .single();
 
         if (error) throw error;
-        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined, preferences: user.preferences || {}, tab_schedules: user.tab_schedules || {} });
+        res.json({ ...user, sucursal_name: user.sucursales?.name || null, sucursales: undefined, preferences: user.preferences || {}, tab_schedules: user.tab_schedules || {}, price_list: user.price_list || '001' });
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ message: 'Server error' });
@@ -197,7 +197,8 @@ exports.login = async (req, res) => {
                 sucursal_id: user.sucursal_id, 
                 sucursal_name: branchData ? branchData.name : null,
                 permissions: user.permissions || [],
-                tab_schedules: user.tab_schedules || {}
+                tab_schedules: user.tab_schedules || {},
+                price_list: user.price_list || '001'
             } 
         });
     } catch (error) {

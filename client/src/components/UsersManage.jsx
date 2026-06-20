@@ -9,7 +9,7 @@ const UsersManage = () => {
     const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [], allow_multiple_sessions: false, tab_schedules: {} });
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'user', sucursal_id: '', permissions: [], allow_multiple_sessions: false, tab_schedules: {}, price_list: '001' });
 
     // Get current user from storage or context (quick fix as we don't have context here)
     const [currentUser, setCurrentUser] = useState(null);
@@ -55,6 +55,7 @@ const UsersManage = () => {
             permissions: user.permissions || [],
             allow_multiple_sessions: user.allow_multiple_sessions || false,
             tab_schedules: user.tab_schedules || {},
+            price_list: user.price_list || '001',
             password: '' // Reset password field
         });
     };
@@ -69,14 +70,15 @@ const UsersManage = () => {
             sucursal_id: '',
             permissions: [],
             allow_multiple_sessions: false,
-            tab_schedules: {}
+            tab_schedules: {},
+            price_list: '001'
         });
     }
 
     const handleCancel = () => {
         setEditingUser(null);
         setIsCreating(false);
-        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [], allow_multiple_sessions: false, tab_schedules: {} });
+        setFormData({ username: '', password: '', role: '', sucursal_id: '', permissions: [], allow_multiple_sessions: false, tab_schedules: {}, price_list: '001' });
     };
 
     const handleDelete = async (id) => {
@@ -105,7 +107,8 @@ const UsersManage = () => {
                     sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
                     permissions: formData.permissions,
                     allow_multiple_sessions: formData.allow_multiple_sessions,
-                    tab_schedules: formData.tab_schedules
+                    tab_schedules: formData.tab_schedules,
+                    price_list: formData.price_list
                 };
                 await axios.post('/api/users', payload);
                 toast.success('Usuario creado exitosamente');
@@ -115,7 +118,8 @@ const UsersManage = () => {
                     sucursal_id: formData.sucursal_id === '' ? null : formData.sucursal_id,
                     permissions: formData.permissions,
                     allow_multiple_sessions: formData.allow_multiple_sessions,
-                    tab_schedules: formData.tab_schedules
+                    tab_schedules: formData.tab_schedules,
+                    price_list: formData.price_list
                 };
                 if (formData.password) {
                     payload.password = formData.password;
@@ -375,6 +379,17 @@ const UsersManage = () => {
                                 required={isCreating}
                             />
                         </div>
+                        <div>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Lista de Precios (Tintómetro)</label>
+                            <select
+                                value={formData.price_list || '001'}
+                                onChange={(e) => setFormData({ ...formData, price_list: e.target.value })}
+                                className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            >
+                                <option value="001">Lista 001</option>
+                                <option value="500">Lista 500</option>
+                            </select>
+                        </div>
                         <div className="flex items-center pt-6">
                             <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
@@ -506,8 +521,11 @@ const UsersManage = () => {
                                 )}
                             </div>
                         </div>
-                        <div className="text-sm text-gray-600 mb-3">
+                        <div className="text-sm text-gray-600 mb-1">
                             <span className="font-medium">Sucursal:</span> {user.sucursal_name || 'Sin Asignar'}
+                        </div>
+                        <div className="text-sm text-gray-600 mb-3">
+                            <span className="font-medium">Lista de Precios:</span> Lista {user.price_list || '001'}
                         </div>
 
                         <div className="flex justify-end pt-3 border-t border-gray-100 gap-2">
@@ -537,6 +555,7 @@ const UsersManage = () => {
                             <th className="py-2 px-4 border-b text-left">Usuario</th>
                             <th className="py-2 px-4 border-b text-left">Rol</th>
                             <th className="py-2 px-4 border-b text-left">Sucursal</th>
+                            <th className="py-2 px-4 border-b text-left">Lista Precios</th>
                             <th className="py-2 px-4 border-b text-center">Estado</th>
                             <th className="py-2 px-4 border-b text-center">Acciones</th>
                         </tr>
@@ -547,6 +566,7 @@ const UsersManage = () => {
                                 <td className="py-2 px-4 border-b font-medium">{user.username}</td>
                                 <td className="py-2 px-4 border-b capitalize">{user.role}</td>
                                 <td className="py-2 px-4 border-b">{user.sucursal_name}</td>
+                                <td className="py-2 px-4 border-b font-medium">Lista {user.price_list || '001'}</td>
                                 <td className="py-2 px-4 border-b text-center">
                                     <div className="flex flex-col items-center gap-1">
                                         <span className={`px-2 py-1 rounded-full text-xs ${user.is_session_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>

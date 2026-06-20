@@ -1,5 +1,6 @@
 const supabase = require('../services/supabaseClient');
 const tintometricoSupabase = require('../services/tintometricoSupabaseClient');
+const dolarService = require('../services/dolarService');
 
 // Función auxiliar para normalizar texto para búsquedas
 const normalizarTexto = (str) => {
@@ -309,7 +310,7 @@ exports.getColorDosificacion = async (req, res) => {
 
         let capacitiesData = capacitiesDataRaw || [];
 
-        // Enriquecer capacitiesData con datos de Protheus (capacidad real)
+        // Enriquecer capacitiesData con datos de Protheus (capacidad real) y precios locales
         try {
             const codes = capacitiesData
                 .map(c => c.codigo_comercial)
@@ -319,11 +320,17 @@ exports.getColorDosificacion = async (req, res) => {
                 // Consultar en la base de datos principal de Supabase
                 const { data: productsResult, error: prodErr } = await supabase
                     .from('products')
-                    .select('code, description, capacity')
+                    .select('code, description, capacity, lista001, lista500, tes, moneda')
                     .in('code', codes);
                 
                 if (!prodErr && productsResult) {
                     const productsMap = new Map(productsResult.map(p => [p.code, p]));
+                    
+                    // Obtener las cotizaciones del dólar para realizar conversiones si corresponde
+                    const cotizaciones = await dolarService.getCotizaciones();
+                    
+                    // Determinar qué lista de precios usar según el usuario (001 por defecto, o 500)
+                    const userPriceListField = req.user && req.user.price_list === '500' ? 'lista500' : 'lista001';
                     
                     capacitiesData.forEach(c => {
                         if (c.codigo_comercial && productsMap.has(c.codigo_comercial)) {
@@ -351,6 +358,23 @@ exports.getColorDosificacion = async (req, res) => {
                             c.capacidad_real = realCap;
                             c.capacidad_real_desc = prod.capacity ? prod.capacity.trim() : null;
                             c.producto_nombre_real = prod.description ? prod.description.trim() : null;
+
+                            // Sobrescribir precio_base si el producto tiene precio cargado en la base local
+                            let localPrice = prod[userPriceListField] ? Number(prod[userPriceListField]) : null;
+                            if (localPrice !== null && localPrice > 0) {
+                                // Convertir el precio de dólares a pesos si la moneda es 2 o 3
+                                localPrice = dolarService.convertirPrecio(localPrice, prod.moneda, cotizaciones);
+
+                                // Calcular IVA según el campo TES (503 -> 21%, 501 -> 10.5%)
+                                let vatMultiplier = 1.0;
+                                const tesCode = prod.tes ? String(prod.tes).trim() : '';
+                                if (tesCode === '503') {
+                                    vatMultiplier = 1.21;
+                                } else if (tesCode === '501') {
+                                    vatMultiplier = 1.105;
+                                }
+                                c.precio_base = localPrice * vatMultiplier;
+                            }
                         }
                     });
                 }
