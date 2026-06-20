@@ -666,17 +666,20 @@ const ColorRegistrations = () => {
     const filteredRegistrations = registrations.filter(r => {
         if (!registrationsSearch.trim()) return true;
         const q = registrationsSearch.toLowerCase();
+        const terms = q.split(/\s+/).filter(Boolean);
         
-        const idMatch = r.id?.toLowerCase().includes(q) || r.identification_id?.toLowerCase().includes(q) || (r.num_id && String(r.num_id).includes(q));
-        const nameMatch = r.color_name?.toLowerCase().includes(q);
-        const clientMatch = r.client_name?.toLowerCase().includes(q);
-        const codeMatch = r.color_code?.toLowerCase().includes(q);
-        const prodMatch = r.products?.description?.toLowerCase().includes(q) || r.products?.code?.toLowerCase().includes(q);
-        const userMatch = r.target_user?.username?.toLowerCase().includes(q);
-        const creatorMatch = r.creator_user?.username?.toLowerCase().includes(q);
-        const obraMatch = r.obra?.toLowerCase().includes(q);
+        return terms.every(term => {
+            const idMatch = r.id?.toLowerCase().includes(term) || r.identification_id?.toLowerCase().includes(term) || (r.num_id && String(r.num_id).includes(term));
+            const nameMatch = r.color_name?.toLowerCase().includes(term);
+            const clientMatch = r.client_name?.toLowerCase().includes(term);
+            const codeMatch = r.color_code?.toLowerCase().includes(term);
+            const prodMatch = r.products?.description?.toLowerCase().includes(term) || r.products?.code?.toLowerCase().includes(term);
+            const userMatch = r.target_user?.username?.toLowerCase().includes(term);
+            const creatorMatch = r.creator_user?.username?.toLowerCase().includes(term);
+            const obraMatch = r.obra?.toLowerCase().includes(term);
 
-        return idMatch || nameMatch || clientMatch || codeMatch || prodMatch || userMatch || creatorMatch || obraMatch;
+            return idMatch || nameMatch || clientMatch || codeMatch || prodMatch || userMatch || creatorMatch || obraMatch;
+        });
     });
 
     return (
