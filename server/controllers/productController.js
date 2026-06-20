@@ -852,6 +852,18 @@ async function runSyncInBackground() {
         protheusSyncStatus.total = totalProducts;
         console.log(`[BG SYNC] Se encontraron ${totalProducts} productos para sincronizar.`);
 
+        // Pre-cargar listas de precios de Protheus de forma masiva para evitar llamadas repetidas
+        console.log('[BG SYNC] Descargando listas de precios completas (001 y 500) desde Protheus para optimización...');
+        const prices001Map = await protheusService.fetchPricesFromProtheus('001').catch(e => {
+            console.error('Error pre-cargando lista de precios 001:', e.message);
+            return {};
+        });
+        const prices500Map = await protheusService.fetchPricesFromProtheus('500').catch(e => {
+            console.error('Error pre-cargando lista de precios 500:', e.message);
+            return {};
+        });
+        console.log(`[BG SYNC] Listas de precios cargadas con éxito. (001: ${Object.keys(prices001Map).length} ítems, 500: ${Object.keys(prices500Map).length} ítems).`);
+
         const CONCURRENCY_LIMIT = 5;
         const BATCH_DELAY = 100;
         
@@ -870,7 +882,7 @@ async function runSyncInBackground() {
                 const code = dbProduct.code;
                 try {
                     // Consultar en el WS de Protheus (usando protheusService exportado arriba como "protheusService")
-                    const protheusProduct = await protheusService.fetchProductFromProtheus(code);
+                    const protheusProduct = await protheusService.fetchProductFromProtheus(code, prices001Map, prices500Map);
                     protheusSyncStatus.processed++;
 
                     if (protheusProduct) {

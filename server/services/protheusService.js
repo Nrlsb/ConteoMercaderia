@@ -213,7 +213,7 @@ async function fetchSingleProductPrice(code, codtab) {
  * @param {string} code Código de producto (ej: '000113')
  * @returns {Promise<Object|null>} Producto mapeado o null si no se encuentra o hay error
  */
-async function fetchProductFromProtheus(code) {
+async function fetchProductFromProtheus(code, prices001Map = null, prices500Map = null) {
     if (!code) return null;
     const cleanCode = String(code).trim();
     
@@ -268,9 +268,14 @@ async function fetchProductFromProtheus(code) {
         const capacityCode = productData.b1_xcapa ? String(productData.b1_xcapa).trim() : null;
         const realWeight = capacityCode ? (capacitiesCache[capacityCode] || null) : null;
 
-        // Consultar precios en las listas 001 y 500
-        const price001Data = await fetchSingleProductPrice(cleanCode, '001');
-        const price500Data = await fetchSingleProductPrice(cleanCode, '500');
+        // Consultar precios en las listas 001 y 500 (usar mapa pre-cargado si existe)
+        const price001Data = prices001Map 
+            ? prices001Map[cleanCode.toLowerCase()] 
+            : await fetchSingleProductPrice(cleanCode, '001');
+
+        const price500Data = prices500Map 
+            ? prices500Map[cleanCode.toLowerCase()] 
+            : await fetchSingleProductPrice(cleanCode, '500');
 
         // Mapear los campos de la API a la estructura de la base de datos local
         const mappedProduct = {
