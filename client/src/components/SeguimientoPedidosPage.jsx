@@ -1917,76 +1917,78 @@ const SeguimientoPedidosPage = () => {
               )}
 
               {/* Sección de Trazabilidad */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                  <Truck className="w-4 h-4 text-blue-600 animate-pulse" />
-                  <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider font-semibold">Trazabilidad del Pedido</h4>
+              {isParaQuien && (
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <Truck className="w-4 h-4 text-blue-600 animate-pulse" />
+                    <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider font-semibold">Trazabilidad del Pedido</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-550 font-bold uppercase tracking-wider">
+                          <th className="py-2.5 px-3">Fecha</th>
+                          <th className="py-2.5 px-3">Área / Planta</th>
+                          <th className="py-2.5 px-3">Detalle / Historia</th>
+                          <th className="py-2.5 px-3">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {getTrackingHistory(viewingPedido).map((event, index) => {
+                          const isLatest = index === 0;
+                          return (
+                            <tr 
+                              key={index} 
+                              className={`transition-colors ${
+                                isLatest 
+                                  ? 'bg-blue-50/40 font-medium text-blue-900 border-l-4 border-l-blue-650' 
+                                  : 'text-gray-600 hover:bg-gray-50/50'
+                              }`}
+                            >
+                              <td className="py-3 px-3 whitespace-nowrap">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 opacity-60" />
+                                  {event.fecha}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  event.area === 'Compras' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
+                                  event.area === 'Gerencia' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                  event.area === 'Depósito' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
+                                  'bg-sky-50 text-sky-700 border border-sky-100'
+                                }`}>
+                                  {event.area}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3">
+                                {event.historial}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  event.completed 
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                                    : 'bg-amber-100 text-amber-850 border border-amber-200'
+                                }`}>
+                                  {event.completed ? (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                  ) : (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                  )}
+                                  {event.estado}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-550 font-bold uppercase tracking-wider">
-                        <th className="py-2.5 px-3">Fecha</th>
-                        <th className="py-2.5 px-3">Área / Planta</th>
-                        <th className="py-2.5 px-3">Detalle / Historia</th>
-                        <th className="py-2.5 px-3">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {getTrackingHistory(viewingPedido).map((event, index) => {
-                        const isLatest = index === 0;
-                        return (
-                          <tr 
-                            key={index} 
-                            className={`transition-colors ${
-                              isLatest 
-                                ? 'bg-blue-50/40 font-medium text-blue-900 border-l-4 border-l-blue-650' 
-                                : 'text-gray-600 hover:bg-gray-50/50'
-                            }`}
-                          >
-                            <td className="py-3 px-3 whitespace-nowrap">
-                              <span className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 opacity-60" />
-                                {event.fecha}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                event.area === 'Compras' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
-                                event.area === 'Gerencia' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                                event.area === 'Depósito' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
-                                'bg-sky-50 text-sky-700 border border-sky-100'
-                              }`}>
-                                {event.area}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3">
-                              {event.historial}
-                            </td>
-                            <td className="py-3 px-3">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                event.completed 
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                                  : 'bg-amber-100 text-amber-850 border border-amber-200'
-                              }`}>
-                                {event.completed ? (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                ) : (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                                )}
-                                {event.estado}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              )}
 
               {/* Sección de Confirmación de Recepción del Destinatario */}
-              {(viewingPedido.confirmado_destinatario || (user?.username && viewingPedido.para_quien && user.username.trim().toLowerCase() === viewingPedido.para_quien.trim().toLowerCase()) || user?.role === 'superadmin') && (
+              {isParaQuien && (
                 <div className={`p-5 rounded-2xl border ${viewingPedido.confirmado_destinatario ? 'bg-emerald-50/50 border-emerald-250' : 'bg-amber-50/50 border-amber-250'} space-y-3`}>
                   <div className="flex items-center gap-2 border-b pb-2 border-gray-150">
                     <CheckCircle2 className={`w-4 h-4 ${viewingPedido.confirmado_destinatario ? 'text-emerald-600' : 'text-amber-600'}`} />
