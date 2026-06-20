@@ -51,6 +51,9 @@ const SeguimientoPedidosPage = () => {
     notifyUserOnNo: ''
   });
 
+  const isParaQuien = user?.username && viewingPedido?.para_quien &&
+                      user.username.trim().toLowerCase() === viewingPedido.para_quien.trim().toLowerCase();
+
   // Formulario de Pedido
   const initialFormState = {
     fecha: new Date().toISOString().split('T')[0],
@@ -1871,6 +1874,63 @@ const SeguimientoPedidosPage = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Sección Estado del Envío para el Destinatario */}
+              {isParaQuien && !canViewImages && (
+                <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <Truck className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Estado del Envío</h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-xs text-gray-400 block mb-1">Estado de Recepción:</span>
+                      {getStatusBadge(viewingPedido.estado)}
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 block mb-1">Fecha de Entrega Estimada:</span>
+                      {viewingPedido.contacto_proveedor_fecha ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-gray-800">
+                            {formatLocalDate(viewingPedido.contacto_proveedor_fecha)}
+                          </span>
+                          {viewingPedido.fecha_confirmada ? (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              Confirmada
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-250">
+                              Pendiente
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 italic">No programada aún</span>
+                      )}
+                    </div>
+                    {viewingPedido.contacto_proveedor_entrega && (
+                      <div>
+                        <span className="text-xs text-gray-400 block">Tipo de Entrega:</span>
+                        <span className="font-semibold text-gray-800">{viewingPedido.contacto_proveedor_entrega}</span>
+                      </div>
+                    )}
+                    {(viewingPedido.transp_mercurio || viewingPedido.otro_transporte) && (
+                      <div>
+                        <span className="text-xs text-gray-400 block">Vía de Transporte:</span>
+                        <span className="font-semibold text-gray-800">
+                          {viewingPedido.transp_mercurio ? 'Transporte Mercurio (MERC)' : 'Otro Transporte'}
+                        </span>
+                      </div>
+                    )}
+                    {viewingPedido.prev_entrada && (
+                      <div className="sm:col-span-2">
+                        <span className="text-xs text-gray-400 block">Previsión / Notas de Entrada:</span>
+                        <span className="font-medium text-gray-700">{viewingPedido.prev_entrada}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

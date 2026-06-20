@@ -299,11 +299,13 @@ exports.getAllPedidos = async (req, res) => {
         const isUserConfiguredAsNo = notifyUserOnNo && req.user?.username && notifyUserOnNo.trim().toLowerCase() === req.user.username.trim().toLowerCase();
         const isDeposito = userSucursalName === 'deposito';
 
-        // Si el usuario es el configurado como 'NO' o si pertenece a la sucursal Depósito (pero no es superadmin),
-        // ocultamos los pedidos que requieran ser abonados y no tengan imágenes cargadas.
         if (data && (isUserConfiguredAsNo || isDeposito) && req.user.role !== 'superadmin') {
             data = data.filter(p => {
                 if (p.abonado === true) {
+                    // Si el usuario actual es el destinatario (para_quien), no se oculta el pedido
+                    if (p.para_quien && req.user?.username && p.para_quien.trim().toLowerCase() === req.user.username.trim().toLowerCase()) {
+                        return true;
+                    }
                     return hasImagenes(p);
                 }
                 return true;
