@@ -2013,8 +2013,20 @@ router.post('/pre-remitos/import-zid', verifyToken, async (req, res) => {
             });
         }
 
+        // Filtrar productos donde el stock (zid_saldo) en Protheus es 0 o negativo
+        const filteredProtheusItems = protheusItems.filter(item => {
+            const stock = parseFloat(item.zid_saldo) || 0;
+            return stock > 0;
+        });
+
+        if (filteredProtheusItems.length === 0) {
+            return res.status(400).json({ 
+                message: 'El conteo en Protheus no contiene productos con stock mayor a 0.' 
+            });
+        }
+
         // Mapear los ítems recibidos de Protheus
-        const items = protheusItems.map(item => ({
+        const items = filteredProtheusItems.map(item => ({
             code: String(item.zid_cod).trim(),
             description: String(item.zid_desc).trim(),
             quantity: parseFloat(item.zid_saldo) || 0,
