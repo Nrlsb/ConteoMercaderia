@@ -767,7 +767,9 @@ let protheusSyncStatus = {
     errors: 0,
     startTime: null,
     endTime: null,
-    errorMsg: null
+    errorMsg: null,
+    notFoundProducts: [],
+    failedProducts: []
 };
 
 exports.getProtheusSyncStatus = (req, res) => {
@@ -796,7 +798,9 @@ exports.syncProductsFromProtheus = async (req, res) => {
         errors: 0,
         startTime: new Date().toISOString(),
         endTime: null,
-        errorMsg: null
+        errorMsg: null,
+        notFoundProducts: [],
+        failedProducts: []
     };
 
     // Ejecutar en segundo plano de forma asíncrona
@@ -814,15 +818,34 @@ async function runSyncInBackground() {
     try {
         console.log('[BG SYNC] Obteniendo códigos de productos existentes en la base de datos...');
         
-        // Obtener todos los productos
-        const { data: dbProducts, error: dbError } = await supabase
-            .from('products')
-            .select('id, code, description')
-            .not('code', 'is', null)
-            .order('code', { ascending: true });
+        // Obtener todos los productos paginados (evitando el límite de 1000 registros por defecto)
+        let dbProducts = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
 
-        if (dbError) {
-            throw new Error(`Error al obtener productos de la base de datos: ${dbError.message}`);
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('products')
+                .select('id, code, description')
+                .not('code', 'is', null)
+                .order('code', { ascending: true })
+                .range(from, from + step - 1);
+
+            if (error) {
+                throw new Error(`Error al obtener productos de la base de datos: ${error.message}`);
+            }
+
+            if (data && data.length > 0) {
+                dbProducts = dbProducts.concat(data);
+                if (data.length < step) {
+                    hasMore = false;
+                } else {
+                    from += step;
+                }
+            } else {
+                hasMore = false;
+            }
         }
 
         const totalProducts = dbProducts.length;
@@ -869,16 +892,30 @@ async function runSyncInBackground() {
                         if (updateError) {
                             console.error(`[BG SYNC] Error actualizando "${code}":`, updateError.message);
                             protheusSyncStatus.errors++;
+                            protheusSyncStatus.failedProducts.push({
+                                code: code,
+                                description: dbProduct.description,
+                                error: updateError.message
+                            });
                         } else {
                             protheusSyncStatus.updated++;
                         }
                     } else {
                         protheusSyncStatus.notFound++;
+                        protheusSyncStatus.notFoundProducts.push({
+                            code: code,
+                            description: dbProduct.description
+                        });
                     }
                 } catch (err) {
                     console.error(`[BG SYNC] Error procesando "${code}":`, err.message);
                     protheusSyncStatus.errors++;
                     protheusSyncStatus.processed++;
+                    protheusSyncStatus.failedProducts.push({
+                        code: code,
+                        description: dbProduct.description,
+                        error: err.message
+                    });
                 }
             }));
 

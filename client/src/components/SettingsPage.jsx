@@ -233,6 +233,41 @@ const SettingsPage = () => {
                                             <li>Errores: <span className="font-semibold text-red-600">{syncStatus.errors}</span></li>
                                             {syncStatus.errorMsg && <li className="text-red-600 font-bold">Fallo crítico: {syncStatus.errorMsg}</li>}
                                         </ul>
+
+                                        {syncStatus.notFoundProducts && syncStatus.notFoundProducts.length > 0 && (
+                                            <details className="mt-3 bg-white p-2.5 rounded border border-purple-200 cursor-pointer">
+                                                <summary className="font-semibold text-purple-900 focus:outline-none">
+                                                    Ver productos no encontrados ({syncStatus.notFoundProducts.length})
+                                                </summary>
+                                                <div className="mt-2 max-h-36 overflow-y-auto space-y-1.5 pr-1 text-[11px] font-mono">
+                                                    {syncStatus.notFoundProducts.map((p, idx) => (
+                                                        <div key={idx} className="flex justify-between border-b pb-1 last:border-b-0 border-purple-50">
+                                                            <span className="font-bold text-purple-950">{p.code}</span>
+                                                            <span className="text-gray-600 truncate max-w-[220px]" title={p.description}>{p.description}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
+
+                                        {syncStatus.failedProducts && syncStatus.failedProducts.length > 0 && (
+                                            <details className="mt-2 bg-white p-2.5 rounded border border-red-200 cursor-pointer">
+                                                <summary className="font-semibold text-red-900 focus:outline-none">
+                                                    Ver productos con error ({syncStatus.failedProducts.length})
+                                                </summary>
+                                                <div className="mt-2 max-h-36 overflow-y-auto space-y-1.5 pr-1 text-[11px] font-mono">
+                                                    {syncStatus.failedProducts.map((p, idx) => (
+                                                        <div key={idx} className="border-b pb-1 last:border-b-0 border-red-50">
+                                                            <div className="flex justify-between">
+                                                                <span className="font-bold text-red-950">{p.code}</span>
+                                                                <span className="text-gray-600 truncate max-w-[220px]" title={p.description}>{p.description}</span>
+                                                            </div>
+                                                            <div className="text-[10px] text-red-600 mt-0.5">{p.error}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
                                     </div>
                                 )}
                                 <button
