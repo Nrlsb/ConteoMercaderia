@@ -136,9 +136,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             const fechaStr = pedido.contacto_proveedor_fecha ? formatLocalDate(pedido.contacto_proveedor_fecha) : '';
             let notifType = 'pedido_modificado';
 
-            const abonadoStr = pedido.abonado === true 
-                ? ' (Abonado)' 
-                : (pedido.abonado === false ? ' (No Abonado)' : '');
+            const abonadoStr = '';
 
             if (actionType === 'create') {
                 notifType = 'pedido_creado';
@@ -471,7 +469,8 @@ exports.updatePedido = async (req, res) => {
                 'contacto_mercurio', 'contacto_mercurio_fecha',
                 'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
                 'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
-                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega'
+                'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega',
+                'contacto_proveedor_fecha_pendiente'
             ];
 
             const attemptedChanges = [];
@@ -539,7 +538,8 @@ exports.updatePedido = async (req, res) => {
             const depModFields = [
                 'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
                 'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
-                'contacto_proveedor_observaciones', 'contacto_proveedor_entrega'
+                'contacto_proveedor_observaciones', 'contacto_proveedor_entrega',
+                'contacto_proveedor_fecha_pendiente'
             ];
 
             let modifiedField = false;
@@ -941,6 +941,7 @@ exports.exportPedidosExcel = async (req, res) => {
             'Contacto Proveedor - ¿Fecha Actual/Modificada?': p.contacto_proveedor_fecha || '',
             'Contacto Proveedor - Observaciones': p.contacto_proveedor_observaciones || '',
             'Contacto Proveedor - Tipo Entrega': p.contacto_proveedor_entrega || '',
+            'Contacto Proveedor - Fecha Pendiente': p.contacto_proveedor_fecha_pendiente || '',
             'Estado': p.estado || 'Pendiente'
         }));
 

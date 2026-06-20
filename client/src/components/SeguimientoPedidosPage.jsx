@@ -197,6 +197,7 @@ const SeguimientoPedidosPage = () => {
     contacto_proveedor_fecha_original: '',
     contacto_proveedor_observaciones: '',
     contacto_proveedor_entrega: '',
+    contacto_proveedor_fecha_pendiente: '',
     estado: 'Pendiente',
     abonado: null,
     fecha_confirmada: false,
@@ -386,9 +387,14 @@ const SeguimientoPedidosPage = () => {
         [name]: type === 'checkbox' ? checked : value
       };
 
+      if (name === 'contacto_proveedor_entrega' && value !== 'Parcial') {
+        newState.contacto_proveedor_fecha_pendiente = '';
+      }
+
       const depFields = [
         'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
-        'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada'
+        'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
+        'contacto_proveedor_entrega', 'contacto_proveedor_fecha_pendiente'
       ];
       if (depFields.includes(name) && canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
@@ -478,6 +484,7 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor_fecha_original: pedido.contacto_proveedor_fecha_original || '',
       contacto_proveedor_observaciones: pedido.contacto_proveedor_observaciones || '',
       contacto_proveedor_entrega: pedido.contacto_proveedor_entrega || '',
+      contacto_proveedor_fecha_pendiente: pedido.contacto_proveedor_fecha_pendiente || '',
       estado: pedido.estado || 'Pendiente',
       abonado: pedido.abonado !== undefined && pedido.abonado !== null ? pedido.abonado : null,
       fecha_confirmada: pedido.fecha_confirmada || false,
@@ -558,6 +565,7 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor_fecha_original: formData.contacto_proveedor_fecha_original || '',
       contacto_proveedor_observaciones: formData.contacto_proveedor_observaciones || '',
       contacto_proveedor_entrega: formData.contacto_proveedor_entrega || '',
+      contacto_proveedor_fecha_pendiente: formData.contacto_proveedor_fecha_pendiente || '',
       estado: formData.estado || 'Pendiente',
       abonado: formData.abonado,
       fecha_confirmada: formData.fecha_confirmada || false,
@@ -1607,6 +1615,20 @@ const SeguimientoPedidosPage = () => {
                         </select>
                       </div>
 
+                      {formData.contacto_proveedor_entrega === 'Parcial' && (
+                        <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Fecha Entrega Pendiente</label>
+                          <input
+                            type="date"
+                            name="contacto_proveedor_fecha_pendiente"
+                            value={formData.contacto_proveedor_fecha_pendiente || ''}
+                            onChange={handleInputChange}
+                            disabled={!canEditDepositoFields}
+                            className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
+                          />
+                        </div>
+                      )}
+
                       <div className="md:col-span-3">
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Observaciones Proveedor</label>
                         <input
@@ -1934,6 +1956,15 @@ const SeguimientoPedidosPage = () => {
                                   : 'bg-blue-100 text-blue-800 border-blue-200'
                               }`}>
                                 {viewingPedido.contacto_proveedor_entrega === 'Total' ? 'Total' : 'Parcial'}
+                              </span>
+                            </div>
+                          )}
+
+                          {viewingPedido.contacto_proveedor_entrega === 'Parcial' && viewingPedido.contacto_proveedor_fecha_pendiente && (
+                            <div>
+                              <span className="text-xs text-gray-400 block mb-0.5">Entrega Pendiente:</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                {formatLocalDate(viewingPedido.contacto_proveedor_fecha_pendiente)}
                               </span>
                             </div>
                           )}
