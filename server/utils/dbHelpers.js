@@ -312,12 +312,42 @@ async function findProductsByAnyCode(inputCode, type = 'any') {
         return [];
     }
 }
+/**
+ * Obtiene el porcentaje de recargo/aumento de una sucursal basándose en su markup_group
+ * @param {string} sucursalId - UUID de la sucursal
+ * @returns {Promise<number>} Porcentaje de aumento (ej. 7 para 7%), 0 si no se encuentra o no está activo
+ */
+async function getSucursalMarkup(sucursalId) {
+    if (!sucursalId) return 0;
+    try {
+        const { data: sucursal, error: sucError } = await supabase
+            .from('sucursales')
+            .select('markup_group_id')
+            .eq('id', sucursalId)
+            .maybeSingle();
 
+        if (sucError || !sucursal || !sucursal.markup_group_id) return 0;
+
+        const { data: group, error: groupError } = await supabase
+            .from('markup_groups')
+            .select('value, active')
+            .eq('id', sucursal.markup_group_id)
+            .maybeSingle();
+
+        if (groupError || !group || !group.active) return 0;
+
+        return Number(group.value) || 0;
+    } catch (err) {
+        console.error('[DB_HELPERS] Error in getSucursalMarkup:', err.message);
+        return 0;
+    }
+}
 module.exports = {
     recordBarcodeHistory,
     getAllBarcodeHistory,
     fetchProductsByCodes,
     findProductByAnyCode,
     findProductsByAnyCode,
-    getCodeVariations
+    getCodeVariations,
+    getSucursalMarkup
 };

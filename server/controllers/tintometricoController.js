@@ -1,6 +1,7 @@
 const supabase = require('../services/supabaseClient');
 const tintometricoSupabase = require('../services/tintometricoSupabaseClient');
 const dolarService = require('../services/dolarService');
+const { getSucursalMarkup } = require('../utils/dbHelpers');
 
 // Función auxiliar para normalizar texto para búsquedas
 const normalizarTexto = (str) => {
@@ -310,6 +311,11 @@ exports.getColorDosificacion = async (req, res) => {
 
         let capacitiesData = capacitiesDataRaw || [];
 
+        // Obtener el recargo de sucursal
+        const sucursalId = req.user ? req.user.sucursal_id : null;
+        const sucursalMarkup = await getSucursalMarkup(sucursalId);
+        const markupMultiplier = 1 + (Number(sucursalMarkup) / 100);
+
         // Enriquecer capacitiesData con datos de Protheus (capacidad real) y precios locales
         let productsMap = new Map();
         let cotizaciones = null;
@@ -384,7 +390,7 @@ exports.getColorDosificacion = async (req, res) => {
                                 } else if (tesCode === '501') {
                                     vatMultiplier = 1.105;
                                 }
-                                c.precio_base = localPrice * vatMultiplier;
+                                c.precio_base = localPrice * vatMultiplier * markupMultiplier;
                             }
                         }
                     });
@@ -431,7 +437,7 @@ exports.getColorDosificacion = async (req, res) => {
                     } else if (tesCode === '501') {
                         vatMultiplier = 1.105;
                     }
-                    precioLata = localPrice * vatMultiplier;
+                    precioLata = localPrice * vatMultiplier * markupMultiplier;
                 }
             }
 

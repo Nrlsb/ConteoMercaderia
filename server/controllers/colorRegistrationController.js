@@ -1,12 +1,13 @@
 const supabase = require('../services/supabaseClient');
 const dolarService = require('../services/dolarService');
+const { getSucursalMarkup } = require('../utils/dbHelpers');
 
 /**
  * Enrich an array of color registration rows with a calculated `precio_ars`
  * on the nested `products` object.  Uses the user's price list (001 or 500),
  * converts USD → ARS when needed, and applies VAT based on the TES code.
  */
-async function enrichWithPrice(rows, userPriceList) {
+async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
     if (!rows || rows.length === 0) return rows;
 
     // Only process rows that have a product with pricing data
@@ -15,6 +16,7 @@ async function enrichWithPrice(rows, userPriceList) {
 
     const cotizaciones = await dolarService.getCotizaciones();
     const priceField = userPriceList === '500' ? 'lista500' : 'lista001';
+    const markupMultiplier = 1 + (Number(sucursalMarkup) / 100);
 
     rows.forEach(r => {
         if (!r.products) return;
@@ -33,7 +35,8 @@ async function enrichWithPrice(rows, userPriceList) {
         if (tes === '503') vatMultiplier = 1.21;
         else if (tes === '501') vatMultiplier = 1.105;
 
-        r.products.precio_ars = parseFloat((rawPrice * vatMultiplier).toFixed(2));
+        // Apply both VAT and Branch markup
+        r.products.precio_ars = parseFloat((rawPrice * vatMultiplier * markupMultiplier).toFixed(2));
     });
 
     return rows;
@@ -78,7 +81,8 @@ exports.getAll = async (req, res) => {
 
         // Enrich products with calculated ARS price
         const userPriceList = req.user.price_list || '001';
-        const enriched = await enrichWithPrice(data || [], userPriceList);
+        const sucursalMarkup = await getSucursalMarkup(req.user.sucursal_id);
+        const enriched = await enrichWithPrice(data || [], userPriceList, sucursalMarkup);
 
         res.json(enriched);
     } catch (error) {
@@ -162,7 +166,8 @@ exports.create = async (req, res) => {
 
         // Enrich with calculated ARS price before returning
         const userPriceList = req.user.price_list || '001';
-        const enriched = await enrichWithPrice([data], userPriceList);
+        const sucursalMarkup = await getSucursalMarkup(req.user.sucursal_id);
+        const enriched = await enrichWithPrice([data], userPriceList, sucursalMarkup);
 
         res.status(201).json(enriched[0]);
     } catch (error) {
