@@ -7,5 +7,6 @@ router.get('/', verifyToken, sucursalController.getAllSucursales);
 router.post('/', verifyToken, verifyAdmin, sucursalController.createSucursal);
 router.put('/:id', verifyToken, verifyAdmin, sucursalController.updateSucursal);
 router.delete('/:id', verifyToken, verifyAdmin, sucursalController.deleteSucursal);
+router.post('/sync', verifyToken, verifyAdmin, sucursalController.syncSucursales);
 
 module.exports = router;

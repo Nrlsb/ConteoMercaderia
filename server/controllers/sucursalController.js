@@ -1,4 +1,5 @@
 const supabase = require('../services/supabaseClient');
+const { syncSucursales } = require('../services/protheusSyncService');
 
 exports.getAllSucursales = async (req, res) => {
     try {
@@ -68,5 +69,27 @@ exports.deleteSucursal = async (req, res) => {
     } catch (error) {
         console.error('Error deleting sucursal:', error);
         res.status(500).json({ message: 'Error deleting sucursal' });
+    }
+};
+
+exports.syncSucursales = async (req, res) => {
+    try {
+        console.log(`[SUCURSAL CONTROLLER] Sincronización manual iniciada por el usuario: ${req.user.username}`);
+        const result = await syncSucursales();
+        if (result.success) {
+            res.json({
+                message: result.message,
+                created: result.created,
+                updated: result.updated
+            });
+        } else {
+            res.status(500).json({
+                message: 'Error al sincronizar sucursales',
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error('Error in syncSucursales controller:', error);
+        res.status(500).json({ message: 'Error interno del servidor al sincronizar sucursales' });
     }
 };

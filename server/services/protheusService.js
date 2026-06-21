@@ -8,6 +8,7 @@ const PROTHEUS_ZID_API_URL = process.env.PROTHEUS_ZID_API_URL;
 const PROTHEUS_SD2_API_URL = process.env.PROTHEUS_SD2_API_URL;
 const PROTHEUS_SB2_API_URL = process.env.PROTHEUS_SB2_API_URL;
 const PROTHEUS_DA1_API_URL = process.env.PROTHEUS_DA1_API_URL;
+const PROTHEUS_ZP2_API_URL = process.env.PROTHEUS_ZP2_API_URL;
 
 // Cachés en memoria
 let brandsCache = null;
@@ -589,6 +590,61 @@ async function fetchPricesFromProtheus(codtab) {
     }
 }
 
+/**
+ * Consulta y descarga todas las sucursales del Web Service de Protheus (get_zp2).
+ * @returns {Promise<Array>} Lista de objetos sucursal con campos { code, name, location }
+ */
+async function fetchSucursalesFromProtheus() {
+    console.log('[PROTHEUS SUCURSALES] Descargando catálogo de sucursales desde Protheus...');
+    const sucursalesList = [];
+    const urlBase = PROTHEUS_ZP2_API_URL || 'http://119.8.78.68:9078/rest/SISAPPMER/get_zp2';
+
+    try {
+        let currentPage = 1;
+        let totalPages = 1;
+
+        do {
+            const url = `${urlBase}?page=${currentPage}`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                console.warn(`[PROTHEUS SUCURSALES] Error en página ${currentPage}: ${response.status} ${response.statusText}`);
+                break;
+            }
+
+            const data = await response.json();
+            if (!data || !data.objects || !Array.isArray(data.objects)) {
+                break;
+            }
+
+            data.objects.forEach(sucObj => {
+                if (sucObj && sucObj.zp2_codsuc) {
+                    sucursalesList.push({
+                        code: String(sucObj.zp2_codsuc).trim(),
+                        name: sucObj.zp2_nomsuc ? String(sucObj.zp2_nomsuc).trim() : `Sucursal ${sucObj.zp2_codsuc}`,
+                        location: sucObj.zp2_locali ? String(sucObj.zp2_locali).trim() : null
+                    });
+                }
+            });
+
+            totalPages = data.meta ? data.meta.total_pages : 1;
+            currentPage++;
+
+            if (currentPage <= totalPages) {
+                await new Promise(r => setTimeout(r, 50));
+            }
+
+        } while (currentPage <= totalPages);
+
+        console.log(`[PROTHEUS SUCURSALES] Se cargaron ${sucursalesList.length} sucursales exitosamente.`);
+        return sucursalesList;
+
+    } catch (error) {
+        console.error('[PROTHEUS SUCURSALES ERROR] Error al descargar sucursales:', error.message);
+        return sucursalesList;
+    }
+}
+
 module.exports = {
     fetchProductFromProtheus,
     fetchBrandsFromProtheus,
@@ -596,5 +652,6 @@ module.exports = {
     fetchPricesFromProtheus,
     fetchZidCountFromProtheus,
     fetchRemitoFromProtheus,
-    fetchStockFromProtheus
+    fetchStockFromProtheus,
+    fetchSucursalesFromProtheus
 };

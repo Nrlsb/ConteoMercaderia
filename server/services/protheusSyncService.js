@@ -1,6 +1,6 @@
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
-const { fetchBrandsFromProtheus, fetchCapacitiesFromProtheus, fetchPricesFromProtheus } = require('./protheusService');
+const { fetchBrandsFromProtheus, fetchCapacitiesFromProtheus, fetchPricesFromProtheus, fetchSucursalesFromProtheus } = require('./protheusService');
 
 dotenv.config();
 
@@ -88,6 +88,13 @@ async function startCatalogSync() {
     console.log('================================================================\n');
 
     const pageParam = await detectPaginationParam();
+    
+    // 0. Sincronizar sucursales primero
+    try {
+        await syncSucursales();
+    } catch (e) {
+        console.error('❌ Error al sincronizar sucursales como parte de la sincronización de catálogo:', e.message);
+    }
     
     // 0. Descargar catálogo de marcas, capacidades y precios primero para enriquecer el catálogo de productos
     const brandsMap = await fetchBrandsFromProtheus();
@@ -295,6 +302,103 @@ async function startCatalogSync() {
     console.log('================================================================\n');
 }
 
+/**
+ * Sincroniza las sucursales desde Protheus a la base de datos de Supabase.
+ */
+async function syncSucursales() {
+    console.log('================================================================');
+    console.log('🚀 Sincronizando Sucursales desde Protheus...');
+    console.log('================================================================\n');
+
+    try {
+        const protheusSucursales = await fetchSucursalesFromProtheus();
+        if (protheusSucursales.length === 0) {
+            console.log('⚠️ No se obtuvieron sucursales de Protheus. Sincronización cancelada.');
+            return { success: false, message: 'No se obtuvieron sucursales de Protheus' };
+        }
+
+        // Obtener sucursales locales
+        const { data: dbSucursales, error: dbError } = await supabase
+            .from('sucursales')
+            .select('*');
+
+        if (dbError) {
+            console.error('❌ Error al obtener sucursales locales:', dbError.message);
+            return { success: false, error: dbError.message };
+        }
+
+        const dbMapByCode = new Map();
+        const dbMapByName = new Map();
+        dbSucursales.forEach(s => {
+            if (s.code) dbMapByCode.set(String(s.code).trim().toLowerCase(), s);
+            if (s.name) dbMapByName.set(String(s.name).trim().toLowerCase(), s);
+        });
+
+        const toUpsert = [];
+        let createdCount = 0;
+        let updatedCount = 0;
+
+        for (const pSuc of protheusSucursales) {
+            const codeKey = pSuc.code.toLowerCase();
+            const nameKey = pSuc.name.toLowerCase();
+
+            // Buscar si ya existe por code o por name
+            const existingByCode = dbMapByCode.get(codeKey);
+            const existingByName = dbMapByName.get(nameKey);
+            const existing = existingByCode || existingByName;
+
+            if (existing) {
+                // Verificar si hay cambios
+                const hasChanges = 
+                    existing.name !== pSuc.name || 
+                    existing.location !== pSuc.location ||
+                    existing.code !== pSuc.code;
+
+                if (hasChanges) {
+                    toUpsert.push({
+                        id: existing.id, // Preservar UUID para no romper claves foráneas
+                        code: pSuc.code,
+                        name: pSuc.name,
+                        location: pSuc.location
+                    });
+                    updatedCount++;
+                }
+            } else {
+                // Sucursal nueva
+                toUpsert.push({
+                    code: pSuc.code,
+                    name: pSuc.name,
+                    location: pSuc.location
+                });
+                createdCount++;
+            }
+        }
+
+        if (toUpsert.length === 0) {
+            console.log('🎉 Las sucursales están actualizadas. No se requiere sincronización.');
+            return { success: true, message: 'Las sucursales están actualizadas', created: 0, updated: 0 };
+        }
+
+        console.log(`Aplicando cambios en Supabase para ${toUpsert.length} sucursales...`);
+        const { error: upsertError } = await supabase
+            .from('sucursales')
+            .upsert(toUpsert);
+
+        if (upsertError) {
+            console.error('❌ Error al insertar/actualizar sucursales en Supabase:', upsertError.message);
+            return { success: false, error: upsertError.message };
+        } else {
+            console.log('✅ Sucursales sincronizadas con éxito.');
+            return { success: true, message: 'Sincronización completada con éxito', created: createdCount, updated: updatedCount };
+        }
+
+    } catch (err) {
+        console.error('❌ Error en syncSucursales:', err.message);
+        return { success: false, error: err.message };
+    }
+}
+
 module.exports = {
-    startCatalogSync
+    startCatalogSync,
+    syncSucursales
 };
