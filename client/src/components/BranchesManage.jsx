@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api';
 import { toast } from 'sonner';
-import { Trash2, Edit2, Plus, Save, X } from 'lucide-react';
+import { Trash2, Edit2, Plus, Save, X, RefreshCw } from 'lucide-react';
 
 const BranchesManage = () => {
     const [branches, setBranches] = useState([]);
@@ -9,6 +9,7 @@ const BranchesManage = () => {
     const [editingBranch, setEditingBranch] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
     const [formData, setFormData] = useState({ name: '', location: '', code: '' });
+    const [syncing, setSyncing] = useState(false);
 
     useEffect(() => {
         fetchBranches();
@@ -23,6 +24,22 @@ const BranchesManage = () => {
             toast.error('Error al cargar sucursales');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            const response = await axios.post('/api/sucursales/sync');
+            const { message, created, updated } = response.data;
+            toast.success(`${message} (Creadas: ${created}, Actualizadas: ${updated})`);
+            fetchBranches();
+        } catch (error) {
+            console.error(error);
+            const errMsg = error.response?.data?.message || error.response?.data?.error || 'Error al sincronizar sucursales';
+            toast.error(errMsg);
+        } finally {
+            setSyncing(false);
         }
     };
 
@@ -81,12 +98,22 @@ const BranchesManage = () => {
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Gestión de Sucursales</h2>
                 {!isCreating && !editingBranch && (
-                    <button
-                        onClick={handleCreate}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2"
-                    >
-                        <Plus size={16} /> Nueva Sucursal
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={handleSync}
+                            disabled={syncing}
+                            className={`${syncing ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded flex items-center gap-2 text-sm md:text-base`}
+                        >
+                            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+                            {syncing ? 'Sincronizando...' : 'Sincronizar con Protheus'}
+                        </button>
+                        <button
+                            onClick={handleCreate}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2 text-sm md:text-base"
+                        >
+                            <Plus size={16} /> Nueva Sucursal
+                        </button>
+                    </div>
                 )}
             </div>
 
