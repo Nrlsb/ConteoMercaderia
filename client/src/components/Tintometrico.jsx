@@ -145,13 +145,20 @@ const Tintometrico = () => {
     const getComputedFormula = () => {
         if (!activeRecipe) return null;
 
+        const activeSizeObj = activeSizes.find(sz => {
+            const rawCap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+            const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
+            return cap === selectedCanSize;
+        });
+        const nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
+
         const pigments = activeRecipe.pigments.map(pig => {
-            const scaledQty = pig.cantidad * selectedCanSize;
+            const nominalVol = pig.cantidad * nominalSize;
             return {
                 codigo: pig.code,
                 nombre: pig.name,
                 hex: pig.hex,
-                cantidad: Number(scaledQty.toFixed(4)),
+                cantidad: Number(nominalVol.toFixed(4)),
                 unidad: activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'impulsos' : 'unidades'
             };
         });
@@ -521,14 +528,14 @@ const Tintometrico = () => {
 
             if (isTersuave) {
                 displayQty = nominalVol.toFixed(3).replace('.', ',');
-                costoPig = pig.precio_lata ? Math.round((scaledVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
+                costoPig = pig.precio_lata ? Math.round((nominalVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
             } else if (isPlavicon) {
                 displayQty = nominalVol.toFixed(4).replace('.', ',');
-                const qtyUnits = Number((Number(scaledVol) / 1300).toFixed(4));
+                const qtyUnits = Number((Number(nominalVol) / 1300).toFixed(4));
                 costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
             } else {
                 displayQty = nominalVol.toFixed(2).replace('.', ',');
-                const qtyUnits = Number((Number(scaledVol) / 2200).toFixed(4));
+                const qtyUnits = Number((Number(nominalVol) / 2200).toFixed(4));
                 costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
             }
 
@@ -1130,14 +1137,14 @@ const Tintometrico = () => {
 
                                         if (isTersuave) {
                                             displayQty = nominalVol.toFixed(3).replace('.', ',');
-                                            costoPig = pig.precio_lata ? Math.round((scaledVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
+                                            costoPig = pig.precio_lata ? Math.round((nominalVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
                                         } else if (isPlavicon) {
                                             displayQty = nominalVol.toFixed(4).replace('.', ',');
-                                            const qtyUnits = Number((Number(scaledVol) / 1300).toFixed(4));
+                                            const qtyUnits = Number((Number(nominalVol) / 1300).toFixed(4));
                                             costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
                                         } else {
                                             displayQty = nominalVol.toFixed(2).replace('.', ',');
-                                            const qtyUnits = Number((Number(scaledVol) / 2200).toFixed(4));
+                                            const qtyUnits = Number((Number(nominalVol) / 2200).toFixed(4));
                                             costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
                                         }
 
