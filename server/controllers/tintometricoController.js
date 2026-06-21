@@ -311,26 +311,37 @@ exports.getColorDosificacion = async (req, res) => {
         let capacitiesData = capacitiesDataRaw || [];
 
         // Enriquecer capacitiesData con datos de Protheus (capacidad real) y precios locales
+        let productsMap = new Map();
+        let cotizaciones = null;
+        let userPriceListField = 'lista001';
+
         try {
-            const codes = capacitiesData
+            const capacityCodes = capacitiesData
                 .map(c => c.codigo_comercial)
                 .filter(code => code != null && code.trim() !== '');
 
-            if (codes.length > 0) {
+            const pigmentCodes = (formulaData || [])
+                .map(row => row.tintometria_pigmentos?.codigo_comercial)
+                .filter(code => code != null && code.trim() !== '');
+
+            // Combinar todos los códigos únicos a consultar
+            const allCodes = Array.from(new Set([...capacityCodes, ...pigmentCodes]));
+
+            if (allCodes.length > 0) {
                 // Consultar en la base de datos principal de Supabase
                 const { data: productsResult, error: prodErr } = await supabase
                     .from('products')
                     .select('code, description, capacity, lista001, lista500, tes, moneda')
-                    .in('code', codes);
+                    .in('code', allCodes);
                 
                 if (!prodErr && productsResult) {
-                    const productsMap = new Map(productsResult.map(p => [p.code, p]));
+                    productsMap = new Map(productsResult.map(p => [p.code, p]));
                     
                     // Obtener las cotizaciones del dólar para realizar conversiones si corresponde
-                    const cotizaciones = await dolarService.getCotizaciones();
+                    cotizaciones = await dolarService.getCotizaciones();
                     
                     // Determinar qué lista de precios usar según el usuario (001 por defecto, o 500)
-                    const userPriceListField = req.user && req.user.price_list === '500' ? 'lista500' : 'lista001';
+                    userPriceListField = req.user && req.user.price_list === '500' ? 'lista500' : 'lista001';
                     
                     capacitiesData.forEach(c => {
                         if (c.codigo_comercial && productsMap.has(c.codigo_comercial)) {
@@ -380,7 +391,7 @@ exports.getColorDosificacion = async (req, res) => {
                 }
             }
         } catch (dbErr) {
-            console.error(`Error al enriquecer capacidades desde Protheus: ${dbErr.message}`);
+            console.error(`Error al enriquecer capacidades y pigmentos desde Protheus: ${dbErr.message}`);
         }
 
         // Agrupar fórmulas por producto para armar las recetas
@@ -403,13 +414,34 @@ exports.getColorDosificacion = async (req, res) => {
                 });
             }
 
+            // Calcular precio actualizado de la lata de pigmento si existe en productsMap
+            let precioLata = pig?.precio_lata ? Number(pig.precio_lata) : null;
+            if (pig?.codigo_comercial && productsMap.has(pig.codigo_comercial)) {
+                const prod = productsMap.get(pig.codigo_comercial);
+                let localPrice = prod[userPriceListField] ? Number(prod[userPriceListField]) : null;
+                if (localPrice !== null && localPrice > 0) {
+                    // Convertir el precio de dólares a pesos si la moneda es 2 o 3
+                    localPrice = dolarService.convertirPrecio(localPrice, prod.moneda, cotizaciones);
+
+                    // Calcular IVA según el campo TES (503 -> 21%, 501 -> 10.5%)
+                    let vatMultiplier = 1.0;
+                    const tesCode = prod.tes ? String(prod.tes).trim() : '';
+                    if (tesCode === '503') {
+                        vatMultiplier = 1.21;
+                    } else if (tesCode === '501') {
+                        vatMultiplier = 1.105;
+                    }
+                    precioLata = localPrice * vatMultiplier;
+                }
+            }
+
             recipesMap.get(pId).pigments.push({
                 id: row.pigmento_id,
                 code: pig?.codigo || '?',
                 name: pig?.nombre || 'Pigmento',
                 hex: pig?.hex || '#808080',
                 cantidad: Number(row.cantidad_volumen),
-                precio_lata: pig?.precio_lata ? Number(pig.precio_lata) : null,
+                precio_lata: precioLata,
                 codigo_comercial: pig?.codigo_comercial || null
             });
         });
