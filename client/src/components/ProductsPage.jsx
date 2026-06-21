@@ -11,7 +11,8 @@ import {
     Info, 
     BarChart, 
     Scale, 
-    Layers
+    Layers,
+    DollarSign
 } from 'lucide-react';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -54,7 +55,11 @@ const ProductsPage = () => {
         capacity: '',
         real_weight: '',
         provider_code: '',
-        provider_description: ''
+        provider_description: '',
+        cost_price: '',
+        lista001: '',
+        lista500: '',
+        moneda: 'ARS'
     });
 
     // Handle search query changes with a simple debounce
@@ -101,7 +106,11 @@ const ProductsPage = () => {
             capacity: '',
             real_weight: '',
             provider_code: '',
-            provider_description: ''
+            provider_description: '',
+            cost_price: '',
+            lista001: '',
+            lista500: '',
+            moneda: 'ARS'
         });
         setIsModalOpen(true);
     };
@@ -127,7 +136,11 @@ const ProductsPage = () => {
             capacity: product.capacity || '',
             real_weight: product.real_weight || '',
             provider_code: product.provider_code || '',
-            provider_description: product.provider_description || ''
+            provider_description: product.provider_description || '',
+            cost_price: product.cost_price !== null && product.cost_price !== undefined ? String(product.cost_price) : '',
+            lista001: product.lista001 !== null && product.lista001 !== undefined ? String(product.lista001) : '',
+            lista500: product.lista500 !== null && product.lista500 !== undefined ? String(product.lista500) : '',
+            moneda: product.moneda || 'ARS'
         });
         setIsModalOpen(true);
     };
@@ -173,7 +186,11 @@ const ProductsPage = () => {
                 capacity: formData.capacity.trim() || null,
                 real_weight: formData.real_weight.trim() || null,
                 provider_code: formData.provider_code.trim() || null,
-                provider_description: formData.provider_description.trim() || null
+                provider_description: formData.provider_description.trim() || null,
+                cost_price: formData.cost_price !== '' ? parseFloat(formData.cost_price) : 0,
+                lista001: formData.lista001 !== '' ? parseFloat(formData.lista001) : 0,
+                lista500: formData.lista500 !== '' ? parseFloat(formData.lista500) : 0,
+                moneda: formData.moneda || 'ARS'
             };
 
             if (modalMode === 'create') {
@@ -551,6 +568,79 @@ const ProductsPage = () => {
                                             className="w-full text-xs p-2.5 border border-gray-200 rounded-lg outline-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"
                                             placeholder="Ej: LATEX ACRILICO PREMIUM BLANCO 4L (PROVEEDOR)"
                                         />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Seccion 5: Precios y Costos */}
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                                    <DollarSign className="w-4 h-4 text-blue-600" />
+                                    <h3 className="text-xs font-black text-gray-800 uppercase tracking-wider">Precios y Costos</h3>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Moneda</label>
+                                        <select
+                                            name="moneda"
+                                            value={formData.moneda}
+                                            onChange={handleInputChange}
+                                            className="w-full text-xs p-2.5 border border-gray-200 rounded-lg outline-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold cursor-pointer"
+                                        >
+                                            <option value="ARS">ARS (Pesos)</option>
+                                            <option value="USD">USD (Dólares)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Precio de Costo</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">
+                                                {formData.moneda === 'USD' ? 'u$s' : '$'}
+                                            </span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                name="cost_price"
+                                                value={formData.cost_price}
+                                                onChange={handleInputChange}
+                                                className="w-full text-xs p-2.5 pl-8 border border-gray-200 rounded-lg outline-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Lista 001</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">
+                                                {formData.moneda === 'USD' ? 'u$s' : '$'}
+                                            </span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                name="lista001"
+                                                value={formData.lista001}
+                                                onChange={handleInputChange}
+                                                className="w-full text-xs p-2.5 pl-8 border border-gray-200 rounded-lg outline-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Lista 500</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">
+                                                {formData.moneda === 'USD' ? 'u$s' : '$'}
+                                            </span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                name="lista500"
+                                                value={formData.lista500}
+                                                onChange={handleInputChange}
+                                                className="w-full text-xs p-2.5 pl-8 border border-gray-200 rounded-lg outline-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>

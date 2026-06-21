@@ -124,7 +124,10 @@ exports.createProduct = async (req, res) => {
         real_weight, 
         provider_code, 
         provider_description,
-        cost_price
+        cost_price,
+        lista001,
+        lista500,
+        moneda
     } = req.body;
 
     if (!code || !code.trim()) {
@@ -163,7 +166,10 @@ exports.createProduct = async (req, res) => {
             real_weight: real_weight || null,
             provider_code: provider_code || null,
             provider_description: provider_description || null,
-            cost_price: cost_price !== undefined && cost_price !== '' && cost_price !== null ? parseFloat(cost_price) : 0
+            cost_price: cost_price !== undefined && cost_price !== '' && cost_price !== null ? parseFloat(cost_price) : 0,
+            lista001: lista001 !== undefined && lista001 !== '' && lista001 !== null ? parseFloat(lista001) : 0,
+            lista500: lista500 !== undefined && lista500 !== '' && lista500 !== null ? parseFloat(lista500) : 0,
+            moneda: moneda || null
         };
 
         const { data, error } = await supabase
@@ -205,7 +211,10 @@ exports.updateProduct = async (req, res) => {
         real_weight, 
         provider_code, 
         provider_description,
-        cost_price
+        cost_price,
+        lista001,
+        lista500,
+        moneda
     } = req.body;
 
     try {
@@ -241,6 +250,13 @@ exports.updateProduct = async (req, res) => {
         if (cost_price !== undefined) {
             updateData.cost_price = cost_price !== '' && cost_price !== null ? parseFloat(cost_price) : 0;
         }
+        if (lista001 !== undefined) {
+            updateData.lista001 = lista001 !== '' && lista001 !== null ? parseFloat(lista001) : 0;
+        }
+        if (lista500 !== undefined) {
+            updateData.lista500 = lista500 !== '' && lista500 !== null ? parseFloat(lista500) : 0;
+        }
+        if (moneda !== undefined) updateData.moneda = moneda || null;
 
         const { data, error } = await supabase
             .from('products')
