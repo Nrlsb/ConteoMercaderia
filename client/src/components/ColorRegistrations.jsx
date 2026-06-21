@@ -16,7 +16,8 @@ import {
     X,
     Eye,
     EyeOff,
-    Building
+    Building,
+    DollarSign
 } from 'lucide-react';
 import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { tintometricoService } from '../utils/tintometricoService';
@@ -167,6 +168,8 @@ const ColorRegistrations = () => {
     
     // UI Toggles
     const [expandedFormulaId, setExpandedFormulaId] = useState(null);
+    const [showAllPrices, setShowAllPrices] = useState(false);
+    const [visiblePrices, setVisiblePrices] = useState({});
 
     // Refs for clicking outside dropdowns
     const productDropdownRef = useRef(null);
@@ -1366,11 +1369,29 @@ const ColorRegistrations = () => {
                             <Search className="absolute left-3 top-3.5 w-4 h-4 text-gray-400 group-focus-within:text-brand-blue" />
                         </div>
 
-                        <div className="text-xs text-gray-500 font-bold uppercase tracking-wider shrink-0 flex items-center gap-2">
-                            <span>Total Registrados:</span>
-                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-black">
-                                {filteredRegistrations.length}
-                            </span>
+                        <div className="flex items-center gap-3 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowAllPrices(prev => !prev);
+                                    if (showAllPrices) setVisiblePrices({});
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                                    showAllPrices
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm'
+                                        : 'bg-slate-50 border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                                }`}
+                                title={showAllPrices ? 'Ocultar todos los precios' : 'Mostrar todos los precios'}
+                            >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                {showAllPrices ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                            <div className="text-xs text-gray-500 font-bold uppercase tracking-wider flex items-center gap-2">
+                                <span>Total Registrados:</span>
+                                <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-black">
+                                    {filteredRegistrations.length}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -1512,6 +1533,42 @@ const ColorRegistrations = () => {
 
                                             {/* Observations */}
                                             {renderObservations(item.observations)}
+
+                                            {/* Price Display */}
+                                            {item.products?.precio_ars != null && (
+                                                <div className="mt-1">
+                                                    {(showAllPrices || visiblePrices[item.id]) ? (
+                                                        <div className="flex items-center justify-between p-2 bg-emerald-50/70 rounded-lg border border-emerald-100 animate-in fade-in duration-200">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                                <span className="text-sm font-black text-emerald-800 tracking-tight">
+                                                                    ${item.products.precio_ars.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                </span>
+                                                            </div>
+                                                            {!showAllPrices && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setVisiblePrices(prev => ({ ...prev, [item.id]: false }))}
+                                                                    className="p-1 rounded-md text-emerald-500 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                                                    title="Ocultar precio"
+                                                                >
+                                                                    <EyeOff className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setVisiblePrices(prev => ({ ...prev, [item.id]: true }))}
+                                                            className="w-full flex items-center justify-center gap-1.5 p-1.5 bg-gray-50/70 hover:bg-emerald-50 rounded-lg border border-gray-100 hover:border-emerald-200 text-gray-400 hover:text-emerald-600 transition-all cursor-pointer text-[10px] font-bold"
+                                                        >
+                                                            <DollarSign className="w-3 h-3" />
+                                                            <span>Ver precio</span>
+                                                            <Eye className="w-3 h-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {/* Collapsible Formula Viewer (For formulas with pigments saved) */}
                                             {item.formula?.pigmentos && (

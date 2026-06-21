@@ -1,4 +1,43 @@
 const supabase = require('../services/supabaseClient');
+const dolarService = require('../services/dolarService');
+
+/**
+ * Enrich an array of color registration rows with a calculated `precio_ars`
+ * on the nested `products` object.  Uses the user's price list (001 or 500),
+ * converts USD → ARS when needed, and applies VAT based on the TES code.
+ */
+async function enrichWithPrice(rows, userPriceList) {
+    if (!rows || rows.length === 0) return rows;
+
+    // Only process rows that have a product with pricing data
+    const needsEnrich = rows.some(r => r.products && (r.products.lista001 || r.products.lista500));
+    if (!needsEnrich) return rows;
+
+    const cotizaciones = await dolarService.getCotizaciones();
+    const priceField = userPriceList === '500' ? 'lista500' : 'lista001';
+
+    rows.forEach(r => {
+        if (!r.products) return;
+        let rawPrice = r.products[priceField] ? Number(r.products[priceField]) : null;
+        if (!rawPrice || rawPrice <= 0) {
+            r.products.precio_ars = null;
+            return;
+        }
+
+        // Convert currency if needed
+        rawPrice = dolarService.convertirPrecio(rawPrice, r.products.moneda, cotizaciones);
+
+        // Apply VAT based on TES code
+        const tes = r.products.tes ? String(r.products.tes).trim() : '';
+        let vatMultiplier = 1.0;
+        if (tes === '503') vatMultiplier = 1.21;
+        else if (tes === '501') vatMultiplier = 1.105;
+
+        r.products.precio_ars = parseFloat((rawPrice * vatMultiplier).toFixed(2));
+    });
+
+    return rows;
+}
 
 // Get all color registrations
 exports.getAll = async (req, res) => {
@@ -11,7 +50,11 @@ exports.getAll = async (req, res) => {
                     id,
                     code,
                     description,
-                    brand
+                    brand,
+                    lista001,
+                    lista500,
+                    tes,
+                    moneda
                 ),
                 target_user:users!user_id (
                     id,
@@ -32,7 +75,12 @@ exports.getAll = async (req, res) => {
         const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
-        res.json(data || []);
+
+        // Enrich products with calculated ARS price
+        const userPriceList = req.user.price_list || '001';
+        const enriched = await enrichWithPrice(data || [], userPriceList);
+
+        res.json(enriched);
     } catch (error) {
         console.error('Error fetching color registrations:', error);
         res.status(500).json({ message: 'Error al obtener los registros de colores' });
@@ -92,7 +140,11 @@ exports.create = async (req, res) => {
                     id,
                     code,
                     description,
-                    brand
+                    brand,
+                    lista001,
+                    lista500,
+                    tes,
+                    moneda
                 ),
                 target_user:users!user_id (
                     id,
@@ -107,7 +159,12 @@ exports.create = async (req, res) => {
             .single();
 
         if (error) throw error;
-        res.status(201).json(data);
+
+        // Enrich with calculated ARS price before returning
+        const userPriceList = req.user.price_list || '001';
+        const enriched = await enrichWithPrice([data], userPriceList);
+
+        res.status(201).json(enriched[0]);
     } catch (error) {
         console.error('Error creating color registration:', error);
         res.status(500).json({ message: 'Error al registrar el color' });
