@@ -9,6 +9,7 @@ const PROTHEUS_SD2_API_URL = process.env.PROTHEUS_SD2_API_URL;
 const PROTHEUS_SB2_API_URL = process.env.PROTHEUS_SB2_API_URL;
 const PROTHEUS_DA1_API_URL = process.env.PROTHEUS_DA1_API_URL;
 const PROTHEUS_ZP2_API_URL = process.env.PROTHEUS_ZP2_API_URL;
+const PROTHEUS_ZP0_API_URL = process.env.PROTHEUS_ZP0_API_URL;
 
 // Cachés en memoria
 let brandsCache = null;
@@ -622,7 +623,8 @@ async function fetchSucursalesFromProtheus() {
                     sucursalesList.push({
                         code: String(sucObj.zp2_codsuc).trim(),
                         name: sucObj.zp2_nomsuc ? String(sucObj.zp2_nomsuc).trim() : `Sucursal ${sucObj.zp2_codsuc}`,
-                        location: sucObj.zp2_locali ? String(sucObj.zp2_locali).trim() : null
+                        location: sucObj.zp2_locali ? String(sucObj.zp2_locali).trim() : null,
+                        markup_group_id: sucObj.zp2_id ? String(sucObj.zp2_id).trim() : null
                     });
                 }
             });
@@ -645,6 +647,61 @@ async function fetchSucursalesFromProtheus() {
     }
 }
 
+/**
+ * Consulta y descarga todos los grupos de porcentaje de aumento del Web Service de Protheus (get_zp0).
+ * @returns {Promise<Array>} Lista de objetos de recargo con campos { id, value, active }
+ */
+async function fetchMarkupGroupsFromProtheus() {
+    console.log('[PROTHEUS MARKUP GROUPS] Descargando grupos de recargo desde Protheus...');
+    const groupsList = [];
+    const urlBase = PROTHEUS_ZP0_API_URL || 'http://119.8.78.68:9078/rest/SISAPPMER/get_zp0';
+
+    try {
+        let currentPage = 1;
+        let totalPages = 1;
+
+        do {
+            const url = `${urlBase}?page=${currentPage}`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                console.warn(`[PROTHEUS MARKUP GROUPS] Error en página ${currentPage}: ${response.status} ${response.statusText}`);
+                break;
+            }
+
+            const data = await response.json();
+            if (!data || !data.objects || !Array.isArray(data.objects)) {
+                break;
+            }
+
+            data.objects.forEach(groupObj => {
+                if (groupObj && groupObj.zp0_id) {
+                    groupsList.push({
+                        id: String(groupObj.zp0_id).trim(),
+                        value: groupObj.zp0_valor !== undefined && groupObj.zp0_valor !== null ? parseFloat(groupObj.zp0_valor) : 0,
+                        active: groupObj.zp0_activo ? String(groupObj.zp0_activo).trim().toUpperCase() === 'S' : true
+                    });
+                }
+            });
+
+            totalPages = data.meta ? data.meta.total_pages : 1;
+            currentPage++;
+
+            if (currentPage <= totalPages) {
+                await new Promise(r => setTimeout(r, 50));
+            }
+
+        } while (currentPage <= totalPages);
+
+        console.log(`[PROTHEUS MARKUP GROUPS] Se cargaron ${groupsList.length} grupos de recargo exitosamente.`);
+        return groupsList;
+
+    } catch (error) {
+        console.error('[PROTHEUS MARKUP GROUPS ERROR] Error al descargar grupos de recargo:', error.message);
+        return groupsList;
+    }
+}
+
 module.exports = {
     fetchProductFromProtheus,
     fetchBrandsFromProtheus,
@@ -653,5 +710,6 @@ module.exports = {
     fetchZidCountFromProtheus,
     fetchRemitoFromProtheus,
     fetchStockFromProtheus,
-    fetchSucursalesFromProtheus
+    fetchSucursalesFromProtheus,
+    fetchMarkupGroupsFromProtheus
 };

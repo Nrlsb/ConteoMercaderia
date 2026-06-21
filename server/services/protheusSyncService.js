@@ -1,6 +1,6 @@
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
-const { fetchBrandsFromProtheus, fetchCapacitiesFromProtheus, fetchPricesFromProtheus, fetchSucursalesFromProtheus } = require('./protheusService');
+const { fetchBrandsFromProtheus, fetchCapacitiesFromProtheus, fetchPricesFromProtheus, fetchSucursalesFromProtheus, fetchMarkupGroupsFromProtheus } = require('./protheusService');
 
 dotenv.config();
 
@@ -306,6 +306,13 @@ async function startCatalogSync() {
  * Sincroniza las sucursales desde Protheus a la base de datos de Supabase.
  */
 async function syncSucursales() {
+    // 0. Sincronizar grupos de recargo primero para la clave foránea
+    try {
+        await syncMarkupGroups();
+    } catch (e) {
+        console.error('❌ Error al sincronizar grupos de recargo antes de sucursales:', e.message);
+    }
+
     console.log('================================================================');
     console.log('🚀 Sincronizando Sucursales desde Protheus...');
     console.log('================================================================\n');
@@ -352,14 +359,16 @@ async function syncSucursales() {
                 const hasChanges = 
                     existing.name !== pSuc.name || 
                     existing.location !== pSuc.location ||
-                    existing.code !== pSuc.code;
+                    existing.code !== pSuc.code ||
+                    existing.markup_group_id !== pSuc.markup_group_id;
 
                 if (hasChanges) {
                     toUpsert.push({
                         id: existing.id, // Preservar UUID para no romper claves foráneas
                         code: pSuc.code,
                         name: pSuc.name,
-                        location: pSuc.location
+                        location: pSuc.location,
+                        markup_group_id: pSuc.markup_group_id
                     });
                     updatedCount++;
                 }
@@ -368,7 +377,8 @@ async function syncSucursales() {
                 toUpsert.push({
                     code: pSuc.code,
                     name: pSuc.name,
-                    location: pSuc.location
+                    location: pSuc.location,
+                    markup_group_id: pSuc.markup_group_id
                 });
                 createdCount++;
             }
@@ -398,7 +408,41 @@ async function syncSucursales() {
     }
 }
 
+/**
+ * Sincroniza los grupos de recargo (porcentaje de aumento) desde Protheus a Supabase.
+ */
+async function syncMarkupGroups() {
+    console.log('================================================================');
+    console.log('🚀 Sincronizando Grupos de Recargo (Markup Groups) desde Protheus...');
+    console.log('================================================================\n');
+
+    try {
+        const protheusGroups = await fetchMarkupGroupsFromProtheus();
+        if (protheusGroups.length === 0) {
+            console.log('⚠️ No se obtuvieron grupos de recargo de Protheus. Sincronización cancelada.');
+            return { success: false, message: 'No se obtuvieron grupos de recargo' };
+        }
+
+        console.log(`Aplicando cambios en Supabase para ${protheusGroups.length} grupos de recargo...`);
+        const { error: upsertError } = await supabase
+            .from('markup_groups')
+            .upsert(protheusGroups, { onConflict: 'id' });
+
+        if (upsertError) {
+            console.error('❌ Error al sincronizar grupos de recargo en Supabase:', upsertError.message);
+            return { success: false, error: upsertError.message };
+        } else {
+            console.log('✅ Grupos de recargo sincronizados con éxito.');
+            return { success: true, message: 'Sincronización de recargos exitosa' };
+        }
+    } catch (err) {
+        console.error('❌ Error en syncMarkupGroups:', err.message);
+        return { success: false, error: err.message };
+    }
+}
+
 module.exports = {
     startCatalogSync,
-    syncSucursales
+    syncSucursales,
+    syncMarkupGroups
 };
