@@ -85,28 +85,85 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             }
         };
 
-        addIfValid(pedido.quien_solicita);
-        addIfValid(pedido.para_quien);
-        addIfValid(pedido.contacto_mercurio);
-
-        // Obtener configuración de notificaciones para el tercero
-        try {
-            const { data: settingsData } = await supabase
-                .from('app_settings')
-                .select('value')
-                .eq('key', 'seguimiento_pedidos_notifications')
-                .single();
-
-            if (settingsData && settingsData.value) {
-                const { notifyUserOnSi, notifyUserOnNo } = settingsData.value;
-                if (pedido.abonado === true && !hasImagenes(pedido)) {
-                    addIfValid(notifyUserOnSi);
-                } else if (pedido.abonado === false) {
-                    addIfValid(notifyUserOnNo);
+        // Obtener la sucursal del actor para aplicar restricciones de depósito
+        let actorSucursalName = '';
+        if (actorUsername) {
+            try {
+                const { data: actorUser } = await supabase
+                    .from('users')
+                    .select('id, sucursal_id')
+                    .ilike('username', actorUsername.trim())
+                    .single();
+                if (actorUser && actorUser.sucursal_id) {
+                    const { data: sucursal } = await supabase
+                        .from('sucursales')
+                        .select('name')
+                        .eq('id', actorUser.sucursal_id)
+                        .single();
+                    if (sucursal && sucursal.name) {
+                        actorSucursalName = sucursal.name.toLowerCase();
+                    }
                 }
+            } catch (err) {
+                console.error('Error fetching actor sucursal in createOrderNotifications:', err);
             }
-        } catch (settingsErr) {
-            console.error('Error fetching settings in notifications:', settingsErr);
+        }
+
+        if (actorSucursalName === 'deposito') {
+            // Si el actor es de la sucursal depósito, la notificación sólo le llega al destinatario ('para_quien')
+            addIfValid(pedido.para_quien);
+        } else {
+            // Comportamiento normal para otros usuarios
+            addIfValid(pedido.quien_solicita);
+            addIfValid(pedido.para_quien);
+            addIfValid(pedido.contacto_mercurio);
+
+            // Obtener configuración de notificaciones para el tercero
+            try {
+                const { data: settingsData } = await supabase
+                    .from('app_settings')
+                    .select('value')
+                    .eq('key', 'seguimiento_pedidos_notifications')
+                    .single();
+
+                if (settingsData && settingsData.value) {
+                    const { notifyUserOnSi, notifyUserOnNo } = settingsData.value;
+                    const isOrderPaid = pedido.estado?.toLowerCase() === 'abonado' || hasImagenes(pedido);
+                    if (pedido.abonado === true && !isOrderPaid) {
+                        addIfValid(notifyUserOnSi);
+                    } else if (pedido.abonado === false) {
+                        addIfValid(notifyUserOnNo);
+                    }
+                }
+            } catch (settingsErr) {
+                console.error('Error fetching settings in notifications:', settingsErr);
+            }
+        }
+
+        // Exclusión adicional si el estado es 'Abonado' y el usuario destinatario es de la sucursal gerencia:
+        if (pedido.estado?.toLowerCase() === 'abonado') {
+            try {
+                const { data: sucursalGerencia } = await supabase
+                    .from('sucursales')
+                    .select('id')
+                    .ilike('name', 'gerencia')
+                    .single();
+                if (sucursalGerencia) {
+                    const { data: gerenciaUsers } = await supabase
+                        .from('users')
+                        .select('username')
+                        .eq('sucursal_id', sucursalGerencia.id);
+                    if (gerenciaUsers && gerenciaUsers.length > 0) {
+                        gerenciaUsers.forEach(gu => {
+                            if (gu.username) {
+                                usernamesToNotify.delete(gu.username.trim());
+                            }
+                        });
+                    }
+                }
+            } catch (gerenciaErr) {
+                console.error('Error filtering gerencia users from notifications:', gerenciaErr);
+            }
         }
 
         if (usernamesToNotify.size === 0) return;
@@ -428,6 +485,14 @@ exports.updatePedido = async (req, res) => {
         if (currentPedido) {
             delete req.body.quien_solicita;
 
+            // Si el usuario es de Gerencia y el pedido tiene comprobante cargado, pasa automáticamente a estado 'Abonado'
+            if (userSucursalName === 'gerencia') {
+                const hasImgs = hasImagenes(currentPedido) || hasImagenes(req.body);
+                if (hasImgs) {
+                    req.body.estado = 'Abonado';
+                }
+            }
+
             // Si se está actualizando la fecha del proveedor, manejamos la fecha original
             if (req.body.contacto_proveedor_fecha) {
                 if (!currentPedido.contacto_proveedor_fecha_original) {
@@ -479,7 +544,15 @@ exports.updatePedido = async (req, res) => {
                     const valNew = req.body[field] === null || req.body[field] === undefined ? '' : String(req.body[field]).trim();
                     const valOld = currentPedido[field] === null || currentPedido[field] === undefined ? '' : String(currentPedido[field]).trim();
                     if (valNew !== valOld) {
-                        attemptedChanges.push(field);
+                        // Permitir a Gerencia cambiar el estado a 'Abonado'
+                        const isGerenciaTransitionToAbonado = 
+                            userSucursalName === 'gerencia' && 
+                            field === 'estado' && 
+                            valNew.toLowerCase() === 'abonado';
+
+                        if (!isGerenciaTransitionToAbonado) {
+                            attemptedChanges.push(field);
+                        }
                     }
                 }
             }
@@ -597,6 +670,33 @@ exports.updatePedido = async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Si el estado del pedido pasó a 'Abonado', marcar como leídas las notificaciones para usuarios de Gerencia
+        if (data && data.estado?.toLowerCase() === 'abonado') {
+            try {
+                const { data: sucursalGerencia } = await supabase
+                    .from('sucursales')
+                    .select('id')
+                    .ilike('name', 'gerencia')
+                    .single();
+                if (sucursalGerencia) {
+                    const { data: gerenciaUsers } = await supabase
+                        .from('users')
+                        .select('id')
+                        .eq('sucursal_id', sucursalGerencia.id);
+                    if (gerenciaUsers && gerenciaUsers.length > 0) {
+                        const gerenciaUserIds = gerenciaUsers.map(u => u.id);
+                        await supabase
+                            .from('notifications')
+                            .update({ read: true })
+                            .eq('pedido_id', data.id)
+                            .in('user_id', gerenciaUserIds);
+                    }
+                }
+            } catch (err) {
+                console.error('Error marking gerencia notifications as read:', err);
+            }
+        }
 
         // Crear notificaciones en segundo plano con el tipo correspondiente
         createOrderNotifications(data, req.user?.username || 'Sistema', actionType);

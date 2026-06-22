@@ -320,7 +320,7 @@ const SeguimientoPedidosPage = () => {
     const isGerencia = user?.sucursal_name?.toLowerCase() === 'gerencia';
     const hasImgs = p.imagenes && Array.isArray(p.imagenes) && p.imagenes.length > 0;
 
-    if (isGerencia && p.abonado === true && hasImgs) {
+    if (isGerencia && (p.abonado === true && (hasImgs || lowerEstado === 'abonado'))) {
       return true;
     }
 
