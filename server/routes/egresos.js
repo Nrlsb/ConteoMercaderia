@@ -303,8 +303,8 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
         const productMap = new Map();
         if (productsByCode) productsByCode.forEach(p => productMap.set(p.code, p));
 
-        const itemsToInsert = [];
-        const historyEntries = [];
+        const itemsToInsertMap = new Map();
+        const successMap = new Map();
 
         for (const item of items) {
             let product = productMap.get(item.code);
@@ -331,29 +331,36 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
 
             const quantity = Number(item.quantity);
 
-            itemsToInsert.push({
-                egreso_id: egreso.id,
-                product_code: product.code,
-                expected_quantity: quantity
-            });
-
-            historyEntries.push({
-                egreso_id: egreso.id,
-                user_id: req.user.id,
-                operation: 'PDF_IMPORT',
-                product_code: product.code,
-                old_data: { expected_quantity: 0 },
-                new_data: { expected_quantity: quantity },
-                changed_at: new Date().toISOString()
-            });
-
-            results.success.push({
-                code: product.code,
-                barcode: product.barcode,
-                description: product.description,
-                quantity: item.quantity
-            });
+            if (itemsToInsertMap.has(product.code)) {
+                itemsToInsertMap.get(product.code).expected_quantity += quantity;
+                successMap.get(product.code).quantity += quantity;
+            } else {
+                itemsToInsertMap.set(product.code, {
+                    egreso_id: egreso.id,
+                    product_code: product.code,
+                    expected_quantity: quantity
+                });
+                successMap.set(product.code, {
+                    code: product.code,
+                    barcode: product.barcode,
+                    description: product.description,
+                    quantity: quantity
+                });
+            }
         }
+
+        const itemsToInsert = Array.from(itemsToInsertMap.values());
+        results.success = Array.from(successMap.values());
+
+        const historyEntries = itemsToInsert.map(item => ({
+            egreso_id: egreso.id,
+            user_id: req.user.id,
+            operation: 'PDF_IMPORT',
+            product_code: item.product_code,
+            old_data: { expected_quantity: 0 },
+            new_data: { expected_quantity: item.expected_quantity },
+            changed_at: new Date().toISOString()
+        }));
 
         // 3.2 Bulk Inserts
         if (itemsToInsert.length > 0) {
