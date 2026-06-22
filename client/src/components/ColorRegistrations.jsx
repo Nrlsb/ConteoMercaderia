@@ -108,6 +108,8 @@ const CONCENTRADOS_PREDEFINIDOS = {
 
 const ColorRegistrations = () => {
     const { user } = useAuth();
+    const isSucursal98 = user?.sucursal_code === '98' || user?.sucursal_name === '98' || user?.sucursal_name?.toLowerCase() === 'sucursal 98';
+    
     // --- Form States ---
     const [colorType, setColorType] = useState('tintometrico'); // 'tintometrico' | 'manual'
     const [colorName, setColorName] = useState('');
@@ -701,7 +703,8 @@ const ColorRegistrations = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 {/* --- Left Column: Registration Form (5 cols) --- */}
-                <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
+                {!isSucursal98 && (
+                    <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
                     <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-6 py-4 flex items-center gap-2.5">
                         <PlusCircle className="text-white w-5.5 h-5.5" />
                         <h2 className="text-base font-bold text-white tracking-wide">Registrar Nuevo Color</h2>
@@ -1352,9 +1355,10 @@ const ColorRegistrations = () => {
 
                     </form>
                 </div>
+                )}
 
                 {/* --- Right Column: Colors Registrations List (7 cols) --- */}
-                <div className="lg:col-span-7 flex flex-col space-y-4">
+                <div className={`${isSucursal98 ? 'lg:col-span-12' : 'lg:col-span-7'} flex flex-col space-y-4`}>
                     
                     {/* Search & Statistics Bar */}
                     <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
