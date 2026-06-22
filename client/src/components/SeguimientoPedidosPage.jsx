@@ -170,6 +170,24 @@ const SeguimientoPedidosPage = () => {
 
   const showAdminDetails = canViewImages || !isParaQuien;
 
+  const getConfirmacionStatus = () => {
+    if (!formData.contacto_proveedor_fecha) {
+      return { disabled: true, reason: 'Debe ingresar una fecha antes de poder confirmarla' };
+    }
+    if (!canEditDepositoFields) {
+      return { disabled: true, reason: 'No tienes permisos de depósito para confirmar la fecha' };
+    }
+    
+    const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha + 'T00:00:00'));
+    if (workingDays > 3) {
+      return { disabled: true, reason: `Solo se puede confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles)` };
+    }
+    
+    return { disabled: false, reason: '' };
+  };
+
+  const confirmStatus = getConfirmacionStatus();
+
   // Formulario de Pedido
   const initialFormState = {
     fecha: new Date().toISOString().split('T')[0],
@@ -500,8 +518,22 @@ const SeguimientoPedidosPage = () => {
 
     // Validar ¿Necesita ser abonado?
     if (formData.abonado === null || formData.abonado === undefined) {
-      toast.error('Debe seleccionar si el pedido necesita ser abonado (SÍ o NO)');
+      toast.error('Debe seleccionar si el pedido requiere o no ser abonado (SÍ o NO)');
       return;
+    }
+
+    // Validar Confirmación de Fecha de Entrega (3 días hábiles antes)
+    if (formData.fecha_confirmada === true) {
+      if (formData.contacto_proveedor_fecha) {
+        const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha + 'T00:00:00'));
+        if (workingDays > 3) {
+          toast.error(`No se puede confirmar la fecha todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).`);
+          return;
+        }
+      } else {
+        toast.error('Debe ingresar una fecha antes de poder confirmarla');
+        return;
+      }
     }
 
     // Validar Recepción Parcial
@@ -1614,27 +1646,35 @@ const SeguimientoPedidosPage = () => {
                       )}
 
                       <div className="flex flex-col justify-end">
-                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">¿Fecha Confirmada?</label>
-                        <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
-                          !formData.contacto_proveedor_fecha || !canEditDepositoFields
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                          ¿Fecha Confirmada? {confirmStatus.disabled && formData.contacto_proveedor_fecha && canEditDepositoFields && (
+                            <span className="text-[10px] text-rose-500 normal-case font-semibold block mt-0.5 animate-pulse">
+                              (Sólo 3 días hábiles antes)
+                            </span>
+                          )}
+                        </label>
+                        <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
+                          confirmStatus.disabled
                             ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                             : formData.fecha_confirmada
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}>
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-pointer'
+                              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                        }`}
+                        title={confirmStatus.reason}
+                        >
                           <input
                             type="checkbox"
                             name="fecha_confirmada"
                             checked={formData.fecha_confirmada}
                             onChange={(e) => {
-                              if (formData.contacto_proveedor_fecha) {
-                                handleInputChange(e);
+                              if (confirmStatus.disabled) {
+                                toast.error(confirmStatus.reason);
                               } else {
-                                toast.error('Debe ingresar una fecha antes de poder confirmarla');
+                                handleInputChange(e);
                               }
                             }}
-                            disabled={!formData.contacto_proveedor_fecha || !canEditDepositoFields}
-                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                            disabled={confirmStatus.disabled}
+                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
                           />
                           <span>{formData.fecha_confirmada ? 'Confirmada' : 'Confirmar'}</span>
                         </label>

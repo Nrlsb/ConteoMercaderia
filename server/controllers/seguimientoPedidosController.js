@@ -514,6 +514,21 @@ exports.updatePedido = async (req, res) => {
         if (currentPedido) {
             delete req.body.quien_solicita;
 
+            // Validar que la confirmación de fecha sólo se permita hasta 3 días hábiles antes
+            if (req.body.fecha_confirmada === true) {
+                const fechaEntrega = req.body.contacto_proveedor_fecha || currentPedido.contacto_proveedor_fecha;
+                if (fechaEntrega) {
+                    const workingDays = getWorkingDaysRemaining(fechaEntrega);
+                    if (workingDays > 3) {
+                        return res.status(400).json({ 
+                            message: `No se puede confirmar la fecha todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).` 
+                        });
+                    }
+                } else {
+                    return res.status(400).json({ message: 'Debe ingresar una fecha de entrega antes de poder confirmarla.' });
+                }
+            }
+
             // Si el usuario es de Gerencia y el pedido tiene comprobante cargado, pasa automáticamente a estado 'Abonado'
             if (userSucursalName === 'gerencia') {
                 const hasImgs = hasImagenes(currentPedido) || hasImagenes(req.body);
@@ -1386,4 +1401,23 @@ exports.confirmarRecepcionDestinatario = async (req, res) => {
         res.status(500).json({ message: 'Error interno al confirmar la recepción' });
     }
 };
+
+function getWorkingDaysRemaining(expDateStr) {
+    const curDate = new Date();
+    curDate.setHours(0,0,0,0);
+    const targetDate = new Date(expDateStr + 'T00:00:00');
+    targetDate.setHours(0,0,0,0);
+    if (targetDate.getTime() < curDate.getTime()) return 0;
+    
+    let count = 0;
+    const tempDate = new Date(curDate.getTime());
+    while (tempDate.getTime() < targetDate.getTime()) {
+        tempDate.setDate(tempDate.getDate() + 1);
+        const dayOfWeek = tempDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            count++;
+        }
+    }
+    return count;
+}
 
