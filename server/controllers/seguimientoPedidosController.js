@@ -662,6 +662,12 @@ exports.updatePedido = async (req, res) => {
             }
         }
 
+        // Si el usuario no tiene permisos para ver imágenes, evitamos que pise las imágenes existentes en la DB
+        const canViewImagesAllowed = await canUserViewImages(req.user);
+        if (!canViewImagesAllowed) {
+            delete req.body.imagenes;
+        }
+
         const { data, error } = await supabase
             .from('seguimiento_pedidos')
             .update(req.body)
