@@ -161,7 +161,8 @@ const SeguimientoPedidosPage = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [notifSettings, setNotifSettings] = useState({
     notifyUserOnSi: '',
-    notifyUserOnNo: ''
+    notifyUserOnNo: '',
+    notifyUserOnConfirmDate: ''
   });
 
   const isParaQuien = user?.username && viewingPedido?.para_quien &&
@@ -2279,6 +2280,22 @@ const SeguimientoPedidosPage = () => {
                 <select
                   value={notifSettings.notifyUserOnNo}
                   onChange={(e) => setNotifSettings(prev => ({ ...prev, notifyUserOnNo: e.target.value }))}
+                  className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
+                >
+                  <option value="">No notificar a nadie...</option>
+                  {userSelectOptions.map(username => (
+                    <option key={username} value={username}>{username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Notificar al confirmar fecha de entrega (Depósito):
+                </label>
+                <select
+                  value={notifSettings.notifyUserOnConfirmDate || ''}
+                  onChange={(e) => setNotifSettings(prev => ({ ...prev, notifyUserOnConfirmDate: e.target.value }))}
                   className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium text-gray-800"
                 >
                   <option value="">No notificar a nadie...</option>

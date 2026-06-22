@@ -109,34 +109,49 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             }
         }
 
+        // Obtener configuración de notificaciones
+        let notifyUserOnSi = '';
+        let notifyUserOnNo = '';
+        let notifyUserOnConfirmDate = '';
+        try {
+            const { data: settingsData } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'seguimiento_pedidos_notifications')
+                .single();
+
+            if (settingsData && settingsData.value) {
+                notifyUserOnSi = settingsData.value.notifyUserOnSi || '';
+                notifyUserOnNo = settingsData.value.notifyUserOnNo || '';
+                notifyUserOnConfirmDate = settingsData.value.notifyUserOnConfirmDate || '';
+            }
+        } catch (settingsErr) {
+            console.error('Error fetching settings in notifications:', settingsErr);
+        }
+
         if (actorSucursalName === 'deposito') {
             // Si el actor es de la sucursal depósito, la notificación sólo le llega al destinatario ('para_quien')
             addIfValid(pedido.para_quien);
+            // Si el usuario de depósito confirma la fecha de entrega, notificar al configurado
+            if (actionType === 'confirm_date') {
+                addIfValid(notifyUserOnConfirmDate);
+            }
         } else {
             // Comportamiento normal para otros usuarios
             addIfValid(pedido.quien_solicita);
             addIfValid(pedido.para_quien);
             addIfValid(pedido.contacto_mercurio);
 
-            // Obtener configuración de notificaciones para el tercero
-            try {
-                const { data: settingsData } = await supabase
-                    .from('app_settings')
-                    .select('value')
-                    .eq('key', 'seguimiento_pedidos_notifications')
-                    .single();
+            const isOrderPaid = pedido.estado?.toLowerCase() === 'abonado' || hasImagenes(pedido);
+            if (pedido.abonado === true && !isOrderPaid) {
+                addIfValid(notifyUserOnSi);
+            } else if (pedido.abonado === false) {
+                addIfValid(notifyUserOnNo);
+            }
 
-                if (settingsData && settingsData.value) {
-                    const { notifyUserOnSi, notifyUserOnNo } = settingsData.value;
-                    const isOrderPaid = pedido.estado?.toLowerCase() === 'abonado' || hasImagenes(pedido);
-                    if (pedido.abonado === true && !isOrderPaid) {
-                        addIfValid(notifyUserOnSi);
-                    } else if (pedido.abonado === false) {
-                        addIfValid(notifyUserOnNo);
-                    }
-                }
-            } catch (settingsErr) {
-                console.error('Error fetching settings in notifications:', settingsErr);
+            // Si por alguna razón otro rol (como superadmin) confirma la fecha, también notificar
+            if (actionType === 'confirm_date') {
+                addIfValid(notifyUserOnConfirmDate);
             }
         }
 
@@ -211,7 +226,8 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             } else if (actionType === 'confirm_date') {
                 notifType = 'pedido_fecha_confirmada';
                 title = 'Fecha de pedido confirmada';
-                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el pedido de ${proveedor} (${productoDesc})${abonadoStr}.`;
+                const pedidoVentaStr = pedido.nro_pedido_venta ? ` (Pedido de Venta: ${pedido.nro_pedido_venta})` : '';
+                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
             } else if (actionType === 'change_abonado') {
                 notifType = 'pedido_abonado_cambiado';
                 title = 'Estado de pago actualizado';
@@ -294,6 +310,26 @@ exports.getAllPedidos = async (req, res) => {
             req.user.role === 'superadmin' ||
             (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
 
+        // Obtener la configuración de notificaciones al inicio
+        let notifyUserOnSi = '';
+        let notifyUserOnNo = '';
+        let notifyUserOnConfirmDate = '';
+        try {
+            const { data: settingsData } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'seguimiento_pedidos_notifications')
+                .single();
+
+            if (settingsData && settingsData.value) {
+                notifyUserOnSi = settingsData.value.notifyUserOnSi || '';
+                notifyUserOnNo = settingsData.value.notifyUserOnNo || '';
+                notifyUserOnConfirmDate = settingsData.value.notifyUserOnConfirmDate || '';
+            }
+        } catch (settingsErr) {
+            console.error('Error fetching settings in getAllPedidos:', settingsErr);
+        }
+
         if (!hasManagePermission) {
             const username = req.user.username;
             let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
@@ -309,6 +345,13 @@ exports.getAllPedidos = async (req, res) => {
                     filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
                 }
             }
+
+            // Si el usuario actual es el configurado para confirmaciones de fecha, permitir ver pedidos confirmados
+            const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
+            if (isUserConfiguredAsConfirmDate) {
+                filter += `,fecha_confirmada.eq.true`;
+            }
+
             query = query.or(filter);
         }
 
@@ -318,21 +361,7 @@ exports.getAllPedidos = async (req, res) => {
 
         if (error) throw error;
 
-        // Obtener la configuración de notificaciones para saber quién es el usuario configurado como 'NO'
-        let notifyUserOnNo = '';
-        try {
-            const { data: settingsData } = await supabase
-                .from('app_settings')
-                .select('value')
-                .eq('key', 'seguimiento_pedidos_notifications')
-                .single();
-
-            if (settingsData && settingsData.value) {
-                notifyUserOnNo = settingsData.value.notifyUserOnNo || '';
-            }
-        } catch (settingsErr) {
-            console.error('Error fetching settings in getAllPedidos:', settingsErr);
-        }
+        // Configuración de notificaciones ya leída al inicio
 
         // Obtener la sucursal del usuario que realiza la consulta
         let userSucursalName = '';
@@ -996,6 +1025,22 @@ exports.exportPedidosExcel = async (req, res) => {
             req.user.role === 'superadmin' ||
             (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
 
+        // Obtener la configuración de notificaciones para saber quién es el usuario configurado
+        let notifyUserOnConfirmDate = '';
+        try {
+            const { data: settingsData } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'seguimiento_pedidos_notifications')
+                .single();
+
+            if (settingsData && settingsData.value) {
+                notifyUserOnConfirmDate = settingsData.value.notifyUserOnConfirmDate || '';
+            }
+        } catch (settingsErr) {
+            console.error('Error fetching settings in exportPedidosExcel:', settingsErr);
+        }
+
         if (!hasManagePermission) {
             const username = req.user.username;
             let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
@@ -1011,6 +1056,13 @@ exports.exportPedidosExcel = async (req, res) => {
                     filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
                 }
             }
+
+            // Si el usuario actual es el configurado para confirmaciones de fecha, permitir exportar pedidos confirmados
+            const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
+            if (isUserConfiguredAsConfirmDate) {
+                filter += `,fecha_confirmada.eq.true`;
+            }
+
             query = query.or(filter);
         }
 
@@ -1081,10 +1133,14 @@ exports.getNotificationSettings = async (req, res) => {
         }
 
         if (!data) {
-            return res.json({ notifyUserOnSi: '', notifyUserOnNo: '' });
+            return res.json({ notifyUserOnSi: '', notifyUserOnNo: '', notifyUserOnConfirmDate: '' });
         }
 
-        res.json(data.value);
+        res.json({
+            notifyUserOnSi: data.value?.notifyUserOnSi || '',
+            notifyUserOnNo: data.value?.notifyUserOnNo || '',
+            notifyUserOnConfirmDate: data.value?.notifyUserOnConfirmDate || ''
+        });
     } catch (error) {
         console.error('Server error fetching notification settings:', error);
         res.status(500).json({ message: 'Error interno del servidor' });
@@ -1093,14 +1149,18 @@ exports.getNotificationSettings = async (req, res) => {
 
 // Actualizar configuración de notificaciones de abonado
 exports.updateNotificationSettings = async (req, res) => {
-    const { notifyUserOnSi, notifyUserOnNo } = req.body;
+    const { notifyUserOnSi, notifyUserOnNo, notifyUserOnConfirmDate } = req.body;
 
     try {
         const { error } = await supabase
             .from('app_settings')
             .upsert({
                 key: 'seguimiento_pedidos_notifications',
-                value: { notifyUserOnSi: notifyUserOnSi || '', notifyUserOnNo: notifyUserOnNo || '' },
+                value: { 
+                    notifyUserOnSi: notifyUserOnSi || '', 
+                    notifyUserOnNo: notifyUserOnNo || '',
+                    notifyUserOnConfirmDate: notifyUserOnConfirmDate || ''
+                },
                 updated_at: new Date().toISOString()
             });
 
@@ -1114,7 +1174,7 @@ exports.updateNotificationSettings = async (req, res) => {
             });
         }
 
-        res.json({ success: true, notifyUserOnSi, notifyUserOnNo });
+        res.json({ success: true, notifyUserOnSi, notifyUserOnNo, notifyUserOnConfirmDate });
     } catch (error) {
         console.error('Server error updating notification settings:', error);
         res.status(500).json({ message: 'Error al actualizar la configuración', error: error.message || error });
