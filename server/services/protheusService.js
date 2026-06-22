@@ -396,7 +396,7 @@ async function fetchRemitoFromProtheus(docNumber) {
     if (!docNumber) return [];
     const cleanDoc = String(docNumber).trim();
     
-    const url = `${PROTHEUS_SD2_API_URL}?doc=${encodeURIComponent(cleanDoc)}`;
+    const url = `${PROTHEUS_SD2_API_URL}?doc=${encodeURIComponent(cleanDoc)}&pageSize=999999`;
     console.log(`[PROTHEUS SD2 WS] Consultando remito por doc "${cleanDoc}" en URL: ${url}`);
     
     try {

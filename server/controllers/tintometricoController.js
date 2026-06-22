@@ -350,6 +350,8 @@ exports.getColorDosificacion = async (req, res) => {
                     userPriceListField = req.user && req.user.price_list === '500' ? 'lista500' : 'lista001';
                     
                     capacitiesData.forEach(c => {
+                        let basePrice = c.precio_base ? Number(c.precio_base) : 0;
+
                         if (c.codigo_comercial && productsMap.has(c.codigo_comercial)) {
                             const prod = productsMap.get(c.codigo_comercial);
                             
@@ -390,9 +392,12 @@ exports.getColorDosificacion = async (req, res) => {
                                 } else if (tesCode === '501') {
                                     vatMultiplier = 1.105;
                                 }
-                                c.precio_base = localPrice * vatMultiplier * markupMultiplier;
+                                basePrice = localPrice * vatMultiplier;
                             }
                         }
+
+                        // Aplicar SIEMPRE el recargo de la sucursal sobre el precio base final
+                        c.precio_base = basePrice * markupMultiplier;
                     });
                 }
             }
@@ -420,8 +425,8 @@ exports.getColorDosificacion = async (req, res) => {
                 });
             }
 
-            // Calcular precio actualizado de la lata de pigmento si existe en productsMap
-            let precioLata = pig?.precio_lata ? Number(pig.precio_lata) : null;
+            // Calcular precio de la lata de pigmento (usar local o default)
+            let basePrecioLata = pig?.precio_lata ? Number(pig.precio_lata) : 0;
             if (pig?.codigo_comercial && productsMap.has(pig.codigo_comercial)) {
                 const prod = productsMap.get(pig.codigo_comercial);
                 let localPrice = prod[userPriceListField] ? Number(prod[userPriceListField]) : null;
@@ -437,9 +442,10 @@ exports.getColorDosificacion = async (req, res) => {
                     } else if (tesCode === '501') {
                         vatMultiplier = 1.105;
                     }
-                    precioLata = localPrice * vatMultiplier * markupMultiplier;
+                    basePrecioLata = localPrice * vatMultiplier;
                 }
             }
+            const precioLata = basePrecioLata * markupMultiplier;
 
             recipesMap.get(pId).pigments.push({
                 id: row.pigmento_id,
