@@ -1,4 +1,5 @@
 const supabase = require('../services/supabaseClient');
+const tintometricoSupabase = require('../services/tintometricoSupabaseClient');
 const dolarService = require('../services/dolarService');
 const { getSucursalMarkup } = require('../utils/dbHelpers');
 
@@ -6,37 +7,121 @@ const { getSucursalMarkup } = require('../utils/dbHelpers');
  * Enrich an array of color registration rows with a calculated `precio_ars`
  * on the nested `products` object.  Uses the user's price list (001 or 500),
  * converts USD → ARS when needed, and applies VAT based on the TES code.
+ * Also calculates pigment costs and total estimated prices.
  */
 async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
     if (!rows || rows.length === 0) return rows;
 
-    // Only process rows that have a product with pricing data
     const needsEnrich = rows.some(r => r.products && (r.products.lista001 || r.products.lista500));
-    if (!needsEnrich) return rows;
+    const hasFormulas = rows.some(r => r.formula?.pigmentos && r.formula.pigmentos.length > 0);
+    if (!needsEnrich && !hasFormulas) return rows;
 
     const cotizaciones = await dolarService.getCotizaciones();
     const priceField = userPriceList === '500' ? 'lista500' : 'lista001';
     const markupMultiplier = 1 + (Number(sucursalMarkup) / 100);
 
+    // 1. Gather all unique pigment codes across all formulas in the rows
+    const uniquePigmentCodes = new Set();
     rows.forEach(r => {
-        if (!r.products) return;
-        let rawPrice = r.products[priceField] ? Number(r.products[priceField]) : null;
-        if (!rawPrice || rawPrice <= 0) {
-            r.products.precio_ars = null;
-            return;
+        if (r.formula?.pigmentos) {
+            r.formula.pigmentos.forEach(p => {
+                if (p.codigo) uniquePigmentCodes.add(p.codigo.trim().toUpperCase());
+            });
+        }
+    });
+
+    // 2. Preload pigment prices
+    let pigmentsMap = new Map();
+    if (tintometricoSupabase && uniquePigmentCodes.size > 0) {
+        try {
+            const { data: allPigments, error: pigErr } = await tintometricoSupabase
+                .from('tintometria_pigmentos')
+                .select('codigo, nombre, precio_lata, codigo_comercial');
+
+            if (!pigErr && allPigments) {
+                const pigCommCodes = allPigments
+                    .map(p => p.codigo_comercial)
+                    .filter(c => c != null && c.trim() !== '');
+
+                let productsPigMap = new Map();
+                if (pigCommCodes.length > 0) {
+                    const { data: prodsResult, error: prodErr } = await supabase
+                        .from('products')
+                        .select('code, description, lista001, lista500, tes, moneda')
+                        .in('code', pigCommCodes);
+
+                    if (!prodErr && prodsResult) {
+                        productsPigMap = new Map(prodsResult.map(p => [p.code, p]));
+                    }
+                }
+
+                allPigments.forEach(pig => {
+                    let basePrecioLata = pig.precio_lata ? Number(pig.precio_lata) : 0;
+                    if (pig.codigo_comercial && productsPigMap.has(pig.codigo_comercial)) {
+                        const prod = productsPigMap.get(pig.codigo_comercial);
+                        let localPrice = prod[priceField] ? Number(prod[priceField]) : null;
+                        if (localPrice !== null && localPrice > 0) {
+                            localPrice = dolarService.convertirPrecio(localPrice, prod.moneda, cotizaciones);
+                            let vatMultiplier = 1.0;
+                            const tes = prod.tes ? String(prod.tes).trim() : '';
+                            if (tes === '503') vatMultiplier = 1.21;
+                            else if (tes === '501') vatMultiplier = 1.105;
+                            basePrecioLata = localPrice * vatMultiplier;
+                        }
+                    }
+                    const precioLata = basePrecioLata * markupMultiplier;
+                    const key = pig.codigo.trim().toUpperCase();
+                    pigmentsMap.set(key, precioLata);
+                });
+            }
+        } catch (err) {
+            console.error('Error precargando precios de pigmentos en colorRegistrationController:', err);
+        }
+    }
+
+    rows.forEach(r => {
+        // Enriquecer precio base
+        if (r.products) {
+            let rawPrice = r.products[priceField] ? Number(r.products[priceField]) : null;
+            if (!rawPrice || rawPrice <= 0) {
+                r.products.precio_ars = null;
+            } else {
+                rawPrice = dolarService.convertirPrecio(rawPrice, r.products.moneda, cotizaciones);
+                const tes = r.products.tes ? String(r.products.tes).trim() : '';
+                let vatMultiplier = 1.0;
+                if (tes === '503') vatMultiplier = 1.21;
+                else if (tes === '501') vatMultiplier = 1.105;
+                r.products.precio_ars = parseFloat((rawPrice * vatMultiplier * markupMultiplier).toFixed(2));
+            }
         }
 
-        // Convert currency if needed
-        rawPrice = dolarService.convertirPrecio(rawPrice, r.products.moneda, cotizaciones);
+        // Calcular precio de pigmentos
+        let precio_pigmentos = 0;
+        let hasFormulaPrice = false;
 
-        // Apply VAT based on TES code
-        const tes = r.products.tes ? String(r.products.tes).trim() : '';
-        let vatMultiplier = 1.0;
-        if (tes === '503') vatMultiplier = 1.21;
-        else if (tes === '501') vatMultiplier = 1.105;
+        if (r.formula?.pigmentos) {
+            const system = r.formula.sistema?.toLowerCase() || '';
+            const isTersuave = system.includes('tersuave');
+            const isPlavicon = system.includes('plavicon');
+            const divisor = isTersuave ? 1250 : (isPlavicon ? 1300 : 2200);
 
-        // Apply both VAT and Branch markup
-        r.products.precio_ars = parseFloat((rawPrice * vatMultiplier * markupMultiplier).toFixed(2));
+            r.formula.pigmentos.forEach(p => {
+                const key = p.codigo?.trim().toUpperCase();
+                if (key && pigmentsMap.has(key)) {
+                    hasFormulaPrice = true;
+                    const precioLata = pigmentsMap.get(key);
+                    const qty = Number(p.cantidad) || 0;
+                    const cost = (qty / divisor) * precioLata;
+                    precio_pigmentos += cost;
+                }
+            });
+        }
+
+        r.precio_base_ars = r.products?.precio_ars || null;
+        r.precio_pigmentos_ars = hasFormulaPrice ? parseFloat(precio_pigmentos.toFixed(2)) : 0;
+        r.precio_total_ars = r.precio_base_ars !== null 
+            ? parseFloat((r.precio_base_ars + r.precio_pigmentos_ars).toFixed(2)) 
+            : null;
     });
 
     return rows;

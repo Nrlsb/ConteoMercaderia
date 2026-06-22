@@ -507,7 +507,7 @@ const ColorRegistrations = () => {
                 nombre: pig.name,
                 hex: pig.hex,
                 cantidad: Number(scaledQty.toFixed(4)),
-                unidad: activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'impulsos' : 'unidades'
+                unidad: 'impulsos'
             };
         });
 
@@ -911,7 +911,7 @@ const ColorRegistrations = () => {
                                                                             <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" style={{ backgroundColor: pig.hex || '#64748b' }} />
                                                                             <span className="truncate text-gray-700">{pig.name || pig.code}</span>
                                                                         </div>
-                                                                        <span className="font-mono text-gray-900 font-black shrink-0">{displayQty} {activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.'}</span>
+                                                                        <span className="font-mono text-gray-900 font-black shrink-0">{displayQty} imp.</span>
                                                                     </div>
                                                                 );
                                                             })}
@@ -1535,25 +1535,39 @@ const ColorRegistrations = () => {
                                             {renderObservations(item.observations)}
 
                                             {/* Price Display */}
-                                            {item.products?.precio_ars != null && (
+                                            {(item.precio_total_ars != null || item.products?.precio_ars != null) && (
                                                 <div className="mt-1">
                                                     {(showAllPrices || visiblePrices[item.id]) ? (
-                                                        <div className="flex items-center justify-between p-2 bg-emerald-50/70 rounded-lg border border-emerald-100 animate-in fade-in duration-200">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <DollarSign className="w-4 h-4 text-emerald-600" />
-                                                                <span className="text-sm font-black text-emerald-800 tracking-tight">
-                                                                    ${item.products.precio_ars.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                </span>
+                                                        <div className="flex flex-col gap-1.5 p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-100 animate-in fade-in duration-200">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-1">
+                                                                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                                    <span className="text-sm font-black text-emerald-800 tracking-tight">
+                                                                        ${(item.precio_total_ars ?? item.products?.precio_ars ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                    </span>
+                                                                </div>
+                                                                {!showAllPrices && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setVisiblePrices(prev => ({ ...prev, [item.id]: false }))}
+                                                                        className="p-1 rounded-md text-emerald-500 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                                                        title="Ocultar precio"
+                                                                    >
+                                                                        <EyeOff className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
                                                             </div>
-                                                            {!showAllPrices && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setVisiblePrices(prev => ({ ...prev, [item.id]: false }))}
-                                                                    className="p-1 rounded-md text-emerald-500 hover:bg-emerald-100 transition-colors cursor-pointer"
-                                                                    title="Ocultar precio"
-                                                                >
-                                                                    <EyeOff className="w-3.5 h-3.5" />
-                                                                </button>
+                                                            {item.precio_pigmentos_ars > 0 && (
+                                                                <div className="flex flex-col text-[9.5px] text-emerald-700/80 font-bold border-t border-emerald-100/50 pt-1 mt-0.5 space-y-0.5">
+                                                                    <div className="flex justify-between">
+                                                                        <span>Pintura Base:</span>
+                                                                        <span>${item.precio_base_ars?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between">
+                                                                        <span>Colorantes / Pigmentos:</span>
+                                                                        <span>+${item.precio_pigmentos_ars?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                    </div>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     ) : (
@@ -1594,7 +1608,7 @@ const ColorRegistrations = () => {
                                                                         <span className="truncate text-gray-700">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
                                                                     </div>
                                                                     <span className="font-mono text-gray-900 font-black shrink-0">
-                                                                        {String(pig.cantidad).replace('.', ',')} {pig.unidad === 'impulsos' ? 'imp.' : pig.unidad || (item.formula.sistema?.toLowerCase() === 'tersuave' ? 'imp.' : 'un.')}
+                                                                        {String(pig.cantidad).replace('.', ',')} {pig.unidad === 'unidades' || pig.unidad === 'un.' ? 'impulsos' : (pig.unidad === 'impulsos' ? 'impulsos' : pig.unidad || 'impulsos')}
                                                                     </span>
                                                                 </div>
                                                             ))}
@@ -1612,7 +1626,7 @@ const ColorRegistrations = () => {
                                                                                 <span className="truncate font-bold">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
                                                                             </div>
                                                                             <span className="font-mono font-black shrink-0">
-                                                                                +{String(pig.cantidad).replace('.', ',')} {pig.unidad === 'impulsos' ? 'imp.' : pig.unidad || 'imp.'}
+                                                                                +{String(pig.cantidad).replace('.', ',')} {pig.unidad === 'unidades' || pig.unidad === 'un.' ? 'impulsos' : (pig.unidad === 'impulsos' ? 'impulsos' : pig.unidad || 'impulsos')}
                                                                             </span>
                                                                         </div>
                                                                     ))}
