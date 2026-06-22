@@ -170,24 +170,6 @@ const SeguimientoPedidosPage = () => {
 
   const showAdminDetails = canViewImages || !isParaQuien;
 
-  const getConfirmacionStatus = () => {
-    if (!formData.contacto_proveedor_fecha) {
-      return { disabled: true, reason: 'Debe ingresar una fecha antes de poder confirmarla' };
-    }
-    if (!canEditDepositoFields) {
-      return { disabled: true, reason: 'No tienes permisos de depósito para confirmar la fecha' };
-    }
-    
-    const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha + 'T00:00:00'));
-    if (workingDays > 3) {
-      return { disabled: true, reason: `Solo se puede confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles)` };
-    }
-    
-    return { disabled: false, reason: '' };
-  };
-
-  const confirmStatus = getConfirmacionStatus();
-
   // Formulario de Pedido
   const initialFormState = {
     fecha: new Date().toISOString().split('T')[0],
@@ -224,6 +206,24 @@ const SeguimientoPedidosPage = () => {
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
+
+  const getConfirmacionStatus = () => {
+    if (!formData.contacto_proveedor_fecha) {
+      return { disabled: true, reason: 'Debe ingresar una fecha antes de poder confirmarla' };
+    }
+    if (!canEditDepositoFields) {
+      return { disabled: true, reason: 'No tienes permisos de depósito para confirmar la fecha' };
+    }
+    
+    const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha + 'T00:00:00'));
+    if (workingDays > 3) {
+      return { disabled: true, reason: `Solo se puede confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles)` };
+    }
+    
+    return { disabled: false, reason: '' };
+  };
+
+  const confirmStatus = getConfirmacionStatus();
 
   // Cargar Pedidos
   const fetchPedidos = async () => {
