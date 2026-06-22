@@ -904,7 +904,7 @@ const ColorRegistrations = () => {
                                                         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Vista Previa de Dosificación:</span>
                                                         <div className="bg-white rounded-lg border border-gray-150 p-2 divide-y divide-gray-100 max-h-36 overflow-y-auto">
                                                             {activeRecipe.pigments.map((pig, idx) => {
-                                                                const displayQty = (pig.cantidad * selectedCanSize).toFixed(3).replace('.', ',');
+                                                                const displayQty = (pig.cantidad * selectedCanSize).toFixed(2).replace('.', ',');
                                                                 return (
                                                                     <div key={idx} className="flex justify-between items-center py-1 text-[11px] font-semibold">
                                                                         <div className="flex items-center gap-2 min-w-0">
