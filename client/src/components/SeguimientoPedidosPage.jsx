@@ -652,6 +652,45 @@ const SeguimientoPedidosPage = () => {
     }
   };
 
+  const handleDownloadImage = async (url, index) => {
+    const toastId = toast.loading('Descargando imagen...');
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      // Intentar extraer la extensión original del archivo de la URL
+      let extension = 'jpg';
+      try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const lastDot = pathname.lastIndexOf('.');
+        if (lastDot !== -1) {
+          const ext = pathname.substring(lastDot + 1).toLowerCase();
+          if (ext && ext.length <= 4) {
+            extension = ext;
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudo extraer la extensión del archivo:', e);
+      }
+
+      link.setAttribute('download', `comprobante_${index + 1}.${extension}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success('Imagen descargada con éxito', { id: toastId });
+    } catch (error) {
+      console.error('Error al descargar la imagen:', error);
+      toast.error('Error al descargar la imagen, abriendo en pestaña nueva...', { id: toastId });
+      // Fallback: abrir en pestaña nueva
+      window.open(url, '_blank');
+    }
+  };
+
   // Badge de Estado
   const getStatusBadge = (estado) => {
     const lower = estado?.toLowerCase() || '';
@@ -2182,7 +2221,7 @@ const SeguimientoPedidosPage = () => {
                             alt={`Comprobante ${index + 1}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                           />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-200">
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-all duration-200">
                             <a
                               href={url}
                               target="_blank"
@@ -2192,6 +2231,14 @@ const SeguimientoPedidosPage = () => {
                             >
                               <Eye className="w-4 h-4" />
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadImage(url, index)}
+                              className="p-1.5 bg-white rounded-full text-gray-800 shadow hover:scale-110 transition-all text-gray-800"
+                              title="Descargar imagen"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       ))}
