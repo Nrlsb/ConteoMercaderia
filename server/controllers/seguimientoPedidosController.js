@@ -317,10 +317,6 @@ exports.getAllPedidos = async (req, res) => {
             .from('seguimiento_pedidos')
             .select('*');
 
-        const hasManagePermission = 
-            req.user.role === 'superadmin' ||
-            (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
-
         // Obtener la configuración de notificaciones al inicio
         let notifyUserOnSi = '';
         let notifyUserOnNo = '';
@@ -341,8 +337,14 @@ exports.getAllPedidos = async (req, res) => {
             console.error('Error fetching settings in getAllPedidos:', settingsErr);
         }
 
+        const username = req.user.username;
+        const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
+
+        const hasManagePermission = 
+            (req.user.role === 'superadmin' ||
+            (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'))) && !isUserConfiguredAsConfirmDate;
+
         if (!hasManagePermission) {
-            const username = req.user.username;
             let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
             
             if (req.user.sucursal_id) {
@@ -360,7 +362,6 @@ exports.getAllPedidos = async (req, res) => {
             query = query.or(filter);
 
             // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada
-            const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
             if (isUserConfiguredAsConfirmDate) {
                 query = query.eq('fecha_confirmada', true);
             }
@@ -1081,10 +1082,6 @@ exports.exportPedidosExcel = async (req, res) => {
             .from('seguimiento_pedidos')
             .select('*');
 
-        const hasManagePermission = 
-            req.user.role === 'superadmin' ||
-            (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'));
-
         // Obtener la configuración de notificaciones para saber quién es el usuario configurado
         let notifyUserOnConfirmDate = '';
         try {
@@ -1101,8 +1098,14 @@ exports.exportPedidosExcel = async (req, res) => {
             console.error('Error fetching settings in exportPedidosExcel:', settingsErr);
         }
 
+        const username = req.user.username;
+        const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
+
+        const hasManagePermission = 
+            (req.user.role === 'superadmin' ||
+            (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'))) && !isUserConfiguredAsConfirmDate;
+
         if (!hasManagePermission) {
-            const username = req.user.username;
             let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
             
             if (req.user.sucursal_id) {
@@ -1120,7 +1123,6 @@ exports.exportPedidosExcel = async (req, res) => {
             query = query.or(filter);
 
             // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada
-            const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
             if (isUserConfiguredAsConfirmDate) {
                 query = query.eq('fecha_confirmada', true);
             }
