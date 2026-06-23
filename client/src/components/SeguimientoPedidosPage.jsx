@@ -14,6 +14,17 @@ const formatLocalDate = (dateStr) => {
     const parts = dateStr.split('-');
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
+  try {
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      if (dateStr.includes('T') && !dateStr.endsWith('T00:00:00.000Z') && !dateStr.endsWith('T00:00:00')) {
+        return date.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+      }
+      return date.toLocaleDateString('es-AR', { dateStyle: 'short' });
+    }
+  } catch (e) {
+    console.warn('Error formatting date:', e);
+  }
   return dateStr;
 };
 
@@ -525,7 +536,7 @@ const SeguimientoPedidosPage = () => {
       ];
       if (depFields.includes(name) && canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
-        newState.contacto_mercurio_fecha = new Date().toISOString().split('T')[0];
+        newState.contacto_mercurio_fecha = new Date().toISOString();
       }
 
       return newState;

@@ -708,7 +708,7 @@ exports.updatePedido = async (req, res) => {
 
             if (modifiedField) {
                 req.body.contacto_mercurio = req.user?.username || '';
-                req.body.contacto_mercurio_fecha = new Date().toISOString().split('T')[0];
+                req.body.contacto_mercurio_fecha = new Date().toISOString();
             }
         }
 
@@ -1517,7 +1517,7 @@ exports.confirmarRecepcionDestinatario = async (req, res) => {
             confirmado_destinatario: true,
             cant_recibida_destinatario: cant_recibida_destinatario !== undefined ? parseFloat(cant_recibida_destinatario) : null,
             comentario_destinatario: comentario_destinatario || '',
-            fecha_confirmacion_destinatario: new Date().toISOString().split('T')[0]
+            fecha_confirmacion_destinatario: new Date().toISOString()
         };
 
         const { data: updatedPedido, error: updateError } = await supabase
