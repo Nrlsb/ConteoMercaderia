@@ -50,11 +50,15 @@ router.post('/', verifyToken, async (req, res) => {
 // Get Receipts
 router.get('/', verifyToken, async (req, res) => {
     try {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
             .is('deleted_at', null)
             .neq('type', 'sucursal_transfer')
+            .gte('date', oneMonthAgo.toISOString())
             .order('date', { ascending: false });
 
         if (error) throw error;

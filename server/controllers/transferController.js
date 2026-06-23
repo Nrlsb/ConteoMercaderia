@@ -7,6 +7,9 @@ exports.getPendingTransfers = async (req, res) => {
     const to = from + limit - 1;
 
     try {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
         let query = supabase
             .from('egresos')
             .select(`
@@ -15,6 +18,7 @@ exports.getPendingTransfers = async (req, res) => {
             `, { count: 'exact' })
             .eq('status', 'finalized')
             .is('receipt_id', null)
+            .gte('date', oneMonthAgo.toISOString())
             .order('date', { ascending: false });
 
         // If user is not admin/superadmin, filter by their branch
@@ -137,11 +141,15 @@ exports.getTransferReceipts = async (req, res) => {
     const to = from + limit - 1;
 
     try {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
         let query = supabase
             .from('receipts')
             .select('*', { count: 'exact' })
             .eq('type', 'sucursal_transfer')
             .is('deleted_at', null)
+            .gte('date', oneMonthAgo.toISOString())
             .order('date', { ascending: false });
 
         // Filter by branch for non-admin roles

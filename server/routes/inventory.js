@@ -208,11 +208,16 @@ router.post('/remitos', verifyToken, async (req, res) => {
 // Get all remitos with manual join to pre-remitos/PV, and include Pending pre-remitos (Progress)
 router.get('/remitos', verifyToken, async (req, res) => {
     try {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        const oneMonthAgoStr = oneMonthAgo.toISOString();
+
         // 1. Fetch all processed remitos
         const { data: remitosData, error: remitosError } = await supabase
             .from('remitos')
             .select('*')
             .is('deleted_at', null)
+            .gte('date', oneMonthAgoStr)
             .order('date', { ascending: false });
 
         if (remitosError) throw remitosError;
@@ -232,7 +237,8 @@ router.get('/remitos', verifyToken, async (req, res) => {
                     sucursal
                 )
             `)
-            .is('deleted_at', null);
+            .is('deleted_at', null)
+            .gte('created_at', oneMonthAgoStr);
 
         if (preRemitosError) throw preRemitosError;
 
@@ -264,7 +270,8 @@ router.get('/remitos', verifyToken, async (req, res) => {
             .from('general_counts')
             .select('*')
             .neq('status', 'voided')
-            .is('deleted_at', null);
+            .is('deleted_at', null)
+            .gte('created_at', oneMonthAgoStr);
 
         if (countsError) console.error('Error fetching general counts:', countsError);
 
