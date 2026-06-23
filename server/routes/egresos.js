@@ -159,7 +159,7 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
         if (clientName) {
             const { data: branchMatch } = await supabase
                 .from('sucursales')
-                .select('id, name')
+                .select('id, name, code')
                 .ilike('name', clientName)
                 .maybeSingle();
 
@@ -167,17 +167,35 @@ router.post('/upload-pdf', verifyToken, multer({ storage: multer.memoryStorage()
                 console.log(`[EGRESO PDF] Destino detectado: ${branchMatch.name} (ID: ${branchMatch.id})`);
                 sucursalId = branchMatch.id;
             } else {
-                // Intento secundario: buscar coincidencias parciales
-                const { data: allBranches } = await supabase.from('sucursales').select('id, name');
+                // Intento secundario: buscar por código numérico de sucursal o coincidencias parciales
+                const { data: allBranches } = await supabase.from('sucursales').select('id, name, code');
                 if (allBranches) {
-                    const bestMatch = allBranches.find(b =>
-                        b.name !== 'Deposito' && (
-                            clientName.toLowerCase().includes(b.name.toLowerCase()) ||
-                            b.name.toLowerCase().includes(clientName.toLowerCase())
-                        )
-                    );
+                    const extractBranchNumber = (str) => {
+                        if (!str) return null;
+                        const match = str.match(/(?:sucursal|suc|suc\.)?\s*(?:n[°°ºªa\.]\s*)?(\b\d{1,2}\b)/i);
+                        return match ? parseInt(match[1], 10) : null;
+                    };
+
+                    const targetNum = extractBranchNumber(clientName);
+                    let bestMatch = null;
+
+                    if (targetNum !== null) {
+                        const formattedNum = String(targetNum).padStart(2, '0');
+                        const expectedCode = `0101${formattedNum}`;
+                        bestMatch = allBranches.find(b => b.code === expectedCode);
+                    }
+
+                    if (!bestMatch) {
+                        bestMatch = allBranches.find(b =>
+                            b.name !== 'Deposito' && (
+                                clientName.toLowerCase().includes(b.name.toLowerCase()) ||
+                                b.name.toLowerCase().includes(clientName.toLowerCase())
+                            )
+                        );
+                    }
+
                     if (bestMatch) {
-                        console.log(`[EGRESO PDF] Destino detectado por coincidencia parcial: ${bestMatch.name}`);
+                        console.log(`[EGRESO PDF] Destino detectado por código o coincidencia parcial: ${bestMatch.name} (Code: ${bestMatch.code})`);
                         sucursalId = bestMatch.id;
                     }
                 }
