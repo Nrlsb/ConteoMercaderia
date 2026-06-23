@@ -125,7 +125,7 @@ const getTrackingHistory = (pedido) => {
     }
 
     history.push({
-      fecha: formattedFechaEntrega,
+      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaEntrega,
       area: 'Proveedor',
       historial: isConfirmada 
         ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega}${entregaDetalle}` 
@@ -140,7 +140,7 @@ const getTrackingHistory = (pedido) => {
     const isPendienteConfirmada = !!pedido.fecha_pendiente_confirmada;
     const formattedFechaPendiente = formatLocalDate(pedido.contacto_proveedor_fecha_pendiente);
     history.push({
-      fecha: formattedFechaPendiente,
+      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaPendiente,
       area: 'Proveedor',
       historial: isPendienteConfirmada
         ? `Fecha de ingreso confirmada para el ${formattedFechaPendiente} para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`
@@ -160,7 +160,7 @@ const getTrackingHistory = (pedido) => {
     }
 
     history.push({
-      fecha: formatLocalDate(pedido.contacto_proveedor_fecha),
+      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha),
       area: 'Depósito',
       historial: `Se confirma la fecha de ingreso${entregaDetalle}`,
       estado: 'FECHA CONFIRMADA',
@@ -171,7 +171,7 @@ const getTrackingHistory = (pedido) => {
   // 5b. Fecha de ingreso confirmada en Depósito para la entrega de mercadería pendiente (2ª Entrega)
   if (pedido.contacto_proveedor_entrega === 'Parcial' && pedido.contacto_proveedor_fecha_pendiente && pedido.fecha_pendiente_confirmada) {
     history.push({
-      fecha: formatLocalDate(pedido.contacto_proveedor_fecha_pendiente),
+      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha_pendiente),
       area: 'Depósito',
       historial: `Se confirma la fecha de ingreso para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`,
       estado: 'FECHA CONFIRMADA',
