@@ -105,12 +105,23 @@ const getTrackingHistory = (pedido) => {
   if (pedido.contacto_proveedor_fecha) {
     const isConfirmada = !!pedido.fecha_confirmada;
     const formattedFechaEntrega = formatLocalDate(pedido.contacto_proveedor_fecha);
+    
+    let entregaDetalle = '';
+    if (pedido.contacto_proveedor_entrega === 'Parcial') {
+      entregaDetalle = ` (Entrega PARCIAL de ${pedido.contacto_proveedor_cant_parcial || 0} de ${pedido.cant_pedido || '-'})`;
+      if (pedido.contacto_proveedor_fecha_pendiente) {
+        entregaDetalle += `. Restante pendiente para el ${formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)}`;
+      }
+    } else if (pedido.contacto_proveedor_entrega === 'Total') {
+      entregaDetalle = ` (Entrega TOTAL de ${pedido.cant_pedido || '-'})`;
+    }
+
     history.push({
       fecha: formattedFechaEntrega,
       area: 'Proveedor',
       historial: isConfirmada 
-        ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega}` 
-        : `Fecha de ingreso asignada para el ${formattedFechaEntrega}`,
+        ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega}${entregaDetalle}` 
+        : `Fecha de ingreso asignada para el ${formattedFechaEntrega}${entregaDetalle}`,
       estado: isConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
       completed: isConfirmada
     });
@@ -118,10 +129,20 @@ const getTrackingHistory = (pedido) => {
 
   // 5. Fecha de ingreso confirmada
   if (pedido.contacto_proveedor_fecha && pedido.fecha_confirmada) {
+    let entregaDetalle = '';
+    if (pedido.contacto_proveedor_entrega === 'Parcial') {
+      entregaDetalle = ` para entrega PARCIAL de ${pedido.contacto_proveedor_cant_parcial || 0} de ${pedido.cant_pedido || '-'}`;
+      if (pedido.contacto_proveedor_fecha_pendiente) {
+        entregaDetalle += `. Restante pendiente para el ${formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)}`;
+      }
+    } else if (pedido.contacto_proveedor_entrega === 'Total') {
+      entregaDetalle = ` para entrega TOTAL de ${pedido.cant_pedido || '-'}`;
+    }
+
     history.push({
       fecha: formatLocalDate(pedido.contacto_proveedor_fecha),
       area: 'Depósito',
-      historial: 'Se confirma la fecha de ingreso',
+      historial: `Se confirma la fecha de ingreso${entregaDetalle}`,
       estado: 'FECHA CONFIRMADA',
       completed: true
     });
@@ -134,10 +155,21 @@ const getTrackingHistory = (pedido) => {
       ? formatLocalDate(pedido.fecha_confirmacion_destinatario) 
       : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : '-');
     
+    let recepcionDetalle = '';
+    const lowerEstado = pedido.estado?.toLowerCase() || '';
+    if (lowerEstado.includes('parcial')) {
+      recepcionDetalle = ` (Recepción PARCIAL de ${pedido.cant_recepcion_parcial || 0} de ${pedido.cant_pedido || '-'})`;
+      if (pedido.recepcion_parcial) {
+        recepcionDetalle += `. Obs: ${pedido.recepcion_parcial}`;
+      }
+    } else if (lowerEstado.includes('total') || lowerEstado.includes('recibido')) {
+      recepcionDetalle = ` (Recepción TOTAL de ${pedido.cant_pedido || '-'})`;
+    }
+
     history.push({
       fecha: receivingDate,
       area: 'Depósito',
-      historial: 'La mercadería se encuentra en el depósito',
+      historial: `La mercadería se encuentra en el depósito${recepcionDetalle}`,
       estado: 'INGRESADO',
       completed: true
     });
@@ -1755,85 +1787,99 @@ const SeguimientoPedidosPage = () => {
                       </div>
 
                       {formData.contacto_proveedor_entrega === 'Parcial' && (
-                        <div className="col-span-1 sm:col-span-2 md:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 pb-2 border-t border-dashed border-gray-150 animate-in fade-in slide-in-from-top-1 duration-200">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Cantidad a Entregar *</label>
-                            <input
-                              type="number"
-                              step="any"
-                              name="contacto_proveedor_cant_parcial"
-                              placeholder="Ej. 10, 50..."
-                              value={formData.contacto_proveedor_cant_parcial}
-                              onChange={handleInputChange}
-                              required={formData.contacto_proveedor_entrega === 'Parcial'}
-                              disabled={!canEditDepositoFields}
-                              className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Fecha Entrega Pendiente</label>
-                            <input
-                              type="date"
-                              name="contacto_proveedor_fecha_pendiente"
-                              value={formData.contacto_proveedor_fecha_pendiente || ''}
-                              onChange={handleInputChange}
-                              disabled={!canEditDepositoFields}
-                              className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
-                            />
-                          </div>
-                          <div className="flex flex-col justify-end">
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
-                              ¿Fecha Pendiente Confirmada? {confirmPendienteStatus.disabled && formData.contacto_proveedor_fecha_pendiente && canEditDepositoFields && (
-                                <span className="text-[10px] text-rose-500 normal-case font-semibold block mt-0.5 animate-pulse">
-                                  (Sólo 3 días hábiles antes)
-                                </span>
-                              )}
-                            </label>
-                            <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
-                              confirmPendienteStatus.disabled
-                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                : formData.fecha_pendiente_confirmada
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-pointer'
-                                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
-                            }`}
-                            title={confirmPendienteStatus.reason}
-                            >
+                        <div className="col-span-1 sm:col-span-2 md:col-span-3 space-y-4 pt-4 pb-2 border-t border-dashed border-gray-150 animate-in fade-in slide-in-from-top-1 duration-200">
+                          {/* Fila 1: Cantidad a entregar */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Cantidad a Entregar *</label>
                               <input
-                                type="checkbox"
-                                name="fecha_pendiente_confirmada"
-                                checked={formData.fecha_pendiente_confirmada}
-                                onChange={(e) => {
-                                  if (confirmPendienteStatus.disabled) {
-                                    toast.error(confirmPendienteStatus.reason);
-                                  } else {
-                                    handleInputChange(e);
-                                  }
-                                }}
-                                disabled={confirmPendienteStatus.disabled}
-                                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
-                              />
-                              <span>{formData.fecha_pendiente_confirmada ? 'Confirmada' : 'Confirmar'}</span>
-                            </label>
-                          </div>
-                          <div className="flex flex-col justify-end">
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">¿Se entrega resto faltante?</label>
-                            <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
-                              !canEditDepositoFields
-                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                : formData.entrega_resto_pendiente
-                                  ? 'bg-blue-50 border-blue-200 text-blue-700 cursor-pointer'
-                                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
-                            }`}>
-                              <input
-                                type="checkbox"
-                                name="entrega_resto_pendiente"
-                                checked={formData.entrega_resto_pendiente}
+                                type="number"
+                                step="any"
+                                name="contacto_proveedor_cant_parcial"
+                                placeholder="Ej. 10, 50..."
+                                value={formData.contacto_proveedor_cant_parcial}
                                 onChange={handleInputChange}
+                                required={formData.contacto_proveedor_entrega === 'Parcial'}
                                 disabled={!canEditDepositoFields}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
+                                className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
                               />
-                              <span>{formData.entrega_resto_pendiente ? 'Sí, entrega resto' : 'No'}</span>
-                            </label>
+                            </div>
+                          </div>
+
+                          {/* Fila 2: Mercadería Pendiente */}
+                          <div className="bg-blue-50/40 p-4 rounded-2xl border border-blue-100/70 space-y-3">
+                            <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs uppercase tracking-wider">
+                              <div className="w-1.5 h-3 bg-blue-600 rounded-full"></div>
+                              <span>Mercadería Pendiente</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Fecha Entrega Pendiente</label>
+                                <input
+                                  type="date"
+                                  name="contacto_proveedor_fecha_pendiente"
+                                  value={formData.contacto_proveedor_fecha_pendiente || ''}
+                                  onChange={handleInputChange}
+                                  disabled={!canEditDepositoFields}
+                                  className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
+                                />
+                              </div>
+                              <div className="flex flex-col justify-end">
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
+                                  ¿Fecha Pendiente Confirmada? {confirmPendienteStatus.disabled && formData.contacto_proveedor_fecha_pendiente && canEditDepositoFields && (
+                                    <span className="text-[10px] text-rose-500 normal-case font-semibold block mt-0.5 animate-pulse">
+                                      (Sólo 3 días hábiles antes)
+                                    </span>
+                                  )}
+                                </label>
+                                <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
+                                  confirmPendienteStatus.disabled
+                                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                    : formData.fecha_pendiente_confirmada
+                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-pointer'
+                                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                }`}
+                                title={confirmPendienteStatus.reason}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    name="fecha_pendiente_confirmada"
+                                    checked={formData.fecha_pendiente_confirmada}
+                                    onChange={(e) => {
+                                      if (confirmPendienteStatus.disabled) {
+                                        toast.error(confirmPendienteStatus.reason);
+                                      } else {
+                                        handleInputChange(e);
+                                      }
+                                    }}
+                                    disabled={confirmPendienteStatus.disabled}
+                                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
+                                  />
+                                  <span>{formData.fecha_pendiente_confirmada ? 'Confirmada' : 'Confirmar'}</span>
+                                </label>
+                              </div>
+                              <div className="flex flex-col justify-end">
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">¿Se entrega resto faltante?</label>
+                                <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
+                                  !canEditDepositoFields
+                                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                    : formData.entrega_resto_pendiente
+                                      ? 'bg-blue-50 border-blue-200 text-blue-700 cursor-pointer'
+                                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                }`}>
+                                  <input
+                                    type="checkbox"
+                                    name="entrega_resto_pendiente"
+                                    checked={formData.entrega_resto_pendiente}
+                                    onChange={handleInputChange}
+                                    disabled={!canEditDepositoFields}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
+                                  />
+                                  <span>{formData.entrega_resto_pendiente ? 'Sí, entrega resto' : 'No'}</span>
+                                </label>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
