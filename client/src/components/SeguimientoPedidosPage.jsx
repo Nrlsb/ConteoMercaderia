@@ -52,9 +52,25 @@ const getTrackingHistory = (pedido) => {
     completed: true
   });
 
+  const lowerEstado = pedido.estado ? pedido.estado.toLowerCase() : '';
+  const isStatePaid = [
+    'abonado', 
+    'pendiente coordinación', 
+    'pendiente coordinacion', 
+    'coordinado', 
+    'fecha asignada', 
+    'fecha confirmada', 
+    'ingresado', 
+    'recepción parcial', 
+    'recepcion parcial', 
+    'recepción total', 
+    'recepcion total', 
+    'recibido'
+  ].includes(lowerEstado);
+  const hasImgs = (pedido.imagenes && pedido.imagenes.length > 0) || isStatePaid;
+
   // 2. Proceso de abonar (Gerencia)
   if (pedido.abonado === true) {
-    const hasImgs = pedido.imagenes && pedido.imagenes.length > 0;
     history.push({
       fecha: hasImgs && pedido.updated_at 
         ? new Date(pedido.updated_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
@@ -69,7 +85,7 @@ const getTrackingHistory = (pedido) => {
   }
 
   // 3. Depósito: coordinar fecha
-  const isPaidOrNoAbonar = pedido.abonado === false || (pedido.imagenes && pedido.imagenes.length > 0);
+  const isPaidOrNoAbonar = pedido.abonado === false || hasImgs;
   if (isPaidOrNoAbonar) {
     const hasFecha = !!pedido.contacto_proveedor_fecha;
     history.push({
@@ -2093,35 +2109,37 @@ const SeguimientoPedidosPage = () => {
                     <Truck className="w-4 h-4 text-blue-600 animate-pulse" />
                     <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider font-semibold">Trazabilidad del Pedido</h4>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-550 font-bold uppercase tracking-wider">
-                          <th className="py-2.5 px-3">Fecha</th>
-                          <th className="py-2.5 px-3">Área / Planta</th>
-                          <th className="py-2.5 px-3">Detalle / Historia</th>
-                          <th className="py-2.5 px-3">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {getTrackingHistory(viewingPedido).map((event, index) => {
-                          const isLatest = index === 0;
-                          return (
-                            <tr 
-                              key={index} 
-                              className={`transition-colors ${
-                                isLatest 
-                                  ? 'bg-blue-50/40 font-medium text-blue-900 border-l-4 border-l-blue-650' 
-                                  : 'text-gray-600 hover:bg-gray-50/50'
-                              }`}
-                            >
-                              <td className="py-3 px-3 whitespace-nowrap">
-                                <span className="flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 opacity-60" />
+                  <div className="relative pl-6 border-l-2 border-gray-100 ml-3 space-y-6 my-4">
+                    {getTrackingHistory(viewingPedido).map((event, index) => {
+                      const isLatest = index === 0;
+                      return (
+                        <div key={index} className="relative">
+                          {/* Indicador de Línea de Tiempo (Círculo) */}
+                          <div className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center bg-white z-10 ${
+                            event.completed
+                              ? 'bg-emerald-500 border-emerald-500 text-white'
+                              : 'border-amber-500'
+                          }`}>
+                            {event.completed ? (
+                              <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                            )}
+                          </div>
+
+                          {/* Contenido del Evento */}
+                          <div className={`p-3 rounded-xl transition-all ${
+                            isLatest
+                              ? 'bg-blue-50/50 border border-blue-100 shadow-sm'
+                              : 'bg-gray-50/40 hover:bg-gray-50 border border-transparent'
+                          }`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              {/* Fecha y Área */}
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-gray-400" />
                                   {event.fecha}
                                 </span>
-                              </td>
-                              <td className="py-3 px-3">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                                   event.area === 'Compras' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
                                   event.area === 'Gerencia' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
@@ -2130,29 +2148,38 @@ const SeguimientoPedidosPage = () => {
                                 }`}>
                                   {event.area}
                                 </span>
-                              </td>
-                              <td className="py-3 px-3">
-                                {event.historial}
-                              </td>
-                              <td className="py-3 px-3">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  event.completed 
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                                    : 'bg-amber-100 text-amber-850 border border-amber-200'
-                                }`}>
-                                  {event.completed ? (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                  ) : (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                                  )}
-                                  {event.estado}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              </div>
+
+                              {/* Estado del Evento */}
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                event.completed 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                  : 'bg-amber-50 text-amber-700 border border-amber-100'
+                              }`}>
+                                {event.completed ? (
+                                  <>
+                                    <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
+                                    Completado
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse"></span>
+                                    Pendiente
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            {/* Historial / Detalle */}
+                            <p className={`text-xs mt-1.5 leading-relaxed ${
+                              isLatest ? 'text-blue-900 font-semibold' : 'text-gray-600 font-medium'
+                            }`}>
+                              {event.historial}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
