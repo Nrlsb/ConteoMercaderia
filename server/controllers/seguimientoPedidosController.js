@@ -155,8 +155,8 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             }
         }
 
-        // Exclusión adicional si el estado es 'Abonado' y el usuario destinatario es de la sucursal gerencia:
-        if (pedido.estado?.toLowerCase() === 'abonado') {
+        // Exclusión adicional si el estado es 'Abonado' o si el pedido no requiere ser abonado y el usuario destinatario es de la sucursal gerencia:
+        if (pedido.estado?.toLowerCase() === 'abonado' || pedido.abonado !== true) {
             try {
                 const { data: sucursalGerencia } = await supabase
                     .from('sucursales')
@@ -357,13 +357,13 @@ exports.getAllPedidos = async (req, res) => {
                 }
             }
 
-            // Si el usuario actual es el configurado para confirmaciones de fecha, permitir ver pedidos confirmados
+            query = query.or(filter);
+
+            // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada
             const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
             if (isUserConfiguredAsConfirmDate) {
-                filter += `,fecha_confirmada.eq.true`;
+                query = query.eq('fecha_confirmada', true);
             }
-
-            query = query.or(filter);
         }
 
         let { data, error } = await query
@@ -405,6 +405,11 @@ exports.getAllPedidos = async (req, res) => {
                 }
                 return true;
             });
+        }
+
+        // Si el usuario pertenece a la sucursal gerencia, sólo deben llegarle los pedidos que requieran ser abonados (SÍ)
+        if (data && userSucursalName === 'gerencia' && req.user.role !== 'superadmin') {
+            data = data.filter(p => p.abonado === true);
         }
 
         const canView = await canUserViewImages(req.user);
@@ -1112,13 +1117,13 @@ exports.exportPedidosExcel = async (req, res) => {
                 }
             }
 
-            // Si el usuario actual es el configurado para confirmaciones de fecha, permitir exportar pedidos confirmados
+            query = query.or(filter);
+
+            // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada
             const isUserConfiguredAsConfirmDate = notifyUserOnConfirmDate && username && notifyUserOnConfirmDate.trim().toLowerCase() === username.trim().toLowerCase();
             if (isUserConfiguredAsConfirmDate) {
-                filter += `,fecha_confirmada.eq.true`;
+                query = query.eq('fecha_confirmada', true);
             }
-
-            query = query.or(filter);
         }
 
         const { data, error } = await query
@@ -1126,6 +1131,28 @@ exports.exportPedidosExcel = async (req, res) => {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+
+        // Obtener la sucursal del usuario que realiza la consulta
+        let userSucursalName = '';
+        if (req.user.sucursal_id) {
+            try {
+                const { data: sucursal } = await supabase
+                    .from('sucursales')
+                    .select('name')
+                    .eq('id', req.user.sucursal_id)
+                    .single();
+                if (sucursal && sucursal.name) {
+                    userSucursalName = sucursal.name.toLowerCase();
+                }
+            } catch (sucErr) {
+                console.error('Error fetching sucursal in exportPedidosExcel:', sucErr);
+            }
+        }
+
+        // Si el usuario pertenece a la sucursal gerencia, sólo deben llegarle los pedidos que requieran ser abonados (SÍ)
+        if (data && userSucursalName === 'gerencia' && req.user.role !== 'superadmin') {
+            data = data.filter(p => p.abonado === true);
+        }
 
         const formattedData = data.map(p => ({
             'Fecha': p.fecha,

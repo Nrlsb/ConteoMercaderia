@@ -1094,15 +1094,11 @@ const SeguimientoPedidosPage = () => {
                             <span className="text-xs text-gray-500 font-medium">
                               Cant: <span className="font-bold text-gray-900">{pedido.cant_pedido || '-'}</span>
                             </span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
-                              pedido.abonado === true 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                : pedido.abonado === false
-                                  ? 'bg-rose-50 text-rose-700 border-rose-100'
-                                  : 'bg-gray-50 text-gray-700 border-gray-250'
-                            }`}>
-                              {pedido.abonado === true ? 'Abonado' : (pedido.abonado === false ? 'No Abonado' : 'Pendiente Pago')}
-                            </span>
+                            {pedido.abonado === true && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-blue-50 text-blue-700 border-blue-100">
+                                Requiere Abonar
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1214,15 +1210,11 @@ const SeguimientoPedidosPage = () => {
                     {pedido.descripcion_capacidad}
                   </span>
                   <span className="text-[10px] text-gray-500 font-semibold">Cant. Pedida: {pedido.cant_pedido || '-'}</span>
-                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-bold border inline-block ${
-                    pedido.abonado === true 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                      : pedido.abonado === false
-                        ? 'bg-rose-50 text-rose-700 border-rose-100'
-                        : 'bg-gray-50 text-gray-700 border-gray-250'
-                  }`}>
-                    {pedido.abonado === true ? 'Abonado' : (pedido.abonado === false ? 'No Abonado' : 'Pendiente Pago')}
-                  </span>
+                  {pedido.abonado === true && (
+                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-bold border bg-blue-50 text-blue-700 border-blue-100 inline-block">
+                      Requiere Abonar
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] sm:text-xs font-semibold pt-1.5 border-t border-gray-100/50" onClick={(e) => e.stopPropagation()}>
