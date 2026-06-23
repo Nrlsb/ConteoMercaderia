@@ -227,7 +227,8 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 notifType = 'pedido_fecha_confirmada';
                 title = 'Fecha de pedido confirmada';
                 const pedidoVentaStr = pedido.nro_pedido_venta ? ` (Pedido de Venta: ${pedido.nro_pedido_venta})` : '';
-                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
+                const tipoEntrega = pedido.contacto_proveedor_entrega === 'Parcial' ? 'parcial' : 'total';
+                message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para la entrega ${tipoEntrega} del producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
             } else if (actionType === 'set_date_pendiente') {
                 notifType = 'pedido_fecha_pendiente';
                 title = 'Fecha de entrega pendiente asignada';
@@ -238,7 +239,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 title = 'Fecha pendiente de entrega confirmada';
                 const fechaPendienteStr = pedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(pedido.contacto_proveedor_fecha_pendiente) : '';
                 const pedidoVentaStr = pedido.nro_pedido_venta ? ` (Pedido de Venta: ${pedido.nro_pedido_venta})` : '';
-                message = `El usuario ${actorUsername} confirmó la fecha de entrega pendiente (${fechaPendienteStr}) para el producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
+                message = `El usuario ${actorUsername} confirmó la fecha de entrega pendiente (${fechaPendienteStr}) para el resto (entrega parcial pendiente) del producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
             } else if (actionType === 'change_abonado') {
                 notifType = 'pedido_abonado_cambiado';
                 title = 'Estado de pago actualizado';
@@ -345,25 +346,25 @@ exports.getAllPedidos = async (req, res) => {
             (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'))) && !isUserConfiguredAsConfirmDate;
 
         if (!hasManagePermission) {
-            let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
-            
-            if (req.user.sucursal_id) {
-                const { data: sucursal } = await supabase
-                    .from('sucursales')
-                    .select('name')
-                    .eq('id', req.user.sucursal_id)
-                    .single();
-                if (sucursal && sucursal.name) {
-                    const sName = sucursal.name;
-                    filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
-                }
-            }
-
-            query = query.or(filter);
-
-            // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada
             if (isUserConfiguredAsConfirmDate) {
+                // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada (de todo el sistema)
                 query = query.eq('fecha_confirmada', true);
+            } else {
+                let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
+                
+                if (req.user.sucursal_id) {
+                    const { data: sucursal } = await supabase
+                        .from('sucursales')
+                        .select('name')
+                        .eq('id', req.user.sucursal_id)
+                        .single();
+                    if (sucursal && sucursal.name) {
+                        const sName = sucursal.name;
+                        filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
+                    }
+                }
+
+                query = query.or(filter);
             }
         }
 
@@ -1106,25 +1107,25 @@ exports.exportPedidosExcel = async (req, res) => {
             (req.user.permissions && req.user.permissions.includes('manage_seguimiento_pedidos'))) && !isUserConfiguredAsConfirmDate;
 
         if (!hasManagePermission) {
-            let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
-            
-            if (req.user.sucursal_id) {
-                const { data: sucursal } = await supabase
-                    .from('sucursales')
-                    .select('name')
-                    .eq('id', req.user.sucursal_id)
-                    .single();
-                if (sucursal && sucursal.name) {
-                    const sName = sucursal.name;
-                    filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
-                }
-            }
-
-            query = query.or(filter);
-
-            // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada
             if (isUserConfiguredAsConfirmDate) {
+                // Si el usuario actual es el configurado para confirmaciones de fecha, restringir a que solo vea los pedidos cuya fecha esté confirmada (de todo el sistema)
                 query = query.eq('fecha_confirmada', true);
+            } else {
+                let filter = `quien_solicita.ilike.${username},para_quien.ilike.${username},contacto_mercurio.ilike.${username}`;
+                
+                if (req.user.sucursal_id) {
+                    const { data: sucursal } = await supabase
+                        .from('sucursales')
+                        .select('name')
+                        .eq('id', req.user.sucursal_id)
+                        .single();
+                    if (sucursal && sucursal.name) {
+                        const sName = sucursal.name;
+                        filter += `,quien_solicita.ilike.${sName},para_quien.ilike.${sName}`;
+                    }
+                }
+
+                query = query.or(filter);
             }
         }
 
