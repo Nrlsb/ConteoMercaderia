@@ -491,13 +491,22 @@ const SeguimientoPedidosPage = () => {
         newState.entrega_resto_pendiente = false;
       }
 
+      // Si se limpia la fecha de entrega pendiente, vaciar la cantidad pendiente y desmarcar el resto
+      if (name === 'contacto_proveedor_fecha_pendiente' && !value) {
+        newState.contacto_proveedor_cant_pendiente = '';
+        newState.entrega_resto_pendiente = false;
+      }
+
       // Si cambia entrega_resto_pendiente o cantidad parcial o total
       const isResto = name === 'entrega_resto_pendiente' ? (type === 'checkbox' ? checked : value) : newState.entrega_resto_pendiente;
-      if (isResto) {
+      if (isResto && newState.contacto_proveedor_fecha_pendiente) {
         const total = parseFloat(newState.cant_pedido) || 0;
         const parcial = parseFloat(newState.contacto_proveedor_cant_parcial) || 0;
         const restante = Math.max(0, total - parcial);
         newState.contacto_proveedor_cant_pendiente = restante > 0 ? restante : '';
+      } else if (!newState.contacto_proveedor_fecha_pendiente) {
+        newState.contacto_proveedor_cant_pendiente = '';
+        newState.entrega_resto_pendiente = false;
       }
 
       const depFields = [
@@ -658,8 +667,8 @@ const SeguimientoPedidosPage = () => {
       return;
     }
 
-    // Validar Cantidad Pendiente a Entregar si es Parcial
-    if (formData.contacto_proveedor_entrega === 'Parcial' && !formData.contacto_proveedor_cant_pendiente) {
+    // Validar Cantidad Pendiente a Entregar si es Parcial y tiene la fecha de entrega pendiente cargada
+    if (formData.contacto_proveedor_entrega === 'Parcial' && formData.contacto_proveedor_fecha_pendiente && !formData.contacto_proveedor_cant_pendiente) {
       toast.error('Debe ingresar la cantidad restante pendiente de entregar');
       return;
     }
@@ -1889,7 +1898,7 @@ const SeguimientoPedidosPage = () => {
                               <div className="flex flex-col justify-end">
                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">¿Se entrega resto faltante?</label>
                                 <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
-                                  !canEditDepositoFields
+                                  !canEditDepositoFields || !formData.contacto_proveedor_fecha_pendiente
                                     ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                                     : formData.entrega_resto_pendiente
                                       ? 'bg-blue-50 border-blue-200 text-blue-700 cursor-pointer'
@@ -1900,7 +1909,7 @@ const SeguimientoPedidosPage = () => {
                                     name="entrega_resto_pendiente"
                                     checked={formData.entrega_resto_pendiente}
                                     onChange={handleInputChange}
-                                    disabled={!canEditDepositoFields}
+                                    disabled={!canEditDepositoFields || !formData.contacto_proveedor_fecha_pendiente}
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
                                   />
                                   <span>{formData.entrega_resto_pendiente ? 'Sí, entrega resto' : 'No'}</span>
@@ -1908,7 +1917,7 @@ const SeguimientoPedidosPage = () => {
                               </div>
                               <div>
                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
-                                  Cantidad Pendiente {formData.entrega_resto_pendiente && (
+                                  Cantidad Pendiente {formData.entrega_resto_pendiente && formData.contacto_proveedor_fecha_pendiente && (
                                     <span className="text-[10px] text-emerald-650 normal-case font-semibold block mt-0.5 animate-pulse">
                                       (Calculado auto)
                                     </span>
@@ -1918,10 +1927,10 @@ const SeguimientoPedidosPage = () => {
                                   type="number"
                                   step="any"
                                   name="contacto_proveedor_cant_pendiente"
-                                  placeholder="Ej. 5, 20..."
+                                  placeholder={!formData.contacto_proveedor_fecha_pendiente ? "Ingrese la fecha..." : "Ej. 5, 20..."}
                                   value={formData.contacto_proveedor_cant_pendiente}
                                   onChange={handleInputChange}
-                                  disabled={!canEditDepositoFields || formData.entrega_resto_pendiente}
+                                  disabled={!canEditDepositoFields || !formData.contacto_proveedor_fecha_pendiente || formData.entrega_resto_pendiente}
                                   className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
                                 />
                               </div>
