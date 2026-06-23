@@ -613,7 +613,7 @@ exports.updatePedido = async (req, res) => {
                 'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
                 'contacto_proveedor_fecha_original', 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega',
                 'contacto_proveedor_fecha_pendiente', 'contacto_proveedor_cant_parcial', 'fecha_pendiente_confirmada',
-                'entrega_resto_pendiente'
+                'entrega_resto_pendiente', 'contacto_proveedor_cant_pendiente'
             ];
 
             const attemptedChanges = [];
@@ -691,7 +691,7 @@ exports.updatePedido = async (req, res) => {
                 'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
                 'contacto_proveedor_observaciones', 'contacto_proveedor_entrega',
                 'contacto_proveedor_fecha_pendiente', 'contacto_proveedor_cant_parcial', 'fecha_pendiente_confirmada',
-                'entrega_resto_pendiente'
+                'entrega_resto_pendiente', 'contacto_proveedor_cant_pendiente'
             ];
 
             let modifiedField = false;

@@ -108,7 +108,11 @@ const getTrackingHistory = (pedido) => {
     
     let entregaDetalle = '';
     if (pedido.contacto_proveedor_entrega === 'Parcial') {
-      entregaDetalle = ` (Entrega PARCIAL de ${pedido.contacto_proveedor_cant_parcial || 0} de ${pedido.cant_pedido || '-'})`;
+      entregaDetalle = ` (Entrega PARCIAL de ${pedido.contacto_proveedor_cant_parcial || 0} de ${pedido.cant_pedido || '-'}`;
+      if (pedido.contacto_proveedor_cant_pendiente) {
+        entregaDetalle += `, Pendiente: ${pedido.contacto_proveedor_cant_pendiente}`;
+      }
+      entregaDetalle += `)`;
       if (pedido.contacto_proveedor_fecha_pendiente) {
         entregaDetalle += `. Restante pendiente para el ${formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)}`;
       }
@@ -132,6 +136,9 @@ const getTrackingHistory = (pedido) => {
     let entregaDetalle = '';
     if (pedido.contacto_proveedor_entrega === 'Parcial') {
       entregaDetalle = ` para entrega PARCIAL de ${pedido.contacto_proveedor_cant_parcial || 0} de ${pedido.cant_pedido || '-'}`;
+      if (pedido.contacto_proveedor_cant_pendiente) {
+        entregaDetalle += ` (Pendiente: ${pedido.contacto_proveedor_cant_pendiente})`;
+      }
       if (pedido.contacto_proveedor_fecha_pendiente) {
         entregaDetalle += `. Restante pendiente para el ${formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)}`;
       }
@@ -248,6 +255,7 @@ const SeguimientoPedidosPage = () => {
     contacto_proveedor_entrega: '',
     contacto_proveedor_fecha_pendiente: '',
     contacto_proveedor_cant_parcial: '',
+    contacto_proveedor_cant_pendiente: '',
     fecha_pendiente_confirmada: false,
     entrega_resto_pendiente: false,
     estado: 'Pendiente',
@@ -478,15 +486,26 @@ const SeguimientoPedidosPage = () => {
       if (name === 'contacto_proveedor_entrega' && value !== 'Parcial') {
         newState.contacto_proveedor_fecha_pendiente = '';
         newState.contacto_proveedor_cant_parcial = '';
+        newState.contacto_proveedor_cant_pendiente = '';
         newState.fecha_pendiente_confirmada = false;
         newState.entrega_resto_pendiente = false;
+      }
+
+      // Si cambia entrega_resto_pendiente o cantidad parcial o total
+      const isResto = name === 'entrega_resto_pendiente' ? (type === 'checkbox' ? checked : value) : newState.entrega_resto_pendiente;
+      if (isResto) {
+        const total = parseFloat(newState.cant_pedido) || 0;
+        const parcial = parseFloat(newState.contacto_proveedor_cant_parcial) || 0;
+        const restante = Math.max(0, total - parcial);
+        newState.contacto_proveedor_cant_pendiente = restante > 0 ? restante : '';
       }
 
       const depFields = [
         'estado', 'cant_recepcion_parcial', 'recepcion_parcial',
         'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
         'contacto_proveedor_entrega', 'contacto_proveedor_fecha_pendiente',
-        'contacto_proveedor_cant_parcial', 'fecha_pendiente_confirmada', 'entrega_resto_pendiente'
+        'contacto_proveedor_cant_parcial', 'fecha_pendiente_confirmada', 'entrega_resto_pendiente',
+        'contacto_proveedor_cant_pendiente'
       ];
       if (depFields.includes(name) && canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
@@ -578,6 +597,7 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor_entrega: pedido.contacto_proveedor_entrega || '',
       contacto_proveedor_fecha_pendiente: pedido.contacto_proveedor_fecha_pendiente || '',
       contacto_proveedor_cant_parcial: pedido.contacto_proveedor_cant_parcial || '',
+      contacto_proveedor_cant_pendiente: pedido.contacto_proveedor_cant_pendiente || '',
       fecha_pendiente_confirmada: pedido.fecha_pendiente_confirmada || false,
       entrega_resto_pendiente: pedido.entrega_resto_pendiente || false,
       estado: pedido.estado || 'Pendiente',
@@ -635,6 +655,12 @@ const SeguimientoPedidosPage = () => {
     // Validar Cantidad Parcial a Entregar
     if (formData.contacto_proveedor_entrega === 'Parcial' && !formData.contacto_proveedor_cant_parcial) {
       toast.error('Debe ingresar la cantidad que se va a entregar (Entrega Parcial)');
+      return;
+    }
+
+    // Validar Cantidad Pendiente a Entregar si es Parcial
+    if (formData.contacto_proveedor_entrega === 'Parcial' && !formData.contacto_proveedor_cant_pendiente) {
+      toast.error('Debe ingresar la cantidad restante pendiente de entregar');
       return;
     }
 
@@ -696,6 +722,7 @@ const SeguimientoPedidosPage = () => {
       contacto_proveedor_entrega: formData.contacto_proveedor_entrega || '',
       contacto_proveedor_fecha_pendiente: formData.contacto_proveedor_fecha_pendiente || '',
       contacto_proveedor_cant_parcial: formData.contacto_proveedor_cant_parcial ? parseFloat(formData.contacto_proveedor_cant_parcial) : null,
+      contacto_proveedor_cant_pendiente: formData.contacto_proveedor_cant_pendiente ? parseFloat(formData.contacto_proveedor_cant_pendiente) : null,
       fecha_pendiente_confirmada: formData.fecha_pendiente_confirmada || false,
       entrega_resto_pendiente: formData.entrega_resto_pendiente || false,
       estado: formData.estado || 'Pendiente',
@@ -1813,7 +1840,7 @@ const SeguimientoPedidosPage = () => {
                               <span>Mercadería Pendiente</span>
                             </div>
                             
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                               <div>
                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Fecha Entrega Pendiente</label>
                                 <input
@@ -1878,6 +1905,25 @@ const SeguimientoPedidosPage = () => {
                                   />
                                   <span>{formData.entrega_resto_pendiente ? 'Sí, entrega resto' : 'No'}</span>
                                 </label>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
+                                  Cantidad Pendiente {formData.entrega_resto_pendiente && (
+                                    <span className="text-[10px] text-emerald-650 normal-case font-semibold block mt-0.5 animate-pulse">
+                                      (Calculado auto)
+                                    </span>
+                                  )}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  name="contacto_proveedor_cant_pendiente"
+                                  placeholder="Ej. 5, 20..."
+                                  value={formData.contacto_proveedor_cant_pendiente}
+                                  onChange={handleInputChange}
+                                  disabled={!canEditDepositoFields || formData.entrega_resto_pendiente}
+                                  className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
+                                />
                               </div>
                             </div>
                           </div>
@@ -2220,6 +2266,15 @@ const SeguimientoPedidosPage = () => {
                               <span className="text-xs text-gray-400 block mb-0.5">Cant. a Entregar:</span>
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                                 {viewingPedido.contacto_proveedor_cant_parcial}
+                              </span>
+                            </div>
+                          )}
+
+                          {viewingPedido.contacto_proveedor_entrega === 'Parcial' && viewingPedido.contacto_proveedor_cant_pendiente && (
+                            <div>
+                              <span className="text-xs text-gray-400 block mb-0.5">Cant. Pendiente:</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                {viewingPedido.contacto_proveedor_cant_pendiente}
                               </span>
                             </div>
                           )}
