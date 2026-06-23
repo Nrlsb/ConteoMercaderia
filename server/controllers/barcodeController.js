@@ -4,7 +4,7 @@ const path = require('path');
 const { getAllBarcodeHistory } = require('../utils/dbHelpers');
 
 exports.getBarcodeHistory = async (req, res) => {
-    const { startDate, endDate, user_id, action_type, productCode, page = 1, limit = 50, unique } = req.query;
+    const { startDate, endDate, user_id, action_type, productCode, page = 1, limit = 50, unique, cursor } = req.query;
     try {
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
@@ -81,7 +81,7 @@ exports.getBarcodeHistory = async (req, res) => {
             query = query.lte('created_at', endStr);
         }
 
-        let finalData, finalCount, finalTotalPages;
+        let finalData, finalCount, finalTotalPages, nextCursor = null;
 
         if (unique === 'true') {
             // Fetch a larger set to ensure we have enough unique items for the current filters
@@ -100,13 +100,31 @@ exports.getBarcodeHistory = async (req, res) => {
             finalCount = uniqueList.length;
             finalTotalPages = Math.ceil(finalCount / limitNum);
             finalData = uniqueList.slice(from, to + 1);
+        } else if (cursor) {
+            // Paginación por cursor (súper rápida para volumen alto)
+            query = query.lt('created_at', cursor);
+            const { data: history, count, error } = await query
+                .order('created_at', { ascending: false })
+                .limit(limitNum);
+            if (error) throw error;
+
+            finalData = history || [];
+            finalCount = count;
+            finalTotalPages = count ? Math.ceil(count / limitNum) : 1;
+            if (finalData.length === limitNum) {
+                nextCursor = finalData[finalData.length - 1].created_at;
+            }
         } else {
+            // Paginación por offset tradicional
             const { data: history, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
             if (error) throw error;
 
-            finalData = history;
+            finalData = history || [];
             finalCount = count;
             finalTotalPages = Math.ceil((count || 0) / limitNum);
+            if (finalData.length === limitNum) {
+                nextCursor = finalData[finalData.length - 1].created_at;
+            }
         }
 
         // Logic for including surrounding context (3 items before and 3 items after)
@@ -200,7 +218,8 @@ exports.getBarcodeHistory = async (req, res) => {
             total: finalCount,
             page: pageNum,
             limit: limitNum,
-            totalPages: finalTotalPages
+            totalPages: finalTotalPages,
+            nextCursor
         });
     } catch (error) {
         console.error('Error fetching barcode history:', {
@@ -209,7 +228,7 @@ exports.getBarcodeHistory = async (req, res) => {
             details: error.details,
             hint: error.hint,
             code: error.code,
-            params: { startDate, endDate, user_id, action_type, productCode, page, limit, unique }
+            params: { startDate, endDate, user_id, action_type, productCode, page, limit, unique, cursor }
         });
         res.status(500).json({ 
             message: 'Error al obtener el historial de códigos', 
