@@ -244,6 +244,24 @@ const SeguimientoPedidosPage = () => {
 
   const confirmStatus = getConfirmacionStatus();
 
+  const getConfirmacionPendienteStatus = () => {
+    if (!formData.contacto_proveedor_fecha_pendiente) {
+      return { disabled: true, reason: 'Debe ingresar una fecha pendiente antes de poder confirmarla' };
+    }
+    if (!canEditDepositoFields) {
+      return { disabled: true, reason: 'No tienes permisos de depósito para confirmar la fecha' };
+    }
+    
+    const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha_pendiente + 'T00:00:00'));
+    if (workingDays > 3) {
+      return { disabled: true, reason: `Solo se puede confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles)` };
+    }
+    
+    return { disabled: false, reason: '' };
+  };
+
+  const confirmPendienteStatus = getConfirmacionPendienteStatus();
+
   // Cargar Pedidos
   const fetchPedidos = async () => {
     setLoading(true);
@@ -558,6 +576,20 @@ const SeguimientoPedidosPage = () => {
         }
       } else {
         toast.error('Debe ingresar una fecha antes de poder confirmarla');
+        return;
+      }
+    }
+
+    // Validar Confirmación de Fecha Pendiente de Entrega (3 días hábiles antes)
+    if (formData.fecha_pendiente_confirmada === true) {
+      if (formData.contacto_proveedor_fecha_pendiente) {
+        const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha_pendiente + 'T00:00:00'));
+        if (workingDays > 3) {
+          toast.error(`No se puede confirmar la fecha pendiente todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).`);
+          return;
+        }
+      } else {
+        toast.error('Debe ingresar una fecha pendiente antes de poder confirmarla');
         return;
       }
     }
@@ -1758,20 +1790,34 @@ const SeguimientoPedidosPage = () => {
                             />
                           </div>
                           <div className="flex flex-col justify-end">
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">¿Fecha Pendiente Confirmada?</label>
+                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
+                              ¿Fecha Pendiente Confirmada? {confirmPendienteStatus.disabled && formData.contacto_proveedor_fecha_pendiente && canEditDepositoFields && (
+                                <span className="text-[10px] text-rose-500 normal-case font-semibold block mt-0.5 animate-pulse">
+                                  (Sólo 3 días hábiles antes)
+                                </span>
+                              )}
+                            </label>
                             <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
-                              !canEditDepositoFields
+                              confirmPendienteStatus.disabled
                                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                                 : formData.fecha_pendiente_confirmada
                                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-pointer'
                                   : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
-                            }`}>
+                            }`}
+                            title={confirmPendienteStatus.reason}
+                            >
                               <input
                                 type="checkbox"
                                 name="fecha_pendiente_confirmada"
                                 checked={formData.fecha_pendiente_confirmada}
-                                onChange={handleInputChange}
-                                disabled={!canEditDepositoFields}
+                                onChange={(e) => {
+                                  if (confirmPendienteStatus.disabled) {
+                                    toast.error(confirmPendienteStatus.reason);
+                                  } else {
+                                    handleInputChange(e);
+                                  }
+                                }}
+                                disabled={confirmPendienteStatus.disabled}
                                 className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
                               />
                               <span>{formData.fecha_pendiente_confirmada ? 'Confirmada' : 'Confirmar'}</span>

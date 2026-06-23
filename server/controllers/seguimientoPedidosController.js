@@ -132,8 +132,8 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
         if (actorSucursalName === 'deposito') {
             // Si el actor es de la sucursal depósito, la notificación sólo le llega al destinatario ('para_quien')
             addIfValid(pedido.para_quien);
-            // Si el usuario de depósito confirma la fecha de entrega, notificar al configurado
-            if (actionType === 'confirm_date') {
+            // Si el usuario de depósito confirma la fecha de entrega o la fecha pendiente, notificar al configurado
+            if (actionType === 'confirm_date' || actionType === 'confirm_date_pendiente') {
                 addIfValid(notifyUserOnConfirmDate);
             }
         } else {
@@ -150,7 +150,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
             }
 
             // Si por alguna razón otro rol (como superadmin) confirma la fecha, también notificar
-            if (actionType === 'confirm_date') {
+            if (actionType === 'confirm_date' || actionType === 'confirm_date_pendiente') {
                 addIfValid(notifyUserOnConfirmDate);
             }
         }
@@ -228,6 +228,17 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 title = 'Fecha de pedido confirmada';
                 const pedidoVentaStr = pedido.nro_pedido_venta ? ` (Pedido de Venta: ${pedido.nro_pedido_venta})` : '';
                 message = `El usuario ${actorUsername} confirmó la fecha de ingreso (${fechaStr}) para el producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
+            } else if (actionType === 'set_date_pendiente') {
+                notifType = 'pedido_fecha_pendiente';
+                title = 'Fecha de entrega pendiente asignada';
+                const fechaPendienteStr = pedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(pedido.contacto_proveedor_fecha_pendiente) : '';
+                message = `El pedido de ${proveedor} (${productoDesc}) tiene una fecha de entrega pendiente programada para el ${fechaPendienteStr} (cargado por ${actorUsername}).`;
+            } else if (actionType === 'confirm_date_pendiente') {
+                notifType = 'pedido_fecha_pendiente_confirmada';
+                title = 'Fecha pendiente de entrega confirmada';
+                const fechaPendienteStr = pedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(pedido.contacto_proveedor_fecha_pendiente) : '';
+                const pedidoVentaStr = pedido.nro_pedido_venta ? ` (Pedido de Venta: ${pedido.nro_pedido_venta})` : '';
+                message = `El usuario ${actorUsername} confirmó la fecha de entrega pendiente (${fechaPendienteStr}) para el producto ${productoDesc} de ${proveedor}${pedidoVentaStr}.`;
             } else if (actionType === 'change_abonado') {
                 notifType = 'pedido_abonado_cambiado';
                 title = 'Estado de pago actualizado';
@@ -529,6 +540,21 @@ exports.updatePedido = async (req, res) => {
                 }
             }
 
+            // Validar que la confirmación de fecha pendiente sólo se permita hasta 3 días hábiles antes
+            if (req.body.fecha_pendiente_confirmada === true) {
+                const fechaPendiente = req.body.contacto_proveedor_fecha_pendiente || currentPedido.contacto_proveedor_fecha_pendiente;
+                if (fechaPendiente) {
+                    const workingDays = getWorkingDaysRemaining(fechaPendiente);
+                    if (workingDays > 3) {
+                        return res.status(400).json({ 
+                            message: `No se puede confirmar la fecha pendiente todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).` 
+                        });
+                    }
+                } else {
+                    return res.status(400).json({ message: 'Debe ingresar una fecha de entrega pendiente antes de poder confirmarla.' });
+                }
+            }
+
             // Si el usuario es de Gerencia y el pedido tiene comprobante cargado, pasa automáticamente a estado 'Abonado'
             if (userSucursalName === 'gerencia') {
                 const hasImgs = hasImagenes(currentPedido) || hasImagenes(req.body);
@@ -683,11 +709,16 @@ exports.updatePedido = async (req, res) => {
 
         if (currentPedido) {
             const dateChanged = req.body.contacto_proveedor_fecha !== undefined && req.body.contacto_proveedor_fecha !== currentPedido.contacto_proveedor_fecha;
+            const datePendienteChanged = req.body.contacto_proveedor_fecha_pendiente !== undefined && req.body.contacto_proveedor_fecha_pendiente !== currentPedido.contacto_proveedor_fecha_pendiente;
             const contactChanged = req.body.contacto_mercurio !== undefined && req.body.contacto_mercurio !== currentPedido.contacto_mercurio;
             const abonadoChanged = req.body.abonado !== undefined && req.body.abonado !== currentPedido.abonado;
             
             if (dateChanged || contactChanged) {
                 req.body.notif_confirmacion_enviada = false;
+            }
+
+            if (datePendienteChanged) {
+                req.body.fecha_pendiente_confirmada = false;
             }
 
             if (dateChanged) {
@@ -697,11 +728,18 @@ exports.updatePedido = async (req, res) => {
                 if (req.body.contacto_proveedor_fecha) {
                     actionType = 'set_date';
                 }
+            } else if (datePendienteChanged) {
+                if (req.body.contacto_proveedor_fecha_pendiente) {
+                    actionType = 'set_date_pendiente';
+                }
             } else {
                 // Si la fecha no cambió, verificamos si se confirmó justo ahora
                 const confirmedChanged = req.body.fecha_confirmada === true && !currentPedido.fecha_confirmada;
+                const confirmedPendienteChanged = req.body.fecha_pendiente_confirmada === true && !currentPedido.fecha_pendiente_confirmada;
                 if (confirmedChanged) {
                     actionType = 'confirm_date';
+                } else if (confirmedPendienteChanged) {
+                    actionType = 'confirm_date_pendiente';
                 } else if (abonadoChanged) {
                     actionType = 'change_abonado';
                 }
