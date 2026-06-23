@@ -1353,56 +1353,125 @@ exports.uploadImagenes = async (req, res) => {
 
         if (updateError) throw updateError;
 
-        // 6. Notificar a los usuarios de Compras
+        // 6. Notificar a los usuarios de Compras y al usuario de Depósito/Destinatario del pedido
         try {
-            // Obtener el id de la sucursal 'Compras'
-            const { data: sucursalCompras } = await supabase
-                .from('sucursales')
-                .select('id')
-                .ilike('name', 'compras')
-                .single();
+            const usernamesToNotify = new Set();
+            const actorNormalized = req.user.username ? req.user.username.trim().toLowerCase() : '';
 
-            if (sucursalCompras) {
-                const { data: comprasUsers } = await supabase
-                    .from('users')
-                    .select('id, username, sucursal_id')
-                    .eq('sucursal_id', sucursalCompras.id);
-
-                if (comprasUsers && comprasUsers.length > 0) {
-                    const notifications = comprasUsers
-                        .filter(u => u.username.toLowerCase() !== req.user.username.toLowerCase())
-                        .map(user => ({
-                            user_id: user.id,
-                            title: 'Comprobante de pago subido',
-                            message: `El usuario ${req.user.username} subió ${newUrls.length} imagen/es al pedido de ${pedido.proveedor_marca || 'Proveedor'} (${pedido.descripcion_capacidad || 'Producto'}).`,
-                            type: 'pedido_comprobante_subido',
-                            pedido_id: pedido.id,
-                            read: false
-                        }));
-
-                    if (notifications.length > 0) {
-                        await supabase.from('notifications').insert(notifications);
-                        
-                        // Enviar push notification
-                        const userIds = notifications.map(n => n.user_id);
-                        const { data: tokenRecords } = await supabase
-                            .from('user_fcm_tokens')
-                            .select('token')
-                            .in('user_id', userIds);
-
-                        if (tokenRecords && tokenRecords.length > 0) {
-                            const tokens = tokenRecords.map(t => t.token);
-                            await firebase.sendPushNotification(
-                                tokens,
-                                'Comprobante de pago subido',
-                                `Se subieron comprobantes al pedido de ${pedido.proveedor_marca || 'Proveedor'}.`,
-                                {
-                                    pedido_id: String(pedido.id),
-                                    type: 'pedido_comprobante_subido'
-                                }
-                            );
-                        }
+            const addIfValid = (username) => {
+                if (username && typeof username === 'string') {
+                    const trimmed = username.trim();
+                    if (trimmed && trimmed.toLowerCase() !== actorNormalized) {
+                        usernamesToNotify.add(trimmed);
                     }
+                }
+            };
+
+            // Notificar al destinatario y al solicitante
+            addIfValid(pedido.para_quien);
+            addIfValid(pedido.quien_solicita);
+
+            // Obtener configuración de notificaciones para traer al usuario de Depósito (notifyUserOnNo)
+            let notifyUserOnNo = '';
+            try {
+                const { data: settingsData } = await supabase
+                    .from('app_settings')
+                    .select('value')
+                    .eq('key', 'seguimiento_pedidos_notifications')
+                    .single();
+
+                if (settingsData && settingsData.value) {
+                    notifyUserOnNo = settingsData.value.notifyUserOnNo || '';
+                }
+            } catch (settingsErr) {
+                console.error('Error fetching settings in uploadImagenes:', settingsErr);
+            }
+
+            // Notificar al usuario de depósito configurado
+            addIfValid(notifyUserOnNo);
+
+            // Obtener todos los usuarios de la sucursal 'Compras'
+            const usersToNotify = [];
+            try {
+                const { data: sucursalCompras } = await supabase
+                    .from('sucursales')
+                    .select('id')
+                    .ilike('name', 'compras')
+                    .single();
+
+                if (sucursalCompras) {
+                    const { data: comprasUsers } = await supabase
+                        .from('users')
+                        .select('id, username')
+                        .eq('sucursal_id', sucursalCompras.id);
+
+                    if (comprasUsers && comprasUsers.length > 0) {
+                        comprasUsers.forEach(u => {
+                            if (u.username && u.username.toLowerCase() !== actorNormalized) {
+                                usersToNotify.push({ id: u.id, username: u.username });
+                            }
+                        });
+                    }
+                }
+            } catch (comprasErr) {
+                console.error('Error fetching compras users in uploadImagenes:', comprasErr);
+            }
+
+            // Buscar los IDs de los otros usuarios configurados
+            if (usernamesToNotify.size > 0) {
+                const orFilter = Array.from(usernamesToNotify)
+                    .map(username => `username.ilike.${username}`)
+                    .join(',');
+
+                try {
+                    const { data: otherUsers } = await supabase
+                        .from('users')
+                        .select('id, username')
+                        .or(orFilter);
+
+                    if (otherUsers && otherUsers.length > 0) {
+                        otherUsers.forEach(ou => {
+                            // Evitar duplicados con los de Compras
+                            if (!usersToNotify.some(u => u.id === ou.id)) {
+                                usersToNotify.push({ id: ou.id, username: ou.username });
+                            }
+                        });
+                    }
+                } catch (usersErr) {
+                    console.error('Error fetching additional users to notify in uploadImagenes:', usersErr);
+                }
+            }
+
+            if (usersToNotify.length > 0) {
+                const notifications = usersToNotify.map(user => ({
+                    user_id: user.id,
+                    title: 'Comprobante de pago subido',
+                    message: `El usuario ${req.user.username} subió ${newUrls.length} imagen/es al pedido de ${pedido.proveedor_marca || 'Proveedor'} (${pedido.descripcion_capacidad || 'Producto'}).`,
+                    type: 'pedido_comprobante_subido',
+                    pedido_id: pedido.id,
+                    read: false
+                }));
+
+                await supabase.from('notifications').insert(notifications);
+
+                // Enviar push notification
+                const userIds = notifications.map(n => n.user_id);
+                const { data: tokenRecords } = await supabase
+                    .from('user_fcm_tokens')
+                    .select('token')
+                    .in('user_id', userIds);
+
+                if (tokenRecords && tokenRecords.length > 0) {
+                    const tokens = tokenRecords.map(t => t.token);
+                    await firebase.sendPushNotification(
+                        tokens,
+                        'Comprobante de pago subido',
+                        `Se subieron comprobantes al pedido de ${pedido.proveedor_marca || 'Proveedor'}.`,
+                        {
+                            pedido_id: String(pedido.id),
+                            type: 'pedido_comprobante_subido'
+                        }
+                    );
                 }
             }
         } catch (notifErr) {
