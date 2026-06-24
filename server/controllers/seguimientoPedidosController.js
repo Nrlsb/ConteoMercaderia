@@ -225,7 +225,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType, oldPe
                 message = `El pedido de ${proveedor} (${productoDesc}) ya tiene fecha de ingreso programada para el ${fechaStr} (cargado por ${actorUsername})${abonadoStr}.`;
             } else if (actionType === 'reschedule_date') {
                 notifType = 'pedido_fecha_reprogramada';
-                title = '📅 Fecha de ingreso reprogramada';
+                title = '⚠️ REPROGRAMACIÓN DE FECHA ⚠️';
                 const oldFechaStr = oldPedido && oldPedido.contacto_proveedor_fecha ? formatLocalDate(oldPedido.contacto_proveedor_fecha) : '-';
                 message = `El pedido de ${proveedor} (${productoDesc}) fue reprogramado para el ${fechaStr} (por ${actorUsername}). Fecha anterior: ${oldFechaStr}.`;
             } else if (actionType === 'confirm_date') {
@@ -241,7 +241,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType, oldPe
                 message = `El pedido de ${proveedor} (${productoDesc}) tiene una fecha de entrega pendiente programada para el ${fechaPendienteStr} (cargado por ${actorUsername}).`;
             } else if (actionType === 'reschedule_date_pendiente') {
                 notifType = 'pedido_fecha_reprogramada';
-                title = '📅 Fecha pendiente reprogramada';
+                title = '⚠️ FECHA PENDIENTE REPROGRAMADA ⚠️';
                 const oldFechaPendienteStr = oldPedido && oldPedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(oldPedido.contacto_proveedor_fecha_pendiente) : '-';
                 const fechaPendienteStr = pedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(pedido.contacto_proveedor_fecha_pendiente) : '';
                 message = `La fecha de entrega pendiente de ${proveedor} (${productoDesc}) fue reprogramada para el ${fechaPendienteStr} (por ${actorUsername}). Fecha anterior: ${oldFechaPendienteStr}.`;
@@ -257,7 +257,7 @@ async function createOrderNotifications(pedido, actorUsername, actionType, oldPe
                 message = `El pedido de ${proveedor} (${productoDesc}) fue marcado como ${pedido.abonado ? 'ABONADO' : 'NO ABONADO'} por ${actorUsername}.`;
             } else if (actionType === 'cancel_order') {
                 notifType = 'pedido_anulado';
-                title = '🚨 Pedido ANULADO';
+                title = '🚨 PEDIDO ANULADO 🚨';
                 message = `El pedido de ${proveedor} (${productoDesc}) fue ANULADO por el usuario ${actorUsername}.`;
             } else {
                 title = 'Pedido actualizado';

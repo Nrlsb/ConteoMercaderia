@@ -52,6 +52,8 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
     const uniqueTokens = [...new Set(tokens.filter(t => !!t))];
     if (uniqueTokens.length === 0) return { success: true, sentCount: 0 };
 
+    const isRedAlert = data.type === 'pedido_anulado' || data.type === 'pedido_fecha_reprogramada';
+
     const message = {
         notification: {
             title: title,
@@ -60,6 +62,22 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
         data: {
             ...data,
             click_action: 'FLUTTER_NOTIFICATION_CLICK', // O Capacitor standard click handlers
+        },
+        android: {
+            priority: isRedAlert ? 'high' : 'normal',
+            notification: {
+                color: isRedAlert ? '#DC2626' : '#1D4ED8', // Rojo para alertas, Azul para info
+                notificationPriority: isRedAlert ? 'PRIORITY_HIGH' : 'PRIORITY_DEFAULT',
+                sound: 'default'
+            }
+        },
+        apns: {
+            payload: {
+                aps: {
+                    sound: 'default',
+                    badge: 1
+                }
+            }
         },
         tokens: uniqueTokens
     };
