@@ -224,6 +224,17 @@ const getTrackingHistory = (pedido) => {
     }, getSafeDateObj(pedido.fecha_confirmacion_destinatario || pedido.fecha_ingreso_deposito || pedido.contacto_mercurio_fecha));
   }
 
+  // 7. Pedido anulado
+  if (pedido.estado?.toLowerCase() === 'anulado') {
+    pushEvent({
+      fecha: pedido.updated_at ? formatLocalDate(pedido.updated_at) : (pedido.fecha ? formatLocalDate(pedido.fecha) : '-'),
+      area: 'Compras',
+      historial: 'Pedido anulado',
+      estado: 'ANULADO',
+      completed: true
+    }, getSafeDateObj(pedido.updated_at, pedido.fecha));
+  }
+
   // Ordenar cronológicamente descendente (más recientes arriba)
   history.sort((a, b) => {
     const diff = b.sortDate.getTime() - a.sortDate.getTime();
@@ -937,6 +948,13 @@ const SeguimientoPedidosPage = () => {
   // Badge de Estado
   const getStatusBadge = (estado) => {
     const lower = estado?.toLowerCase() || '';
+    if (lower.includes('anulado')) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100">
+          <X className="w-3.5 h-3.5" /> Anulado
+        </span>
+      );
+    }
     if (lower.includes('recibido') && lower.includes('entregado')) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -966,6 +984,13 @@ const SeguimientoPedidosPage = () => {
   };
 
   const getShipmentStatusBadge = (pedido) => {
+    if (pedido?.estado?.toLowerCase() === 'anulado') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100">
+          <X className="w-3.5 h-3.5" /> Anulado
+        </span>
+      );
+    }
     const history = getTrackingHistory(pedido);
     if (history.length === 0) return getStatusBadge(pedido.estado);
 
@@ -1010,6 +1035,11 @@ const SeguimientoPedidosPage = () => {
         bgClass = 'bg-emerald-100 text-emerald-800 border-emerald-250';
         text = 'En Depósito';
         icon = <CheckCircle2 className="w-3.5 h-3.5" />;
+        break;
+      case 'ANULADO':
+        bgClass = 'bg-rose-50 text-rose-700 border-rose-100';
+        text = 'Anulado';
+        icon = <X className="w-3.5 h-3.5" />;
         break;
       default:
         return getStatusBadge(pedido.estado);
