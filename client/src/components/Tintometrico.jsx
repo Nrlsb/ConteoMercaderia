@@ -18,11 +18,13 @@ import { tintometricoService } from '../utils/tintometricoService';
 import { colorRegistrationsService } from '../utils/colorRegistrationsService';
 import { generateColorPDF } from '../utils/pdfGenerator';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 
 const ITEMS_PER_PAGE = 60;
 
 const Tintometrico = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     // --- Estados de la Aplicación ---
     const [colors, setColors] = useState([]);
@@ -191,7 +193,7 @@ const Tintometrico = () => {
                 color_name: modalColor.nombre,
                 client_name: clientName.trim(),
                 product_id: realProductId,
-                user_id: null,
+                user_id: user?.id || null,
                 color_code: modalColor.codigo,
                 hex: modalColor.hex,
                 observations: observation.trim() || null,

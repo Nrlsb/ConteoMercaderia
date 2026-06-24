@@ -1483,22 +1483,31 @@ const ColorRegistrations = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                            ) : (
-                                                <div className="flex flex-col gap-1.5">
-                                                    <div className="flex gap-2 items-center text-gray-400 italic">
-                                                        <ShoppingBag className="w-4 h-4 shrink-0" />
-                                                        <span>Sin producto especificado</span>
+                                        ) : (
+                                            <div className="flex gap-2 items-start">
+                                                <ShoppingBag className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-bold text-gray-900 leading-tight whitespace-normal break-words">
+                                                        {item.formula?.productName || 'Sin producto especificado'}
                                                     </div>
-                                                    {item.formula?.productName && (
-                                                        <div className="pl-6">
-                                                            <div className="text-[10px] text-indigo-700 font-bold bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                                                                <Palette className="w-3 h-3 text-indigo-500" />
-                                                                <span>Fórmula: {item.formula.productName}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-400 mt-1.5">
+                                                        {item.color_code && (
+                                                            <span className="font-mono">Código: {item.color_code}</span>
+                                                        )}
+                                                        {item.capacity_real && (
+                                                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+                                                                {String(item.capacity_real).replace('.', ',')} Litros
+                                                            </span>
+                                                        )}
+                                                        {item.base && (
+                                                            <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+                                                                Base {item.base}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
 
                                             {/* Client */}
                                             <div className="flex gap-2 items-center">
