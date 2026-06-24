@@ -1072,7 +1072,7 @@ const ColorRegistrations = () => {
                                                 onClick={() => handleSelectProduct(product)}
                                                 className="flex flex-col px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-900 rounded-lg cursor-pointer transition-colors"
                                             >
-                                                <div className="font-bold truncate">{product.description}</div>
+                                                <div className="font-bold whitespace-normal break-words">{product.description}</div>
                                                 <div className="flex justify-between items-center text-[10px] text-gray-400 mt-0.5">
                                                     <span className="font-mono">Código: {product.code}</span>
                                                     {product.brand && (
@@ -1090,7 +1090,7 @@ const ColorRegistrations = () => {
                             {/* Selected Product Preview Card */}
                             {selectedProduct && (
                                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col gap-1.5 animate-pop">
-                                    <div className="text-xs font-bold text-gray-850 truncate leading-tight">{selectedProduct.description}</div>
+                                    <div className="text-xs font-bold text-gray-850 whitespace-normal break-words leading-tight">{selectedProduct.description}</div>
                                     <div className="flex justify-between items-center text-[10px] text-gray-500">
                                         <span className="font-mono">Código: {selectedProduct.code}</span>
                                         {selectedProduct.brand && (
@@ -1453,7 +1453,7 @@ const ColorRegistrations = () => {
                                                 <div className="flex gap-2 items-start">
                                                     <ShoppingBag className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="font-bold text-gray-900 leading-tight truncate">
+                                                        <div className="font-bold text-gray-900 leading-tight whitespace-normal break-words">
                                                             {item.products.description}
                                                         </div>
                                                         {item.formula?.productName && (
