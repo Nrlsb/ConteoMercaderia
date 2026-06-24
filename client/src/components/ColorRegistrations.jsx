@@ -67,6 +67,25 @@ const CONCENTRADOS_PREDEFINIDOS = {
         nombre: 'Sistema Tersuave (Manual)',
         unidad: 'impulsos',
         pigmentos: [
+            { codigo: 'KX', nombre: 'BLANCO (KX)', hex: '#ffffff' },
+            { codigo: 'B', nombre: 'NEGRO (B)', hex: '#212121' },
+            { codigo: 'AXX', nombre: 'AMARILLO (AXX)', hex: '#FFEB3B' },
+            { codigo: 'C', nombre: 'AMARILLO OXIDO (C)', hex: '#F57F17' },
+            { codigo: 'T', nombre: 'AMARILLO MEDIO (T)', hex: '#FFC107' },
+            { codigo: 'L', nombre: 'AMBAR CRUDO (L)', hex: '#FF6F00' },
+            { codigo: 'R', nombre: 'ROJO (R)', hex: '#D50000' },
+            { codigo: 'F', nombre: 'ROJO OXIDO (F)', hex: '#D84315' },
+            { codigo: 'V', nombre: 'MAGENTA (V)', hex: '#E91E63' },
+            { codigo: 'E', nombre: 'AZUL PHTHALO (E)', hex: '#0D47A1' },
+            { codigo: 'D', nombre: 'VERDE PHTHALO (D)', hex: '#2E7D32' },
+            { codigo: 'I', nombre: 'MARRON (I)', hex: '#8d6e63' }
+        ]
+    },
+    sistema_plavicon: {
+        id: 'sistema_plavicon',
+        nombre: 'Sistema Plavicon (Manual)',
+        unidad: 'impulsos',
+        pigmentos: [
             { codigo: 'XT', nombre: 'BLANCO (XT)', hex: '#FFFFFF' },
             { codigo: 'TT', nombre: 'NEGRO (TT)', hex: '#000000' },
             { codigo: 'ZT', nombre: 'AMARILLO LIMON (ZT)', hex: '#FFFF00' },
@@ -83,25 +102,6 @@ const CONCENTRADOS_PREDEFINIDOS = {
             { codigo: 'LS', nombre: 'VERDE (LS)', hex: '#006600' },
             { codigo: 'LT', nombre: 'VERDE (LT)', hex: '#008000' },
             { codigo: 'ST', nombre: 'MARRON (ST)', hex: '#800000' }
-        ]
-    },
-    sistema_plavicon: {
-        id: 'sistema_plavicon',
-        nombre: 'Sistema Plavicon (Manual)',
-        unidad: 'impulsos',
-        pigmentos: [
-            { codigo: 'KX', nombre: 'BLANCO (KX)', hex: '#ffffff' },
-            { codigo: 'B', nombre: 'NEGRO (B)', hex: '#212121' },
-            { codigo: 'AXX', nombre: 'AMARILLO (AXX)', hex: '#FFEB3B' },
-            { codigo: 'C', nombre: 'AMARILLO OXIDO (C)', hex: '#F57F17' },
-            { codigo: 'T', nombre: 'AMARILLO MEDIO (T)', hex: '#FFC107' },
-            { codigo: 'L', nombre: 'AMBAR CRUDO (L)', hex: '#FF6F00' },
-            { codigo: 'R', nombre: 'ROJO (R)', hex: '#D50000' },
-            { codigo: 'F', nombre: 'ROJO OXIDO (F)', hex: '#D84315' },
-            { codigo: 'V', nombre: 'MAGENTA (V)', hex: '#E91E63' },
-            { codigo: 'E', nombre: 'AZUL PHTHALO (E)', hex: '#0D47A1' },
-            { codigo: 'D', nombre: 'VERDE PHTHALO (D)', hex: '#2E7D32' },
-            { codigo: 'I', nombre: 'MARRON (I)', hex: '#8d6e63' }
         ]
     }
 };
