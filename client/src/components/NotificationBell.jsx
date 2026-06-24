@@ -94,45 +94,58 @@ const NotificationBell = () => {
                                 <span className="text-xs font-semibold">No tienes notificaciones</span>
                             </div>
                         ) : (
-                            notifications.map((notif) => (
-                                <div
-                                    key={notif.id}
-                                    onClick={() => handleNotificationClick(notif, () => setIsOpen(false))}
-                                    className={`p-4 flex gap-3 cursor-pointer hover:bg-blue-50/50 transition-all duration-150 relative ${
-                                        !notif.read ? 'bg-blue-50/20 font-medium' : ''
-                                    }`}
-                                >
-                                    {!notif.read && (
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                                    )}
-                                    
-                                    <div className="flex-grow pl-1">
-                                        <div className="flex justify-between items-start">
-                                            <span className={`text-xs font-bold text-gray-800 ${!notif.read ? 'text-blue-900' : ''}`}>
-                                                {notif.title}
-                                            </span>
-                                            <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">
-                                                {new Date(notif.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
+                            notifications.map((notif) => {
+                                const isRedAlert = notif.type === 'pedido_fecha_reprogramada' || notif.type === 'pedido_anulado';
+                                return (
+                                    <div
+                                        key={notif.id}
+                                        onClick={() => handleNotificationClick(notif, () => setIsOpen(false))}
+                                        className={`p-4 flex gap-3 cursor-pointer transition-all duration-150 relative border-l-4 ${
+                                            isRedAlert 
+                                                ? (!notif.read ? 'bg-rose-50/60 hover:bg-rose-100/60 border-rose-500 font-semibold' : 'bg-white hover:bg-rose-50/30 border-rose-300')
+                                                : (!notif.read ? 'bg-blue-50/20 hover:bg-blue-50/50 border-blue-500 font-medium' : 'bg-white hover:bg-gray-50 border-transparent')
+                                        }`}
+                                    >
+                                        {!notif.read && (
+                                            <span className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${
+                                                isRedAlert ? 'bg-rose-600 animate-pulse' : 'bg-blue-600'
+                                            }`}></span>
+                                        )}
+                                        
+                                        <div className="flex-grow pl-1">
+                                            <div className="flex justify-between items-start">
+                                                <span className={`text-xs font-bold ${
+                                                    isRedAlert 
+                                                        ? 'text-rose-800' 
+                                                        : (!notif.read ? 'text-blue-900' : 'text-gray-800')
+                                                }`}>
+                                                    {notif.title}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">
+                                                    {new Date(notif.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            <p className={`text-xs mt-1 leading-relaxed ${
+                                                isRedAlert ? 'text-rose-950 font-medium' : 'text-gray-600'
+                                            }`}>
+                                                {notif.message}
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                                            {notif.message}
-                                        </p>
-                                    </div>
 
-                                    {!notif.read && (
-                                        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                onClick={(e) => handleMarkAsRead(notif.id, e)}
-                                                className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                                title="Marcar como leída"
-                                            >
-                                                <Check className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                              ))
+                                        {!notif.read && (
+                                            <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    onClick={(e) => handleMarkAsRead(notif.id, e)}
+                                                    className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                    title="Marcar como leída"
+                                                >
+                                                    <Check className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
 

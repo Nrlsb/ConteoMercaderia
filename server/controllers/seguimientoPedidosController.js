@@ -71,7 +71,7 @@ async function canUserViewImages(reqUser) {
 }
 
 // Función helper para crear notificaciones asociadas al pedido de manera case-insensitive
-async function createOrderNotifications(pedido, actorUsername, actionType) {
+async function createOrderNotifications(pedido, actorUsername, actionType, oldPedido = null) {
     try {
         const actorNormalized = actorUsername ? actorUsername.trim().toLowerCase() : '';
         const usernamesToNotify = new Set();
@@ -223,6 +223,11 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 notifType = 'pedido_fecha_ingreso';
                 title = 'Pedido con fecha de ingreso';
                 message = `El pedido de ${proveedor} (${productoDesc}) ya tiene fecha de ingreso programada para el ${fechaStr} (cargado por ${actorUsername})${abonadoStr}.`;
+            } else if (actionType === 'reschedule_date') {
+                notifType = 'pedido_fecha_reprogramada';
+                title = '📅 Fecha de ingreso reprogramada';
+                const oldFechaStr = oldPedido && oldPedido.contacto_proveedor_fecha ? formatLocalDate(oldPedido.contacto_proveedor_fecha) : '-';
+                message = `El pedido de ${proveedor} (${productoDesc}) fue reprogramado para el ${fechaStr} (por ${actorUsername}). Fecha anterior: ${oldFechaStr}.`;
             } else if (actionType === 'confirm_date') {
                 notifType = 'pedido_fecha_confirmada';
                 title = 'Fecha de pedido confirmada';
@@ -234,6 +239,12 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 title = 'Fecha de entrega pendiente asignada';
                 const fechaPendienteStr = pedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(pedido.contacto_proveedor_fecha_pendiente) : '';
                 message = `El pedido de ${proveedor} (${productoDesc}) tiene una fecha de entrega pendiente programada para el ${fechaPendienteStr} (cargado por ${actorUsername}).`;
+            } else if (actionType === 'reschedule_date_pendiente') {
+                notifType = 'pedido_fecha_reprogramada';
+                title = '📅 Fecha pendiente reprogramada';
+                const oldFechaPendienteStr = oldPedido && oldPedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(oldPedido.contacto_proveedor_fecha_pendiente) : '-';
+                const fechaPendienteStr = pedido.contacto_proveedor_fecha_pendiente ? formatLocalDate(pedido.contacto_proveedor_fecha_pendiente) : '';
+                message = `La fecha de entrega pendiente de ${proveedor} (${productoDesc}) fue reprogramada para el ${fechaPendienteStr} (por ${actorUsername}). Fecha anterior: ${oldFechaPendienteStr}.`;
             } else if (actionType === 'confirm_date_pendiente') {
                 notifType = 'pedido_fecha_pendiente_confirmada';
                 title = 'Fecha pendiente de entrega confirmada';
@@ -244,6 +255,10 @@ async function createOrderNotifications(pedido, actorUsername, actionType) {
                 notifType = 'pedido_abonado_cambiado';
                 title = 'Estado de pago actualizado';
                 message = `El pedido de ${proveedor} (${productoDesc}) fue marcado como ${pedido.abonado ? 'ABONADO' : 'NO ABONADO'} por ${actorUsername}.`;
+            } else if (actionType === 'cancel_order') {
+                notifType = 'pedido_anulado';
+                title = '🚨 Pedido ANULADO';
+                message = `El pedido de ${proveedor} (${productoDesc}) fue ANULADO por el usuario ${actorUsername}.`;
             } else {
                 title = 'Pedido actualizado';
                 message = `El pedido de ${proveedor} (${productoDesc}) fue actualizado por ${actorUsername}. Estado: ${pedido.estado || 'Pendiente'}${abonadoStr}.`;
@@ -812,16 +827,20 @@ exports.updatePedido = async (req, res) => {
                 req.body.fecha_pendiente_confirmada = false;
             }
 
-            if (dateChanged) {
+            const isAnuladoNow = req.body.estado && req.body.estado.toLowerCase() === 'anulado' && currentPedido.estado?.toLowerCase() !== 'anulado';
+
+            if (isAnuladoNow) {
+                actionType = 'cancel_order';
+            } else if (dateChanged) {
                 // Si la fecha cambia, reseteamos la confirmación previa
                 req.body.fecha_confirmada = false;
                 // Si la nueva fecha no es vacía, notificamos que se cargó/cambió la fecha
                 if (req.body.contacto_proveedor_fecha) {
-                    actionType = 'set_date';
+                    actionType = currentPedido.contacto_proveedor_fecha ? 'reschedule_date' : 'set_date';
                 }
             } else if (datePendienteChanged) {
                 if (req.body.contacto_proveedor_fecha_pendiente) {
-                    actionType = 'set_date_pendiente';
+                    actionType = currentPedido.contacto_proveedor_fecha_pendiente ? 'reschedule_date_pendiente' : 'set_date_pendiente';
                 }
             } else {
                 // Si la fecha no cambió, verificamos si se confirmó justo ahora
@@ -880,7 +899,7 @@ exports.updatePedido = async (req, res) => {
         }
 
         // Crear notificaciones en segundo plano con el tipo correspondiente
-        createOrderNotifications(data, req.user?.username || 'Sistema', actionType);
+        createOrderNotifications(data, req.user?.username || 'Sistema', actionType, currentPedido);
 
         const canView = await canUserViewImages(req.user);
         if (!canView && data) {
