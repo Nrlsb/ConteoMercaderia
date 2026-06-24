@@ -469,6 +469,24 @@ exports.createPedido = async (req, res) => {
 
         if (req.body.contacto_proveedor_fecha) {
             req.body.contacto_proveedor_fecha_original = req.body.contacto_proveedor_fecha;
+            req.body.fecha_coordinacion = new Date().toISOString();
+        }
+
+        if (req.body.abonado === true || req.body.estado?.toLowerCase() === 'abonado') {
+            req.body.fecha_abonado = new Date().toISOString();
+        }
+        if (req.body.contacto_proveedor_fecha_pendiente) {
+            req.body.fecha_coordinacion_pendiente = new Date().toISOString();
+        }
+        if (req.body.fecha_confirmada === true) {
+            req.body.fecha_confirmacion_deposito = new Date().toISOString();
+        }
+        if (req.body.fecha_pendiente_confirmada === true) {
+            req.body.fecha_pendiente_confirmacion_deposito = new Date().toISOString();
+        }
+        const receivedStates = ['recepción parcial', 'recepción total', 'recibido'];
+        if (req.body.estado && receivedStates.includes(req.body.estado.toLowerCase())) {
+            req.body.fecha_ingreso_deposito = new Date().toISOString();
         }
 
         const { data, error } = await supabase
@@ -715,6 +733,72 @@ exports.updatePedido = async (req, res) => {
         let actionType = 'update';
 
         if (currentPedido) {
+            // 1. Coordinacion
+            if (req.body.contacto_proveedor_fecha !== undefined && req.body.contacto_proveedor_fecha !== currentPedido.contacto_proveedor_fecha) {
+                if (req.body.contacto_proveedor_fecha) {
+                    req.body.fecha_coordinacion = new Date().toISOString();
+                } else {
+                    req.body.fecha_coordinacion = null;
+                }
+            }
+
+            // 2. Coordinacion pendiente
+            if (req.body.contacto_proveedor_fecha_pendiente !== undefined && req.body.contacto_proveedor_fecha_pendiente !== currentPedido.contacto_proveedor_fecha_pendiente) {
+                if (req.body.contacto_proveedor_fecha_pendiente) {
+                    req.body.fecha_coordinacion_pendiente = new Date().toISOString();
+                } else {
+                    req.body.fecha_coordinacion_pendiente = null;
+                }
+            }
+
+            // 3. Confirmacion deposito (1ª entrega)
+            if (req.body.fecha_confirmada !== undefined && req.body.fecha_confirmada !== currentPedido.fecha_confirmada) {
+                if (req.body.fecha_confirmada) {
+                    req.body.fecha_confirmacion_deposito = new Date().toISOString();
+                } else {
+                    req.body.fecha_confirmacion_deposito = null;
+                }
+            }
+
+            // 4. Confirmacion deposito pendiente (2ª entrega)
+            if (req.body.fecha_pendiente_confirmada !== undefined && req.body.fecha_pendiente_confirmada !== currentPedido.fecha_pendiente_confirmada) {
+                if (req.body.fecha_pendiente_confirmada) {
+                    req.body.fecha_pendiente_confirmacion_deposito = new Date().toISOString();
+                } else {
+                    req.body.fecha_pendiente_confirmacion_deposito = null;
+                }
+            }
+
+            // 5. Abonado
+            const isAbonadoNow = (req.body.abonado === true && currentPedido.abonado !== true) ||
+                                 (req.body.estado && req.body.estado.toLowerCase() === 'abonado' && currentPedido.estado?.toLowerCase() !== 'abonado');
+            if (isAbonadoNow) {
+                req.body.fecha_abonado = new Date().toISOString();
+            } else {
+                const isNotAbonadoNow = (req.body.abonado === false && currentPedido.abonado === true) ||
+                                        (req.body.estado && req.body.estado.toLowerCase() !== 'abonado' && currentPedido.estado?.toLowerCase() === 'abonado');
+                if (isNotAbonadoNow) {
+                    const finalAbonado = req.body.abonado !== undefined ? req.body.abonado : currentPedido.abonado;
+                    const finalEstado = req.body.estado !== undefined ? req.body.estado : currentPedido.estado;
+                    if (finalAbonado !== true && finalEstado?.toLowerCase() !== 'abonado') {
+                        req.body.fecha_abonado = null;
+                    }
+                }
+            }
+
+            // 6. Ingreso deposito
+            const receivedStates = ['recepción parcial', 'recepción total', 'recibido'];
+            const isReceivedNow = req.body.estado &&
+                                  receivedStates.includes(req.body.estado.toLowerCase()) &&
+                                  !receivedStates.includes(currentPedido.estado?.toLowerCase());
+            if (isReceivedNow) {
+                req.body.fecha_ingreso_deposito = new Date().toISOString();
+            } else if (req.body.estado &&
+                       !receivedStates.includes(req.body.estado.toLowerCase()) &&
+                       receivedStates.includes(currentPedido.estado?.toLowerCase())) {
+                req.body.fecha_ingreso_deposito = null;
+            }
+
             const dateChanged = req.body.contacto_proveedor_fecha !== undefined && req.body.contacto_proveedor_fecha !== currentPedido.contacto_proveedor_fecha;
             const datePendienteChanged = req.body.contacto_proveedor_fecha_pendiente !== undefined && req.body.contacto_proveedor_fecha_pendiente !== currentPedido.contacto_proveedor_fecha_pendiente;
             const contactChanged = req.body.contacto_mercurio !== undefined && req.body.contacto_mercurio !== currentPedido.contacto_mercurio;

@@ -83,9 +83,9 @@ const getTrackingHistory = (pedido) => {
   // 2. Proceso de abonar (Gerencia)
   if (pedido.abonado === true) {
     history.push({
-      fecha: hasImgs && pedido.updated_at 
-        ? new Date(pedido.updated_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
-        : (hasImgs ? '-' : 'En proceso'),
+      fecha: hasImgs
+        ? (pedido.fecha_abonado ? formatLocalDate(pedido.fecha_abonado) : (pedido.updated_at ? formatLocalDate(pedido.updated_at) : '-'))
+        : 'En proceso',
       area: 'Gerencia',
       historial: hasImgs 
         ? 'Pedido abonado por Gerencia' 
@@ -100,9 +100,9 @@ const getTrackingHistory = (pedido) => {
   if (isPaidOrNoAbonar) {
     const hasFecha = !!pedido.contacto_proveedor_fecha;
     history.push({
-      fecha: hasFecha && pedido.contacto_mercurio_fecha
-        ? formatLocalDate(pedido.contacto_mercurio_fecha)
-        : (hasFecha ? '-' : 'En proceso'),
+      fecha: hasFecha
+        ? (pedido.fecha_coordinacion ? formatLocalDate(pedido.fecha_coordinacion) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : '-'))
+        : 'En proceso',
       area: 'Depósito',
       historial: hasFecha 
         ? 'Coordinación de fecha finalizada' 
@@ -125,7 +125,7 @@ const getTrackingHistory = (pedido) => {
     }
 
     history.push({
-      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaEntrega,
+      fecha: pedido.fecha_coordinacion ? formatLocalDate(pedido.fecha_coordinacion) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaEntrega),
       area: 'Proveedor',
       historial: isConfirmada 
         ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega}${entregaDetalle}` 
@@ -140,7 +140,7 @@ const getTrackingHistory = (pedido) => {
     const isPendienteConfirmada = !!pedido.fecha_pendiente_confirmada;
     const formattedFechaPendiente = formatLocalDate(pedido.contacto_proveedor_fecha_pendiente);
     history.push({
-      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaPendiente,
+      fecha: pedido.fecha_coordinacion_pendiente ? formatLocalDate(pedido.fecha_coordinacion_pendiente) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaPendiente),
       area: 'Proveedor',
       historial: isPendienteConfirmada
         ? `Fecha de ingreso confirmada para el ${formattedFechaPendiente} para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`
@@ -160,7 +160,7 @@ const getTrackingHistory = (pedido) => {
     }
 
     history.push({
-      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha),
+      fecha: pedido.fecha_confirmacion_deposito ? formatLocalDate(pedido.fecha_confirmacion_deposito) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha)),
       area: 'Depósito',
       historial: `Se confirma la fecha de ingreso${entregaDetalle}`,
       estado: 'FECHA CONFIRMADA',
@@ -171,7 +171,7 @@ const getTrackingHistory = (pedido) => {
   // 5b. Fecha de ingreso confirmada en Depósito para la entrega de mercadería pendiente (2ª Entrega)
   if (pedido.contacto_proveedor_entrega === 'Parcial' && pedido.contacto_proveedor_fecha_pendiente && pedido.fecha_pendiente_confirmada) {
     history.push({
-      fecha: pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha_pendiente),
+      fecha: pedido.fecha_pendiente_confirmacion_deposito ? formatLocalDate(pedido.fecha_pendiente_confirmacion_deposito) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)),
       area: 'Depósito',
       historial: `Se confirma la fecha de ingreso para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`,
       estado: 'FECHA CONFIRMADA',
@@ -184,7 +184,9 @@ const getTrackingHistory = (pedido) => {
   if (isIngresado) {
     const receivingDate = pedido.fecha_confirmacion_destinatario 
       ? formatLocalDate(pedido.fecha_confirmacion_destinatario) 
-      : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : '-');
+      : (pedido.fecha_ingreso_deposito 
+          ? formatLocalDate(pedido.fecha_ingreso_deposito) 
+          : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : '-'));
     
     let recepcionDetalle = '';
     const lowerEstado = pedido.estado?.toLowerCase() || '';
