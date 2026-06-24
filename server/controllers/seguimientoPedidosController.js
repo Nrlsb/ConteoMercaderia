@@ -502,11 +502,21 @@ exports.createPedido = async (req, res) => {
                 req.body.contacto_proveedor_fecha = entregas[0].fecha || null;
                 req.body.contacto_proveedor_cant_parcial = entregas[0].cantidad || null;
                 req.body.fecha_confirmada = entregas[0].confirmada || false;
+            } else {
+                req.body.contacto_proveedor_fecha = null;
+                req.body.contacto_proveedor_cant_parcial = null;
+                req.body.fecha_confirmada = false;
             }
-            if (entregas[1]) {
-                req.body.contacto_proveedor_fecha_pendiente = entregas[1].fecha || null;
-                req.body.contacto_proveedor_cant_pendiente = entregas[1].cantidad || null;
-                req.body.fecha_pendiente_confirmada = entregas[1].confirmada || false;
+            const subsequent = entregas.slice(1);
+            if (subsequent.length > 0) {
+                req.body.contacto_proveedor_fecha_pendiente = subsequent[0].fecha || null;
+                const sumSubsequent = subsequent.reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+                req.body.contacto_proveedor_cant_pendiente = sumSubsequent || null;
+                req.body.fecha_pendiente_confirmada = subsequent.every(item => !!item.confirmada);
+            } else {
+                req.body.contacto_proveedor_fecha_pendiente = null;
+                req.body.contacto_proveedor_cant_pendiente = null;
+                req.body.fecha_pendiente_confirmada = false;
             }
         }
 
@@ -634,10 +644,12 @@ exports.updatePedido = async (req, res) => {
                     req.body.contacto_proveedor_cant_parcial = null;
                     req.body.fecha_confirmada = false;
                 }
-                if (entregas[1]) {
-                    req.body.contacto_proveedor_fecha_pendiente = entregas[1].fecha || null;
-                    req.body.contacto_proveedor_cant_pendiente = entregas[1].cantidad || null;
-                    req.body.fecha_pendiente_confirmada = entregas[1].confirmada || false;
+                const subsequent = entregas.slice(1);
+                if (subsequent.length > 0) {
+                    req.body.contacto_proveedor_fecha_pendiente = subsequent[0].fecha || null;
+                    const sumSubsequent = subsequent.reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+                    req.body.contacto_proveedor_cant_pendiente = sumSubsequent || null;
+                    req.body.fecha_pendiente_confirmada = subsequent.every(item => !!item.confirmada);
                 } else {
                     req.body.contacto_proveedor_fecha_pendiente = null;
                     req.body.contacto_proveedor_cant_pendiente = null;

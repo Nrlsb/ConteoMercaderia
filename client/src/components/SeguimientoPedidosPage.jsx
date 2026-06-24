@@ -412,18 +412,58 @@ const SeguimientoPedidosPage = () => {
     return { disabled: false, reason: '' };
   };
 
+  const getSyncState = (entregas) => {
+    let flat_fecha = '';
+    let flat_cant_parcial = '';
+    let flat_fecha_confirmada = false;
+    let flat_fecha_pendiente = '';
+    let flat_cant_pendiente = '';
+    let flat_fecha_pendiente_confirmada = false;
+
+    if (entregas && entregas.length > 0) {
+      const e0 = entregas[0];
+      if (e0) {
+        flat_fecha = e0.fecha || '';
+        flat_cant_parcial = e0.cantidad !== undefined && e0.cantidad !== null ? e0.cantidad : '';
+        flat_fecha_confirmada = !!e0.confirmada;
+      }
+      
+      const subsequent = entregas.slice(1);
+      if (subsequent.length > 0) {
+        flat_fecha_pendiente = subsequent[0].fecha || '';
+        const sumSubsequent = subsequent.reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+        flat_cant_pendiente = sumSubsequent > 0 ? sumSubsequent : '';
+        flat_fecha_pendiente_confirmada = subsequent.every(item => !!item.confirmada);
+      }
+    }
+
+    return {
+      contacto_proveedor_fecha: flat_fecha,
+      contacto_proveedor_cant_parcial: flat_cant_parcial,
+      fecha_confirmada: flat_fecha_confirmada,
+      contacto_proveedor_fecha_pendiente: flat_fecha_pendiente,
+      contacto_proveedor_cant_pendiente: flat_cant_pendiente,
+      fecha_pendiente_confirmada: flat_fecha_pendiente_confirmada
+    };
+  };
+
   const handleAddEntregaParcial = () => {
     const totalPedido = parseFloat(formData.cant_pedido) || 0;
-    const totalAsignado = (formData.entregas_parciales || []).reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+    const totalAsignado = (formData.entregas_parciales || [])
+      .filter(item => !!item.fecha)
+      .reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
     const restante = Math.max(0, totalPedido - totalAsignado);
     
     setFormData(prev => {
+      const list = [
+        ...(prev.entregas_parciales || []),
+        { fecha: '', cantidad: restante > 0 ? restante : '', confirmada: false }
+      ];
+      const syncFields = getSyncState(list);
       const newState = {
         ...prev,
-        entregas_parciales: [
-          ...(prev.entregas_parciales || []),
-          { fecha: '', cantidad: restante > 0 ? restante : '', confirmada: false }
-        ]
+        entregas_parciales: list,
+        ...syncFields
       };
       if (canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
@@ -437,9 +477,11 @@ const SeguimientoPedidosPage = () => {
     setFormData(prev => {
       const list = [...(prev.entregas_parciales || [])];
       list.splice(index, 1);
+      const syncFields = getSyncState(list);
       const newState = {
         ...prev,
-        entregas_parciales: list
+        entregas_parciales: list,
+        ...syncFields
       };
       if (canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
@@ -456,9 +498,11 @@ const SeguimientoPedidosPage = () => {
         ...list[index],
         [field]: value
       };
+      const syncFields = getSyncState(list);
       const newState = {
         ...prev,
-        entregas_parciales: list
+        entregas_parciales: list,
+        ...syncFields
       };
       if (canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
@@ -2084,7 +2128,9 @@ const SeguimientoPedidosPage = () => {
                           {/* Resumen de Cantidades */}
                           {(() => {
                             const totalPedido = parseFloat(formData.cant_pedido) || 0;
-                            const totalAsignado = (formData.entregas_parciales || []).reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+                            const totalAsignado = (formData.entregas_parciales || [])
+                              .filter(item => !!item.fecha)
+                              .reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
                             const pendiente = totalPedido - totalAsignado;
                             
                             return (
@@ -2283,25 +2329,44 @@ const SeguimientoPedidosPage = () => {
                             className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
                           />
                         </div>
-                        {canEditDepositoFields && (formData.contacto_proveedor_cant_parcial || formData.contacto_proveedor_cant_pendiente) && (
+                        {canEditDepositoFields && (
                           <div className="flex flex-wrap gap-2 pt-0.5">
-                            {formData.contacto_proveedor_cant_parcial && (
-                              <button
-                                type="button"
-                                onClick={() => setFormData(prev => ({ ...prev, cant_recepcion_parcial: formData.contacto_proveedor_cant_parcial }))}
-                                className="text-[10px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
-                              >
-                                Usar 1ª Entrega ({formData.contacto_proveedor_cant_parcial})
-                              </button>
-                            )}
-                            {formData.contacto_proveedor_cant_pendiente && (
-                              <button
-                                type="button"
-                                onClick={() => setFormData(prev => ({ ...prev, cant_recepcion_parcial: formData.contacto_proveedor_cant_pendiente }))}
-                                className="text-[10px] bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
-                              >
-                                Usar Pendiente ({formData.contacto_proveedor_cant_pendiente})
-                              </button>
+                            {formData.contacto_proveedor_entrega === 'Parcial' && formData.entregas_parciales && formData.entregas_parciales.length > 0 ? (
+                              formData.entregas_parciales.map((entrega, idx) => {
+                                const qty = parseFloat(entrega.cantidad) || 0;
+                                if (qty <= 0) return null;
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, cant_recepcion_parcial: qty }))}
+                                    className="text-[10px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold px-2.5 py-1 rounded-lg transition-all active:scale-95"
+                                  >
+                                    Usar Entrega #{idx + 1} ({qty})
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <>
+                                {formData.contacto_proveedor_cant_parcial && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, cant_recepcion_parcial: formData.contacto_proveedor_cant_parcial }))}
+                                    className="text-[10px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
+                                  >
+                                    Usar 1ª Entrega ({formData.contacto_proveedor_cant_parcial})
+                                  </button>
+                                )}
+                                {formData.contacto_proveedor_cant_pendiente && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, cant_recepcion_parcial: formData.contacto_proveedor_cant_pendiente }))}
+                                    className="text-[10px] bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
+                                  >
+                                    Usar Pendiente ({formData.contacto_proveedor_cant_pendiente})
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
