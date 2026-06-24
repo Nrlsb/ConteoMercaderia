@@ -251,6 +251,10 @@ const SeguimientoPedidosPage = () => {
 
   const showAdminDetails = canViewImages || !isParaQuien;
 
+  const showDepositoImportantInfo = user?.username && notifSettings?.notifyUserOnConfirmDate &&
+    (user.username.trim().toLowerCase() === notifSettings.notifyUserOnConfirmDate.trim().toLowerCase() ||
+     user.role === 'superadmin' || user.role === 'admin');
+
   // Formulario de Pedido
   const initialFormState = {
     fecha: new Date().toISOString().split('T')[0],
@@ -396,10 +400,10 @@ const SeguimientoPedidosPage = () => {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (user) {
       fetchNotificationSettings();
     }
-  }, [isAdmin]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -2186,6 +2190,51 @@ const SeguimientoPedidosPage = () => {
                       )}
                     </div>
                   </div>
+
+                  {showDepositoImportantInfo && (
+                    <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 text-amber-800 font-bold text-sm tracking-wider uppercase">
+                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                        <span>Información Importante de Entrega</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pt-1">
+                        <div>
+                          <span className="text-xs text-gray-500 block font-medium">Nº Pedido de Venta:</span>
+                          <span className="font-mono font-bold text-gray-800 text-base">{viewingPedido.nro_pedido_venta || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 block font-medium">Fecha de Ingreso:</span>
+                          <span className="font-semibold text-gray-800 text-base">
+                            {formatLocalDate(viewingPedido.contacto_proveedor_fecha)}
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-xs text-gray-500 block font-medium mb-1">Tipo de Entrega:</span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {viewingPedido.contacto_proveedor_entrega === 'Total' ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm">
+                                Entrega Total
+                              </span>
+                            ) : viewingPedido.contacto_proveedor_entrega === 'Parcial' ? (
+                              <>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 shadow-sm">
+                                  Entrega Parcial
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-150">
+                                  Cant: <strong className="ml-1 font-bold">{viewingPedido.contacto_proveedor_cant_parcial || 0}</strong>
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-150">
+                                  Pendiente: <strong className="ml-1 font-bold">{viewingPedido.contacto_proveedor_cant_pendiente || 0}</strong>
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-gray-400 italic text-xs">No especificado</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Destinatario y Solicitante */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
