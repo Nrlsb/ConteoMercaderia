@@ -58,6 +58,14 @@ const Tintometrico = () => {
     const [showFormula, setShowFormula] = useState(true);
     const [observation, setObservation] = useState('');
 
+    // Estados de capacidad personalizada y producto físico manual (Otros)
+    const [isOtherCapacity, setIsOtherCapacity] = useState(false);
+    const [customCapacity, setCustomCapacity] = useState('');
+    const [selectedManualProduct, setSelectedManualProduct] = useState(null);
+    const [productSearchQuery, setProductSearchQuery] = useState('');
+    const [productSearchResults, setProductSearchResults] = useState([]);
+    const [searchingProducts, setSearchingProducts] = useState(false);
+
     // Estados de equivalencia
     const [equivalentColors, setEquivalentColors] = useState([]);
     const [loadingEquivalents, setLoadingEquivalents] = useState(false);
@@ -65,7 +73,8 @@ const Tintometrico = () => {
         allowAlba: true,
         allowPlavicon: true,
         allowTersuave: true,
-        allowFormula: true
+        allowFormula: true,
+        allowCustomCapacity: true
     });
 
     // --- Estados para el Historial ---
@@ -90,7 +99,8 @@ const Tintometrico = () => {
                     allowAlba: perms.allow_alba !== false,
                     allowPlavicon: perms.allow_plavicon !== false,
                     allowTersuave: perms.allow_tersuave !== false,
-                    allowFormula: perms.allow_formula !== false
+                    allowFormula: perms.allow_formula !== false,
+                    allowCustomCapacity: perms.allow_custom_capacity !== false
                 };
                 setBrandPermissions(allows);
                 if (perms.allow_formula === false) {
@@ -144,6 +154,67 @@ const Tintometrico = () => {
         }
     };
 
+    // Buscar productos físicos en la base de datos (para capacidad manual)
+    const searchPhysicalProducts = async (query) => {
+        if (!query || query.trim().length < 2) {
+            setProductSearchResults([]);
+            return;
+        }
+        setSearchingProducts(true);
+        try {
+            console.log('Buscando productos físicos en catálogo general:', { query });
+            let prods = await colorRegistrationsService.searchProducts(query);
+            
+            if (!prods || prods.length === 0) {
+                const translateNominalQuery = (q) => {
+                    let clean = q;
+                    clean = clean.replace(/\b20\s*(l(itros)?)?\b/gi, '17.4');
+                    clean = clean.replace(/\b10\s*(l(itros)?)?\b/gi, '8.7');
+                    clean = clean.replace(/\b4\s*(l(itros)?)?\b/gi, '3.6');
+                    clean = clean.replace(/\b1\s*(l(itros)?)?\b/gi, '0.9');
+                    return clean;
+                };
+                const translatedQuery = translateNominalQuery(query);
+                if (translatedQuery !== query) {
+                    console.log('No se encontraron productos. Reintentando con capacidad traducida:', translatedQuery);
+                    prods = await colorRegistrationsService.searchProducts(translatedQuery);
+                }
+            }
+            
+            setProductSearchResults(prods || []);
+        } catch (err) {
+            console.error('Error al buscar productos físicos:', err);
+        } finally {
+            setSearchingProducts(false);
+        }
+    };
+
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            if (productSearchQuery.trim().length >= 2) {
+                searchPhysicalProducts(productSearchQuery);
+            } else {
+                setProductSearchResults([]);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounce);
+    }, [productSearchQuery]);
+
+    // Helper para obtener el factor de escala entre capacidad nominal y real del envase de referencia
+    const getScaleFactor = (recipe, capsList = capacities) => {
+        if (!recipe) return 1;
+        const sizes = getProductSizes(recipe.productId, recipe.base, capsList);
+        if (sizes.length === 0) return 1;
+        const refSizeObj = sizes[0];
+        const refReal = refSizeObj.capacidad_real !== undefined && refSizeObj.capacidad_real !== null 
+            ? refSizeObj.capacidad_real 
+            : refSizeObj.capacidad_litros;
+        const refNominal = refSizeObj.capacidad_litros;
+        if (!refReal) return 1;
+        return refNominal / refReal;
+    };
+
     const getComputedFormula = () => {
         if (!activeRecipe) return null;
 
@@ -152,7 +223,9 @@ const Tintometrico = () => {
             const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
             return cap === selectedCanSize;
         });
-        const nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
+        const nominalSize = isOtherCapacity
+            ? selectedCanSize * getScaleFactor(activeRecipe)
+            : (activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1));
 
         const pigments = activeRecipe.pigments.map(pig => {
             const nominalVol = pig.cantidad * nominalSize;
@@ -182,11 +255,27 @@ const Tintometrico = () => {
             toast.error('No hay una receta activa para registrar.');
             return;
         }
+        if (isOtherCapacity && (!selectedCanSize || selectedCanSize <= 0)) {
+            toast.error('Por favor, introduce una cantidad de litros válida.');
+            return;
+        }
 
         setRegistering(true);
         try {
             const calculatedFormula = getComputedFormula();
-            const realProductId = await findProductInDB(activeRecipe.productId, activeRecipe.sistemaTintometrico);
+            let realProductId = null;
+
+            if (isOtherCapacity && selectedManualProduct) {
+                realProductId = selectedManualProduct.id;
+            } else {
+                const activeSizeObj = activeSizes.find(sz => {
+                    const rawCap = sz.capacidad_real !== undefined && sz.capacidad_real !== null ? sz.capacidad_real : sz.capacidad_litros;
+                    const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
+                    return cap === selectedCanSize;
+                });
+                const productCodeToSearch = activeSizeObj?.codigo_comercial || activeRecipe.productId;
+                realProductId = await findProductInDB(productCodeToSearch, activeRecipe.sistemaTintometrico);
+            }
             
             const payload = {
                 color_type: 'tintometrico',
@@ -348,6 +437,12 @@ const Tintometrico = () => {
         setEquivalentColors([]);
         setModalDuplicates([]);
         setObservation('');
+        setIsOtherCapacity(false);
+        setCustomCapacity('');
+        setSelectedManualProduct(null);
+        setProductSearchQuery('');
+        setProductSearchResults([]);
+        setSearchingProducts(false);
 
         // Buscar equivalencias de color en otras marcas y catálogos repetidos
         fetchEquivalentColors(color);
@@ -415,6 +510,12 @@ const Tintometrico = () => {
         setObservation('');
         setClientName('');
         setObra('');
+        setIsOtherCapacity(false);
+        setCustomCapacity('');
+        setSelectedManualProduct(null);
+        setProductSearchQuery('');
+        setProductSearchResults([]);
+        setSearchingProducts(false);
         
         try {
             const response = await tintometricoService.fetchDosificacion(color.id);
@@ -517,24 +618,33 @@ const Tintometrico = () => {
             const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
             return cap === selectedCanSize;
         });
-        const precioBase = activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null;
+        const precioBase = selectedManualProduct
+            ? (selectedManualProduct.precio_ars ? Number(selectedManualProduct.precio_ars) : null)
+            : (activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null);
         
         const isTersuave = activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave';
         const isPlavicon = activeRecipe.sistemaTintometrico?.toLowerCase() === 'plavicon';
+        const scaleFactor = getScaleFactor(activeRecipe);
 
         const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
-            const scaledVol = pig.cantidad * selectedCanSize;
-            const nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
-            const nominalVol = pig.cantidad * nominalSize;
+            let scaledVol, nominalSize, nominalVol;
+            if (isOtherCapacity) {
+                nominalSize = selectedCanSize * scaleFactor;
+                nominalVol = pig.cantidad * nominalSize;
+                scaledVol = nominalVol;
+            } else {
+                scaledVol = pig.cantidad * selectedCanSize;
+                nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
+                nominalVol = pig.cantidad * nominalSize;
+            }
             let displayQty;
             let costoPig = 0;
 
             if (isTersuave) {
-                displayQty = nominalVol.toFixed(2).replace('.', ',');
-                const qtyUnits = Number((Number(nominalVol) / 1250).toFixed(4));
-                costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
+                displayQty = nominalVol.toFixed(3).replace('.', ',');
+                costoPig = pig.precio_lata ? Math.round((nominalVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
             } else if (isPlavicon) {
-                displayQty = nominalVol.toFixed(2).replace('.', ',');
+                displayQty = nominalVol.toFixed(4).replace('.', ',');
                 const qtyUnits = Number((Number(nominalVol) / 1300).toFixed(4));
                 costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
             } else {
@@ -933,24 +1043,35 @@ const Tintometrico = () => {
                             {recipes.length > 0 ? (
                                 <div className="space-y-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Producto / Marca</label>
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                            {isOtherCapacity ? 'Producto Base / Marca (Elegir producto)' : 'Producto / Marca'}
+                                        </label>
                                         <select
                                             value={selectedProductId || ''}
                                             onChange={(e) => {
                                                 const newPId = Number(e.target.value);
                                                 setSelectedProductId(newPId);
-                                                const r = recipes.find(rec => rec.productId === newPId);
-                                                if (r) {
-                                                    const sizes = getProductSizes(newPId, r.base);
-                                                    if (sizes.length > 0) {
-                                                        const firstSize = sizes[0];
-                                                        const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
-                                                        const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
-                                                        setSelectedCanSize(val);
+                                                setSelectedManualProduct(null);
+                                                setProductSearchQuery('');
+                                                setProductSearchResults([]);
+                                                if (!isOtherCapacity) {
+                                                    const r = recipes.find(rec => rec.productId === newPId);
+                                                    if (r) {
+                                                        const sizes = getProductSizes(newPId, r.base);
+                                                        if (sizes.length > 0) {
+                                                            const firstSize = sizes[0];
+                                                            const rawVal = firstSize.capacidad_real !== undefined && firstSize.capacidad_real !== null ? firstSize.capacidad_real : firstSize.capacidad_litros;
+                                                            const val = rawVal >= 100 ? rawVal / 1000 : rawVal;
+                                                            setSelectedCanSize(val);
+                                                        }
                                                     }
                                                 }
                                             }}
-                                            className="w-full rounded-xl border border-slate-300 bg-white py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 cursor-pointer"
+                                            className={`w-full rounded-xl border bg-white py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 cursor-pointer transition-all ${
+                                                isOtherCapacity 
+                                                    ? 'border-blue-400 ring-2 ring-blue-500/10 shadow-sm animate-pulse' 
+                                                    : 'border-slate-300 focus:border-blue-500'
+                                            }`}
                                         >
                                             {recipes.map((r) => (
                                                 <option key={r.productId} value={r.productId}>
@@ -962,8 +1083,20 @@ const Tintometrico = () => {
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Capacidad Envase</label>
                                         <select
-                                            value={selectedCanSize || ''}
-                                            onChange={(e) => setSelectedCanSize(Number(e.target.value))}
+                                            value={isOtherCapacity ? 'other' : (selectedCanSize || '')}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === 'other') {
+                                                    setIsOtherCapacity(true);
+                                                    setSelectedCanSize(customCapacity ? Number(customCapacity) : 0);
+                                                } else {
+                                                    setIsOtherCapacity(false);
+                                                    setSelectedCanSize(Number(val));
+                                                    setSelectedManualProduct(null);
+                                                    setProductSearchQuery('');
+                                                    setProductSearchResults([]);
+                                                }
+                                            }}
                                             className="w-full rounded-xl border border-slate-300 bg-white py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 cursor-pointer"
                                         >
                                             {activeSizes.map((sz) => {
@@ -975,14 +1108,110 @@ const Tintometrico = () => {
                                                     </option>
                                                 );
                                             })}
+                                            {brandPermissions.allowCustomCapacity && (
+                                                <option value="other">Otros (Cargar Litros)...</option>
+                                            )}
                                         </select>
                                     </div>
+                                    {isOtherCapacity && (
+                                        <div className="space-y-1.5 animate-in fade-in duration-200">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                Cargar Litros para la Fórmula
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                min="0.01"
+                                                value={customCapacity}
+                                                onChange={(e) => {
+                                                    const valStr = e.target.value;
+                                                    setCustomCapacity(valStr);
+                                                    const valNum = Number(valStr);
+                                                    if (!isNaN(valNum) && valNum > 0) {
+                                                        setSelectedCanSize(valNum);
+                                                    } else {
+                                                        setSelectedCanSize(0);
+                                                    }
+                                                }}
+                                                placeholder="Ej: 5, 10, 20..."
+                                                className="w-full rounded-xl border border-blue-400 bg-white py-2.5 px-4 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10"
+                                            />
+                                        </div>
+                                    )}
                                     {activeRecipe && (
                                         <div className="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 p-3.5 shadow-sm">
                                             <span className="text-xs font-bold text-slate-500">Base Requerida:</span>
                                             <span className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-black text-white tracking-widest shadow-sm">
                                                 Base {activeRecipe.base}
                                             </span>
+                                        </div>
+                                    )}
+                                    {isOtherCapacity && activeRecipe && (
+                                        <div className="space-y-1.5 animate-in fade-in duration-200 border-t border-slate-200 pt-3.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                Pintura / Producto Físico de Preparación (Opcional)
+                                            </label>
+                                            
+                                            {!selectedManualProduct ? (
+                                                <div className="relative">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            value={productSearchQuery}
+                                                            onChange={(e) => setProductSearchQuery(e.target.value)}
+                                                            placeholder="Buscar producto por nombre o código..."
+                                                            className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-8 pr-4 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                                                        />
+                                                        <div className="absolute left-3 top-3 text-slate-400">
+                                                            <Search size={12} />
+                                                        </div>
+                                                        {searchingProducts && (
+                                                            <div className="absolute right-3 top-3">
+                                                                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-blue-500" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {productSearchResults.length > 0 && (
+                                                        <div className="absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1.5 animate-in fade-in duration-150">
+                                                            {productSearchResults.map((prod) => (
+                                                                <button
+                                                                    key={prod.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setSelectedManualProduct(prod);
+                                                                        setProductSearchQuery('');
+                                                                        setProductSearchResults([]);
+                                                                    }}
+                                                                    className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex flex-col gap-0.5 border-b border-slate-50 last:border-b-0 cursor-pointer"
+                                                                >
+                                                                    <span className="text-xs font-bold text-slate-800">{prod.description}</span>
+                                                                    <span className="text-[9px] font-semibold text-slate-400 font-mono">Código: {prod.code}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-between rounded-xl bg-blue-50/50 border border-blue-200/60 p-3 shadow-sm animate-in fade-in duration-200">
+                                                    <div className="flex flex-col min-w-0 pr-2">
+                                                        <span className="text-xs font-black text-blue-900 truncate">
+                                                            {selectedManualProduct.description}
+                                                        </span>
+                                                        <span className="text-[9px] font-bold text-blue-500/80 font-mono">
+                                                            Código: {selectedManualProduct.code}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedManualProduct(null)}
+                                                        className="rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 transition-colors cursor-pointer shrink-0"
+                                                        title="Quitar producto"
+                                                    >
+                                                        <X size={10} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1126,25 +1355,34 @@ const Tintometrico = () => {
                                         const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
                                         return cap === selectedCanSize;
                                     });
-                                    const precioBase = activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null;
+                                    const precioBase = selectedManualProduct
+                                        ? (selectedManualProduct.precio_ars ? Number(selectedManualProduct.precio_ars) : null)
+                                        : (activeSizeObj?.precio_base ? Number(activeSizeObj.precio_base) : null);
                                     
                                     const isTersuave = activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave';
                                     const isPlavicon = activeRecipe.sistemaTintometrico?.toLowerCase() === 'plavicon';
+                                    const scaleFactor = getScaleFactor(activeRecipe);
 
                                     // Precalcular costos de pigmentos
                                     const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
-                                        const scaledVol = pig.cantidad * selectedCanSize;
-                                        const nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
-                                        const nominalVol = pig.cantidad * nominalSize;
+                                        let scaledVol, nominalSize, nominalVol;
+                                        if (isOtherCapacity) {
+                                            nominalSize = selectedCanSize * scaleFactor;
+                                            nominalVol = pig.cantidad * nominalSize;
+                                            scaledVol = nominalVol;
+                                        } else {
+                                            scaledVol = pig.cantidad * selectedCanSize;
+                                            nominalSize = activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1);
+                                            nominalVol = pig.cantidad * nominalSize;
+                                        }
                                         let displayQty;
                                         let costoPig = 0;
 
                                         if (isTersuave) {
-                                            displayQty = nominalVol.toFixed(2).replace('.', ',');
-                                            const qtyUnits = Number((Number(nominalVol) / 1250).toFixed(4));
-                                            costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
+                                            displayQty = nominalVol.toFixed(3).replace('.', ',');
+                                            costoPig = pig.precio_lata ? Math.round((nominalVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
                                         } else if (isPlavicon) {
-                                            displayQty = nominalVol.toFixed(2).replace('.', ',');
+                                            displayQty = nominalVol.toFixed(4).replace('.', ',');
                                             const qtyUnits = Number((Number(nominalVol) / 1300).toFixed(4));
                                             costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
                                         } else {
@@ -1238,9 +1476,11 @@ const Tintometrico = () => {
                                                  <div className="flex items-center justify-between text-xs border-b border-slate-200/80 pb-2">
                                                      <span className="text-slate-500 font-bold">
                                                          Pintura Base ({activeRecipe.base})
-                                                         {activeSizeObj?.codigo_comercial && (
+                                                         {selectedManualProduct ? (
+                                                             <span className="text-[9px] text-slate-400 font-mono ml-1.5">({selectedManualProduct.code})</span>
+                                                         ) : activeSizeObj?.codigo_comercial ? (
                                                              <span className="text-[9px] text-slate-400 font-mono ml-1.5">({activeSizeObj.codigo_comercial})</span>
-                                                         )}:
+                                                         ) : null}:
                                                      </span>
                                                      <span className="font-mono text-slate-700 font-black">
                                                          {precioBase !== null ? formatCurrency(precioBase) : <span className="text-[9px] text-amber-600 font-normal italic">Precio no disponible</span>}

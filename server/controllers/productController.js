@@ -1,6 +1,7 @@
 const supabase = require('../services/supabaseClient');
-const { recordBarcodeHistory, findProductByAnyCode, findProductsByAnyCode } = require('../utils/dbHelpers');
+const { recordBarcodeHistory, findProductByAnyCode, findProductsByAnyCode, getSucursalMarkup } = require('../utils/dbHelpers');
 const protheusService = require('../services/protheusService');
+const dolarService = require('../services/dolarService');
 
 // Search products by query (smart search: description, code, or provider code)
 exports.searchProducts = async (req, res) => {
@@ -8,31 +9,61 @@ exports.searchProducts = async (req, res) => {
     if (!q || q.length < 2) return res.json([]);
 
     try {
+        let rawResults = [];
+
         // Try RPC first (which does advanced full-text or fuzzy search if it exists)
         const { data: rpcData, error: rpcError } = await supabase.rpc('search_products', { search_term: q });
 
         if (!rpcError && rpcData) {
-            return res.json(rpcData);
+            rawResults = rpcData;
+        } else {
+            // Fallback to JS smart search if RPC fails or doesn't exist
+            const terms = q.trim().split(/\s+/).filter(Boolean);
+
+            // Build an 'And' string for description: 'description.ilike.%word1%,description.ilike.%word2%'
+            const descAnds = terms.map(t => `description.ilike.%${t}%`).join(',');
+
+            // Overall OR: either it matches all words in description, OR it matches the exact code or provider_code
+            const exactMatchTerm = `%${q.trim()}%`;
+            const orString = `and(${descAnds}),code.ilike.${exactMatchTerm},provider_code.ilike.${exactMatchTerm},barcode_secondary.ilike.${exactMatchTerm}`;
+
+            const { data, error } = await supabase
+                .from('products')
+                .select('*')
+                .or(orString)
+                .limit(100);
+
+            if (error) throw error;
+            rawResults = data || [];
         }
 
-        // Fallback to JS smart search if RPC fails or doesn't exist
-        const terms = q.trim().split(/\s+/).filter(Boolean);
+        // Enriquecer los resultados con precio_ars calculado (igual que en enrichWithPrice)
+        const sucursalId = req.user ? req.user.sucursal_id : null;
+        const sucursalMarkup = await getSucursalMarkup(sucursalId);
+        const markupMultiplier = 1 + (Number(sucursalMarkup) / 100);
+        const cotizaciones = await dolarService.getCotizaciones();
+        const priceField = req.user && req.user.price_list === '500' ? 'lista500' : 'lista001';
 
-        // Build an 'And' string for description: 'description.ilike.%word1%,description.ilike.%word2%'
-        const descAnds = terms.map(t => `description.ilike.%${t}%`).join(',');
+        const enrichedResults = rawResults.map(prod => {
+            let rawPrice = prod[priceField] ? Number(prod[priceField]) : null;
+            let precio_ars = null;
 
-        // Overall OR: either it matches all words in description, OR it matches the exact code or provider_code
-        const exactMatchTerm = `%${q.trim()}%`;
-        const orString = `and(${descAnds}),code.ilike.${exactMatchTerm},provider_code.ilike.${exactMatchTerm},barcode_secondary.ilike.${exactMatchTerm}`;
+            if (rawPrice && rawPrice > 0) {
+                rawPrice = dolarService.convertirPrecio(rawPrice, prod.moneda, cotizaciones);
+                const tes = prod.tes ? String(prod.tes).trim() : '';
+                let vatMultiplier = 1.0;
+                if (tes === '503') vatMultiplier = 1.21;
+                else if (tes === '501') vatMultiplier = 1.105;
+                precio_ars = parseFloat((rawPrice * vatMultiplier * markupMultiplier).toFixed(2));
+            }
 
-        const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .or(orString)
-            .limit(100);
+            return {
+                ...prod,
+                precio_ars
+            };
+        });
 
-        if (error) throw error;
-        return res.json(data);
+        return res.json(enrichedResults);
     } catch (error) {
         console.error('Error searching products:', error);
         res.status(500).json({ message: 'Error al buscar productos' });
