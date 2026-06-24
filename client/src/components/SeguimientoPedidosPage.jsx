@@ -292,6 +292,22 @@ const SeguimientoPedidosPage = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
 
+  const isRescheduled = useMemo(() => {
+    if (!editingPedido) return false;
+    
+    // Si ya tenía una fecha cargada en la DB y ahora la fecha en el formulario es distinta (y no es vacía)
+    const originalDate = editingPedido.contacto_proveedor_fecha || '';
+    const currentFormDate = formData.contacto_proveedor_fecha || '';
+    const isMainDateRescheduled = originalDate && currentFormDate && originalDate !== currentFormDate;
+
+    // Si ya tenía una fecha pendiente en la DB y ahora la fecha pendiente en el formulario es distinta (y no es vacía)
+    const originalPendiente = editingPedido.contacto_proveedor_fecha_pendiente || '';
+    const currentFormPendiente = formData.contacto_proveedor_fecha_pendiente || '';
+    const isPendienteDateRescheduled = originalPendiente && currentFormPendiente && originalPendiente !== currentFormPendiente;
+
+    return isMainDateRescheduled || isPendienteDateRescheduled;
+  }, [editingPedido, formData.contacto_proveedor_fecha, formData.contacto_proveedor_fecha_pendiente]);
+
   const getConfirmacionStatus = () => {
     if (!formData.contacto_proveedor_fecha) {
       return { disabled: true, reason: 'Debe ingresar una fecha antes de poder confirmarla' };
@@ -1973,15 +1989,22 @@ const SeguimientoPedidosPage = () => {
                       )}
 
                       <div className="md:col-span-3">
-                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Observaciones Proveedor</label>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                          Observaciones Proveedor {isRescheduled && <span className="text-rose-500 font-bold">* (Obligatorio por reprogramación)</span>}
+                        </label>
                         <input
                           type="text"
                           name="contacto_proveedor_observaciones"
-                          placeholder="Observaciones o notas sobre el contacto con el proveedor..."
+                          placeholder={isRescheduled ? "Indique obligatoriamente el motivo de la reprogramación..." : "Observaciones o notas sobre el contacto con el proveedor..."}
                           value={formData.contacto_proveedor_observaciones || ''}
                           onChange={handleInputChange}
                           disabled={!canEditDepositoFields}
-                          className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
+                          required={isRescheduled}
+                          className={`w-full p-2.5 rounded-xl border text-sm focus:ring-2 focus:outline-none transition-all ${
+                            isRescheduled 
+                              ? 'border-rose-300 focus:ring-rose-500 bg-rose-50/20 placeholder-rose-400 text-rose-900 font-medium' 
+                              : 'border-gray-200 focus:ring-blue-500 bg-gray-50/50'
+                          } disabled:bg-gray-100 disabled:text-gray-400`}
                         />
                       </div>
                     </div>

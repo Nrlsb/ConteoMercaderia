@@ -819,6 +819,20 @@ exports.updatePedido = async (req, res) => {
             const contactChanged = req.body.contacto_mercurio !== undefined && req.body.contacto_mercurio !== currentPedido.contacto_mercurio;
             const abonadoChanged = req.body.abonado !== undefined && req.body.abonado !== currentPedido.abonado;
             
+            // Validar que si reprograman la fecha (principal o pendiente) que ya estaba cargada, especifiquen un motivo
+            const isMainReschedule = dateChanged && currentPedido.contacto_proveedor_fecha && req.body.contacto_proveedor_fecha;
+            const isPendienteReschedule = datePendienteChanged && currentPedido.contacto_proveedor_fecha_pendiente && req.body.contacto_proveedor_fecha_pendiente;
+            if (isMainReschedule || isPendienteReschedule) {
+                const obs = req.body.contacto_proveedor_observaciones !== undefined 
+                    ? req.body.contacto_proveedor_observaciones 
+                    : currentPedido.contacto_proveedor_observaciones;
+                if (!obs || String(obs).trim() === '') {
+                    return res.status(400).json({ 
+                        message: 'Debe especificar obligatoriamente un motivo en las observaciones para reprogramar la fecha.' 
+                    });
+                }
+            }
+            
             if (dateChanged || contactChanged) {
                 req.body.notif_confirmacion_enviada = false;
             }
