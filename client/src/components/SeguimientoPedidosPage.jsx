@@ -48,20 +48,36 @@ const getWorkingDaysRemaining = (expDate) => {
 
 const getTrackingHistory = (pedido) => {
   if (!pedido) return [];
+
+  const getSafeDateObj = (dateVal, fallbackVal = null) => {
+    if (!dateVal) return fallbackVal ? new Date(fallbackVal) : new Date(0);
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return fallbackVal ? new Date(fallbackVal) : new Date(0);
+    return d;
+  };
   
   const history = [];
+  let nextIndex = 0;
+  const pushEvent = (event, sortDate) => {
+    history.push({
+      ...event,
+      sortDate,
+      originalIndex: nextIndex++
+    });
+  };
+  
   const createdDateStr = pedido.created_at 
     ? new Date(pedido.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) 
     : formatLocalDate(pedido.fecha);
 
   // 1. Pedido creado
-  history.push({
+  pushEvent({
     fecha: createdDateStr,
     area: 'Compras',
     historial: 'Pedido creado por compras',
     estado: 'CREADO',
     completed: true
-  });
+  }, getSafeDateObj(pedido.created_at, pedido.fecha));
 
   const lowerEstado = pedido.estado ? pedido.estado.toLowerCase() : '';
   const isStatePaid = [
@@ -82,7 +98,7 @@ const getTrackingHistory = (pedido) => {
 
   // 2. Proceso de abonar (Gerencia)
   if (pedido.abonado === true) {
-    history.push({
+    pushEvent({
       fecha: hasImgs
         ? (pedido.fecha_abonado ? formatLocalDate(pedido.fecha_abonado) : (pedido.updated_at ? formatLocalDate(pedido.updated_at) : '-'))
         : 'En proceso',
@@ -92,14 +108,14 @@ const getTrackingHistory = (pedido) => {
         : 'Pedido en gerencia en proceso de abonar',
       estado: hasImgs ? 'ABONADO' : 'PROCESO DE ABONAR',
       completed: hasImgs
-    });
+    }, hasImgs ? getSafeDateObj(pedido.fecha_abonado || pedido.updated_at) : new Date(Date.now() + 1000));
   }
 
   // 3. Depósito: coordinar fecha
   const isPaidOrNoAbonar = pedido.abonado === false || hasImgs;
   if (isPaidOrNoAbonar) {
     const hasFecha = !!pedido.contacto_proveedor_fecha;
-    history.push({
+    pushEvent({
       fecha: hasFecha
         ? (pedido.fecha_coordinacion ? formatLocalDate(pedido.fecha_coordinacion) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : '-'))
         : 'En proceso',
@@ -109,7 +125,7 @@ const getTrackingHistory = (pedido) => {
         : 'Pedido en área de depósito pendiente de coordinar fecha de ingreso',
       estado: hasFecha ? 'COORDINADO' : 'PENDIENTE COORDINACIÓN',
       completed: hasFecha
-    });
+    }, hasFecha ? getSafeDateObj(pedido.fecha_coordinacion || pedido.contacto_mercurio_fecha) : new Date(Date.now() + 2000));
   }
 
   // 4. Fecha de ingreso asignada (1ª Entrega)
@@ -124,7 +140,7 @@ const getTrackingHistory = (pedido) => {
       entregaDetalle = ` para la entrega TOTAL de ${pedido.cant_pedido || '-'}`;
     }
 
-    history.push({
+    pushEvent({
       fecha: pedido.fecha_coordinacion ? formatLocalDate(pedido.fecha_coordinacion) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaEntrega),
       area: 'Proveedor',
       historial: isConfirmada 
@@ -132,14 +148,14 @@ const getTrackingHistory = (pedido) => {
         : `Fecha de ingreso asignada para el ${formattedFechaEntrega}${entregaDetalle}`,
       estado: isConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
       completed: isConfirmada
-    });
+    }, getSafeDateObj(pedido.fecha_coordinacion || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha));
   }
 
   // 4b. Fecha de ingreso asignada para la entrega de mercadería pendiente (2ª Entrega)
   if (pedido.contacto_proveedor_entrega === 'Parcial' && pedido.contacto_proveedor_fecha_pendiente) {
     const isPendienteConfirmada = !!pedido.fecha_pendiente_confirmada;
     const formattedFechaPendiente = formatLocalDate(pedido.contacto_proveedor_fecha_pendiente);
-    history.push({
+    pushEvent({
       fecha: pedido.fecha_coordinacion_pendiente ? formatLocalDate(pedido.fecha_coordinacion_pendiente) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaPendiente),
       area: 'Proveedor',
       historial: isPendienteConfirmada
@@ -147,7 +163,7 @@ const getTrackingHistory = (pedido) => {
         : `Fecha de ingreso asignada para el ${formattedFechaPendiente} para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`,
       estado: isPendienteConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
       completed: isPendienteConfirmada
-    });
+    }, getSafeDateObj(pedido.fecha_coordinacion_pendiente || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha_pendiente));
   }
 
   // 5. Fecha de ingreso confirmada en Depósito (1ª Entrega)
@@ -159,24 +175,24 @@ const getTrackingHistory = (pedido) => {
       entregaDetalle = ` para la entrega TOTAL de ${pedido.cant_pedido || '-'}`;
     }
 
-    history.push({
+    pushEvent({
       fecha: pedido.fecha_confirmacion_deposito ? formatLocalDate(pedido.fecha_confirmacion_deposito) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha)),
       area: 'Depósito',
       historial: `Se confirma la fecha de ingreso${entregaDetalle}`,
       estado: 'FECHA CONFIRMADA',
       completed: true
-    });
+    }, getSafeDateObj(pedido.fecha_confirmacion_deposito || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha));
   }
 
   // 5b. Fecha de ingreso confirmada en Depósito para la entrega de mercadería pendiente (2ª Entrega)
   if (pedido.contacto_proveedor_entrega === 'Parcial' && pedido.contacto_proveedor_fecha_pendiente && pedido.fecha_pendiente_confirmada) {
-    history.push({
+    pushEvent({
       fecha: pedido.fecha_pendiente_confirmacion_deposito ? formatLocalDate(pedido.fecha_pendiente_confirmacion_deposito) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)),
       area: 'Depósito',
       historial: `Se confirma la fecha de ingreso para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`,
       estado: 'FECHA CONFIRMADA',
       completed: true
-    });
+    }, getSafeDateObj(pedido.fecha_pendiente_confirmacion_deposito || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha_pendiente));
   }
 
   // 6. Mercadería en el depósito (ingresada)
@@ -199,16 +215,23 @@ const getTrackingHistory = (pedido) => {
       recepcionDetalle = ` (Recepción TOTAL de ${pedido.cant_pedido || '-'})`;
     }
 
-    history.push({
+    pushEvent({
       fecha: receivingDate,
       area: 'Depósito',
       historial: `La mercadería se encuentra en el depósito${recepcionDetalle}`,
       estado: 'INGRESADO',
       completed: true
-    });
+    }, getSafeDateObj(pedido.fecha_confirmacion_destinatario || pedido.fecha_ingreso_deposito || pedido.contacto_mercurio_fecha));
   }
 
-  return history.reverse();
+  // Ordenar cronológicamente descendente (más recientes arriba)
+  history.sort((a, b) => {
+    const diff = b.sortDate.getTime() - a.sortDate.getTime();
+    if (diff !== 0) return diff;
+    return b.originalIndex - a.originalIndex;
+  });
+
+  return history;
 };
 
 const SeguimientoPedidosPage = () => {
