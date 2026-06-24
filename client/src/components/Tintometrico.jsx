@@ -212,7 +212,10 @@ const Tintometrico = () => {
             : refSizeObj.capacidad_litros;
         const refNominal = refSizeObj.capacidad_litros;
         if (!refReal) return 1;
-        return refNominal / refReal;
+        
+        const normReal = refReal >= 100 ? refReal / 1000 : refReal;
+        const normNominal = refNominal >= 100 ? refNominal / 1000 : refNominal;
+        return normNominal / normReal;
     };
 
     const getComputedFormula = () => {
@@ -223,8 +226,10 @@ const Tintometrico = () => {
             const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
             return cap === selectedCanSize;
         });
+        const refSize = activeSizes.length > 0 ? activeSizes[0].capacidad_litros : 1;
+        const multiplier = refSize >= 100 ? 1000 : 1;
         const nominalSize = isOtherCapacity
-            ? selectedCanSize * getScaleFactor(activeRecipe)
+            ? selectedCanSize * multiplier * getScaleFactor(activeRecipe)
             : (activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1));
 
         const pigments = activeRecipe.pigments.map(pig => {
@@ -624,12 +629,13 @@ const Tintometrico = () => {
         
         const isTersuave = activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave';
         const isPlavicon = activeRecipe.sistemaTintometrico?.toLowerCase() === 'plavicon';
-        const scaleFactor = getScaleFactor(activeRecipe);
+        const refSize = activeSizes.length > 0 ? activeSizes[0].capacidad_litros : 1;
+        const multiplier = refSize >= 100 ? 1000 : 1;
 
         const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
             let scaledVol, nominalSize, nominalVol;
             if (isOtherCapacity) {
-                nominalSize = selectedCanSize * scaleFactor;
+                nominalSize = selectedCanSize * multiplier * scaleFactor;
                 nominalVol = pig.cantidad * nominalSize;
                 scaledVol = nominalVol;
             } else {
@@ -1362,12 +1368,14 @@ const Tintometrico = () => {
                                     const isTersuave = activeRecipe.sistemaTintometrico?.toLowerCase() === 'tersuave';
                                     const isPlavicon = activeRecipe.sistemaTintometrico?.toLowerCase() === 'plavicon';
                                     const scaleFactor = getScaleFactor(activeRecipe);
+                                    const refSize = activeSizes.length > 0 ? activeSizes[0].capacidad_litros : 1;
+                                    const multiplier = refSize >= 100 ? 1000 : 1;
 
                                     // Precalcular costos de pigmentos
                                     const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
                                         let scaledVol, nominalSize, nominalVol;
                                         if (isOtherCapacity) {
-                                            nominalSize = selectedCanSize * scaleFactor;
+                                            nominalSize = selectedCanSize * multiplier * scaleFactor;
                                             nominalVol = pig.cantidad * nominalSize;
                                             scaledVol = nominalVol;
                                         } else {
