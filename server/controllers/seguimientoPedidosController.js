@@ -482,8 +482,38 @@ exports.createPedido = async (req, res) => {
         req.body.nro_pedido = validationCompra.cleanVal;
         req.body.quien_solicita = req.user?.username || '';
 
+        const isParcial = req.body.contacto_proveedor_entrega === 'Parcial';
+        if (isParcial && req.body.entregas_parciales && Array.isArray(req.body.entregas_parciales)) {
+            // Sincronizar timestamps en el array entregas_parciales
+            req.body.entregas_parciales = req.body.entregas_parciales.map((entrega) => {
+                const newEntrega = { ...entrega };
+                if (newEntrega.fecha && !newEntrega.fecha_coordinacion) {
+                    newEntrega.fecha_coordinacion = new Date().toISOString();
+                }
+                if (newEntrega.confirmada === true && !newEntrega.fecha_confirmacion_deposito) {
+                    newEntrega.fecha_confirmacion_deposito = new Date().toISOString();
+                }
+                return newEntrega;
+            });
+
+            // Mapear a columnas planas para compatibilidad hacia atrás
+            const entregas = req.body.entregas_parciales;
+            if (entregas[0]) {
+                req.body.contacto_proveedor_fecha = entregas[0].fecha || null;
+                req.body.contacto_proveedor_cant_parcial = entregas[0].cantidad || null;
+                req.body.fecha_confirmada = entregas[0].confirmada || false;
+            }
+            if (entregas[1]) {
+                req.body.contacto_proveedor_fecha_pendiente = entregas[1].fecha || null;
+                req.body.contacto_proveedor_cant_pendiente = entregas[1].cantidad || null;
+                req.body.fecha_pendiente_confirmada = entregas[1].confirmada || false;
+            }
+        }
+
         if (req.body.contacto_proveedor_fecha) {
-            req.body.contacto_proveedor_fecha_original = req.body.contacto_proveedor_fecha;
+            if (!req.body.contacto_proveedor_fecha_original) {
+                req.body.contacto_proveedor_fecha_original = req.body.contacto_proveedor_fecha;
+            }
             req.body.fecha_coordinacion = new Date().toISOString();
         }
 
@@ -564,6 +594,56 @@ exports.updatePedido = async (req, res) => {
 
         if (currentPedido) {
             delete req.body.quien_solicita;
+
+            const isParcial = req.body.contacto_proveedor_entrega === 'Parcial' || 
+                              (req.body.contacto_proveedor_entrega === undefined && currentPedido.contacto_proveedor_entrega === 'Parcial');
+            
+            if (isParcial && req.body.entregas_parciales && Array.isArray(req.body.entregas_parciales)) {
+                const oldEntregas = currentPedido.entregas_parciales || [];
+                
+                // Sincronizar fechas de coordinación y confirmación en el array entregas_parciales
+                req.body.entregas_parciales = req.body.entregas_parciales.map((entrega, idx) => {
+                    const old = oldEntregas[idx] || {};
+                    const newEntrega = { ...entrega };
+                    
+                    // Si la fecha cambia, actualizar o setear fecha_coordinacion
+                    if (newEntrega.fecha !== old.fecha) {
+                        newEntrega.fecha_coordinacion = newEntrega.fecha ? new Date().toISOString() : null;
+                    } else {
+                        newEntrega.fecha_coordinacion = old.fecha_coordinacion || null;
+                    }
+                    
+                    // Si la confirmación cambia, actualizar fecha_confirmacion_deposito
+                    if (newEntrega.confirmada !== old.confirmada) {
+                        newEntrega.fecha_confirmacion_deposito = newEntrega.confirmada ? new Date().toISOString() : null;
+                    } else {
+                        newEntrega.fecha_confirmacion_deposito = old.fecha_confirmacion_deposito || null;
+                    }
+                    
+                    return newEntrega;
+                });
+
+                // Mapear a columnas planas para compatibilidad hacia atrás
+                const entregas = req.body.entregas_parciales;
+                if (entregas[0]) {
+                    req.body.contacto_proveedor_fecha = entregas[0].fecha || null;
+                    req.body.contacto_proveedor_cant_parcial = entregas[0].cantidad || null;
+                    req.body.fecha_confirmada = entregas[0].confirmada || false;
+                } else {
+                    req.body.contacto_proveedor_fecha = null;
+                    req.body.contacto_proveedor_cant_parcial = null;
+                    req.body.fecha_confirmada = false;
+                }
+                if (entregas[1]) {
+                    req.body.contacto_proveedor_fecha_pendiente = entregas[1].fecha || null;
+                    req.body.contacto_proveedor_cant_pendiente = entregas[1].cantidad || null;
+                    req.body.fecha_pendiente_confirmada = entregas[1].confirmada || false;
+                } else {
+                    req.body.contacto_proveedor_fecha_pendiente = null;
+                    req.body.contacto_proveedor_cant_pendiente = null;
+                    req.body.fecha_pendiente_confirmada = false;
+                }
+            }
 
             // Validar que la confirmación de fecha sólo se permita hasta 3 días hábiles antes
             if (req.body.fecha_confirmada === true) {

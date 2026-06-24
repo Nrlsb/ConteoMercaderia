@@ -128,71 +128,84 @@ const getTrackingHistory = (pedido) => {
     }, hasFecha ? getSafeDateObj(pedido.fecha_coordinacion || pedido.contacto_mercurio_fecha) : new Date(Date.now() + 2000));
   }
 
-  // 4. Fecha de ingreso asignada (1ª Entrega)
-  if (pedido.contacto_proveedor_fecha) {
+  // Cargar entregas parciales y resolver fallbacks
+  let entregas = pedido.entregas_parciales;
+  if (!entregas || entregas.length === 0) {
+    entregas = [];
+    if (pedido.contacto_proveedor_fecha || pedido.contacto_proveedor_cant_parcial) {
+      entregas.push({
+        fecha: pedido.contacto_proveedor_fecha || '',
+        cantidad: pedido.contacto_proveedor_cant_parcial || 0,
+        confirmada: pedido.fecha_confirmada || false,
+        fecha_confirmacion_deposito: pedido.fecha_confirmacion_deposito || null,
+        fecha_coordinacion: pedido.fecha_coordinacion || null
+      });
+    }
+    if (pedido.contacto_proveedor_fecha_pendiente || pedido.contacto_proveedor_cant_pendiente) {
+      entregas.push({
+        fecha: pedido.contacto_proveedor_fecha_pendiente || '',
+        cantidad: pedido.contacto_proveedor_cant_pendiente || 0,
+        confirmada: pedido.fecha_pendiente_confirmada || false,
+        fecha_confirmacion_deposito: pedido.fecha_pendiente_confirmacion_deposito || null,
+        fecha_coordinacion: pedido.fecha_coordinacion_pendiente || null
+      });
+    }
+  }
+
+  // 4, 4b, 5, 5b: Entregas Parciales y Confirmaciones en Depósito
+  if (pedido.contacto_proveedor_entrega === 'Parcial') {
+    entregas.forEach((entrega, idx) => {
+      if (!entrega.fecha) return;
+      const formattedFecha = formatLocalDate(entrega.fecha);
+      const isConfirmada = !!entrega.confirmada;
+      
+      // Asignación de fecha por Proveedor
+      pushEvent({
+        fecha: entrega.fecha_coordinacion ? formatLocalDate(entrega.fecha_coordinacion) : formattedFecha,
+        area: 'Proveedor',
+        historial: isConfirmada
+          ? `Fecha de ingreso confirmada para el ${formattedFecha} para la entrega parcial #${idx + 1} de ${entrega.cantidad || 0} unidades (Total pedido: ${pedido.cant_pedido || '-'})`
+          : `Fecha de ingreso asignada para el ${formattedFecha} para la entrega parcial #${idx + 1} de ${entrega.cantidad || 0} unidades (Total pedido: ${pedido.cant_pedido || '-'})`,
+        text: isConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
+        estado: isConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
+        completed: isConfirmada
+      }, getSafeDateObj(entrega.fecha_coordinacion, entrega.fecha));
+
+      // Confirmación de fecha en Depósito
+      if (isConfirmada) {
+        pushEvent({
+          fecha: entrega.fecha_confirmacion_deposito ? formatLocalDate(entrega.fecha_confirmacion_deposito) : formattedFecha,
+          area: 'Depósito',
+          historial: `Se confirma la fecha de ingreso para la entrega parcial #${idx + 1} de ${entrega.cantidad || 0} unidades (Total pedido: ${pedido.cant_pedido || '-'})`,
+          estado: 'FECHA CONFIRMADA',
+          completed: true
+        }, getSafeDateObj(entrega.fecha_confirmacion_deposito, entrega.fecha));
+      }
+    });
+  } else if (pedido.contacto_proveedor_entrega === 'Total' && pedido.contacto_proveedor_fecha) {
+    // Si la entrega es TOTAL, se mantiene el flujo tradicional simplificado
     const isConfirmada = !!pedido.fecha_confirmada;
     const formattedFechaEntrega = formatLocalDate(pedido.contacto_proveedor_fecha);
     
-    let entregaDetalle = '';
-    if (pedido.contacto_proveedor_entrega === 'Parcial') {
-      entregaDetalle = ` para la 1ª entrega parcial de ${pedido.contacto_proveedor_cant_parcial || 0} unidades (Total pedido: ${pedido.cant_pedido || '-'})`;
-    } else if (pedido.contacto_proveedor_entrega === 'Total') {
-      entregaDetalle = ` para la entrega TOTAL de ${pedido.cant_pedido || '-'}`;
-    }
-
     pushEvent({
-      fecha: pedido.fecha_coordinacion ? formatLocalDate(pedido.fecha_coordinacion) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaEntrega),
+      fecha: pedido.fecha_coordinacion ? formatLocalDate(pedido.fecha_coordinacion) : formattedFechaEntrega,
       area: 'Proveedor',
       historial: isConfirmada 
-        ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega}${entregaDetalle}` 
-        : `Fecha de ingreso asignada para el ${formattedFechaEntrega}${entregaDetalle}`,
+        ? `Fecha de ingreso confirmada para el ${formattedFechaEntrega} para la entrega TOTAL de ${pedido.cant_pedido || '-'}` 
+        : `Fecha de ingreso asignada para el ${formattedFechaEntrega} para la entrega TOTAL de ${pedido.cant_pedido || '-'}`,
       estado: isConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
       completed: isConfirmada
-    }, getSafeDateObj(pedido.fecha_coordinacion || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha));
-  }
+    }, getSafeDateObj(pedido.fecha_coordinacion, pedido.contacto_proveedor_fecha));
 
-  // 4b. Fecha de ingreso asignada para la entrega de mercadería pendiente (2ª Entrega)
-  if (pedido.contacto_proveedor_entrega === 'Parcial' && pedido.contacto_proveedor_fecha_pendiente) {
-    const isPendienteConfirmada = !!pedido.fecha_pendiente_confirmada;
-    const formattedFechaPendiente = formatLocalDate(pedido.contacto_proveedor_fecha_pendiente);
-    pushEvent({
-      fecha: pedido.fecha_coordinacion_pendiente ? formatLocalDate(pedido.fecha_coordinacion_pendiente) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formattedFechaPendiente),
-      area: 'Proveedor',
-      historial: isPendienteConfirmada
-        ? `Fecha de ingreso confirmada para el ${formattedFechaPendiente} para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`
-        : `Fecha de ingreso asignada para el ${formattedFechaPendiente} para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`,
-      estado: isPendienteConfirmada ? 'FECHA CONFIRMADA' : 'FECHA ASIGNADA',
-      completed: isPendienteConfirmada
-    }, getSafeDateObj(pedido.fecha_coordinacion_pendiente || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha_pendiente));
-  }
-
-  // 5. Fecha de ingreso confirmada en Depósito (1ª Entrega)
-  if (pedido.contacto_proveedor_fecha && pedido.fecha_confirmada) {
-    let entregaDetalle = '';
-    if (pedido.contacto_proveedor_entrega === 'Parcial') {
-      entregaDetalle = ` para la 1ª entrega parcial de ${pedido.contacto_proveedor_cant_parcial || 0} unidades (Total pedido: ${pedido.cant_pedido || '-'})`;
-    } else if (pedido.contacto_proveedor_entrega === 'Total') {
-      entregaDetalle = ` para la entrega TOTAL de ${pedido.cant_pedido || '-'}`;
+    if (isConfirmada) {
+      pushEvent({
+        fecha: pedido.fecha_confirmacion_deposito ? formatLocalDate(pedido.fecha_confirmacion_deposito) : formattedFechaEntrega,
+        area: 'Depósito',
+        historial: `Se confirma la fecha de ingreso para la entrega TOTAL de ${pedido.cant_pedido || '-'}`,
+        estado: 'FECHA CONFIRMADA',
+        completed: true
+      }, getSafeDateObj(pedido.fecha_confirmacion_deposito, pedido.contacto_proveedor_fecha));
     }
-
-    pushEvent({
-      fecha: pedido.fecha_confirmacion_deposito ? formatLocalDate(pedido.fecha_confirmacion_deposito) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha)),
-      area: 'Depósito',
-      historial: `Se confirma la fecha de ingreso${entregaDetalle}`,
-      estado: 'FECHA CONFIRMADA',
-      completed: true
-    }, getSafeDateObj(pedido.fecha_confirmacion_deposito || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha));
-  }
-
-  // 5b. Fecha de ingreso confirmada en Depósito para la entrega de mercadería pendiente (2ª Entrega)
-  if (pedido.contacto_proveedor_entrega === 'Parcial' && pedido.contacto_proveedor_fecha_pendiente && pedido.fecha_pendiente_confirmada) {
-    pushEvent({
-      fecha: pedido.fecha_pendiente_confirmacion_deposito ? formatLocalDate(pedido.fecha_pendiente_confirmacion_deposito) : (pedido.contacto_mercurio_fecha ? formatLocalDate(pedido.contacto_mercurio_fecha) : formatLocalDate(pedido.contacto_proveedor_fecha_pendiente)),
-      area: 'Depósito',
-      historial: `Se confirma la fecha de ingreso para la entrega de la mercadería pendiente (${pedido.contacto_proveedor_cant_pendiente || 0} unidades)`,
-      estado: 'FECHA CONFIRMADA',
-      completed: true
-    }, getSafeDateObj(pedido.fecha_pendiente_confirmacion_deposito || pedido.contacto_mercurio_fecha || pedido.contacto_proveedor_fecha_pendiente));
   }
 
   // 6. Mercadería en el depósito (ingresada)
@@ -325,7 +338,8 @@ const SeguimientoPedidosPage = () => {
     estado: 'Pendiente',
     abonado: null,
     fecha_confirmada: false,
-    imagenes: []
+    imagenes: [],
+    entregas_parciales: []
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
@@ -381,6 +395,78 @@ const SeguimientoPedidosPage = () => {
   };
 
   const confirmPendienteStatus = getConfirmacionPendienteStatus();
+
+  const getEntregaConfirmStatus = (entrega) => {
+    if (!entrega.fecha) {
+      return { disabled: true, reason: 'Debe ingresar una fecha antes de poder confirmarla' };
+    }
+    if (!canEditDepositoFields) {
+      return { disabled: true, reason: 'No tienes permisos de depósito para confirmar la fecha' };
+    }
+    
+    const workingDays = getWorkingDaysRemaining(new Date(entrega.fecha + 'T00:00:00'));
+    if (workingDays > 3) {
+      return { disabled: true, reason: `Solo se puede confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles)` };
+    }
+    
+    return { disabled: false, reason: '' };
+  };
+
+  const handleAddEntregaParcial = () => {
+    const totalPedido = parseFloat(formData.cant_pedido) || 0;
+    const totalAsignado = (formData.entregas_parciales || []).reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+    const restante = Math.max(0, totalPedido - totalAsignado);
+    
+    setFormData(prev => {
+      const newState = {
+        ...prev,
+        entregas_parciales: [
+          ...(prev.entregas_parciales || []),
+          { fecha: '', cantidad: restante > 0 ? restante : '', confirmada: false }
+        ]
+      };
+      if (canEditDepositoFields) {
+        newState.contacto_mercurio = user?.username || '';
+        newState.contacto_mercurio_fecha = new Date().toISOString();
+      }
+      return newState;
+    });
+  };
+
+  const handleRemoveEntregaParcial = (index) => {
+    setFormData(prev => {
+      const list = [...(prev.entregas_parciales || [])];
+      list.splice(index, 1);
+      const newState = {
+        ...prev,
+        entregas_parciales: list
+      };
+      if (canEditDepositoFields) {
+        newState.contacto_mercurio = user?.username || '';
+        newState.contacto_mercurio_fecha = new Date().toISOString();
+      }
+      return newState;
+    });
+  };
+
+  const handleEntregaParcialChange = (index, field, value) => {
+    setFormData(prev => {
+      const list = [...(prev.entregas_parciales || [])];
+      list[index] = {
+        ...list[index],
+        [field]: value
+      };
+      const newState = {
+        ...prev,
+        entregas_parciales: list
+      };
+      if (canEditDepositoFields) {
+        newState.contacto_mercurio = user?.username || '';
+        newState.contacto_mercurio_fecha = new Date().toISOString();
+      }
+      return newState;
+    });
+  };
 
   // Cargar Pedidos
   const fetchPedidos = async () => {
@@ -565,8 +651,12 @@ const SeguimientoPedidosPage = () => {
 
       // Si cambia a Recepción Parcial, inicializar cantidad recibida con la cantidad de la primera entrega pactada
       if (name === 'estado' && value === 'Recepción Parcial') {
-        if (!newState.cant_recepcion_parcial && newState.contacto_proveedor_cant_parcial) {
-          newState.cant_recepcion_parcial = newState.contacto_proveedor_cant_parcial;
+        if (!newState.cant_recepcion_parcial) {
+          if (newState.entregas_parciales && newState.entregas_parciales[0] && newState.entregas_parciales[0].cantidad) {
+            newState.cant_recepcion_parcial = newState.entregas_parciales[0].cantidad;
+          } else if (newState.contacto_proveedor_cant_parcial) {
+            newState.cant_recepcion_parcial = newState.contacto_proveedor_cant_parcial;
+          }
         }
       }
 
@@ -576,6 +666,14 @@ const SeguimientoPedidosPage = () => {
         newState.contacto_proveedor_cant_pendiente = '';
         newState.fecha_pendiente_confirmada = false;
         newState.entrega_resto_pendiente = false;
+        newState.entregas_parciales = [];
+      }
+
+      if (name === 'contacto_proveedor_entrega' && value === 'Parcial') {
+        if (!newState.entregas_parciales || newState.entregas_parciales.length === 0) {
+          const totalPedido = parseFloat(newState.cant_pedido) || 0;
+          newState.entregas_parciales = [{ fecha: '', cantidad: totalPedido > 0 ? totalPedido : '', confirmada: false }];
+        }
       }
 
       // Si se limpia la fecha de entrega pendiente, vaciar la cantidad pendiente y desmarcar el resto
@@ -601,7 +699,7 @@ const SeguimientoPedidosPage = () => {
         'contacto_proveedor', 'contacto_proveedor_fecha', 'fecha_confirmada',
         'contacto_proveedor_entrega', 'contacto_proveedor_fecha_pendiente',
         'contacto_proveedor_cant_parcial', 'fecha_pendiente_confirmada', 'entrega_resto_pendiente',
-        'contacto_proveedor_cant_pendiente'
+        'contacto_proveedor_cant_pendiente', 'entregas_parciales'
       ];
       if (depFields.includes(name) && canEditDepositoFields) {
         newState.contacto_mercurio = user?.username || '';
@@ -664,6 +762,29 @@ const SeguimientoPedidosPage = () => {
       }
     }
 
+    let parsedEntregas = pedido.entregas_parciales;
+    if (!parsedEntregas || parsedEntregas.length === 0) {
+      parsedEntregas = [];
+      if (pedido.contacto_proveedor_fecha || pedido.contacto_proveedor_cant_parcial) {
+        parsedEntregas.push({
+          fecha: pedido.contacto_proveedor_fecha || '',
+          cantidad: pedido.contacto_proveedor_cant_parcial || 0,
+          confirmada: pedido.fecha_confirmada || false,
+          fecha_confirmacion_deposito: pedido.fecha_confirmacion_deposito || null,
+          fecha_coordinacion: pedido.fecha_coordinacion || null
+        });
+      }
+      if (pedido.contacto_proveedor_fecha_pendiente || pedido.contacto_proveedor_cant_pendiente) {
+        parsedEntregas.push({
+          fecha: pedido.contacto_proveedor_fecha_pendiente || '',
+          cantidad: pedido.contacto_proveedor_cant_pendiente || 0,
+          confirmada: pedido.fecha_pendiente_confirmada || false,
+          fecha_confirmacion_deposito: pedido.fecha_pendiente_confirmacion_deposito || null,
+          fecha_coordinacion: pedido.fecha_coordinacion_pendiente || null
+        });
+      }
+    }
+
     setFormData({
       fecha: pedido.fecha || '',
       quien_solicita: pedido.quien_solicita || '',
@@ -699,7 +820,8 @@ const SeguimientoPedidosPage = () => {
       estado: pedido.estado || 'Pendiente',
       abonado: pedido.abonado !== undefined && pedido.abonado !== null ? pedido.abonado : null,
       fecha_confirmada: pedido.fecha_confirmada || false,
-      imagenes: pedido.imagenes || []
+      imagenes: pedido.imagenes || [],
+      entregas_parciales: parsedEntregas
     });
     setIsModalOpen(true);
   };
@@ -714,50 +836,51 @@ const SeguimientoPedidosPage = () => {
       return;
     }
 
-    // Validar Confirmación de Fecha de Entrega (3 días hábiles antes)
-    if (formData.fecha_confirmada === true) {
-      if (formData.contacto_proveedor_fecha) {
-        const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha + 'T00:00:00'));
-        if (workingDays > 3) {
-          toast.error(`No se puede confirmar la fecha todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).`);
-          return;
-        }
-      } else {
-        toast.error('Debe ingresar una fecha antes de poder confirmarla');
-        return;
-      }
-    }
-
-    // Validar Confirmación de Fecha Pendiente de Entrega (3 días hábiles antes)
-    if (formData.fecha_pendiente_confirmada === true) {
-      if (formData.contacto_proveedor_fecha_pendiente) {
-        const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha_pendiente + 'T00:00:00'));
-        if (workingDays > 3) {
-          toast.error(`No se puede confirmar la fecha pendiente todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).`);
-          return;
-        }
-      } else {
-        toast.error('Debe ingresar una fecha pendiente antes de poder confirmarla');
-        return;
-      }
-    }
-
     // Validar Recepción Parcial
     if (formData.estado === 'Recepción Parcial' && !formData.cant_recepcion_parcial) {
       toast.error('Debe ingresar la cantidad para la Recepción Parcial');
       return;
     }
 
-    // Validar Cantidad Parcial a Entregar
-    if (formData.contacto_proveedor_entrega === 'Parcial' && !formData.contacto_proveedor_cant_parcial) {
-      toast.error('Debe ingresar la cantidad que se va a entregar (Entrega Parcial)');
-      return;
-    }
-
-    // Validar Cantidad Pendiente a Entregar si es Parcial y tiene la fecha de entrega pendiente cargada
-    if (formData.contacto_proveedor_entrega === 'Parcial' && formData.contacto_proveedor_fecha_pendiente && !formData.contacto_proveedor_cant_pendiente) {
-      toast.error('Debe ingresar la cantidad restante pendiente de entregar');
-      return;
+    // Validar Entregas
+    if (formData.contacto_proveedor_entrega === 'Parcial') {
+      const entregas = formData.entregas_parciales || [];
+      if (entregas.length === 0) {
+        toast.error('Debe agregar al menos una entrega parcial');
+        return;
+      }
+      for (let i = 0; i < entregas.length; i++) {
+        const ent = entregas[i];
+        if (!ent.fecha) {
+          toast.error(`La entrega parcial #${i + 1} debe tener una fecha de entrega`);
+          return;
+        }
+        if (!ent.cantidad || parseFloat(ent.cantidad) <= 0) {
+          toast.error(`La entrega parcial #${i + 1} debe tener una cantidad válida mayor a 0`);
+          return;
+        }
+        if (ent.confirmada === true) {
+          const workingDays = getWorkingDaysRemaining(new Date(ent.fecha + 'T00:00:00'));
+          if (workingDays > 3) {
+            toast.error(`No se puede confirmar la fecha de la entrega parcial #${i + 1} todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).`);
+            return;
+          }
+        }
+      }
+    } else {
+      // Validar Confirmación de Fecha de Entrega (3 días hábiles antes)
+      if (formData.fecha_confirmada === true) {
+        if (formData.contacto_proveedor_fecha) {
+          const workingDays = getWorkingDaysRemaining(new Date(formData.contacto_proveedor_fecha + 'T00:00:00'));
+          if (workingDays > 3) {
+            toast.error(`No se puede confirmar la fecha todavía. Sólo se permite confirmar hasta 3 días hábiles antes (faltan ${workingDays} días hábiles).`);
+            return;
+          }
+        } else {
+          toast.error('Debe ingresar una fecha antes de poder confirmarla');
+          return;
+        }
+      }
     }
 
     // Validar N° Pedido de Venta
@@ -790,6 +913,32 @@ const SeguimientoPedidosPage = () => {
       ? `${formData.descripcion} - ${formData.capacidad}`
       : (formData.descripcion || formData.capacidad || '');
 
+    let flat_fecha = formData.contacto_proveedor_fecha || '';
+    let flat_cant_parcial = formData.contacto_proveedor_cant_parcial ? parseFloat(formData.contacto_proveedor_cant_parcial) : null;
+    let flat_fecha_confirmada = !!formData.fecha_confirmada;
+    let flat_fecha_pendiente = formData.contacto_proveedor_fecha_pendiente || '';
+    let flat_cant_pendiente = formData.contacto_proveedor_cant_pendiente ? parseFloat(formData.contacto_proveedor_cant_pendiente) : null;
+    let flat_fecha_pendiente_confirmada = !!formData.fecha_pendiente_confirmada;
+
+    if (formData.contacto_proveedor_entrega === 'Parcial' && formData.entregas_parciales && formData.entregas_parciales.length > 0) {
+      const e0 = formData.entregas_parciales[0];
+      if (e0) {
+        flat_fecha = e0.fecha || '';
+        flat_cant_parcial = e0.cantidad ? parseFloat(e0.cantidad) : null;
+        flat_fecha_confirmada = !!e0.confirmada;
+      }
+      const e1 = formData.entregas_parciales[1];
+      if (e1) {
+        flat_fecha_pendiente = e1.fecha || '';
+        flat_cant_pendiente = e1.cantidad ? parseFloat(e1.cantidad) : null;
+        flat_fecha_pendiente_confirmada = !!e1.confirmada;
+      } else {
+        flat_fecha_pendiente = '';
+        flat_cant_pendiente = null;
+        flat_fecha_pendiente_confirmada = false;
+      }
+    }
+
     const cleanFormData = {
       fecha: formData.fecha || new Date().toISOString().split('T')[0],
       quien_solicita: formData.quien_solicita,
@@ -812,19 +961,20 @@ const SeguimientoPedidosPage = () => {
       contacto_mercurio: formData.contacto_mercurio || '',
       contacto_mercurio_fecha: formData.contacto_mercurio_fecha || '',
       contacto_proveedor: formData.contacto_proveedor || '',
-      contacto_proveedor_fecha: formData.contacto_proveedor_fecha || '',
+      contacto_proveedor_fecha: flat_fecha,
       contacto_proveedor_fecha_original: formData.contacto_proveedor_fecha_original || '',
       contacto_proveedor_observaciones: formData.contacto_proveedor_observaciones || '',
       contacto_proveedor_entrega: formData.contacto_proveedor_entrega || '',
-      contacto_proveedor_fecha_pendiente: formData.contacto_proveedor_fecha_pendiente || '',
-      contacto_proveedor_cant_parcial: formData.contacto_proveedor_cant_parcial ? parseFloat(formData.contacto_proveedor_cant_parcial) : null,
-      contacto_proveedor_cant_pendiente: formData.contacto_proveedor_cant_pendiente ? parseFloat(formData.contacto_proveedor_cant_pendiente) : null,
-      fecha_pendiente_confirmada: formData.fecha_pendiente_confirmada || false,
+      contacto_proveedor_fecha_pendiente: flat_fecha_pendiente,
+      contacto_proveedor_cant_parcial: flat_cant_parcial,
+      contacto_proveedor_cant_pendiente: flat_cant_pendiente,
+      fecha_pendiente_confirmada: flat_fecha_pendiente_confirmada,
       entrega_resto_pendiente: formData.entrega_resto_pendiente || false,
       estado: formData.estado || 'Pendiente',
       abonado: formData.abonado,
-      fecha_confirmada: formData.fecha_confirmada || false,
-      imagenes: formData.imagenes || []
+      fecha_confirmada: flat_fecha_confirmada,
+      imagenes: formData.imagenes || [],
+      entregas_parciales: formData.contacto_proveedor_entrega === 'Parcial' ? formData.entregas_parciales : []
     };
 
     const toastId = toast.loading(editingPedido ? 'Actualizando pedido...' : 'Registrando pedido...');
@@ -1930,117 +2080,141 @@ const SeguimientoPedidosPage = () => {
 
                       {formData.contacto_proveedor_entrega === 'Parcial' && (
                         <div className="col-span-1 sm:col-span-2 md:col-span-3 space-y-4 pt-4 pb-2 border-t border-dashed border-gray-150 animate-in fade-in slide-in-from-top-1 duration-200">
-                          {/* Fila 1: Cantidad a entregar */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Cantidad a Entregar *</label>
-                              <input
-                                type="number"
-                                step="any"
-                                name="contacto_proveedor_cant_parcial"
-                                placeholder="Ej. 10, 50..."
-                                value={formData.contacto_proveedor_cant_parcial}
-                                onChange={handleInputChange}
-                                required={formData.contacto_proveedor_entrega === 'Parcial'}
-                                disabled={!canEditDepositoFields}
-                                className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Fila 2: Mercadería Pendiente */}
-                          <div className="bg-blue-50/40 p-4 rounded-2xl border border-blue-100/70 space-y-3">
-                            <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs uppercase tracking-wider">
-                              <div className="w-1.5 h-3 bg-blue-600 rounded-full"></div>
-                              <span>Mercadería Pendiente</span>
-                            </div>
+                          
+                          {/* Resumen de Cantidades */}
+                          {(() => {
+                            const totalPedido = parseFloat(formData.cant_pedido) || 0;
+                            const totalAsignado = (formData.entregas_parciales || []).reduce((sum, item) => sum + (parseFloat(item.cantidad) || 0), 0);
+                            const pendiente = totalPedido - totalAsignado;
                             
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                              <div>
-                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">Fecha Entrega Pendiente</label>
-                                <input
-                                  type="date"
-                                  name="contacto_proveedor_fecha_pendiente"
-                                  value={formData.contacto_proveedor_fecha_pendiente || ''}
-                                  onChange={handleInputChange}
-                                  disabled={!canEditDepositoFields}
-                                  className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
-                                />
+                            return (
+                              <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+                                <div className="text-center">
+                                  <span className="text-[10px] text-gray-500 block font-bold uppercase tracking-wider">Total Pedido</span>
+                                  <span className="text-lg font-bold text-gray-800">{totalPedido}</span>
+                                </div>
+                                <div className="text-center border-x border-blue-100">
+                                  <span className="text-[10px] text-gray-500 block font-bold uppercase tracking-wider">Total Asignado</span>
+                                  <span className="text-lg font-bold text-blue-700">{totalAsignado}</span>
+                                </div>
+                                <div className="text-center">
+                                  <span className="text-[10px] text-gray-500 block font-bold uppercase tracking-wider">Pendiente</span>
+                                  <span className={`text-lg font-bold ${pendiente > 0 ? 'text-amber-600' : pendiente < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                    {pendiente}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex flex-col justify-end">
-                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
-                                  ¿Fecha Pendiente Confirmada? {confirmPendienteStatus.disabled && formData.contacto_proveedor_fecha_pendiente && canEditDepositoFields && (
-                                    <span className="text-[10px] text-rose-500 normal-case font-semibold block mt-0.5 animate-pulse">
-                                      (Sólo 3 días hábiles antes)
-                                    </span>
-                                  )}
-                                </label>
-                                <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
-                                  confirmPendienteStatus.disabled
-                                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                    : formData.fecha_pendiente_confirmada
-                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-pointer'
-                                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
-                                }`}
-                                title={confirmPendienteStatus.reason}
+                            );
+                          })()}
+
+                          {/* Listado Dinámico de Entregas Parciales */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Planificación de Entregas Parciales</span>
+                              {canEditDepositoFields && (
+                                <button
+                                  type="button"
+                                  onClick={handleAddEntregaParcial}
+                                  className="flex items-center gap-1 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 transition-all active:scale-95"
                                 >
-                                  <input
-                                    type="checkbox"
-                                    name="fecha_pendiente_confirmada"
-                                    checked={formData.fecha_pendiente_confirmada}
-                                    onChange={(e) => {
-                                      if (confirmPendienteStatus.disabled) {
-                                        toast.error(confirmPendienteStatus.reason);
-                                      } else {
-                                        handleInputChange(e);
-                                      }
-                                    }}
-                                    disabled={confirmPendienteStatus.disabled}
-                                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
-                                  />
-                                  <span>{formData.fecha_pendiente_confirmada ? 'Confirmada' : 'Confirmar'}</span>
-                                </label>
-                              </div>
-                              <div className="flex flex-col justify-end">
-                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">¿Se entrega resto faltante?</label>
-                                <label className={`flex items-center gap-2 border p-2.5 rounded-xl text-sm font-semibold transition-all ${
-                                  !canEditDepositoFields || !formData.contacto_proveedor_fecha_pendiente
-                                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                    : formData.entrega_resto_pendiente
-                                      ? 'bg-blue-50 border-blue-200 text-blue-700 cursor-pointer'
-                                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
-                                }`}>
-                                  <input
-                                    type="checkbox"
-                                    name="entrega_resto_pendiente"
-                                    checked={formData.entrega_resto_pendiente}
-                                    onChange={handleInputChange}
-                                    disabled={!canEditDepositoFields || !formData.contacto_proveedor_fecha_pendiente}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed cursor-pointer"
-                                  />
-                                  <span>{formData.entrega_resto_pendiente ? 'Sí, entrega resto' : 'No'}</span>
-                                </label>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-blue-900">
-                                  Cantidad Pendiente {formData.entrega_resto_pendiente && formData.contacto_proveedor_fecha_pendiente && (
-                                    <span className="text-[10px] text-emerald-650 normal-case font-semibold block mt-0.5 animate-pulse">
-                                      (Calculado auto)
-                                    </span>
-                                  )}
-                                </label>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  name="contacto_proveedor_cant_pendiente"
-                                  placeholder={!formData.contacto_proveedor_fecha_pendiente ? "Ingrese la fecha..." : "Ej. 5, 20..."}
-                                  value={formData.contacto_proveedor_cant_pendiente}
-                                  onChange={handleInputChange}
-                                  disabled={!canEditDepositoFields || !formData.contacto_proveedor_fecha_pendiente || formData.entrega_resto_pendiente}
-                                  className="w-full p-2.5 rounded-xl border border-blue-200 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-semibold text-blue-900 placeholder-blue-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
-                                />
-                              </div>
+                                  <Plus className="w-3.5 h-3.5" /> Agregar Entrega
+                                </button>
+                              )}
                             </div>
+
+                            {(formData.entregas_parciales || []).length === 0 ? (
+                              <div className="text-center py-6 border border-dashed border-gray-200 rounded-xl text-gray-400 text-xs italic">
+                                No hay entregas parciales planificadas. Presione "Agregar Entrega" para registrar una.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {(formData.entregas_parciales || []).map((entrega, idx) => {
+                                  const itemConfirmStatus = getEntregaConfirmStatus(entrega);
+                                  return (
+                                    <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl shadow-sm relative group">
+                                      <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded">
+                                        #{idx + 1}
+                                      </span>
+                                      
+                                      {/* Fecha */}
+                                      <div className="flex-1 w-full">
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Fecha</label>
+                                        <input
+                                          type="date"
+                                          value={entrega.fecha || ''}
+                                          onChange={(e) => handleEntregaParcialChange(idx, 'fecha', e.target.value)}
+                                          disabled={!canEditDepositoFields}
+                                          required
+                                          className="w-full p-2 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
+                                        />
+                                      </div>
+
+                                      {/* Cantidad */}
+                                      <div className="w-full sm:w-32">
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Cantidad</label>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={entrega.cantidad || ''}
+                                          onChange={(e) => handleEntregaParcialChange(idx, 'cantidad', e.target.value)}
+                                          disabled={!canEditDepositoFields}
+                                          required
+                                          placeholder="Cant..."
+                                          className="w-full p-2 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50/50 disabled:bg-gray-100 disabled:text-gray-400"
+                                        />
+                                      </div>
+
+                                      {/* Confirmación Checkbox */}
+                                      <div className="w-full sm:w-auto self-end sm:self-center">
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                          ¿Confirmar? {itemConfirmStatus.disabled && entrega.fecha && canEditDepositoFields && (
+                                            <span className="text-[8px] text-rose-500 normal-case block">
+                                              (≤ 3 días háb.)
+                                            </span>
+                                          )}
+                                        </label>
+                                        <label className={`flex items-center gap-1.5 border p-2 rounded-lg text-xs font-semibold transition-all ${
+                                          itemConfirmStatus.disabled
+                                            ? 'bg-gray-105 border-gray-200 text-gray-400 cursor-not-allowed'
+                                            : entrega.confirmada
+                                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-pointer'
+                                              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                        }`}
+                                        title={itemConfirmStatus.reason}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={!!entrega.confirmada}
+                                            onChange={(e) => {
+                                              if (itemConfirmStatus.disabled) {
+                                                toast.error(itemConfirmStatus.reason);
+                                              } else {
+                                                handleEntregaParcialChange(idx, 'confirmada', e.target.checked);
+                                              }
+                                            }}
+                                            disabled={itemConfirmStatus.disabled}
+                                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 disabled:cursor-not-allowed cursor-pointer"
+                                          />
+                                          <span>{entrega.confirmada ? 'Confirmado' : 'Confirmar'}</span>
+                                        </label>
+                                      </div>
+
+                                      {/* Eliminar Botón */}
+                                      {canEditDepositoFields && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveEntregaParcial(idx)}
+                                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-all self-end sm:self-center"
+                                          title="Eliminar esta entrega parcial"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2269,22 +2443,64 @@ const SeguimientoPedidosPage = () => {
                                 Entrega Total
                               </span>
                             ) : viewingPedido.contacto_proveedor_entrega === 'Parcial' ? (
-                              <>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 shadow-sm">
-                                  Entrega Parcial
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-150">
-                                  Cant: <strong className="ml-1 font-bold">{viewingPedido.contacto_proveedor_cant_parcial || 0}</strong>
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-150">
-                                  Pendiente: <strong className="ml-1 font-bold">{viewingPedido.contacto_proveedor_cant_pendiente || 0}</strong>
-                                </span>
-                              </>
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 shadow-sm">
+                                Entrega Parcial
+                              </span>
                             ) : (
                               <span className="text-gray-400 italic text-xs">No especificado</span>
                             )}
                           </div>
                         </div>
+                        {viewingPedido.contacto_proveedor_entrega === 'Parcial' && (
+                          <div className="col-span-2 md:col-span-4 mt-2 animate-in fade-in duration-200">
+                            <span className="text-xs text-gray-500 block font-semibold mb-1 uppercase tracking-wider text-[10px]">Planificación de Entregas Parciales:</span>
+                            <div className="overflow-x-auto w-full bg-white border border-gray-150 rounded-xl">
+                              <table className="w-full text-left text-xs divide-y divide-gray-100">
+                                <thead>
+                                  <tr className="bg-gray-50 text-gray-500 font-bold">
+                                    <th className="py-2 px-3">Entrega</th>
+                                    <th className="py-2 px-3">Fecha</th>
+                                    <th className="py-2 px-3">Cantidad</th>
+                                    <th className="py-2 px-3">Estado</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {(() => {
+                                    let sumAsignada = 0;
+                                    const totalPedido = parseFloat(viewingPedido.cant_pedido) || 0;
+                                    const entregas = viewingPedido.entregas_parciales || [];
+                                    const itemsToShow = entregas.length > 0 ? entregas : [
+                                      { fecha: viewingPedido.contacto_proveedor_fecha, cantidad: viewingPedido.contacto_proveedor_cant_parcial, confirmada: viewingPedido.fecha_confirmada },
+                                      { fecha: viewingPedido.contacto_proveedor_fecha_pendiente, cantidad: viewingPedido.contacto_proveedor_cant_pendiente, confirmada: viewingPedido.fecha_pendiente_confirmada }
+                                    ].filter(item => item.fecha || item.cantidad);
+
+                                    return itemsToShow.map((ent, idx) => {
+                                      sumAsignada += parseFloat(ent.cantidad) || 0;
+                                      const pendiente = Math.max(0, totalPedido - sumAsignada);
+                                      return (
+                                        <tr key={idx} className="hover:bg-gray-50/50">
+                                          <td className="py-2 px-3 font-semibold text-gray-600">#{idx + 1}</td>
+                                          <td className="py-2 px-3 font-medium text-gray-800">{formatLocalDate(ent.fecha)}</td>
+                                          <td className="py-2 px-3 font-medium">
+                                            <span className="font-bold text-gray-900">{ent.cantidad || 0}</span>
+                                            <span className="text-[10px] text-gray-400 block font-normal">Restante: {pendiente}</span>
+                                          </td>
+                                          <td className="py-2 px-3">
+                                            {ent.confirmada ? (
+                                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">Confirmada</span>
+                                            ) : (
+                                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">Pendiente</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    });
+                                  })()}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2426,19 +2642,6 @@ const SeguimientoPedidosPage = () => {
                         )}
 
                         <div className="flex flex-wrap items-center gap-3">
-                          <div>
-                            <span className="text-xs text-gray-400 block mb-0.5">Estado de Fecha:</span>
-                            {viewingPedido.fecha_confirmada ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Confirmada
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                <Clock className="w-3.5 h-3.5" /> Pendiente
-                              </span>
-                            )}
-                          </div>
-
                           {viewingPedido.contacto_proveedor_entrega && (
                             <div>
                               <span className="text-xs text-gray-400 block mb-0.5">Entrega:</span>
@@ -2452,47 +2655,81 @@ const SeguimientoPedidosPage = () => {
                             </div>
                           )}
 
-                          {viewingPedido.contacto_proveedor_entrega === 'Parcial' && viewingPedido.contacto_proveedor_cant_parcial && (
-                            <div>
-                              <span className="text-xs text-gray-400 block mb-0.5">Cant. a Entregar:</span>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                {viewingPedido.contacto_proveedor_cant_parcial}
-                              </span>
-                            </div>
-                          )}
-
-                          {viewingPedido.contacto_proveedor_entrega === 'Parcial' && viewingPedido.contacto_proveedor_cant_pendiente && (
-                            <div>
-                              <span className="text-xs text-gray-400 block mb-0.5">Cant. Pendiente:</span>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                {viewingPedido.contacto_proveedor_cant_pendiente}
-                              </span>
-                            </div>
-                          )}
-
-                          {viewingPedido.contacto_proveedor_entrega === 'Parcial' && viewingPedido.contacto_proveedor_fecha_pendiente && (
-                            <div>
-                              <span className="text-xs text-gray-400 block mb-0.5">Fecha Pendiente:</span>
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                                viewingPedido.fecha_pendiente_confirmada
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200'
-                              }`}>
-                                {formatLocalDate(viewingPedido.contacto_proveedor_fecha_pendiente)}
-                                {viewingPedido.fecha_pendiente_confirmada ? ' (Confirmada)' : ' (Pendiente)'}
-                              </span>
-                            </div>
-                          )}
-
-                          {viewingPedido.contacto_proveedor_entrega === 'Parcial' && viewingPedido.entrega_resto_pendiente && (
-                            <div>
-                              <span className="text-xs text-gray-400 block mb-0.5">Entrega Resto:</span>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                Sí, entrega resto
-                              </span>
-                            </div>
+                          {viewingPedido.contacto_proveedor_entrega === 'Total' && (
+                            <>
+                              <div>
+                                <span className="text-xs text-gray-400 block mb-0.5">Fecha de Entrega:</span>
+                                <span className="font-semibold text-gray-800">{formatLocalDate(viewingPedido.contacto_proveedor_fecha)}</span>
+                              </div>
+                              <div>
+                                <span className="text-xs text-gray-400 block mb-0.5">Estado de Fecha:</span>
+                                {viewingPedido.fecha_confirmada ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Confirmada
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <Clock className="w-3.5 h-3.5" /> Pendiente
+                                  </span>
+                                )}
+                              </div>
+                            </>
                           )}
                         </div>
+
+                        {viewingPedido.contacto_proveedor_entrega === 'Parcial' && (
+                          <div className="border border-gray-150 rounded-xl overflow-hidden mt-3 w-full bg-gray-50/20">
+                            <table className="w-full text-left text-xs divide-y divide-gray-100">
+                              <thead>
+                                <tr className="bg-gray-50 text-gray-500 font-bold">
+                                  <th className="py-2.5 px-3">Entrega</th>
+                                  <th className="py-2.5 px-3">Fecha Programada</th>
+                                  <th className="py-2.5 px-3">Cantidad</th>
+                                  <th className="py-2.5 px-3">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-150">
+                                {(() => {
+                                  let sumAsignada = 0;
+                                  const totalPedido = parseFloat(viewingPedido.cant_pedido) || 0;
+                                  const entregas = viewingPedido.entregas_parciales || [];
+                                  const itemsToShow = entregas.length > 0 ? entregas : [
+                                    { fecha: viewingPedido.contacto_proveedor_fecha, cantidad: viewingPedido.contacto_proveedor_cant_parcial, confirmada: viewingPedido.fecha_confirmada },
+                                    { fecha: viewingPedido.contacto_proveedor_fecha_pendiente, cantidad: viewingPedido.contacto_proveedor_cant_pendiente, confirmada: viewingPedido.fecha_pendiente_confirmada }
+                                  ].filter(item => item.fecha || item.cantidad);
+
+                                  return itemsToShow.map((ent, idx) => {
+                                    sumAsignada += parseFloat(ent.cantidad) || 0;
+                                    const pendiente = Math.max(0, totalPedido - sumAsignada);
+                                    return (
+                                      <tr key={idx} className="hover:bg-white transition-colors">
+                                        <td className="py-2.5 px-3 font-semibold text-gray-655 font-mono">#{idx + 1}</td>
+                                        <td className="py-2.5 px-3 font-medium text-gray-800">{formatLocalDate(ent.fecha)}</td>
+                                        <td className="py-2.5 px-3">
+                                          <div className="flex flex-col">
+                                            <span className="font-bold text-gray-900">{ent.cantidad || 0}</span>
+                                            <span className="text-[9px] text-gray-400 font-normal">Restante: {pendiente}</span>
+                                          </div>
+                                        </td>
+                                        <td className="py-2.5 px-3">
+                                          {ent.confirmada ? (
+                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded font-bold text-[10px]">
+                                              ✓ Confirmada
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded font-bold text-[10px]">
+                                              ⏳ Pendiente
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
                         {viewingPedido.contacto_proveedor_observaciones && (
                           <div className="bg-rose-50/30 p-2.5 rounded-xl border border-rose-100/50 mt-2">
