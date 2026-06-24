@@ -1609,7 +1609,18 @@ const ColorRegistrations = () => {
                                                                 <div key={idx} className="flex justify-between items-center py-1">
                                                                     <div className="flex items-center gap-1.5 min-w-0">
                                                                         <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-sm shrink-0" style={{ backgroundColor: pig.hex || '#64748b' }} />
-                                                                        <span className="truncate text-gray-700">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
+                                                                        <span className="truncate text-gray-700">
+                                                                            {(() => {
+                                                                                const name = pig.nombre || pig.name || '';
+                                                                                const code = pig.codigo || pig.code || '';
+                                                                                if (name && code && name !== code) {
+                                                                                    const codeInParens = `(${code})`;
+                                                                                    if (name.includes(codeInParens)) return name;
+                                                                                    return `${name} (${code})`;
+                                                                                }
+                                                                                return name || code || '-';
+                                                                            })()}
+                                                                        </span>
                                                                     </div>
                                                                     <span className="font-mono text-gray-900 font-black shrink-0">
                                                                         {String(pig.cantidad).replace('.', ',')} {pig.unidad === 'unidades' || pig.unidad === 'un.' ? 'impulsos' : (pig.unidad === 'impulsos' ? 'impulsos' : pig.unidad || 'impulsos')}
@@ -1627,7 +1638,18 @@ const ColorRegistrations = () => {
                                                                         <div key={`extra-${idx}`} className="flex justify-between items-center py-1 text-amber-900">
                                                                             <div className="flex items-center gap-1.5 min-w-0">
                                                                                 <div className="w-2 rounded-full border border-gray-200 shadow-sm shrink-0 animate-pulse" style={{ backgroundColor: pig.hex || '#64748b', height: '8px' }} />
-                                                                                <span className="truncate font-bold">{pig.nombre || pig.name || pig.codigo || pig.code}</span>
+                                                                                <span className="truncate font-bold">
+                                                                                    {(() => {
+                                                                                        const name = pig.nombre || pig.name || '';
+                                                                                        const code = pig.codigo || pig.code || '';
+                                                                                        if (name && code && name !== code) {
+                                                                                            const codeInParens = `(${code})`;
+                                                                                            if (name.includes(codeInParens)) return name;
+                                                                                            return `${name} (${code})`;
+                                                                                        }
+                                                                                        return name || code || '-';
+                                                                                    })()}
+                                                                                </span>
                                                                             </div>
                                                                             <span className="font-mono font-black shrink-0">
                                                                                 +{String(pig.cantidad).replace('.', ',')} {pig.unidad === 'unidades' || pig.unidad === 'un.' ? 'impulsos' : (pig.unidad === 'impulsos' ? 'impulsos' : pig.unidad || 'impulsos')}
