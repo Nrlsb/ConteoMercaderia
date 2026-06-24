@@ -13,7 +13,10 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
     if (!rows || rows.length === 0) return rows;
 
     const needsEnrich = rows.some(r => r.products && (r.products.lista001 || r.products.lista500));
-    const hasFormulas = rows.some(r => r.formula?.pigmentos && r.formula.pigmentos.length > 0);
+    const hasFormulas = rows.some(r => 
+        (r.formula?.pigmentos && r.formula.pigmentos.length > 0) || 
+        (r.formula?.pigmentos_extras && r.formula.pigmentos_extras.length > 0)
+    );
     if (!needsEnrich && !hasFormulas) return rows;
 
     const cotizaciones = await dolarService.getCotizaciones();
@@ -25,6 +28,11 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
     rows.forEach(r => {
         if (r.formula?.pigmentos) {
             r.formula.pigmentos.forEach(p => {
+                if (p.codigo) uniquePigmentCodes.add(p.codigo.trim().toUpperCase());
+            });
+        }
+        if (r.formula?.pigmentos_extras) {
+            r.formula.pigmentos_extras.forEach(p => {
                 if (p.codigo) uniquePigmentCodes.add(p.codigo.trim().toUpperCase());
             });
         }
@@ -99,22 +107,37 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
         let precio_pigmentos = 0;
         let hasFormulaPrice = false;
 
-        if (r.formula?.pigmentos) {
+        if (r.formula) {
             const system = r.formula.sistema?.toLowerCase() || '';
             const isTersuave = system.includes('tersuave');
             const isPlavicon = system.includes('plavicon');
             const divisor = isTersuave ? 1250 : (isPlavicon ? 1300 : 2200);
 
-            r.formula.pigmentos.forEach(p => {
-                const key = p.codigo?.trim().toUpperCase();
-                if (key && pigmentsMap.has(key)) {
-                    hasFormulaPrice = true;
-                    const precioLata = pigmentsMap.get(key);
-                    const qty = Number(p.cantidad) || 0;
-                    const cost = (qty / divisor) * precioLata;
-                    precio_pigmentos += cost;
-                }
-            });
+            if (r.formula.pigmentos) {
+                r.formula.pigmentos.forEach(p => {
+                    const key = p.codigo?.trim().toUpperCase();
+                    if (key && pigmentsMap.has(key)) {
+                        hasFormulaPrice = true;
+                        const precioLata = pigmentsMap.get(key);
+                        const qty = Number(p.cantidad) || 0;
+                        const cost = (qty / divisor) * precioLata;
+                        precio_pigmentos += cost;
+                    }
+                });
+            }
+
+            if (r.formula.pigmentos_extras) {
+                r.formula.pigmentos_extras.forEach(p => {
+                    const key = p.codigo?.trim().toUpperCase();
+                    if (key && pigmentsMap.has(key)) {
+                        hasFormulaPrice = true;
+                        const precioLata = pigmentsMap.get(key);
+                        const qty = Number(p.cantidad) || 0;
+                        const cost = (qty / divisor) * precioLata;
+                        precio_pigmentos += cost;
+                    }
+                });
+            }
         }
 
         r.precio_base_ars = r.products?.precio_ars || null;
