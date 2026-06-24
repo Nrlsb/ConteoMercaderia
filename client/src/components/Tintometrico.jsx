@@ -223,8 +223,10 @@ const Tintometrico = () => {
             const cap = rawCap >= 100 ? rawCap / 1000 : rawCap;
             return cap === selectedCanSize;
         });
+        const refSize = activeSizes.length > 0 ? activeSizes[0].capacidad_litros : 1;
+        const multiplier = refSize >= 100 ? 1000 : 1;
         const nominalSize = isOtherCapacity
-            ? selectedCanSize * getScaleFactor(activeRecipe)
+            ? selectedCanSize * multiplier * getScaleFactor(activeRecipe)
             : (activeSizeObj ? activeSizeObj.capacidad_litros : (selectedCanSize || 1));
 
         const pigments = activeRecipe.pigments.map(pig => {
@@ -629,7 +631,9 @@ const Tintometrico = () => {
         const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
             let scaledVol, nominalSize, nominalVol;
             if (isOtherCapacity) {
-                nominalSize = selectedCanSize * scaleFactor;
+                const refSize = activeSizes.length > 0 ? activeSizes[0].capacidad_litros : 1;
+                const multiplier = refSize >= 100 ? 1000 : 1;
+                nominalSize = selectedCanSize * multiplier * scaleFactor;
                 nominalVol = pig.cantidad * nominalSize;
                 scaledVol = nominalVol;
             } else {
@@ -1367,7 +1371,9 @@ const Tintometrico = () => {
                                     const pigmentsWithCosts = activeRecipe.pigments.map((pig) => {
                                         let scaledVol, nominalSize, nominalVol;
                                         if (isOtherCapacity) {
-                                            nominalSize = selectedCanSize * scaleFactor;
+                                            const refSize = activeSizes.length > 0 ? activeSizes[0].capacidad_litros : 1;
+                                            const multiplier = refSize >= 100 ? 1000 : 1;
+                                            nominalSize = selectedCanSize * multiplier * scaleFactor;
                                             nominalVol = pig.cantidad * nominalSize;
                                             scaledVol = nominalVol;
                                         } else {
