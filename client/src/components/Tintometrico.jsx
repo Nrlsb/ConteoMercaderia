@@ -528,7 +528,8 @@ const Tintometrico = () => {
 
             if (isTersuave) {
                 displayQty = nominalVol.toFixed(2).replace('.', ',');
-                costoPig = pig.precio_lata ? Math.round((nominalVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
+                const qtyUnits = Number((Number(nominalVol) / 1250).toFixed(4));
+                costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
             } else if (isPlavicon) {
                 displayQty = nominalVol.toFixed(2).replace('.', ',');
                 const qtyUnits = Number((Number(nominalVol) / 1300).toFixed(4));
@@ -1137,7 +1138,8 @@ const Tintometrico = () => {
 
                                         if (isTersuave) {
                                             displayQty = nominalVol.toFixed(2).replace('.', ',');
-                                            costoPig = pig.precio_lata ? Math.round((nominalVol / 1250) * Number(pig.precio_lata) * 100) / 100 : 0;
+                                            const qtyUnits = Number((Number(nominalVol) / 1250).toFixed(4));
+                                            costoPig = pig.precio_lata ? Math.round(qtyUnits * Number(pig.precio_lata) * 100) / 100 : 0;
                                         } else if (isPlavicon) {
                                             displayQty = nominalVol.toFixed(2).replace('.', ',');
                                             const qtyUnits = Number((Number(nominalVol) / 1300).toFixed(4));

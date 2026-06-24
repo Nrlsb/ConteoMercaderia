@@ -120,7 +120,8 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
                         hasFormulaPrice = true;
                         const precioLata = pigmentsMap.get(key);
                         const qty = Number(p.cantidad) || 0;
-                        const cost = (qty / divisor) * precioLata;
+                        const qtyUnits = parseFloat((qty / divisor).toFixed(4));
+                        const cost = parseFloat((qtyUnits * precioLata).toFixed(2));
                         precio_pigmentos += cost;
                     }
                 });
@@ -133,7 +134,8 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
                         hasFormulaPrice = true;
                         const precioLata = pigmentsMap.get(key);
                         const qty = Number(p.cantidad) || 0;
-                        const cost = (qty / divisor) * precioLata;
+                        const qtyUnits = parseFloat((qty / divisor).toFixed(4));
+                        const cost = parseFloat((qtyUnits * precioLata).toFixed(2));
                         precio_pigmentos += cost;
                     }
                 });
