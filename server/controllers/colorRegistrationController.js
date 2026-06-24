@@ -155,6 +155,11 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
 // Get all color registrations
 exports.getAll = async (req, res) => {
     try {
+        let isHistory = false;
+        if (req.query.is_history !== undefined) {
+            isHistory = req.query.is_history === 'true';
+        }
+
         let query = supabase
             .from('color_registrations')
             .select(`
@@ -178,7 +183,8 @@ exports.getAll = async (req, res) => {
                     id,
                     username
                 )
-            `);
+            `)
+            .eq('is_history', isHistory);
 
         // Filter: only show if the user created it, is assigned to it, or is a superadmin
         if (req.user.role !== 'superadmin') {
@@ -215,7 +221,8 @@ exports.create = async (req, res) => {
         capacity_real,
         formula,
         base,
-        obra
+        obra,
+        is_history
     } = req.body;
 
     if (!color_type || !color_name || !client_name) {
@@ -242,6 +249,7 @@ exports.create = async (req, res) => {
             formula: formula || null,
             base: base || null,
             obra: obra || null,
+            is_history: is_history ?? false,
             created_by: req.user.id
         };
 

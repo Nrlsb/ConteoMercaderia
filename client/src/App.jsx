@@ -33,6 +33,7 @@ const PesajePage = lazy(() => import('./components/PesajePage'));
 const SeguimientoPedidosPage = lazy(() => import('./components/SeguimientoPedidosPage'));
 const Tintometrico = lazy(() => import('./components/Tintometrico'));
 const ColorRegistrations = lazy(() => import('./components/ColorRegistrations'));
+const TintometricoHistory = lazy(() => import('./components/TintometricoHistory'));
 const ProductsPage = lazy(() => import('./components/ProductsPage'));
 const ValorizacionPage = lazy(() => import('./components/ValorizacionPage'));
 
@@ -294,6 +295,11 @@ const AppContent = () => {
                 <Route path="/color-registrations" element={
                   <ProtectedRoute tabPermission="tab_registro_colores">
                     <ColorRegistrations />
+                  </ProtectedRoute>
+                } />
+                <Route path="/tintometrico-history" element={
+                  <ProtectedRoute tabPermission="tab_tintometrico">
+                    <TintometricoHistory />
                   </ProtectedRoute>
                 } />
                 <Route path="/products" element={

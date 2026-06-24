@@ -1,8 +1,12 @@
 import api from '../api';
 
 export const colorRegistrationsService = {
-    async getAll() {
-        const response = await api.get('/api/color-registrations');
+    async getAll(isHistory) {
+        const params = {};
+        if (isHistory !== undefined) {
+            params.is_history = isHistory;
+        }
+        const response = await api.get('/api/color-registrations', { params });
         return response.data;
     },
 

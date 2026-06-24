@@ -118,7 +118,7 @@ const Tintometrico = () => {
     const fetchHistory = async () => {
         setLoadingHistory(true);
         try {
-            const data = await colorRegistrationsService.getAll();
+            const data = await colorRegistrationsService.getAll(true);
             setHistory(data || []);
         } catch (err) {
             console.error('Error al cargar historial:', err);
@@ -198,7 +198,8 @@ const Tintometrico = () => {
                 capacity_real: selectedCanSize,
                 base: activeRecipe.base,
                 formula: calculatedFormula,
-                obra: obra.trim() || null
+                obra: obra.trim() || null,
+                is_history: true
             };
 
             await colorRegistrationsService.create(payload);

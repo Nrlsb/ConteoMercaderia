@@ -79,13 +79,14 @@ const Navigation = () => {
     const showSeguimientoPedidos = canSeeTab('tab_seguimiento_pedidos', true);
     const showTintometrico = canSeeTab('tab_tintometrico', true);
     const showRegistroColores = canSeeTab('tab_registro_colores', true);
+    const showHistorialTintometrico = showTintometrico;
     const showProductos = canSeeTab('tab_productos', isAdminLike);
     const showValorizacion = canSeeTab('tab_valorizacion', isAdminLike);
 
     const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal || showValorizacion;
-    const hasTintometria = showTintometrico || showRegistroColores;
+    const hasTintometria = showTintometrico || showRegistroColores || showHistorialTintometrico;
     const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings') || isActive('/valorizacion');
-    const isTintometriaActive = isActive('/tintometrico') || isActive('/color-registrations');
+    const isTintometriaActive = isActive('/tintometrico') || isActive('/color-registrations') || isActive('/tintometrico-history');
     const isHerramientasActive = isActive('/barcode-control') || isActive('/etiquetas') || isActive('/pesaje') || isActive('/settings') || isActive('/ayuda');
 
     const getDropdownTriggerClass = (activeState) => {
@@ -147,6 +148,9 @@ const Navigation = () => {
                                         )}
                                         {showRegistroColores && (
                                             <Link to="/color-registrations" className={getDropdownLinkClass('/color-registrations')}>Registro Colores</Link>
+                                        )}
+                                        {showHistorialTintometrico && (
+                                            <Link to="/tintometrico-history" className={getDropdownLinkClass('/tintometrico-history')}>Historial Tintométrico</Link>
                                         )}
                                     </div>
                                 </div>
@@ -298,6 +302,9 @@ const Navigation = () => {
                         )}
                         {showRegistroColores && (
                             <Link to="/color-registrations" className={getMobileLinkClass('/color-registrations')} onClick={() => setIsOpen(false)}>Registro Colores</Link>
+                        )}
+                        {showHistorialTintometrico && (
+                            <Link to="/tintometrico-history" className={getMobileLinkClass('/tintometrico-history')} onClick={() => setIsOpen(false)}>Historial Tintométrico</Link>
                         )}
                         {showProductos && (
                             <Link to="/products" className={getMobileLinkClass('/products')} onClick={() => setIsOpen(false)}>Productos</Link>

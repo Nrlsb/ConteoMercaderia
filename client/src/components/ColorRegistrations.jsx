@@ -360,7 +360,7 @@ const ColorRegistrations = () => {
     const fetchRegistrations = async () => {
         setLoadingRegistrations(true);
         try {
-            const data = await colorRegistrationsService.getAll();
+            const data = await colorRegistrationsService.getAll(false);
             setRegistrations(data || []);
         } catch (err) {
             console.error('Error fetching registrations:', err);
@@ -609,7 +609,8 @@ const ColorRegistrations = () => {
                 capacity_real: colorType === 'tintometrico' ? selectedCanSize : null,
                 base: colorType === 'tintometrico' ? activeRecipe?.base : null,
                 formula: calculatedFormula,
-                obra: obra.trim() || null
+                obra: obra.trim() || null,
+                is_history: false
             };
 
             await colorRegistrationsService.create(payload);
