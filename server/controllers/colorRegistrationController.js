@@ -87,6 +87,103 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
         }
     }
 
+    // 2.5. Si hay registros sin producto físico pero con fórmula, intentar obtener precio base de la dosificación
+    const rowsWithFormulaAndNoProduct = rows.filter(r => !r.products && r.formula?.productName);
+    
+    if (tintometricoSupabase && rowsWithFormulaAndNoProduct.length > 0) {
+        try {
+            const uniqueProductNames = Array.from(new Set(rowsWithFormulaAndNoProduct.map(r => r.formula.productName.trim())));
+            
+            // Consultar IDs de productos de tintometría
+            const { data: tintProds, error: prodErr } = await tintometricoSupabase
+                .from('tintometria_productos')
+                .select('id, nombre')
+                .in('nombre', uniqueProductNames);
+
+            if (!prodErr && tintProds && tintProds.length > 0) {
+                const prodIds = tintProds.map(p => p.id);
+                const prodNamesMap = new Map(tintProds.map(p => [p.nombre.trim(), p.id]));
+                
+                // Consultar las capacidades de esos productos de tintometría
+                const { data: tintCaps, error: capsErr } = await tintometricoSupabase
+                    .from('tintometria_capacidades')
+                    .select('*')
+                    .in('producto_id', prodIds);
+
+                if (!capsErr && tintCaps && tintCaps.length > 0) {
+                    const capacityCodes = tintCaps
+                        .map(c => c.codigo_comercial)
+                        .filter(code => code != null && code.trim() !== '');
+
+                    let localProdsMap = new Map();
+                    if (capacityCodes.length > 0) {
+                        const { data: productsResult, error: localProdErr } = await supabase
+                            .from('products')
+                            .select('code, description, capacity, lista001, lista500, tes, moneda')
+                            .in('code', capacityCodes);
+                        
+                        if (!localProdErr && productsResult) {
+                            localProdsMap = new Map(productsResult.map(p => [p.code, p]));
+                        }
+                    }
+
+                    // Enriquecer y aplicar precios locales e IVA a las capacidades encontradas
+                    const capsEnriched = tintCaps.map(c => {
+                        let basePrice = c.precio_base ? Number(c.precio_base) : 0;
+
+                        if (c.codigo_comercial && localProdsMap.has(c.codigo_comercial)) {
+                            const prod = localProdsMap.get(c.codigo_comercial);
+                            let localPrice = prod[priceField] ? Number(prod[priceField]) : null;
+                            if (localPrice !== null && localPrice > 0) {
+                                localPrice = dolarService.convertirPrecio(localPrice, prod.moneda, cotizaciones);
+                                let vatMultiplier = 1.0;
+                                const tes = prod.tes ? String(prod.tes).trim() : '';
+                                if (tes === '503') vatMultiplier = 1.21;
+                                else if (tes === '501') vatMultiplier = 1.105;
+                                basePrice = localPrice * vatMultiplier;
+                            }
+                        }
+
+                        c.precio_base_final = basePrice * markupMultiplier;
+                        return c;
+                    });
+
+                    // Asignar el precio base pre-calculado a cada fila
+                    rowsWithFormulaAndNoProduct.forEach(r => {
+                        const productNameNorm = r.formula.productName.trim();
+                        const tintProdId = prodNamesMap.get(productNameNorm);
+                        
+                        if (tintProdId) {
+                            const sizeLitros = r.capacity_real ? Number(r.capacity_real) : 1;
+                            const baseName = r.base || r.formula.base || 'General';
+                            
+                            let matchedCap = capsEnriched.find(c => 
+                                c.producto_id === tintProdId && 
+                                c.base === baseName && 
+                                (c.capacidad_litros === sizeLitros || (c.capacidad_real && Math.abs(c.capacidad_real - sizeLitros) < 0.05))
+                            );
+
+                            if (!matchedCap) {
+                                // Fallback a base General
+                                matchedCap = capsEnriched.find(c => 
+                                    c.producto_id === tintProdId && 
+                                    c.base === 'General' && 
+                                    (c.capacidad_litros === sizeLitros || (c.capacidad_real && Math.abs(c.capacidad_real - sizeLitros) < 0.05))
+                                );
+                            }
+
+                            if (matchedCap) {
+                                r.precio_base_ars = parseFloat(matchedCap.precio_base_final.toFixed(2));
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Error calculando precio base alternativo en colorRegistrationController:', err);
+        }
+    }
+
     rows.forEach(r => {
         // Enriquecer precio base
         if (r.products) {
@@ -142,7 +239,7 @@ async function enrichWithPrice(rows, userPriceList, sucursalMarkup = 0) {
             }
         }
 
-        r.precio_base_ars = r.products?.precio_ars || null;
+        r.precio_base_ars = r.products?.precio_ars || r.precio_base_ars || null;
         r.precio_pigmentos_ars = hasFormulaPrice ? parseFloat(precio_pigmentos.toFixed(2)) : 0;
         r.precio_total_ars = r.precio_base_ars !== null 
             ? parseFloat((r.precio_base_ars + r.precio_pigmentos_ars).toFixed(2)) 
