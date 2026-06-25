@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from '../api';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 import { 
     Search, 
     FileText, 
@@ -18,6 +19,8 @@ import {
 } from 'lucide-react';
 
 const ValorizacionPage = () => {
+    const { user } = useAuth();
+    const isSuperAdmin = user?.role === 'superadmin';
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [remitoData, setRemitoData] = useState(null);
@@ -241,19 +244,21 @@ const ValorizacionPage = () => {
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Costo Esperado */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center justify-between hover:shadow-md transition-all">
-                            <div className="space-y-1">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Costo Esperado</span>
-                                <h3 className="text-2xl font-extrabold text-gray-900">{formatCurrency(remitoData.totals.total_esperado)}</h3>
-                                <p className="text-xs text-gray-400">Según documento cargado</p>
+                        {isSuperAdmin && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center justify-between hover:shadow-md transition-all">
+                                <div className="space-y-1">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Costo Esperado</span>
+                                    <h3 className="text-2xl font-extrabold text-gray-900">{formatCurrency(remitoData.totals.total_esperado)}</h3>
+                                    <p className="text-xs text-gray-400">Según documento cargado</p>
+                                </div>
+                                <div className="p-3.5 bg-blue-50 text-blue-600 rounded-2xl">
+                                    <FileText className="w-6 h-6" />
+                                </div>
                             </div>
-                            <div className="p-3.5 bg-blue-50 text-blue-600 rounded-2xl">
-                                <FileText className="w-6 h-6" />
-                            </div>
-                        </div>
+                        )}
 
                         {/* Costo Controlado */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center justify-between hover:shadow-md transition-all">
+                        <div className={`bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center justify-between hover:shadow-md transition-all ${!isSuperAdmin ? 'md:col-start-2' : ''}`}>
                             <div className="space-y-1">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Costo Controlado</span>
                                 <h3 className="text-2xl font-extrabold text-gray-900">{formatCurrency(remitoData.totals.total_controlado)}</h3>
@@ -265,160 +270,164 @@ const ValorizacionPage = () => {
                         </div>
 
                         {/* Desviación */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center justify-between hover:shadow-md transition-all">
-                            <div className="space-y-1">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Diferencia de Costo</span>
-                                <h3 className={`text-2xl font-extrabold ${
+                        {isSuperAdmin && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center justify-between hover:shadow-md transition-all">
+                                <div className="space-y-1">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Diferencia de Costo</span>
+                                    <h3 className={`text-2xl font-extrabold ${
+                                        remitoData.totals.diferencia_costo < 0 
+                                            ? 'text-red-600' 
+                                            : remitoData.totals.diferencia_costo > 0 
+                                                ? 'text-green-600' 
+                                                : 'text-gray-900'
+                                    }`}>
+                                        {formatCurrency(remitoData.totals.diferencia_costo)}
+                                    </h3>
+                                    <p className="text-xs text-gray-400">Diferencia neta de valor</p>
+                                </div>
+                                <div className={`p-3.5 rounded-2xl ${
                                     remitoData.totals.diferencia_costo < 0 
-                                        ? 'text-red-600' 
+                                        ? 'bg-red-50 text-red-600' 
                                         : remitoData.totals.diferencia_costo > 0 
-                                            ? 'text-green-600' 
-                                            : 'text-gray-900'
+                                            ? 'bg-green-50 text-green-600' 
+                                            : 'bg-gray-50 text-gray-600'
                                 }`}>
-                                    {formatCurrency(remitoData.totals.diferencia_costo)}
-                                </h3>
-                                <p className="text-xs text-gray-400">Diferencia neta de valor</p>
+                                    {remitoData.totals.diferencia_costo < 0 ? (
+                                        <TrendingDown className="w-6 h-6" />
+                                    ) : (
+                                        <TrendingUp className="w-6 h-6" />
+                                    )}
+                                </div>
                             </div>
-                            <div className={`p-3.5 rounded-2xl ${
-                                remitoData.totals.diferencia_costo < 0 
-                                    ? 'bg-red-50 text-red-600' 
-                                    : remitoData.totals.diferencia_costo > 0 
-                                        ? 'bg-green-50 text-green-600' 
-                                        : 'bg-gray-50 text-gray-600'
-                            }`}>
-                                {remitoData.totals.diferencia_costo < 0 ? (
-                                    <TrendingDown className="w-6 h-6" />
-                                ) : (
-                                    <TrendingUp className="w-6 h-6" />
-                                )}
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Tabla de Artículos */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <Tag className="w-5 h-5 text-blue-600" />
-                                Detalle de Artículos Valorizados
-                            </h3>
-                            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                                {remitoData.items.length} productos
-                            </span>
-                        </div>
+                    {isSuperAdmin && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <Tag className="w-5 h-5 text-blue-600" />
+                                    Detalle de Artículos Valorizados
+                                </h3>
+                                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                    {remitoData.items.length} productos
+                                </span>
+                            </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50/50">
-                                    <tr>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Artículo</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descripción</th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Esperado</th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Controlado</th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Dif.</th>
-                                        <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Costo Unit.</th>
-                                        <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Costo Esperado</th>
-                                        <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Costo Controlado</th>
-                                        <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Diferencia ($)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {remitoData.items.map((item, idx) => {
-                                        const hasDiff = item.difference !== 0;
-                                        return (
-                                            <tr 
-                                                key={item.code + idx} 
-                                                className={`hover:bg-gray-50 transition-colors ${
-                                                    item.difference < 0 
-                                                        ? 'bg-red-50/20' 
-                                                        : item.difference > 0 
-                                                            ? 'bg-green-50/20' 
-                                                            : ''
-                                                }`}
-                                            >
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold font-mono text-gray-900">
-                                                    {item.code}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate" title={item.description}>
-                                                    <div>{item.description}</div>
-                                                    <div className="text-[10px] text-gray-400 font-mono mt-0.5">Barras: {item.barcode}</div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-600">
-                                                    {item.expected_quantity}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
-                                                    {item.scanned_quantity}
-                                                </td>
-                                                <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-bold ${
-                                                    item.difference < 0 
-                                                        ? 'text-red-600' 
-                                                        : item.difference > 0 
-                                                            ? 'text-green-600' 
-                                                            : 'text-gray-400'
-                                                }`}>
-                                                    {item.difference > 0 ? `+${item.difference}` : item.difference}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900 font-mono">
-                                                    {formatCurrency(item.cost_price)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 font-mono">
-                                                    {formatCurrency(item.subtotal_esperado)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900 font-mono">
-                                                    {formatCurrency(item.subtotal_controlado)}
-                                                </td>
-                                                <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-bold font-mono ${
-                                                    item.difference_cost < 0 
-                                                        ? 'text-red-600' 
-                                                        : item.difference_cost > 0 
-                                                            ? 'text-green-600' 
-                                                            : 'text-gray-400'
-                                                }`}>
-                                                    {formatCurrency(item.difference_cost)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                                <tfoot className="bg-gray-50 font-bold border-t-2 border-gray-200">
-                                    <tr>
-                                        <td colSpan="2" className="px-6 py-4 text-sm text-gray-900">TOTALES</td>
-                                        <td className="px-6 py-4 text-center text-sm text-gray-600">
-                                            {remitoData.items.reduce((sum, item) => sum + item.expected_quantity, 0)}
-                                        </td>
-                                        <td className="px-6 py-4 text-center text-sm text-gray-900">
-                                            {remitoData.items.reduce((sum, item) => sum + item.scanned_quantity, 0)}
-                                        </td>
-                                        <td className={`px-6 py-4 text-center text-sm ${
-                                            remitoData.items.reduce((sum, item) => sum + item.difference, 0) < 0 
-                                                ? 'text-red-600' 
-                                                : remitoData.items.reduce((sum, item) => sum + item.difference, 0) > 0 
-                                                    ? 'text-green-600' 
-                                                    : 'text-gray-900'
-                                        }`}>
-                                            {remitoData.items.reduce((sum, item) => sum + item.difference, 0)}
-                                        </td>
-                                        <td className="px-6 py-4"></td>
-                                        <td className="px-6 py-4 text-right text-sm text-gray-600 font-mono">
-                                            {formatCurrency(remitoData.totals.total_esperado)}
-                                        </td>
-                                        <td className="px-6 py-4 text-right text-sm text-gray-900 font-mono">
-                                            {formatCurrency(remitoData.totals.total_controlado)}
-                                        </td>
-                                        <td className={`px-6 py-4 text-right text-sm font-extrabold font-mono ${
-                                            remitoData.totals.diferencia_costo < 0 
-                                                ? 'text-red-600' 
-                                                : remitoData.totals.diferencia_costo > 0 
-                                                    ? 'text-green-600' 
-                                                    : 'text-gray-900'
-                                        }`}>
-                                            {formatCurrency(remitoData.totals.diferencia_costo)}
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50/50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Artículo</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descripción</th>
+                                            <th scope="col" className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Esperado</th>
+                                            <th scope="col" className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Controlado</th>
+                                            <th scope="col" className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Dif.</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Costo Unit.</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Costo Esperado</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Costo Controlado</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Diferencia ($)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {remitoData.items.map((item, idx) => {
+                                            const hasDiff = item.difference !== 0;
+                                            return (
+                                                <tr 
+                                                    key={item.code + idx} 
+                                                    className={`hover:bg-gray-50 transition-colors ${
+                                                        item.difference < 0 
+                                                            ? 'bg-red-50/20' 
+                                                            : item.difference > 0 
+                                                                ? 'bg-green-50/20' 
+                                                                : ''
+                                                    }`}
+                                                >
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold font-mono text-gray-900">
+                                                        {item.code}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate" title={item.description}>
+                                                        <div>{item.description}</div>
+                                                        <div className="text-[10px] text-gray-400 font-mono mt-0.5">Barras: {item.barcode}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-600">
+                                                        {item.expected_quantity}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                                                        {item.scanned_quantity}
+                                                    </td>
+                                                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-bold ${
+                                                        item.difference < 0 
+                                                            ? 'text-red-600' 
+                                                            : item.difference > 0 
+                                                                ? 'text-green-600' 
+                                                                : 'text-gray-400'
+                                                    }`}>
+                                                        {item.difference > 0 ? `+${item.difference}` : item.difference}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900 font-mono">
+                                                        {formatCurrency(item.cost_price)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 font-mono">
+                                                        {formatCurrency(item.subtotal_esperado)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900 font-mono">
+                                                        {formatCurrency(item.subtotal_controlado)}
+                                                    </td>
+                                                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-bold font-mono ${
+                                                        item.difference_cost < 0 
+                                                            ? 'text-red-600' 
+                                                            : item.difference_cost > 0 
+                                                                ? 'text-green-600' 
+                                                                : 'text-gray-400'
+                                                    }`}>
+                                                        {formatCurrency(item.difference_cost)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot className="bg-gray-50 font-bold border-t-2 border-gray-200">
+                                        <tr>
+                                            <td colSpan="2" className="px-6 py-4 text-sm text-gray-900">TOTALES</td>
+                                            <td className="px-6 py-4 text-center text-sm text-gray-600">
+                                                {remitoData.items.reduce((sum, item) => sum + item.expected_quantity, 0)}
+                                            </td>
+                                            <td className="px-6 py-4 text-center text-sm text-gray-900">
+                                                {remitoData.items.reduce((sum, item) => sum + item.scanned_quantity, 0)}
+                                            </td>
+                                            <td className={`px-6 py-4 text-center text-sm ${
+                                                remitoData.items.reduce((sum, item) => sum + item.difference, 0) < 0 
+                                                    ? 'text-red-600' 
+                                                    : remitoData.items.reduce((sum, item) => sum + item.difference, 0) > 0 
+                                                        ? 'text-green-600' 
+                                                        : 'text-gray-900'
+                                            }`}>
+                                                {remitoData.items.reduce((sum, item) => sum + item.difference, 0)}
+                                            </td>
+                                            <td className="px-6 py-4"></td>
+                                            <td className="px-6 py-4 text-right text-sm text-gray-600 font-mono">
+                                                {formatCurrency(remitoData.totals.total_esperado)}
+                                            </td>
+                                            <td className="px-6 py-4 text-right text-sm text-gray-900 font-mono">
+                                                {formatCurrency(remitoData.totals.total_controlado)}
+                                            </td>
+                                            <td className={`px-6 py-4 text-right text-sm font-extrabold font-mono ${
+                                                remitoData.totals.diferencia_costo < 0 
+                                                    ? 'text-red-600' 
+                                                    : remitoData.totals.diferencia_costo > 0 
+                                                        ? 'text-green-600' 
+                                                        : 'text-gray-900'
+                                            }`}>
+                                                {formatCurrency(remitoData.totals.diferencia_costo)}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                 </div>
             )}
