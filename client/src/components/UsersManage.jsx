@@ -268,6 +268,11 @@ const UsersManage = () => {
                 { id: 'create_products', name: 'Crear Productos' },
                 { id: 'edit_products', name: 'Editar Productos' }
             ]
+        },
+        {
+            id: 'tab_valorizacion',
+            name: 'Valorización',
+            specialPermissions: []
         }
     ];
 
