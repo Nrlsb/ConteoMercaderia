@@ -4,12 +4,19 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Configure Helmet for secure HTTP headers
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+}));
 
 // Configure CORS
 const allowedOrigins = [
@@ -175,9 +182,15 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ message: `Error al subir archivo: ${err.message}` });
     }
     console.error('[GLOBAL ERROR HANDLER]', err);
+
+    const isDev = process.env.NODE_ENV === 'development';
+    const userMessage = isDev
+        ? (err.message || 'Error interno del servidor')
+        : 'Ocurrió un error inesperado en el servidor';
+
     res.status(500).json({
-        message: err.message || 'Error interno del servidor',
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        message: userMessage,
+        stack: isDev ? err.stack : undefined
     });
 });
 

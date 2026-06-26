@@ -4,6 +4,19 @@ const router = express.Router();
 const supabase = require('../services/supabaseClient');
 const { verifyToken, verifyAdmin, verifySuperAdmin, hasPermission, verifyBranchAccess } = require('../middleware/auth');
 const multer = require('multer');
+const pdfUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024, // Limitar a 10MB por archivo
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Solo se permiten archivos con formato PDF'), false);
+        }
+    }
+});
 const xlsx = require('xlsx');
 const { fetchProductsByCodes, findProductByAnyCode, getCodeVariations } = require('../utils/dbHelpers');
 const { parseRemitoPdf } = require('../pdfParser');
@@ -802,7 +815,14 @@ router.post('/:id/export-to-receipt', verifyToken, verifyBranchAccess('receipts'
 });
 
 // Create Receipt via PDF Upload (Handles Normal and Overstock)
-router.post('/upload', verifyToken, multer({ storage: multer.memoryStorage() }).any(), async (req, res) => {
+router.post('/upload', verifyToken, (req, res, next) => {
+    pdfUpload.any()(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ message: err.message });
+        }
+        next();
+    });
+}, async (req, res) => {
     const files = req.files || [];
     const pdfFiles = files.filter(f => f.fieldname === 'pdf' || f.fieldname === 'file');
     const type = req.body.type || 'normal'; // 'normal' or 'overstock'

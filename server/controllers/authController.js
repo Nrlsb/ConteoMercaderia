@@ -74,60 +74,7 @@ exports.updatePreferences = async (req, res) => {
 };
 
 exports.register = async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
-    }
-
-    try {
-        // Check if user exists
-        const { data: existingUser, error: searchError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('username', username)
-            .single();
-
-        if (existingUser) {
-            return res.status(400).json({ message: 'Username already exists' });
-        }
-
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Generate Session ID
-        const sessionId = crypto.randomUUID();
-
-        // Create user
-        const { data, error } = await supabase
-            .from('users')
-            .insert([
-                {
-                    username,
-                    password: hashedPassword,
-                    current_session_id: sessionId,
-                    is_session_active: true,
-                    role: 'user', // Default role
-                    sucursal_id: req.body.sucursal_id || null
-                }
-            ])
-            .select();
-
-        if (error) throw error;
-
-        // Generate Token
-        const token = jwt.sign(
-            { id: data[0].id, username: data[0].username, role: data[0].role, session_id: sessionId },
-            process.env.JWT_SECRET,
-            { expiresIn: '365d' }
-        );
-
-        res.status(201).json({ token, user: { id: data[0].id, username: data[0].username, role: data[0].role, sucursal_id: data[0].sucursal_id, sucursal_name: null } });
-    } catch (error) {
-        console.error('Error registering user:', error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
+    return res.status(403).json({ message: 'El registro público está deshabilitado. Solicite una cuenta al superadministrador.' });
 };
 
 exports.login = async (req, res) => {
@@ -190,7 +137,7 @@ exports.login = async (req, res) => {
         const token = jwt.sign(
             { id: user.id, username: user.username, role: user.role, session_id: sessionId },
             process.env.JWT_SECRET,
-            { expiresIn: '365d' }
+            { expiresIn: '30d' }
         );
 
         // Get sucursal name and code if exists

@@ -4,10 +4,10 @@ const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
 const { verifyToken } = require('../middleware/auth');
 
-// Rate limiter: max 10 intentos por 15 minutos en login/register
+// Rate limiter: max 50 intentos por 15 minutos en login/register
 const authRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 1000,
+    max: 50,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Demasiados intentos. Intente nuevamente en 15 minutos.' }
