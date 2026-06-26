@@ -36,6 +36,7 @@ const ColorRegistrations = lazy(() => import('./components/ColorRegistrations'))
 const TintometricoHistory = lazy(() => import('./components/TintometricoHistory'));
 const ProductsPage = lazy(() => import('./components/ProductsPage'));
 const ValorizacionPage = lazy(() => import('./components/ValorizacionPage'));
+const StockRegistryPage = lazy(() => import('./components/StockRegistryPage'));
 
 
 const ProtectedRoute = ({ children, role, tabPermission }) => {
@@ -310,6 +311,11 @@ const AppContent = () => {
                 <Route path="/valorizacion" element={
                   <ProtectedRoute tabPermission="tab_valorizacion">
                     <ValorizacionPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/stock-registry" element={
+                  <ProtectedRoute tabPermission="tab_registro_stock">
+                    <StockRegistryPage />
                   </ProtectedRoute>
                 } />
 

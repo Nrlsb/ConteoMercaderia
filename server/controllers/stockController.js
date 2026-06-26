@@ -1,4 +1,5 @@
 const supabase = require('../services/supabaseClient');
+const { takeStockSnapshot } = require('../services/stockSnapshotService');
 
 exports.getProductStock = async (req, res) => {
     const { code } = req.params;
@@ -172,5 +173,87 @@ exports.getStockMatrix = async (req, res) => {
     } catch (error) {
         console.error('Error fetching stock matrix:', error);
         res.status(500).json({ message: 'Error fetching stock matrix' });
+    }
+};
+
+exports.getStockSnapshotComparisons = async (req, res) => {
+    try {
+        const { limit = 20, page = 1 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const { data, count, error } = await supabase
+            .from('stock_comparisons')
+            .select('*', { count: 'exact' })
+            .order('end_time', { ascending: false })
+            .range(offset, offset + Number(limit) - 1);
+
+        if (error) throw error;
+
+        res.json({
+            data,
+            total: count
+        });
+    } catch (error) {
+        console.error('Error fetching stock comparisons:', error);
+        res.status(500).json({ message: 'Error al obtener las comparaciones de stock' });
+    }
+};
+
+exports.getLatestStockSnapshotComparison = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('stock_comparisons')
+            .select('*')
+            .order('end_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        res.json(data || null);
+    } catch (error) {
+        console.error('Error fetching latest stock comparison:', error);
+        res.status(500).json({ message: 'Error al obtener la última comparación de stock' });
+    }
+};
+
+exports.getStockSnapshotRuns = async (req, res) => {
+    try {
+        const { limit = 20, page = 1 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const { data, count, error } = await supabase
+            .from('stock_snapshots_runs')
+            .select('*', { count: 'exact' })
+            .order('snapshot_time', { ascending: false })
+            .range(offset, offset + Number(limit) - 1);
+
+        if (error) throw error;
+
+        res.json({
+            data,
+            total: count
+        });
+    } catch (error) {
+        console.error('Error fetching stock runs:', error);
+        res.status(500).json({ message: 'Error al obtener las corridas de stock' });
+    }
+};
+
+exports.triggerStockSnapshot = async (req, res) => {
+    try {
+        const result = await takeStockSnapshot('manual');
+        res.json({
+            success: true,
+            message: 'Sincronización y comparación de stock completada con éxito.',
+            data: result
+        });
+    } catch (error) {
+        console.error('Error triggering stock snapshot:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error al ejecutar la sincronización y comparación manual de stock', 
+            details: error.message 
+        });
     }
 };

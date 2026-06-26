@@ -82,12 +82,13 @@ const Navigation = () => {
     const showHistorialTintometrico = showTintometrico;
     const showProductos = canSeeTab('tab_productos', isAdminLike);
     const showValorizacion = canSeeTab('tab_valorizacion', isAdminLike);
+    const showStockRegistry = canSeeTab('tab_registro_stock', isAdminLike);
 
     const hasMovimientos = showIngresos || showEgresos || showIngresoSucursal || showValorizacion;
     const hasTintometria = showTintometrico || showRegistroColores || showHistorialTintometrico;
     const isMovimientosActive = isActive('/receipts') || isActive('/egresos') || isActive('/branch-incomings') || isActive('/valorizacion');
     const isTintometriaActive = isActive('/tintometrico') || isActive('/color-registrations') || isActive('/tintometrico-history');
-    const isHerramientasActive = isActive('/barcode-control') || isActive('/etiquetas') || isActive('/pesaje') || isActive('/settings') || isActive('/ayuda');
+    const isHerramientasActive = isActive('/barcode-control') || isActive('/etiquetas') || isActive('/pesaje') || isActive('/settings') || isActive('/ayuda') || isActive('/stock-registry');
 
     const getDropdownTriggerClass = (activeState) => {
         const baseClass = "flex items-center gap-0.5 2xl:gap-1 px-1.5 2xl:px-2.5 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition-all duration-300 ease-in-out border border-transparent cursor-pointer whitespace-nowrap";
@@ -202,6 +203,9 @@ const Navigation = () => {
                                     {showConfiguracion && (
                                         <Link to="/settings" className={getDropdownLinkClass('/settings')}>Configuración</Link>
                                     )}
+                                    {showStockRegistry && (
+                                        <Link to="/stock-registry" className={getDropdownLinkClass('/stock-registry')}>Registro de Stock</Link>
+                                    )}
                                     <Link to="/ayuda" className={getDropdownLinkClass('/ayuda')}>Ayuda</Link>
                                 </div>
                             </div>
@@ -308,6 +312,9 @@ const Navigation = () => {
                         )}
                         {showProductos && (
                             <Link to="/products" className={getMobileLinkClass('/products')} onClick={() => setIsOpen(false)}>Productos</Link>
+                        )}
+                        {showStockRegistry && (
+                            <Link to="/stock-registry" className={getMobileLinkClass('/stock-registry')} onClick={() => setIsOpen(false)}>Registro de Stock</Link>
                         )}
                         <Link to="/ayuda" className={getMobileLinkClass('/ayuda')} onClick={() => setIsOpen(false)}>Ayuda</Link>
 

@@ -18,4 +18,10 @@ router.post('/stock/import', verifyToken, hasPermission('import_data'), multer({
 router.get('/products/:code/stock', verifyToken, stockController.getProductStock);
 router.put('/products/:code/stock', verifyToken, stockController.updateProductStock);
 
+// Stock Snapshot & Comparison Routes
+router.get('/stock/snapshots/comparisons', verifyToken, stockController.getStockSnapshotComparisons);
+router.get('/stock/snapshots/comparisons/latest', verifyToken, stockController.getLatestStockSnapshotComparison);
+router.get('/stock/snapshots/runs', verifyToken, stockController.getStockSnapshotRuns);
+router.post('/stock/snapshots/trigger', verifyToken, stockController.triggerStockSnapshot);
+
 module.exports = router;

@@ -2,6 +2,7 @@ const supabase = require('./supabaseClient');
 const firebase = require('./firebase');
 const { startCatalogSync } = require('./protheusSyncService');
 const { actualizarCotizacionesBD } = require('./dolarService');
+const { takeStockSnapshot } = require('./stockSnapshotService');
 
 /**
  * Tarea programada para borrar el historial de etiquetas todos los días a las 23:00 hs (Buenos Aires).
@@ -512,10 +513,52 @@ async function checkPaymentExpirations() {
     }
 }
 
+/**
+ * Tarea programada para registrar y comparar el stock.
+ * Se ejecuta dos veces al día: a las 19:00 hs y a las 05:30 hs (Buenos Aires).
+ * Revisa cada minuto.
+ */
+function startStockSnapshotTask() {
+    console.log('[CRON] Iniciando monitor de registro y comparación de stock (Programado: 19:00 y 05:30 BA)...');
+    let lastRunKey = null;
+
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            const baFormatter = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                hour12: false
+            });
+            
+            const parts = baFormatter.formatToParts(now);
+            const hour = parseInt(parts.find(p => p.type === 'hour').value);
+            const minute = parseInt(parts.find(p => p.type === 'minute').value);
+            const day = parts.find(p => p.type === 'day').value;
+
+            // Horarios de ejecución: 19:00 y 05:30
+            const isTargetTime = (hour === 19 && minute === 0) || (hour === 5 && minute === 30);
+            const runKey = `${day}_${hour}_${minute}`;
+
+            if (isTargetTime && lastRunKey !== runKey) {
+                const scheduleType = (hour === 19) ? '19:00' : '05:30';
+                console.log(`[CRON] ${now.toISOString()} - Iniciando captura automática programada de stock (${scheduleType})...`);
+                await takeStockSnapshot(scheduleType);
+                lastRunKey = runKey;
+            }
+        } catch (err) {
+            console.error('[CRON ERROR] Falló la captura programada de stock:', err.message);
+        }
+    }, 60000); // Verificar cada 60 segundos
+}
+
 module.exports = {
     startLabelHistoryCleanupTask,
     startProviderContactNotificationTask,
     startProtheusSyncTask,
     startDolarScrapingTask,
-    startPaymentExpirationMonitorTask
+    startPaymentExpirationMonitorTask,
+    startStockSnapshotTask
 };
