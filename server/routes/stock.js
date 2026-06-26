@@ -19,9 +19,9 @@ router.get('/products/:code/stock', verifyToken, stockController.getProductStock
 router.put('/products/:code/stock', verifyToken, stockController.updateProductStock);
 
 // Stock Snapshot & Comparison Routes
-router.get('/stock/snapshots/comparisons', verifyToken, stockController.getStockSnapshotComparisons);
-router.get('/stock/snapshots/comparisons/latest', verifyToken, stockController.getLatestStockSnapshotComparison);
-router.get('/stock/snapshots/runs', verifyToken, stockController.getStockSnapshotRuns);
-router.post('/stock/snapshots/trigger', verifyToken, stockController.triggerStockSnapshot);
+router.get('/stock/snapshots/comparisons', verifyToken, hasPermission('tab_registro_stock'), stockController.getStockSnapshotComparisons);
+router.get('/stock/snapshots/comparisons/latest', verifyToken, hasPermission('tab_registro_stock'), stockController.getLatestStockSnapshotComparison);
+router.get('/stock/snapshots/runs', verifyToken, hasPermission('tab_registro_stock'), stockController.getStockSnapshotRuns);
+router.post('/stock/snapshots/trigger', verifyToken, hasPermission('tab_registro_stock'), stockController.triggerStockSnapshot);
 
 module.exports = router;

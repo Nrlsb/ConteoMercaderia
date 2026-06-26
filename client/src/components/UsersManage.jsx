@@ -273,6 +273,11 @@ const UsersManage = () => {
             id: 'tab_valorizacion',
             name: 'Valorización',
             specialPermissions: []
+        },
+        {
+            id: 'tab_registro_stock',
+            name: 'Registro Stock',
+            specialPermissions: []
         }
     ];
 
@@ -295,7 +300,7 @@ const UsersManage = () => {
         },
         'gestor_stock': {
             name: 'Gestor Stock',
-            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data', 'tab_etiquetas', 'tab_productos', 'create_products']
+            permissions: ['tab_control_codigos', 'edit_products', 'tab_importar', 'import_data', 'tab_etiquetas', 'tab_productos', 'create_products', 'tab_registro_stock']
         }
     };
 
