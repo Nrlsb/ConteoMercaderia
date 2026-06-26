@@ -13,7 +13,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import UpdateNotifier from './components/UpdateNotifier';
 
-// Lazy Load Components
+// Lazy  Load Components
 const RemitoForm = lazy(() => import('./components/RemitoForm'));
 const RemitoList = lazy(() => import('./components/RemitoList'));
 const RemitoDetailsPage = lazy(() => import('./components/RemitoDetailsPage'));
@@ -62,7 +62,7 @@ const ProtectedRoute = ({ children, role, tabPermission }) => {
     const userPermissions = user?.permissions || [];
     const hasTabPermissions = userPermissions.some(p => p.startsWith('tab_'));
     const requiredPermissions = Array.isArray(tabPermission) ? tabPermission : [tabPermission];
-    
+
     if (hasTabPermissions && !requiredPermissions.some(p => userPermissions.includes(p))) {
       return <Navigate to="/" replace />;
     }
@@ -160,8 +160,8 @@ const AppContent = () => {
               BarcodeScanner.installGoogleBarcodeScannerModule();
             }
           })
-          .catch(() => {});
-      }).catch(() => {});
+          .catch(() => { });
+      }).catch(() => { });
     }
   }, []);
 
