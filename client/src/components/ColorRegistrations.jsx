@@ -233,6 +233,16 @@ const ColorRegistrations = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Preselect current user if their role is branch_admin (admin sucursal)
+    useEffect(() => {
+        if (user?.role === 'branch_admin' && usersList.length > 0 && !userId) {
+            const foundUser = usersList.find(u => u.username === user.username || u.id === user.id);
+            if (foundUser) {
+                setUserId(foundUser.id);
+            }
+        }
+    }, [user, usersList, userId]);
+
     // Debounce/Timeout search for products
     useEffect(() => {
         if (!productSearch || productSearch.length < 2) {
@@ -1145,11 +1155,14 @@ const ColorRegistrations = () => {
                                     className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-bold text-gray-700 cursor-pointer appearance-none"
                                 >
                                     <option value="">-- Seleccionar Usuario --</option>
-                                    {usersList.map((user) => (
-                                        <option key={user.id} value={user.id}>
-                                            {user.username} ({user.role}) {user.sucursal_name ? `- ${user.sucursal_name}` : ''}
-                                        </option>
-                                    ))}
+                                    {usersList.map((appUser) => {
+                                        const showRole = ['superadmin', 'admin', 'branch_admin'].includes(user?.role);
+                                        return (
+                                            <option key={appUser.id} value={appUser.id}>
+                                                {appUser.username}{showRole ? ` (${appUser.role})` : ''} {appUser.sucursal_name ? `- ${appUser.sucursal_name}` : ''}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                                 <BookOpen className="absolute left-3 top-3.5 w-4.5 h-4.5 text-gray-400 pointer-events-none" />
                                 <ChevronDown className="absolute right-3 top-3.5 w-4.5 h-4.5 text-gray-400 pointer-events-none" />
