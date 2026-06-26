@@ -1152,11 +1152,16 @@ const ColorRegistrations = () => {
                                 <select
                                     value={userId}
                                     onChange={(e) => setUserId(e.target.value)}
-                                    className="w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 focus:bg-white transition-all font-bold text-gray-700 cursor-pointer appearance-none"
+                                    disabled={user?.role === 'branch_admin'}
+                                    className={`w-full text-xs p-3 pl-9 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-gray-700 appearance-none ${
+                                        user?.role === 'branch_admin'
+                                            ? 'bg-slate-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-slate-50 focus:bg-white cursor-pointer'
+                                    }`}
                                 >
                                     <option value="">-- Seleccionar Usuario --</option>
                                     {usersList.map((appUser) => {
-                                        const showRole = ['superadmin', 'admin', 'branch_admin'].includes(user?.role);
+                                        const showRole = ['superadmin', 'admin'].includes(user?.role);
                                         return (
                                             <option key={appUser.id} value={appUser.id}>
                                                 {appUser.username}{showRole ? ` (${appUser.role})` : ''} {appUser.sucursal_name ? `- ${appUser.sucursal_name}` : ''}
