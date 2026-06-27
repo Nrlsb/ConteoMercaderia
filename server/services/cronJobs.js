@@ -26,11 +26,10 @@ function startLabelHistoryCleanupTask() {
             
             const parts = baFormatter.formatToParts(now);
             const hour = parseInt(parts.find(p => p.type === 'hour').value);
-            const minute = parseInt(parts.find(p => p.type === 'minute').value);
             const day = parts.find(p => p.type === 'day').value;
 
-            // Ejecutar a las 23:00 si no se ha ejecutado ya en este día de Buenos Aires
-            if (hour === 23 && minute === 0 && lastRunDate !== day) {
+            // Ejecutar a las 23:00 (o poco después) si no se ha ejecutado ya en este día de Buenos Aires
+            if (hour === 23 && lastRunDate !== day) {
                 console.log(`[CRON] ${now.toISOString()} - Ejecutando borrado automático de historial de etiquetas...`);
                 
                 const { error } = await supabase
@@ -73,11 +72,10 @@ function startProviderContactNotificationTask() {
             
             const parts = baFormatter.formatToParts(now);
             const hour = parseInt(parts.find(p => p.type === 'hour').value);
-            const minute = parseInt(parts.find(p => p.type === 'minute').value);
             const day = parts.find(p => p.type === 'day').value;
 
-            // Ejecutar a las 09:00 si no se ha ejecutado ya en este día de Buenos Aires
-            if (hour === 9 && minute === 0 && lastNotifDate !== day) {
+            // Ejecutar a las 09:00 (o poco después) si no se ha ejecutado ya hoy
+            if (hour === 9 && lastNotifDate !== day) {
                 console.log(`[CRON] ${now.toISOString()} - Ejecutando chequeo de contacto con proveedores...`);
                 await checkAndSendProviderContactNotifications();
                 lastNotifDate = day;
@@ -254,11 +252,10 @@ function startProtheusSyncTask() {
             
             const parts = baFormatter.formatToParts(now);
             const hour = parseInt(parts.find(p => p.type === 'hour').value);
-            const minute = parseInt(parts.find(p => p.type === 'minute').value);
             const day = parts.find(p => p.type === 'day').value;
 
-            // Ejecutar a las 02:00 AM si no se ha ejecutado ya hoy
-            if (hour === 2 && minute === 0 && lastRunDate !== day) {
+            // Ejecutar a las 02:00 AM (o poco después) si no se ha ejecutado ya hoy
+            if (hour === 2 && lastRunDate !== day) {
                 console.log(`[CRON] ${now.toISOString()} - Iniciando sincronización programada diaria del catálogo de Protheus...`);
                 await startCatalogSync();
                 lastRunDate = day;
@@ -294,8 +291,8 @@ function startDolarScrapingTask() {
             const minute = parseInt(parts.find(p => p.type === 'minute').value);
             const day = parts.find(p => p.type === 'day').value;
 
-            // Horarios de ejecución: 08:00 AM y 12:30 PM
-            const isTargetTime = (hour === 8 && minute === 0) || (hour === 12 && minute === 30);
+            // Horarios de ejecución: 08:00 AM y a partir de las 12:30 PM
+            const isTargetTime = (hour === 8) || (hour === 12 && minute >= 30);
             const runKey = `${day}_${hour}`;
 
             if (isTargetTime && lastRunKey !== runKey) {
@@ -333,8 +330,8 @@ function startPaymentExpirationMonitorTask() {
             const minute = parseInt(parts.find(p => p.type === 'minute').value);
             const day = parts.find(p => p.type === 'day').value;
 
-            // Ejecutar a las 09:30 AM si no se ha ejecutado ya hoy
-            if (hour === 9 && minute === 30 && lastRunDate !== day) {
+            // Ejecutar a partir de las 09:30 AM si no se ha ejecutado ya hoy
+            if (hour === 9 && minute >= 30 && lastRunDate !== day) {
                 console.log(`[CRON] ${now.toISOString()} - Ejecutando chequeo de vencimiento de pagos...`);
                 await checkPaymentExpirations();
                 lastRunDate = day;
@@ -538,15 +535,20 @@ function startStockSnapshotTask() {
             const minute = parseInt(parts.find(p => p.type === 'minute').value);
             const day = parts.find(p => p.type === 'day').value;
 
-            // Horarios de ejecución: 19:00 y 05:30
-            const isTargetTime = (hour === 19 && minute === 0) || (hour === 5 && minute === 30);
-            const runKey = `${day}_${hour}_${minute}`;
+            // Horarios de ejecución flexibles: 19:00 a 19:59 y 05:30 a 05:59
+            const isTarget19 = (hour === 19);
+            const isTarget05 = (hour === 5 && minute >= 30);
 
-            if (isTargetTime && lastRunKey !== runKey) {
-                const scheduleType = (hour === 19) ? '19:00' : '05:30';
-                console.log(`[CRON] ${now.toISOString()} - Iniciando captura automática programada de stock (${scheduleType})...`);
-                await takeStockSnapshot(scheduleType);
-                lastRunKey = runKey;
+            if (isTarget19 || isTarget05) {
+                const scheduleType = isTarget19 ? '19:00' : '05:30';
+                const runKey = `${day}_${scheduleType}`;
+
+                if (lastRunKey !== runKey) {
+                    console.log(`[CRON] ${now.toISOString()} - Iniciando captura automática programada de stock (${scheduleType})...`);
+                    await takeStockSnapshot(scheduleType);
+                    // Solo registramos el éxito si la función asíncrona takeStockSnapshot finaliza sin errores
+                    lastRunKey = runKey;
+                }
             }
         } catch (err) {
             console.error('[CRON ERROR] Falló la captura programada de stock:', err.message);
